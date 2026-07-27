@@ -1,16 +1,22 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect, useRouter } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import { useEffect, useRef } from 'react';
 import { Share, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { captureRef } from 'react-native-view-shot';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PopOnChange } from '@/components/motion';
 import { Confetti } from '@/components/session/Confetti';
+import { ResultShareCard } from '@/components/session/ResultShareCard';
 import { PressableScale } from '@/components/ui';
 import { getOpponent } from '@/domain/opponent';
+import { track } from '@/lib/analytics';
+import { captureError } from '@/lib/crash';
 import { playLoseSound, playWinSound } from '@/lib/feedback';
 import { useProfileStore } from '@/state/profileStore';
+import { selectStreak } from '@/state/profileStore';
 import { useAuthStore } from '@/state/authStore';
 import { useSessionStore } from '@/state/sessionStore';
 import { getExercise } from '@/vision/exercises';
@@ -22,6 +28,11 @@ export default function ResultScreen() {
   const insets = useSafeAreaInsets();
   const session = useSessionStore();
   const recordSession = useProfileStore((s) => s.recordSession);
+  const displayName = useProfileStore((s) => s.displayName);
+  const streak = useProfileStore(selectStreak);
+
+  // The off-screen card captured to a PNG when the athlete shares.
+  const shareCardRef = useRef<View>(null);
 
   // Persist exactly once — this screen re-renders on every store change, and a
   // second write would double-count XP and reps.
@@ -116,13 +127,25 @@ export default function ResultScreen() {
     router.replace('/(tabs)');
   };
 
+  /** Text fallback when image capture or the share service is unavailable. */
+  const shareText = () =>
+    void Share.share({
+      message: `💪 I just did ${session.reps} ${definition.label} on RepChamp — think you can beat me? repchamp.web.app`,
+    });
+
   const shareResult = async () => {
+    track('share_opened', { kind: 'result-card' });
     try {
-      await Share.share({
-        message: `💪 Logged ${session.reps} ${definition.label} today! One step completed & building consistency on RepChamp. Small wins add up. 🔥 #RepChamp`,
-      });
-    } catch {
-      // Swallowed
+      const canShareFiles = await Sharing.isAvailableAsync();
+      const uri = await captureRef(shareCardRef, { format: 'png', quality: 1 });
+      if (canShareFiles) {
+        await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: 'Share your result' });
+      } else {
+        shareText();
+      }
+    } catch (error) {
+      captureError(error);
+      shareText();
     }
   };
 
@@ -134,6 +157,16 @@ export default function ResultScreen() {
       style={styles.root}
     >
       {session.won ? <Confetti /> : null}
+
+      {/* Off-screen shareable card — captured to PNG on share, never seen inline. */}
+      <View style={styles.offscreen} pointerEvents="none">
+        <ResultShareCard
+          name={displayName}
+          reps={session.reps}
+          exerciseLabel={definition.label}
+          streak={streak}
+        />
+      </View>
 
       <Animated.View entering={FadeInDown.duration(480)} style={styles.content}>
         <Text style={styles.emoji}>{emoji}</Text>
@@ -244,6 +277,8 @@ function ScoreColumn({
 
 const styles = StyleSheet.create({
   root: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
+  // Rendered for capture only — parked far off-screen so it never shows.
+  offscreen: { position: 'absolute', left: -9999, top: 0 },
   content: { alignItems: 'center' },
   emoji: { fontSize: 88, lineHeight: 96 },
   title: {

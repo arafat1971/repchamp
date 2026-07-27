@@ -15,11 +15,9 @@ import { DuelHud } from '@/components/session/DuelHud';
 import { TogetherHud } from '@/components/session/TogetherHud';
 import { PressableScale } from '@/components/ui';
 import { OpponentPacer, getOpponent } from '@/domain/opponent';
-import { isWalled } from '@/domain/paywallGate';
-import { isExerciseFree } from '@/domain/pro';
+import { shouldPromptUpgrade } from '@/domain/paywallGate';
 import type { SessionMode } from '@/domain/progression';
 import { isPurchasesConfigured } from '@/services/purchases';
-import { useProfileStore } from '@/state/profileStore';
 import { useProStore } from '@/state/proStore';
 import {
   lockHaptic,
@@ -103,7 +101,6 @@ export default function SessionScreen() {
    */
   const isPro = useProStore((s) => s.isPro);
   const proReady = useProStore((s) => s.ready);
-  const sessions = useProfileStore((s) => s.sessions);
 
   const phase = useSessionStore((s) => s.phase);
   const reps = useSessionStore((s) => s.reps);
@@ -428,53 +425,19 @@ export default function SessionScreen() {
   const accent =
     exercise === 'squat' || exercise === 'stretch' ? palette.purple500 : palette.green500;
 
-  // Hard rep wall: a non-Pro athlete gets FREE_REP_LIMIT free push-ups, lifetime,
-  // then this screen sends them to the non-dismissible paywall. `repsSoFar` is the
-  // reps already banked in history (free exercises only) plus the live reps of the
-  // current session, so the wall lands mid-workout the instant the limit is crossed.
-  //  - Couple/together mode is never walled (the viral loop).
-  //  - We wait for the entitlement read (`proReady`) so we never flash a real Pro.
-  //  - The wall only engages when billing is configured — a user who literally
-  //    cannot subscribe is never locked out of their own app.
-  const bankedFreeReps = sessions
-    .filter((s) => isExerciseFree(s.exercise))
-    .reduce((sum, s) => sum + s.reps, 0);
-  const walled =
+  // Freemium gate: the core (push/squat, any mode, couple) is free forever — that
+  // builds the habit and powers the invite loop. Only a free user reaching for a
+  // Pro-only exercise gets the trial paywall (soft, dismissible), and only once
+  // billing is set up and the entitlement read has resolved (never flash a Pro).
+  const needsUpgrade =
     proReady &&
     isPurchasesConfigured() &&
-    isWalled({
-      isPro,
-      repsSoFar: bankedFreeReps + (mode === 'together' ? 0 : reps),
-      isCoupleMode: mode === 'together',
-    });
+    shouldPromptUpgrade({ isPro, exercise, isCoupleMode: mode === 'together' });
 
-  // When the wall trips mid-workout, bank the reps done so far before leaving —
-  // otherwise the count resets and the athlete could loop the free allowance
-  // forever. Recorded once, only for a real live session (reps > 0), so the wall
-  // is durable across retries.
-  const bankedOnWallRef = useRef(false);
-  useEffect(() => {
-    if (walled && reps > 0 && !bankedOnWallRef.current) {
-      bankedOnWallRef.current = true;
-      useProfileStore.getState().recordSession({
-        exercise,
-        mode,
-        reps,
-        opponentReps: null,
-        opponentId: null,
-        target,
-        won: false,
-        xp: 0,
-        formScore: 0,
-        durationSec: 0,
-      });
-    }
-  }, [walled, reps, exercise, mode, target]);
-
-  if (walled) {
+  if (needsUpgrade) {
     return (
       <Redirect
-        href={{ pathname: '/modal/paywall', params: { source: 'rep-limit', hard: '1' } }}
+        href={{ pathname: '/modal/paywall', params: { source: `exercise-${exercise}` } }}
       />
     );
   }

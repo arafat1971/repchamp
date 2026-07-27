@@ -1,62 +1,49 @@
 /**
- * Paywall gate — the single decision for "can this athlete keep training free?"
+ * Paywall gate — freemium: free to build the habit, Pro sells depth.
  *
- * RepChamp uses a **hard rep wall**: a non-Pro athlete gets a tiny free taste —
- * `FREE_REP_LIMIT` push-ups, lifetime — and is then hard-walled until they
- * subscribe. The wall applies both *before* a session (can't start once the
- * allowance is spent) and *during* one (the session is cut off the instant the
- * running total crosses the limit).
+ * The old model hard-walled everyone after a few free reps. That's anti-habit
+ * and anti-viral: a user who can't build a routine never becomes a subscriber,
+ * and never invites a partner. The apps that actually earn (Strava, Ladder,
+ * Peloton) let you *use* the core free, then convert you on depth and a trial.
  *
- * Two rules stay sacred so growth survives:
- *  - **Couple mode is never walled.** Pairing/inviting a partner and together
- *    sets are the viral loop; someone was invited to reach them.
- *  - **The wall only engages when billing is actually configured** (enforced at
- *    the call site) — a user who literally cannot subscribe is never locked out.
+ * So the rule now:
+ *  - **Core training is free, forever.** Push-ups and squats, solo or versus,
+ *    couple mode — all free. This is what builds the daily habit and powers the
+ *    couple/duel invite loop (the growth engine).
+ *  - **Pro sells depth**, gated at the point of desire (not a wall on entry):
+ *    the full exercise library, multi-week programmes, saved history and
+ *    advanced stats. The paywall is a trial pitch shown when a free user reaches
+ *    for one of these — never before they've felt a single rep counted.
  *
- * Kept pure and unit-tested so the gate reads the same everywhere.
+ * This file stays pure and unit-tested so the gate reads the same everywhere.
+ * `isPro` is the RevenueCat truth from `proStore`, never a cached local flag.
  */
 
-/** Free push-ups a non-Pro athlete may do, lifetime, before the hard wall. */
-export const FREE_REP_LIMIT = 5;
-
-export interface PaywallGateInput {
-  /** RevenueCat entitlement truth. Pro is never walled. */
-  isPro: boolean;
-  /**
-   * Lifetime free-exercise reps already banked (from history) plus any reps in
-   * the current live session. This is what the free allowance counts against.
-   */
-  repsSoFar: number;
-  /**
-   * Whether this is couple mode (a together set). Always allowed — the viral loop.
-   */
-  isCoupleMode?: boolean;
-}
-
-export type PaywallDecision =
-  | { allowed: true }
-  | { allowed: false; reason: 'rep-limit' };
+import { isExerciseFree } from '@/domain/pro';
+import type { ExerciseId } from '@/vision/exercises';
 
 /**
- * Decide whether an athlete may keep training right now.
+ * Can this athlete START this workout right now, free?
  *
- * Allowed when: Pro, OR couple mode, OR still under the free rep allowance.
- * Otherwise the hard wall applies.
+ * Yes for any free exercise (push/squat) in any mode, and yes for couple mode
+ * regardless. A Pro-only exercise is the one thing that prompts the paywall — and
+ * even then only for a non-Pro user. Nothing here ever hard-walls the core app.
  */
-export function evaluatePaywallGate(input: PaywallGateInput): PaywallDecision {
-  if (input.isPro) return { allowed: true };
-  if (input.isCoupleMode) return { allowed: true };
-  if (input.repsSoFar < FREE_REP_LIMIT) return { allowed: true };
-  return { allowed: false, reason: 'rep-limit' };
+export function canStartWorkout(input: {
+  isPro: boolean;
+  exercise: ExerciseId;
+  isCoupleMode?: boolean;
+}): boolean {
+  if (input.isPro) return true;
+  if (input.isCoupleMode) return true;
+  return isExerciseFree(input.exercise);
 }
 
-/** `true` when the wall is up — the athlete must subscribe to continue. */
-export function isWalled(input: PaywallGateInput): boolean {
-  return !evaluatePaywallGate(input).allowed;
-}
-
-/** Reps still remaining before the wall (0 once spent). Pro/couple are unbounded. */
-export function repsRemaining(input: PaywallGateInput): number {
-  if (input.isPro || input.isCoupleMode) return Number.POSITIVE_INFINITY;
-  return Math.max(0, FREE_REP_LIMIT - input.repsSoFar);
+/** Whether starting this workout should instead surface the Pro trial pitch. */
+export function shouldPromptUpgrade(input: {
+  isPro: boolean;
+  exercise: ExerciseId;
+  isCoupleMode?: boolean;
+}): boolean {
+  return !canStartWorkout(input);
 }

@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, BackHandler, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import type { PurchasesPackage } from 'react-native-purchases';
 
 import { track } from '@/lib/analytics';
@@ -35,23 +35,11 @@ const BENEFITS = [
  */
 export default function PaywallScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ source?: string; hard?: string }>();
+  const params = useLocalSearchParams<{ source?: string }>();
   const setPro = useProStore((s) => s.setPro);
 
-  // Hard mode: the wall after the first free session. It can't be dismissed —
-  // no back chevron, and the Android hardware back is swallowed — so the only
-  // ways forward are to subscribe or restore a purchase.
-  const hard = params.hard === '1';
-  const navigation = useNavigation();
-  useEffect(() => {
-    if (!hard) return;
-    // Kill the swipe-down-to-dismiss on the card presentation, and swallow the
-    // Android hardware back — the wall stands until the user subscribes.
-    navigation.setOptions({ gestureEnabled: false });
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => true);
-    return () => sub.remove();
-  }, [hard, navigation]);
-
+  // Freemium: the paywall is always dismissible — it's an invitation to upgrade
+  // (shown when a free user reaches for Pro depth), never a wall that traps them.
   const [packages, setPackages] = useState<PurchasesPackage[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -116,11 +104,7 @@ export default function PaywallScreen() {
 
   return (
     <Screen>
-      <ModalHeader
-        title="RepChamp Pro"
-        subtitle={hard ? 'Free reps used up — unlock to keep training' : undefined}
-        hideBack={hard}
-      />
+      <ModalHeader title="RepChamp Pro" subtitle="Unlock the full library and programmes" />
 
       <LinearGradient colors={gradients.brandDeep} style={[styles.hero, shadow.brand]}>
         <Text style={{ fontSize: 48 }}>✨</Text>
@@ -163,8 +147,9 @@ export default function PaywallScreen() {
               selected={pkg.identifier === selectedId}
               onPress={() => setSelectedId(pkg.identifier)}
               title={planTitle(pkg)}
-              subtitle={pkg.product.description || 'RepChamp Pro'}
+              subtitle={perWeekHint(pkg) ?? (pkg.product.description || 'RepChamp Pro')}
               price={pkg.product.priceString}
+              badge={pkg.packageType === 'ANNUAL' ? savingsBadge(pkg, packages) : null}
             />
           ))
         )}
@@ -225,19 +210,22 @@ function PlanRow({
   title,
   subtitle,
   price,
+  badge,
 }: {
   selected: boolean;
   onPress: () => void;
   title: string;
   subtitle: string;
   price: string;
+  /** e.g. "BEST VALUE · SAVE 62%" on the anchor plan. */
+  badge?: string | null;
 }) {
   return (
     <PressableScale
       onPress={onPress}
       accessibilityRole="radio"
       accessibilityState={{ selected }}
-      accessibilityLabel={`${title}, ${price}`}
+      accessibilityLabel={`${title}, ${price}${badge ? `, ${badge}` : ''}`}
       style={[styles.plan, { borderColor: selected ? palette.green500 : palette.border }]}
     >
       <View
@@ -249,12 +237,43 @@ function PlanRow({
         {selected ? <Text style={{ color: palette.white, fontSize: 13 }}>✓</Text> : null}
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={font('extrabold', 16, { color: palette.ink })}>{title}</Text>
+        <View style={styles.planTitleRow}>
+          <Text style={font('extrabold', 16, { color: palette.ink })}>{title}</Text>
+          {badge ? (
+            <View style={styles.planBadge}>
+              <Text style={font('extrabold', 9, { color: palette.green700 })}>{badge}</Text>
+            </View>
+          ) : null}
+        </View>
         <Text style={text.caption}>{subtitle}</Text>
       </View>
       <Text style={font('extrabold', 16, { color: palette.ink })}>{price}</Text>
     </PressableScale>
   );
+}
+
+/** Effective per-week price hint, e.g. "$0.96 / week" — makes annual look cheap. */
+function perWeekHint(pkg: PurchasesPackage): string | null {
+  const price = pkg.product.price; // numeric, in the store's currency
+  const weeks: Record<string, number> = { ANNUAL: 52, MONTHLY: 4.345, WEEKLY: 1 };
+  const w = weeks[pkg.packageType];
+  if (!price || !w) return null;
+  const perWeek = price / w;
+  const symbol = pkg.product.priceString.replace(/[\d.,\s]/g, '') || '';
+  return `${symbol}${perWeek.toFixed(2)} / week`;
+}
+
+/** "BEST VALUE · SAVE N%" for the annual plan vs the priciest per-week option. */
+function savingsBadge(annual: PurchasesPackage, all: PurchasesPackage[]): string {
+  const annualPerWeek = (annual.product.price || 0) / 52;
+  const refs = all
+    .filter((p) => p.packageType === 'WEEKLY' || p.packageType === 'MONTHLY')
+    .map((p) => (p.product.price || 0) / (p.packageType === 'WEEKLY' ? 1 : 4.345))
+    .filter((n) => n > 0);
+  const ref = Math.max(0, ...refs);
+  if (!ref || !annualPerWeek || annualPerWeek >= ref) return 'BEST VALUE';
+  const pct = Math.round((1 - annualPerWeek / ref) * 100);
+  return `BEST VALUE · SAVE ${pct}%`;
 }
 
 const styles = StyleSheet.create({
@@ -272,6 +291,15 @@ const styles = StyleSheet.create({
     backgroundColor: palette.green50,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  planTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  planBadge: {
+    backgroundColor: palette.green50,
+    borderWidth: 1,
+    borderColor: '#bfeccb',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
   },
   plan: {
     flexDirection: 'row',

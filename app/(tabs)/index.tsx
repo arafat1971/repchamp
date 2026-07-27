@@ -18,6 +18,7 @@ import {
   selectDaysTrainedThisWeek,
   selectLeague,
   selectLevel,
+  selectStreak,
 } from '@/state/profileStore';
 import { useCouple } from '@/state/useCouple';
 import { useIncomingDuelCount } from '@/state/useIncomingDuelCount';
@@ -54,6 +55,7 @@ export default function HomeScreen() {
 
   const level = selectLevel(profile);
   const league = selectLeague(profile);
+  const streak = selectStreak(profile);
   const daysTrained = selectDaysTrainedThisWeek(profile);
   const goal = profile.weeklyGoal;
   const initial = (profile.username || 'C').charAt(0).toUpperCase();
@@ -162,6 +164,12 @@ export default function HomeScreen() {
               <View style={styles.lvlChip}>
                 <Text style={font('extrabold', 11, { color: palette.green600 })}>Lv.{level.level}</Text>
               </View>
+              {streak > 0 ? (
+                <PopOnChange trigger={streak} style={styles.streakChip}>
+                  <Text style={{ fontSize: 12 }}>🔥</Text>
+                  <Text style={font('extrabold', 11, { color: palette.amber800 })}>{streak}</Text>
+                </PopOnChange>
+              ) : null}
             </View>
           </View>
         </PressableScale>
@@ -690,6 +698,17 @@ const styles = StyleSheet.create({
     borderColor: '#bfeccb',
     borderRadius: 8,
     paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  streakChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: palette.amber50,
+    borderWidth: 1,
+    borderColor: '#fcd34d',
+    borderRadius: 8,
+    paddingHorizontal: 7,
     paddingVertical: 2,
   },
   livePill: {

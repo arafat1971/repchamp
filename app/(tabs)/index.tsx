@@ -515,55 +515,52 @@ function CoupleHero({
             : 'Open couple mode'
       }
     >
-      {/* Full-bleed couple photo on a rich green gradient card: the transparent
-          cutout sits large bottom-right on brand colour (never black), a soft
-          highlight lifts it, and a left green scrim keeps the white copy crisp. */}
+      {/* Couple photo on a green gradient card: a large soft radial glow sits
+          behind the figures so the cutout's edge never shows as a hard box, the
+          photo bleeds off the right, and a left scrim keeps the copy crisp. */}
       <LinearGradient
-        colors={['#1f9d4d', '#12923f', '#0c7d34']}
+        colors={['#22a353', '#12923f', '#0b7331']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.coupleHero}
       >
+        {/* Big soft radial glow behind the couple — dissolves the photo edge. */}
         <LinearGradient
-          colors={['rgba(255,255,255,0.28)', 'rgba(255,255,255,0.10)', 'transparent']}
-          start={{ x: 0.35, y: 0.2 }}
-          end={{ x: 0.9, y: 1 }}
-          style={styles.coupleHeroCircle}
-        />
-        {/* Soft glow halo hugging the figures so the photo appears to float. */}
-        <LinearGradient
-          colors={['rgba(255,255,255,0.45)', 'rgba(220,255,232,0.18)', 'transparent']}
-          start={{ x: 0.5, y: 0.35 }}
-          end={{ x: 0.5, y: 1 }}
-          style={styles.coupleHeroGlowHalo}
+          colors={['rgba(255,255,255,0.30)', 'rgba(190,255,214,0.10)', 'transparent']}
+          start={{ x: 0.5, y: 0.15 }}
+          end={{ x: 0.5, y: 0.95 }}
+          style={styles.coupleHeroGlow}
         />
         <Image
           source={HERO_COUPLE}
           style={styles.coupleHeroPhoto}
-          contentFit="contain"
-          contentPosition="bottom"
+          contentFit="cover"
+          contentPosition="top"
         />
+        {/* Left→right scrim so white text stays readable over the photo. */}
         <LinearGradient
-          colors={['rgba(10,90,40,0.92)', 'rgba(10,90,40,0.35)', 'transparent']}
-          locations={[0, 0.55, 1]}
+          colors={['rgba(9,84,38,0.96)', 'rgba(9,84,38,0.55)', 'transparent']}
+          locations={[0, 0.48, 0.78]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={StyleSheet.absoluteFill}
         />
-        <View style={styles.coupleHeroText}>
-          <Text style={styles.coupleEyebrow}>COUPLE MODE</Text>
-          <Text style={font('extrabold', 25, { color: palette.white, lineHeight: 28 })}>
-            Train Together,
-          </Text>
-          <Text style={font('extrabold', 25, { color: '#b6ffcf', lineHeight: 28, marginBottom: 14 })}>
-            Grow Together
-          </Text>
+
+        <View style={styles.coupleHeroContent}>
+          <View>
+            <Text style={styles.coupleEyebrow}>COUPLE MODE</Text>
+            <Text style={font('extrabold', 26, { color: palette.white, lineHeight: 29 })}>
+              Train{'\n'}Together
+            </Text>
+            <Text style={styles.coupleHeroSub}>One shared streak. Never train alone.</Text>
+          </View>
+
           <View style={styles.coupleCtaLight}>
             <Text style={font('extrabold', 13.5, { color: palette.green700 })}>
-              {paired ? 'Open couple mode' : 'Invite Partner'}
+              {paired ? 'Open couple mode' : 'Invite partner'}
             </Text>
             <View style={styles.coupleCtaArrowLight}>
-              <Text style={font('extrabold', 13, { color: palette.green700 })}>→</Text>
+              <Text style={font('extrabold', 12, { color: palette.white })}>→</Text>
             </View>
           </View>
         </View>
@@ -755,64 +752,68 @@ const styles = StyleSheet.create({
   liveCountInline: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 },
   liveDotSmall: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: palette.green500 },
 
-  // Couple hero — full-bleed couple cutout on a green gradient card.
+  // Couple hero — couple photo on a green gradient card, glow-blended edge.
   coupleHero: {
     position: 'relative',
     borderRadius: 26,
     overflow: 'hidden',
-    height: 268,
-    justifyContent: 'flex-end',
+    height: 210,
     ...shadow.brand,
   },
-  coupleHeroCircle: {
+  // Large soft radial glow centred on the couple so the cutout edge dissolves.
+  coupleHeroGlow: {
     position: 'absolute',
-    right: -46,
-    top: -30,
-    width: 268,
-    height: 268,
-    borderRadius: 134,
-    zIndex: 1,
-  },
-  // Soft glow ring hugging the figures — makes the photo float off the card.
-  coupleHeroGlowHalo: {
-    position: 'absolute',
-    right: 6,
-    bottom: -16,
-    width: 240,
-    height: 240,
-    borderRadius: 120,
+    right: -70,
+    top: -60,
+    width: 330,
+    height: 330,
+    borderRadius: 165,
     zIndex: 1,
   },
   coupleHeroPhoto: {
     position: 'absolute',
-    right: -18,
-    bottom: 0,
-    width: 320,
-    height: 290,
+    right: -30,
+    bottom: -6,
+    top: 6,
+    width: 260,
     zIndex: 2,
   },
-  coupleHeroText: { position: 'relative', zIndex: 3, padding: 22, maxWidth: 200 },
+  coupleHeroContent: {
+    position: 'relative',
+    zIndex: 3,
+    flex: 1,
+    padding: 20,
+    justifyContent: 'space-between',
+    maxWidth: 210,
+  },
   coupleEyebrow: {
-    ...font('extrabold', 11, { color: 'rgba(255,255,255,0.85)' }),
-    letterSpacing: 3,
-    marginBottom: 8,
+    ...font('extrabold', 10.5, { color: 'rgba(255,255,255,0.8)' }),
+    letterSpacing: 2.5,
+    marginBottom: 6,
+  },
+  coupleHeroSub: {
+    ...font('semibold', 12, { color: 'rgba(230,255,238,0.92)' }),
+    marginTop: 8,
+    lineHeight: 16,
+    maxWidth: 170,
   },
   coupleCtaLight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 9,
     alignSelf: 'flex-start',
     backgroundColor: palette.white,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 14,
+    paddingLeft: 16,
+    paddingRight: 7,
+    paddingVertical: 7,
+    borderRadius: 24,
     ...shadow.card,
   },
   coupleCtaArrowLight: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: 'rgba(18,146,63,0.14)',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: palette.green600,
     alignItems: 'center',
     justifyContent: 'center',
   },

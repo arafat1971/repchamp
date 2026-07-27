@@ -773,8 +773,8 @@ const styles = StyleSheet.create({
   coupleHeroPhoto: {
     position: 'absolute',
     right: -30,
-    bottom: -6,
-    top: 6,
+    bottom: 24,
+    top: -24,
     width: 260,
     zIndex: 2,
   },

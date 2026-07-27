@@ -73,7 +73,13 @@ export default function OnboardingScreen() {
 
   const finish = useCallback(() => {
     completeOnboarding({ username: username || 'champion', weeklyGoal, avatarUri });
+    // Drop straight into a first practice set — the last tap of onboarding *is*
+    // the start of the workout. Getting to a counted rep fast is the single
+    // biggest lever on activation; landing on Home and hunting for a button is
+    // exactly the friction we're removing. The Home tabs sit under it, so the
+    // back-swipe from the session lands the athlete on their home as normal.
     router.replace('/(tabs)');
+    router.push({ pathname: '/session', params: { exercise: 'push', mode: 'practice' } });
   }, [completeOnboarding, username, weeklyGoal, avatarUri, router]);
 
   /* Build-profile progress animation (step 10). */
@@ -128,7 +134,7 @@ export default function OnboardingScreen() {
       ) : null}
 
       <Animated.View key={step} entering={FadeInDown.duration(420)} style={styles.stepWrap}>
-        {step === 0 ? <Welcome onNext={next} /> : null}
+        {step === 0 ? <Welcome onNext={next} onTryNow={finish} /> : null}
         {step === 1 ? <Showcase onNext={next} /> : null}
         {step === 2 ? (
           <ValueScreen
@@ -245,7 +251,7 @@ export default function OnboardingScreen() {
  * Steps
  * ------------------------------------------------------------------ */
 
-function Welcome({ onNext }: { onNext: () => void }) {
+function Welcome({ onNext, onTryNow }: { onNext: () => void; onTryNow: () => void }) {
   const router = useRouter();
   return (
     <View style={styles.step}>
@@ -302,6 +308,14 @@ function Welcome({ onNext }: { onNext: () => void }) {
         <SocialButton label="Sign up with Google" glyph="G" glyphColor="#4285F4" onPress={onNext} />
         <SocialButton label="Sign up with Apple" glyph="" glyphColor={palette.ink} onPress={onNext} />
       </View>
+
+      {/* Fast path for the impatient — a counted rep in seconds, no setup. The
+          single highest-leverage escape hatch for activation. */}
+      <Pressable onPress={onTryNow} accessibilityRole="button" style={styles.tryNow}>
+        <Text style={font('extrabold', 14, { color: palette.green600 })}>
+          Try a set now — no signup →
+        </Text>
+      </Pressable>
       <Text style={styles.legal}>
         By continuing, you agree to RepChamp&apos;s{' '}
         <Text
@@ -1152,6 +1166,7 @@ const styles = StyleSheet.create({
     padding: 18,
   },
   skip: { alignItems: 'center', marginTop: 12, padding: 8 },
+  tryNow: { alignItems: 'center', marginTop: 14, paddingVertical: 6 },
   goalRow: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16 },
   goalIcon: {
     width: 42,

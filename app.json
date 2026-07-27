@@ -8,7 +8,7 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "icon": "./assets/logo.png",
+    "icon": "./assets/icon.png",
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "gg.repchamp.app",
@@ -31,8 +31,8 @@
         "android.permission.VIBRATE"
       ],
       "adaptiveIcon": {
-        "backgroundColor": "#16A34A",
-        "foregroundImage": "./assets/logo.png"
+        "backgroundColor": "#8AC53E",
+        "foregroundImage": "./assets/adaptive-icon.png"
       }
     },
     "plugins": [

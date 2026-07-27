@@ -5,6 +5,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Card, PressableScale, Screen, SectionLabel } from '@/components/ui';
 import { StaggerIn } from '@/components/motion';
+import { WeeklyChallengeCard } from '@/components/WeeklyChallengeCard';
 import { buildLeaderboard, type LeaderboardRow } from '@/domain/leaderboard';
 import { usePhantomSeed } from '@/domain/seedPhantoms';
 import { selectLeague, selectWeeklyXp, useProfileStore } from '@/state/profileStore';
@@ -77,7 +78,11 @@ export default function ArenaScreen() {
         </PressableScale>
       </StaggerIn>
 
-      <StaggerIn index={2}>
+      <StaggerIn index={2} style={{ marginTop: 14 }}>
+        <WeeklyChallengeCard />
+      </StaggerIn>
+
+      <StaggerIn index={3}>
         <PressableScale
           onPress={() => router.push('/modal/leaderboard')}
           accessibilityRole="button"
@@ -145,7 +150,7 @@ export default function ArenaScreen() {
         </PressableScale>
       </StaggerIn>
 
-      <StaggerIn index={3}>
+      <StaggerIn index={4}>
         <PressableScale
           onPress={() => router.push('/modal/daily')}
           accessibilityRole="button"

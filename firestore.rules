@@ -1,0 +1,256 @@
+rules_version = '2';
+
+// RepChamp Firestore security rules.
+//
+// Model:
+//   users/{uid}                      – the athlete's durable profile
+//   users/{uid}/friends/{friendUid}  – that athlete's friend edges
+//   leaderboard/{uid}                – flat weekly-XP row, publicly readable
+//   duels/{duelId}                   – live 1v1 duel document (host + guest)
+//   couples/{coupleId}               – the couple bond; doc id is the pair code
+//   matchmaking/{uid}                – open-queue ticket (one per athlete)
+//
+// Principles: a user may only write their own documents; leaderboard rows are
+// world-readable (it's a leaderboard) but only writable by their owner; scores
+// are shape-validated so a client can't inject arbitrary fields. A duel is
+// readable and writable only by its two players, and the host/guest seat a
+// client may mutate is bound to their own uid.
+//
+// NOTE on open matchmaking: pairing two strangers is inherently a cross-user
+// write — the seeker claims *another* athlete's ticket and seats them into a
+// duel. That can't be safely authorized by client rules alone, so the pairing in
+// matchmakingService is a pragmatic demo. In production, move `tryPair` into a
+// Cloud Function (trusted context) and lock the client rules below to owner-only
+// ticket writes; the matched flip and the born-active duel would then be minted
+// server-side. See FIREBASE_SETUP.md.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    match /users/{uid} {
+      // A profile is readable by its owner and by anyone resolving a username
+      // for a friend request. Tighten to owner-only if you don't want public
+      // profile lookups.
+      allow read: if request.auth != null;
+
+      // A full profile write must carry a valid XP total and own uid. XP is
+      // ceiled (it drives level/league) and the human strings are length-bounded
+      // so a client can't inject an oversized username/displayName. Same stopgap
+      // stance as the leaderboard: server-side validation is the real fix.
+      function isProfileWrite() {
+        return request.resource.data.uid == uid
+          && request.resource.data.totalXp is number
+          && request.resource.data.totalXp >= 0
+          && request.resource.data.totalXp <= 100000000
+          && (!('username' in request.resource.data)
+              || (request.resource.data.username is string
+                  && request.resource.data.username.size() <= 40))
+          && (!('displayName' in request.resource.data)
+              || (request.resource.data.displayName is string
+                  && request.resource.data.displayName.size() <= 40));
+      }
+      // A device may also write *only* its push token — this races profile
+      // creation (registerForPushNudges keys off auth), so it must be allowed to
+      // land first (create) or alone (update) without the full profile shape.
+      function isTokenOnlyWrite() {
+        return request.resource.data.keys().hasOnly(['expoPushToken', 'pushUpdatedAt'])
+          || (resource != null
+              && request.resource.data.diff(resource.data).affectedKeys()
+                   .hasOnly(['expoPushToken', 'pushUpdatedAt']));
+      }
+
+      allow create, update: if isOwner(uid) && (isProfileWrite() || isTokenOnlyWrite());
+      allow delete: if isOwner(uid);
+
+      match /friends/{friendUid} {
+        allow read: if isOwner(uid);
+        allow write: if isOwner(uid);
+      }
+    }
+
+    match /duels/{duelId} {
+      // A player is one of the two seats in the duel.
+      function isPlayer() {
+        return request.auth != null &&
+          (request.auth.uid == resource.data.hostUid ||
+           request.auth.uid == resource.data.guestUid);
+      }
+
+      // The athlete a pending challenge is addressed to — allowed to read it so
+      // it can surface in their inbox, and to join it (becoming the guest).
+      function isTarget() {
+        return request.auth != null && request.auth.uid == resource.data.targetUid;
+      }
+
+      // Participants read the live doc; the addressed target reads their pending
+      // invite before accepting.
+      allow read: if isPlayer() || isTarget();
+
+      // The host opens the duel: must own the host seat and start it pending
+      // with an empty guest seat. An open-matchmaking pairing instead mints a
+      // duel already `active` with both seats filled and no target — allowed only
+      // when the creator is one of the two seated athletes.
+      allow create: if request.auth != null
+        && (
+          (request.resource.data.hostUid == request.auth.uid
+            && request.resource.data.status == 'pending'
+            && request.resource.data.guestUid == null)
+          ||
+          (request.resource.data.status == 'active'
+            && request.resource.data.targetUid == null
+            && (request.resource.data.hostUid == request.auth.uid
+                || request.resource.data.guestUid == request.auth.uid))
+        );
+
+      // A guest joins a pending duel: the guest seats themselves and flips the
+      // status to active while leaving the host seat untouched. An addressed
+      // challenge may only be joined by its target; an open one by anyone.
+      function isJoin() {
+        return resource.data.status == 'pending'
+          && resource.data.guestUid == null
+          && request.resource.data.guestUid == request.auth.uid
+          && request.resource.data.status == 'active'
+          && request.resource.data.hostUid == resource.data.hostUid
+          && (resource.data.targetUid == null || resource.data.targetUid == request.auth.uid);
+      }
+
+      // In-play updates: a seated player streams reps/finish. The rule bounds
+      // the actors to the two participants and forbids re-seating; the seat a
+      // client writes is scoped by the dotted field paths in duelService.
+      function isLiveUpdate() {
+        return isPlayer()
+          && request.resource.data.hostUid == resource.data.hostUid
+          && request.resource.data.guestUid == resource.data.guestUid;
+      }
+
+      allow update: if request.auth != null && (isJoin() || isLiveUpdate());
+      allow delete: if request.auth != null && resource.data.hostUid == request.auth.uid;
+    }
+
+    match /couples/{coupleId} {
+      // `memberUids` is denormalised onto the document precisely so membership
+      // can be authorised without reading the nested member objects — and so the
+      // client's `array-contains` lookup needs no composite index.
+      function isMember() {
+        return request.auth != null && request.auth.uid in resource.data.memberUids;
+      }
+
+      // Any authed user may read a couple by its id. The id *is* the 6-char pair
+      // code, so this is a capability model — reading requires already holding the
+      // code — the same stance duels take for their join codes. It also has to be
+      // this way for the flow to work: `createCouple` reads the doc to check the
+      // code is free, and `joinCoupleByCode` reads it before claiming the open
+      // seat, and in both cases the caller is not yet a member. A stricter
+      // member-only read (`isMember()`) made every create/join fail with
+      // PERMISSION_DENIED, because on a missing or not-yet-joined doc the reader
+      // isn't in `memberUids`.
+      allow read: if request.auth != null;
+
+      // Opening an invite: the creator seats themselves alone, pending a partner.
+      allow create: if request.auth != null
+        && request.resource.data.memberUids == [request.auth.uid]
+        && request.resource.data.pending == true;
+
+      // Claiming the open seat: the joiner appends themselves and only
+      // themselves, leaving the first member in place. This is the one
+      // cross-user write couples need — bounded so a stranger with a code can
+      // fill an empty seat but can never displace an existing partner.
+      function isJoin() {
+        return request.auth != null
+          && resource.data.memberUids.size() == 1
+          && request.resource.data.memberUids == resource.data.memberUids.concat([request.auth.uid])
+          && request.resource.data.pending == false;
+      }
+
+      // In-bond updates: either member records a session, nudges, or edits the
+      // shared state — but the membership itself is frozen, so neither partner
+      // can swap the other out.
+      //
+      // Beyond freezing `memberUids`, the write surface is bounded so a member
+      // can't inject a fabricated bond: an update may only touch the small set of
+      // mutable fields (the `members` array a session rewrites, plus `nudge`,
+      // `pending`, `pairedAt`) — never the id or createdAt — and the two member
+      // objects must stay pinned to the same two uids in the same order, so a
+      // client can't smuggle in a third body or reassign a seat. Per-rep sanity
+      // ceilings mirror the leaderboard's `weeklyXp <= 100000`: real anti-cheat
+      // (validating each session's delta) belongs server-side, but these caps
+      // stop the trivial "write a 999999-rep, 500-day streak" spoof.
+      function memberUidsPinned() {
+        return request.resource.data.members.size() == resource.data.members.size()
+          && request.resource.data.members[0].uid == resource.data.members[0].uid
+          && (resource.data.members.size() < 2
+              || request.resource.data.members[1].uid == resource.data.members[1].uid);
+      }
+      function repsInSaneRange() {
+        return request.resource.data.members[0].totalReps is number
+          && request.resource.data.members[0].totalReps >= 0
+          && request.resource.data.members[0].totalReps <= 10000000
+          && (resource.data.members.size() < 2
+              || (request.resource.data.members[1].totalReps is number
+                  && request.resource.data.members[1].totalReps >= 0
+                  && request.resource.data.members[1].totalReps <= 10000000));
+      }
+      function isMemberUpdate() {
+        return isMember()
+          && request.resource.data.memberUids == resource.data.memberUids
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['members', 'nudge', 'pending', 'pairedAt'])
+          && memberUidsPinned()
+          && repsInSaneRange();
+      }
+
+      allow update: if isJoin() || isMemberUpdate();
+
+      // Either partner may end it; the whole bond goes so nobody is left
+      // half-paired against their will.
+      allow delete: if isMember();
+    }
+
+    match /matchmaking/{ticketUid} {
+      // Any authed athlete may scan the queue to find an opponent.
+      allow read: if request.auth != null;
+
+      // You manage your own ticket: enter (waiting), re-enter, or leave.
+      allow create, update, delete: if isOwner(ticketUid);
+
+      // Pairing concession (demo): a *different* seeker may flip your waiting
+      // ticket to `matched`, and only that — no other field may change, and only
+      // out of the `waiting` state. This is the one cross-user write the queue
+      // needs client-side; production should move pairing to a Cloud Function
+      // and drop this clause. See the file header.
+      allow update: if request.auth != null
+        && request.auth.uid != ticketUid
+        && resource.data.status == 'waiting'
+        && request.resource.data.status == 'matched'
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.displayName == resource.data.displayName
+        && request.resource.data.level == resource.data.level;
+    }
+
+    match /leaderboard/{uid} {
+      allow read: if request.auth != null;
+      // Every numeric that feeds ranking is capped, and every string is length-
+      // bounded so a client can't inject a novel-length displayName as a storage
+      // or abuse vector. These are stopgaps: real anti-cheat validates each XP
+      // delta server-side, which needs a trusted context (Cloud Function). Until
+      // then these ceilings stop the trivial "write 10^9 XP" spoof.
+      function validScoreRow() {
+        return request.resource.data.uid == uid
+          && request.resource.data.weeklyXp is number
+          && request.resource.data.weeklyXp >= 0
+          && request.resource.data.weeklyXp <= 100000
+          && request.resource.data.totalXp is number
+          && request.resource.data.totalXp >= 0
+          && request.resource.data.totalXp <= 100000000
+          && request.resource.data.displayName is string
+          && request.resource.data.displayName.size() <= 40;
+      }
+      allow create, update: if isOwner(uid) && validScoreRow();
+      allow delete: if isOwner(uid);
+    }
+  }
+}

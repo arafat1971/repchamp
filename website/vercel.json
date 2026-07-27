@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "name": "repchamp-website",
+  "cleanUrls": true,
+  "routes": [
+    { "src": "/privacy", "dest": "/privacy.html" },
+    { "src": "/terms", "dest": "/terms.html" },
+    { "src": "/support", "dest": "/support.html" },
+    { "src": "/(.*)", "dest": "/$1" }
+  ]
+}

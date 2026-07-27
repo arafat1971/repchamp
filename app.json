@@ -1,0 +1,103 @@
+{
+  "expo": {
+    "name": "RepChamp",
+    "slug": "repchamp",
+    "owner": "aro765",
+    "version": "2.0.0",
+    "scheme": "repchamp",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "icon": "./assets/logo.png",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "gg.repchamp.app",
+      "buildNumber": "1",
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "infoPlist": {
+        "NSCameraUsageDescription": "RepChamp uses the camera to count your reps and check your form. Video is processed entirely on your device and is never uploaded or recorded.",
+        "NSPhotoLibraryUsageDescription": "Pick a profile photo for your RepChamp account.",
+        "NSPhotoLibraryAddUsageDescription": "Save your duel result cards to your photo library.",
+        "UIBackgroundModes": []
+      }
+    },
+    "android": {
+      "package": "gg.repchamp.app",
+      "versionCode": 1,
+      "predictiveBackGestureEnabled": false,
+      "googleServicesFile": "./google-services.json",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.VIBRATE"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#16A34A",
+        "foregroundImage": "./assets/logo.png"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth",
+      "@react-native-firebase/app-check",
+      [
+        "@react-native-google-signin/google-signin"
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "16.4",
+            "useFrameworks": "static"
+          },
+          "android": {
+            "minSdkVersion": 26
+          }
+        }
+      ],
+      [
+        "react-native-fast-tflite",
+        {
+          "enableCoreMLDelegate": true,
+          "enableAndroidGpuLibraries": true
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Pick a profile photo for your RepChamp account."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "RepChamp uses the camera to scan your partner's pairing QR code.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#F6F7F5",
+          "image": "./assets/logo.png",
+          "imageWidth": 160
+        }
+      ],
+      "@sentry/react-native/expo",
+      "expo-sharing",
+      "expo-video"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "d6be255f-fe5b-40f6-a206-f6e2810f9295"
+      },
+      "posthogKey": "phc_vhhgbS2KfchGjb4SnvgiV3URwPukzXLxPHRyEoP6oFh2",
+      "revenueCatGoogle": "goog_MDPFQjukqNGkgnzOHPmxMJnnAmf",
+      "sentryDsn": "https://placeholder@sentry.io/0"
+    }
+  }
+}

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  a{color:#16a34a;text-decoration:none}
+  a:hover{color:#15803d}
+  .rc-scroll::-webkit-scrollbar{display:none}
+  .rc-scroll{-ms-overflow-style:none;scrollbar-width:none}
+  @keyframes rcpulse{0%,100%{opacity:1}50%{opacity:.4}}
+  @keyframes rcfloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+</style>
+</helmet>
+
+<div style="display:flex;justify-content:center;background:#dfe4df;min-height:100vh;font-family:'Plus Jakarta Sans',sans-serif;padding:24px 0">
+<div style="width:390px;height:844px;background:#f3f6f3;border-radius:44px;position:relative;overflow:hidden;box-shadow:0 40px 90px rgba(30,60,40,.3),0 0 0 10px #fff,0 0 0 11px #d5ddd6">
+
+  <!-- status bar -->
+  <div style="position:relative;z-index:2;display:flex;justify-content:space-between;align-items:center;padding:14px 26px 4px;color:#101a12;font-size:14px;font-weight:700">
+    <span>10:09</span>
+    <div style="display:flex;gap:6px;align-items:center;font-size:13px;opacity:.85">
+      <span>􀙇</span><span>􀖀</span>
+      <span style="background:#22c55e;color:#fff;padding:1px 6px;border-radius:5px;font-size:11px;font-weight:800">51</span>
+    </div>
+  </div>
+
+  <div class="rc-scroll" style="position:relative;z-index:2;height:calc(844px - 34px);overflow-y:auto;padding:8px 18px 108px">
+
+    <!-- header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:18px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#22c55e,#0e9c3d);padding:2px;box-shadow:0 6px 14px rgba(34,197,94,.28)">
+          <div style="width:100%;height:100%;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:22px">🧑🏻</div>
+        </div>
+        <div>
+          <div style="color:#6b7a6e;font-size:12px;font-weight:600">{{greeting}}</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="color:#141f16;font-size:19px;font-weight:800">{{userName}}</span>
+            <span style="background:#e7f8ec;color:#15803d;border:1px solid #bfeccb;font-size:11px;font-weight:800;padding:2px 8px;border-radius:8px">Lv.1</span>
+          </div>
+        </div>
+      </div><div onClick="{{noop}}" style="display: flex; align-items: center; gap: 9px; background: #fff; border: 1px solid #e6ece7; border-radius: 16px; padding: 8px 11px; cursor: pointer; box-shadow: 0 6px 16px rgba(30,60,40,.06); width: 161px; height: 45px">
+        <div style="position:relative">
+          <span style="font-size:16px">🔔</span>
+          <span style="position:absolute;top:-2px;right:-2px;width:8px;height:8px;border-radius:50%;background:#22c55e;animation:rcpulse 1.6s infinite"></span>
+        </div>
+        <div style="line-height:1.15">
+          <div style="color:#15803d;font-size:12px;font-weight:800">Live Tracking</div>
+          <div style="color:#6b7a6e;font-size:10.5px;font-weight:600;display:flex;align-items:center;gap:4px"><span style="width:5px;height:5px;border-radius:50%;background:#22c55e;display:inline-block"></span>{{liveCount}} competing now</div>
+        </div>
+      </div>
+      
+    </div>
+
+    <!-- COUPLE MODE hero -->
+    <div style="position: relative; border-radius: 26px; overflow: hidden; background: linear-gradient(135deg,#e9f9ee 0%,#f2fbf4 60%,#eafaf0 100%); border: 1px solid #d6f0de; padding: 18px 20px; margin-bottom: 16px; min-height: 190px; box-shadow: 0 12px 30px rgba(34,197,94,.1); width: 350px; height: 211px">
+      <div style="position:absolute;inset:0;background:radial-gradient(130px 130px at 80% 42%,rgba(34,197,94,.14),transparent 70%)"><div style="position: absolute; width: 130px; height: 130px; border-radius: 22px; overflow: hidden; z-index: 1; background: radial-gradient(circle at 50% 35%,#123d20,#06140b); box-shadow: 0 16px 34px rgba(6,20,11,.4); animation: rcfloat 5s ease-in-out infinite; left: 211px; top: 71px">
+        <video ref="{{videoRef}}" src="assets/couple-flex.mp4" poster="assets/couple-flex.png" autoplay="" muted="" loop="" playsinline="" style="position: absolute; inset: 0; width: 137px; height: 130px; object-fit: cover; left: -6px; top: -2px"></video>
+      </div></div>
+      <div style="position:relative;z-index:2;max-width:210px">
+        <div style="color:#3f9e5b;font-size:11px;font-weight:800;letter-spacing:3px;margin-bottom:10px">COUPLE MODE</div>
+        <div style="font-size:29px;font-weight:800;line-height:1.05;color:#16241a">Train Together</div>
+        <div style="font-size:29px;font-weight:800;line-height:1.05;color:#16a34a;margin-bottom:12px">Grow Together</div>
+        <div onClick="{{noop}}" style="display:inline-flex;align-items:center;gap:10px;background:linear-gradient(135deg,#22c55e,#12923f);color:#fff;font-weight:800;font-size:13.5px;padding:12px 17px;border-radius:14px;cursor:pointer;box-shadow:0 10px 22px rgba(34,197,94,.32)">Invite Partner <span style="display:inline-flex;width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.25);align-items:center;justify-content:center;color:#fff">→</span></div>
+        
+      </div>
+      
+    </div>
+
+    <!-- stat cards -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:22px">
+      <div style="background: #fff; border: 1px solid #eef2ee; border-radius: 18px; padding: 15px 15px 16px; box-shadow: 0 8px 22px rgba(30,60,40,.06); width: 170px; height: 140px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+          <span style="color:#6b7a6e;font-size:12px;font-weight:700">This Week</span>
+          <span style="width:30px;height:30px;border-radius:9px;background:#eafaef;display:flex;align-items:center;justify-content:center;font-size:14px">📅</span>
+        </div>
+        <div style="margin-bottom:6px"><span style="color:#16a34a;font-size:30px;font-weight:800">{{weekDone}}</span><span style="color:#9aa79c;font-size:15px;font-weight:700"> / {{weekGoal}} days</span></div>
+        <div style="color:#7a8a7c;font-size:11px;font-weight:700;margin-bottom:10px">Keep going! 💪</div>
+        <div style="display:flex;gap:5px">
+          <sc-for list="{{weekBars}}" as="b" hint-placeholder-count="4">
+            <div style="flex:1;height:6px;border-radius:4px;background:{{b}}"></div>
+          </sc-for>
+        </div>
+      </div><div style="background: #fff; border: 1px solid #eef2ee; border-radius: 18px; padding: 15px; position: relative; overflow: hidden; box-shadow: 0 8px 22px rgba(30,60,40,.06); width: 170px; height: 140px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+          <span style="color:#6b7a6e;font-size:12px;font-weight:700">League</span>
+          <span style="background:#fbeed8;color:#a76a1e;font-size:9.5px;font-weight:800;letter-spacing:.5px;padding:3px 7px;border-radius:7px">TIER 1</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(150deg,#fbe7cf,#f3d3a3);display:flex;align-items:center;justify-content:center;box-shadow:inset 0 1px 2px rgba(255,255,255,.8),0 4px 10px rgba(180,120,60,.22)">
+            <img src="assets/medal-bronze.png" style="width: 62px; height: 40px; filter: drop-shadow(0 2px 3px rgba(140,90,40,.3))">
+          </div>
+          <div>
+            <div style="color:#141f16;font-size:17px;font-weight:800;line-height:1">Bronze</div>
+            <div style="color:#c07f2c;font-size:15px;font-weight:800;margin-top:3px">{{leagueXP}} <span style="color:#9aa79c;font-size:11px;font-weight:700">XP</span></div>
+          </div>
+        </div>
+      </div>
+      
+    </div>
+
+    <!-- Quick Start -->
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px">
+      <span style="color:#141f16;font-size:18px;font-weight:800">Quick Start</span>
+      <a href="#" style="font-size:12.5px;font-weight:700;color:#16a34a">View all ›</a>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:22px">
+      <div onClick="{{noop}}" style="position: relative; border-radius: 22px; padding: 16px 16px 15px; background: linear-gradient(165deg,#f2fdf5,#ffffff 65%); border: 1px solid #d9f2e0; cursor: pointer; display: flex; flex-direction: column; align-items: center; text-align: center; box-shadow: 0 10px 24px rgba(34,197,94,.12); width: 170px; height: 185px">
+        <img src="assets/ic-pushup-hd.png" style="width: 120px; height: 133px; object-fit: contain; margin-bottom: 0; filter: drop-shadow(0 6px 12px rgba(34,197,94,.28))">
+        <div style="color:#141f16;font-size:16px;font-weight:800">Push-Ups</div>
+        <div style="color:#4f9e66;font-size:11.5px;font-weight:700;margin-top:2px">Track your reps</div>
+      </div>
+      <div onClick="{{noop}}" style="position: relative; border-radius: 22px; padding: 16px 16px 15px; background: linear-gradient(165deg,#f8f4ff,#ffffff 65%); border: 1px solid #e7dcfb; cursor: pointer; display: flex; flex-direction: column; align-items: center; text-align: center; box-shadow: 0 10px 24px rgba(124,58,237,.12); width: 170px; height: 185px">
+        <img src="assets/ic-squat-hd.png" style="width: 85px; height: 96px; object-fit: contain; margin-bottom: 8px; filter: drop-shadow(0 6px 12px rgba(124,58,237,.28))">
+        <div style="color:#141f16;font-size:16px;font-weight:800">Squats</div>
+        <div style="color:#8a6fc0;font-size:11.5px;font-weight:700;margin-top:2px">Track your reps</div>
+      </div>
+    </div>
+
+    <!-- Live Challenges -->
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px">
+      <span style="color:#141f16;font-size:18px;font-weight:800">Live Challenges</span>
+      <a href="#" style="font-size:12.5px;font-weight:700;color:#16a34a">See all ›</a>
+    </div>
+    <div style="background:#fff;border:1px solid #eef2ee;border-radius:20px;padding:16px;margin-bottom:22px;box-shadow:0 8px 22px rgba(30,60,40,.06)">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+        <div style="display:flex;align-items:center">
+          <div style="width:38px;height:38px;border-radius:50%;background:#f0f4f0;border:2px solid #22c55e;display:flex;align-items:center;justify-content:center;font-size:18px">🧑🏻</div>
+          <img src="assets/badge-vs.png" style="width:30px;height:auto;margin:0 -8px;position:relative;z-index:2">
+          <div style="width:38px;height:38px;border-radius:50%;background:#f0f4f0;border:2px solid #d7ddd8;display:flex;align-items:center;justify-content:center;font-size:18px">🧔🏽</div>
+        </div>
+        <div style="flex:1">
+          <div style="color:#141f16;font-size:14.5px;font-weight:800">Push-Up Challenge</div>
+          <div style="color:#6b7a6e;font-size:12px;font-weight:600">Arafat vs. Rimon</div>
+        </div>
+        <div style="text-align:right">
+          <img src="assets/badge-live.png" style="width:100%;height:38px;animation:rcpulse 1.8s infinite">
+          <div style="color:#8a978c;font-size:11px;font-weight:700;margin-top:3px">12:45 left</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="color:#16a34a;font-size:18px;font-weight:800;width:26px">32</span>
+        <div style="flex:1;height:9px;border-radius:6px;background:#f0e9fb;overflow:hidden;display:flex">
+          <div style="width:53%;background:linear-gradient(90deg,#22c55e,#34d26a)"></div>
+        </div>
+        <span style="color:#7c3aed;font-size:18px;font-weight:800;width:26px;text-align:right">28</span>
+      </div>
+    </div>
+
+    <!-- More -->
+    <div style="color:#141f16;font-size:18px;font-weight:800;margin-bottom:12px">More</div>
+    <div onClick="{{noop}}" style="display:flex;align-items:center;gap:14px;background:#fff;border:1px solid #eef2ee;border-radius:18px;padding:14px 16px;cursor:pointer;margin-bottom:10px;box-shadow:0 8px 22px rgba(30,60,40,.06)">
+      <div style="width:46px;height:46px;border-radius:13px;background:#fff7e0;border:1px solid #f6e6b8;display:flex;align-items:center;justify-content:center">
+        <img src="assets/ic-lightning.png" style="width:26px;height:auto">
+      </div>
+      <div style="flex:1">
+        <div style="color:#141f16;font-size:14.5px;font-weight:800">Find an opponent</div>
+        <div style="color:#6b7a6e;font-size:12px;font-weight:600">Quick match with anyone</div>
+      </div>
+      <span style="color:#b7c0b8;font-size:20px">›</span>
+    </div>
+    <div onClick="{{noop}}" style="display:flex;align-items:center;gap:14px;background:#fff;border:1px solid #eef2ee;border-radius:18px;padding:14px 16px;cursor:pointer;box-shadow:0 8px 22px rgba(30,60,40,.06)">
+      <div style="width:46px;height:46px;border-radius:13px;background:#ffeaea;border:1px solid #fbcccc;display:flex;align-items:center;justify-content:center">
+        <img src="assets/ic-target.png" style="width:26px;height:auto">
+      </div>
+      <div style="flex:1">
+        <div style="color:#141f16;font-size:14.5px;font-weight:800">Daily challenge</div>
+        <div style="color:#6b7a6e;font-size:12px;font-weight:600">Earn 2× XP before midnight</div>
+      </div>
+      <img src="assets/ic-score32.png" style="width:30px;height:auto">
+    </div>
+
+  </div><img src="./trophy-bronze-ms29jml2-rl9t.png" alt="trophy-bronze" width="1536" height="1024" style="max-width: 100%; height: auto; display: block; object-fit: cover; width: 1536px; aspect-ratio: 1536 / 1024">
+
+  <!-- bottom nav -->
+  <div style="position:absolute;left:0;right:0;bottom:0;z-index:5;background:linear-gradient(180deg,rgba(243,246,243,0),#f3f6f3 34%);padding:22px 22px 20px">
+    <div style="position:relative;display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid #eaefea;border-radius:24px;padding:12px 24px;box-shadow:0 8px 26px rgba(30,60,40,.12)">
+      <sc-for list="{{navLeft}}" as="n" hint-placeholder-count="2">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer">
+          <div style="font-size:20px;filter:{{n.dim}}">{{n.icon}}</div>
+          <span style="font-size:10px;font-weight:700;color:{{n.color}}">{{n.label}}</span>
+        </div>
+      </sc-for>
+      <div style="width:56px"></div>
+      <sc-for list="{{navRight}}" as="n" hint-placeholder-count="2">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer">
+          <div style="font-size:20px;filter:{{n.dim}}">{{n.icon}}</div>
+          <span style="font-size:10px;font-weight:700;color:{{n.color}}">{{n.label}}</span>
+        </div>
+      </sc-for>
+      <div style="position:absolute;left:50%;top:-16px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px">
+        <div onClick="{{noop}}" style="width:58px;height:58px;border-radius:50%;background:linear-gradient(135deg,#34d26a,#0e9c3d);display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 10px 22px rgba(34,197,94,.45);border:4px solid #fff;cursor:pointer">📷</div>
+        <span style="font-size:10px;font-weight:800;color:#16a34a">Live</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:438,&quot;height&quot;:892},&quot;userName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;arafat&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;greeting&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Good morning 👋&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;liveCount&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:26,&quot;min&quot;:0,&quot;max&quot;:999,&quot;tsType&quot;:&quot;number&quot;},&quot;weekDone&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:2,&quot;min&quot;:0,&quot;max&quot;:7,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Progress&quot;},&quot;weekGoal&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:4,&quot;min&quot;:1,&quot;max&quot;:7,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Progress&quot;},&quot;leagueXP&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:230,&quot;min&quot;:0,&quot;max&quot;:9999,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Progress&quot;}}">
+class Component extends DCLogic {
+  videoRef = (el) => {
+    if (!el || el.__wired) return;
+    el.__wired = true;
+    el.muted = true; el.loop = true; el.playsInline = true;
+    const go = () => { const p = el.play(); if (p) p.catch(() => {}); };
+    ['loadeddata', 'canplay'].forEach(ev => el.addEventListener(ev, go));
+    let n = 0;
+    const t = setInterval(() => { if (!el.paused || n++ > 20) return clearInterval(t); go(); }, 400);
+    const resume = () => go();
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) go(); });
+    ['pointerdown', 'scroll', 'touchstart'].forEach(ev => window.addEventListener(ev, resume, { once: true, passive: true }));
+    go();
+  };
+  renderVals() {
+    const done = Math.max(0, Math.min(this.props.weekDone ?? 2, this.props.weekGoal ?? 4));
+    const goal = this.props.weekGoal ?? 4;
+    const bars = [];
+    for (let i = 0; i < goal; i++) bars.push(i < done ? 'linear-gradient(90deg,#22c55e,#34d26a)' : '#e6ebe6');
+    const nav = (icon,label,active)=>({icon,label,color:active?'#16a34a':'#9aa79c',dim:active?'none':'grayscale(1) opacity(.55)'});
+    return {
+      greeting: this.props.greeting ?? 'Good morning 👋',
+      userName: this.props.userName ?? 'arafat',
+      liveCount: this.props.liveCount ?? 26,
+      weekDone: done, weekGoal: goal, weekBars: bars,
+      leagueXP: this.props.leagueXP ?? 230,
+      videoRef: this.videoRef,
+      noop: () => {},
+      navLeft: [nav('🏠','Home',true), nav('🏆','Arena',false)],
+      navRight: [nav('👥','Friends',false), nav('👤','Profile',false)],
+    };
+  }
+}
+</script>
+</body>
+</html>

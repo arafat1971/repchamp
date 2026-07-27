@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Support & Data Deletion - RepChamp</title>
+  <meta name="description" content="RepChamp Help Center, FAQs, Support Contact, and Google Play Store Account/Data Deletion Portal for gg.repchamp.app.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Navigation Bar -->
+  <header class="navbar">
+    <div class="container nav-container">
+      <a href="index.html" class="brand-logo">
+        <div class="brand-icon">⚡</div>
+        <span>RepChamp</span>
+      </a>
+      <button class="mobile-menu-toggle" id="mobileMenuToggle" aria-label="Toggle Navigation Menu">☰</button>
+      <ul class="nav-links" id="navLinks">
+        <li><a href="index.html#features">Features</a></li>
+        <li><a href="privacy.html">Privacy Policy</a></li>
+        <li><a href="terms.html">Terms of Service</a></li>
+        <li><a href="support.html" style="color: var(--primary-light);">Support & FAQs</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <main class="container section">
+    <div class="section-header">
+      <div class="hero-badge">💬 RepChamp Help Center</div>
+      <h1>How Can We <span class="gradient-text">Help You?</span></h1>
+      <p>Find answers to common questions, get assistance with camera rep counting, or submit an account/data deletion request.</p>
+    </div>
+
+    <!-- FAQ Section -->
+    <div class="faq-list">
+      <div class="faq-item active">
+        <button class="faq-question">
+          <span>How does RepChamp count my reps without recording video?</span>
+          <span class="faq-icon">▼</span>
+        </button>
+        <div class="faq-answer">
+          <p>RepChamp uses a lightweight artificial intelligence pose estimation model (MoveNet) that runs 100% locally on your smartphone's GPU or neural engine. The app reads camera frames in temporary memory, extracts 17 joint coordinates, and immediately discards the frame. No photos or video clips are ever saved or uploaded.</p>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-question">
+          <span>How should I position my camera for optimal rep detection?</span>
+          <span class="faq-icon">▼</span>
+        </button>
+        <div class="faq-answer">
+          <p>Place your phone on the floor or lean it against a sturdy object about 5 to 7 feet away. Ensure your full body (head to feet) is visible in the camera frame and that the lighting is good.</p>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-question">
+          <span>How does Couple / Partner Mode work?</span>
+          <span class="faq-icon">▼</span>
+        </button>
+        <div class="faq-answer">
+          <p>In Couple Mode, each partner uses their own phone. One user displays a pairing QR code while the other scans it. Both phones connect directly to stream rep counts live, allowing you to train together with a combined score and shared streak!</p>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-question">
+          <span>Can I use RepChamp offline?</span>
+          <span class="faq-icon">▼</span>
+        </button>
+        <div class="faq-answer">
+          <p>Yes! All core rep counting algorithms, pose detection, workout history, and personal stats run completely offline on your device without requiring an active internet connection.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data & Account Deletion Request Portal (Play Store Required) -->
+    <div class="legal-content" id="data-deletion" style="margin-top: 4rem;">
+      <div class="hero-badge" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3); color: #f87171;">
+        🗑️ Google Play & App Store Compliance
+      </div>
+      <h2>Account & Data Deletion Request</h2>
+      <p>If you wish to permanently delete your RepChamp account and all associated cloud data (authentication profile, social duel stats, and leaderboard entries), you can do so through any of the methods below:</p>
+
+      <div class="legal-highlight-box" style="border-left-color: var(--primary);">
+        <h3>Method 1: Direct In-App Deletion</h3>
+        <p>1. Open the RepChamp App on your device.<br>
+           2. Navigate to <strong>Settings</strong> &gt; <strong>Account</strong>.<br>
+           3. Tap <strong>Delete Account & Data</strong> and confirm.</p>
+      </div>
+
+      <div class="legal-highlight-box" style="border-left-color: var(--accent-cyan);">
+        <h3>Method 2: Web Deletion Request Form</h3>
+        <p>Fill out the support contact form below or send an email directly to <a href="mailto:support@repchamp.app">support@repchamp.app</a> with the email address associated with your account. Include <em>"Account Deletion Request"</em> in the subject line.</p>
+        <p style="font-size: 0.9rem; margin-top: 0.5rem; color: var(--text-secondary);">Deletion requests are processed within 30 days. All remote authentication records, profile entries, and workout syncing data will be permanently removed.</p>
+      </div>
+    </div>
+
+    <!-- Contact Form Section -->
+    <div class="legal-content" id="contact" style="margin-top: 3rem;">
+      <h2>Contact Support</h2>
+      <p>Have a question or need assistance? Fill out the form below or email us at <a href="mailto:support@repchamp.app">support@repchamp.app</a>.</p>
+
+      <form id="contactForm" style="margin-top: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem;">
+        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+          <label for="nameInput" style="font-weight: 600;">Your Name</label>
+          <input type="text" id="nameInput" required placeholder="John Doe" style="padding: 0.75rem 1rem; background: rgba(0,0,0,0.3); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); color: #fff; font-size: 1rem;">
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+          <label for="emailInput" style="font-weight: 600;">Your Email Address</label>
+          <input type="email" id="emailInput" required placeholder="john@example.com" style="padding: 0.75rem 1rem; background: rgba(0,0,0,0.3); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); color: #fff; font-size: 1rem;">
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+          <label for="subjectInput" style="font-weight: 600;">Subject / Request Type</label>
+          <select id="subjectInput" style="padding: 0.75rem 1rem; background: rgba(17,24,39,0.9); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); color: #fff; font-size: 1rem;">
+            <option value="general">General Support / Question</option>
+            <option value="deletion">Account / Data Deletion Request</option>
+            <option value="bug">Report a Bug / Camera Issue</option>
+            <option value="feedback">Feature Feedback</option>
+          </select>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+          <label for="messageInput" style="font-weight: 600;">Message</label>
+          <textarea id="messageInput" rows="5" required placeholder="Describe your question or issue in detail..." style="padding: 0.75rem 1rem; background: rgba(0,0,0,0.3); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); color: #fff; font-size: 1rem; font-family: var(--font-main);"></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="align-self: flex-start;">Send Message</button>
+        <div id="formStatus" style="display: none; font-weight: 600; padding: 0.75rem; border-radius: var(--radius-sm); background: rgba(34,197,94,0.1);"></div>
+      </form>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-bottom">
+        <p>© 2026 RepChamp (gg.repchamp.app). All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="main.js"></script>
+</body>
+</html>

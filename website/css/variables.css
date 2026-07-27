@@ -1,0 +1,39 @@
+:root {
+  --color-white: #ffffff;
+  --color-bg: #fafafa;
+  --color-surface: #ffffff;
+  --color-green: #6bc700;
+  --color-green-dark: #4fa000;
+  --color-green-light: #e8f9d4;
+  --color-green-glow: rgba(107, 199, 0, 0.25);
+  --gradient-page-top: linear-gradient(
+    180deg,
+    rgba(107, 199, 0, 0.1) 0%,
+    rgba(107, 199, 0, 0.055) 38%,
+    rgba(107, 199, 0, 0.02) 72%,
+    transparent 100%
+  );
+  --color-gold: #f5c518;
+  --color-gold-dark: #d4a800;
+  --color-text: #111111;
+  --color-text-muted: #6b7280;
+  --color-border: #e5e7eb;
+
+  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 32px;
+  --radius-full: 9999px;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.1);
+  --shadow-green: 0 8px 30px var(--color-green-glow);
+
+  --nav-height: 60px;
+  --nav-top-offset: 16px;
+  --max-width: 1200px;
+  --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}

@@ -1,0 +1,115 @@
+.legal-page {
+  padding: calc(var(--nav-height) + var(--nav-top-offset) + 48px) 0 80px;
+}
+
+.legal-page__header {
+  margin-bottom: 40px;
+  max-width: 720px;
+}
+
+.legal-page__title {
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 8px;
+}
+
+.legal-page__meta {
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+}
+
+.legal-page__content {
+  max-width: 720px;
+  color: var(--color-text);
+}
+
+.legal-page__content h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 2rem 0 0.75rem;
+}
+
+.legal-page__content h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 1.25rem 0 0.5rem;
+}
+
+.legal-page__content p,
+.legal-page__content li {
+  color: var(--color-text-muted);
+  margin-bottom: 0.85rem;
+}
+
+.legal-page__content ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+  margin-bottom: 0.85rem;
+}
+
+.legal-page__content a {
+  color: var(--color-green-dark);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.legal-page__content a:hover {
+  color: var(--color-green);
+}
+
+.legal-page__nav-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.legal-page__nav-links a {
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.legal-page__nav-links a:hover {
+  text-decoration: underline;
+}
+
+.legal-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0 1.5rem;
+  font-size: 0.9rem;
+}
+
+.legal-table th,
+.legal-table td {
+  border: 1px solid var(--color-border);
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.legal-table th {
+  background: var(--color-surface, rgba(0, 0, 0, 0.03));
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.legal-table td {
+  color: var(--color-text-muted);
+}
+
+.legal-table a {
+  color: var(--color-green-dark);
+  word-break: break-word;
+}
+
+@media (max-width: 640px) {
+  .legal-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}

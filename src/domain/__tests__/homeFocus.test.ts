@@ -1,0 +1,166 @@
+import { selectHomeFocus, type HomeFocusInput } from '../homeFocus';
+
+/** A "nothing pressing, paired, trained today" baseline; tests override fields. */
+function input(overrides: Partial<HomeFocusInput> = {}): HomeFocusInput {
+  const { couple: coupleOverride, ...rest } = overrides;
+  return {
+    hasTrained: true,
+    trainedToday: true,
+    daysThisWeek: 1,
+    weeklyGoal: 4,
+    dailyChallenge: null,
+    ...rest,
+    couple: {
+      paired: true,
+      awaitingPartner: false,
+      partnerName: 'Ayesha',
+      streak: 3,
+      atRisk: false,
+      partnerTrainedToday: false,
+      ...coupleOverride,
+    },
+  };
+}
+
+describe('selectHomeFocus — priority order', () => {
+  it('1. first-session beats everything for a brand-new athlete', () => {
+    const focus = selectHomeFocus(
+      input({
+        hasTrained: false,
+        // Even with a streak at risk and partner trained, the first rep wins.
+        couple: {
+          paired: true,
+          awaitingPartner: false,
+          partnerName: 'Ayesha',
+          streak: 5,
+          atRisk: true,
+          partnerTrainedToday: true,
+        },
+      }),
+    );
+    expect(focus.kind).toBe('first-session');
+  });
+
+  it('2. streak-at-risk beats partner-trained and everything below', () => {
+    const focus = selectHomeFocus(
+      input({
+        trainedToday: false,
+        couple: {
+          paired: true,
+          awaitingPartner: false,
+          partnerName: 'Ayesha',
+          streak: 7,
+          atRisk: true,
+          partnerTrainedToday: true, // would otherwise be partner-trained
+        },
+      }),
+    );
+    expect(focus).toEqual({ kind: 'streak-at-risk', partnerName: 'Ayesha', streak: 7 });
+  });
+
+  it('3. partner-trained fires when partner went and I have not (today)', () => {
+    const focus = selectHomeFocus(
+      input({
+        trainedToday: false,
+        couple: {
+          paired: true,
+          awaitingPartner: false,
+          partnerName: 'Ayesha',
+          streak: 2,
+          atRisk: false,
+          partnerTrainedToday: true,
+        },
+      }),
+    );
+    expect(focus).toEqual({ kind: 'partner-trained', partnerName: 'Ayesha' });
+  });
+
+  it('3b. partner-trained does NOT fire once I have also trained today', () => {
+    const focus = selectHomeFocus(
+      input({
+        trainedToday: true,
+        daysThisWeek: 1,
+        couple: {
+          paired: true,
+          awaitingPartner: false,
+          partnerName: 'Ayesha',
+          streak: 2,
+          atRisk: false,
+          partnerTrainedToday: true,
+        },
+      }),
+    );
+    expect(focus.kind).not.toBe('partner-trained');
+  });
+
+  it('4. invite-partner when there is no partner bonded', () => {
+    const focus = selectHomeFocus(
+      input({
+        trainedToday: false,
+        couple: {
+          paired: false,
+          awaitingPartner: false,
+          partnerName: null,
+          streak: 0,
+          atRisk: false,
+          partnerTrainedToday: false,
+        },
+      }),
+    );
+    expect(focus.kind).toBe('invite-partner');
+  });
+
+  it('5. daily-challenge when offered, unfinished, and nothing above applies', () => {
+    const focus = selectHomeFocus(
+      input({
+        trainedToday: false,
+        dailyChallenge: { exercise: 'push', target: 25, done: false },
+      }),
+    );
+    expect(focus).toEqual({ kind: 'daily-challenge', exercise: 'push', target: 25 });
+  });
+
+  it('5b. a finished daily challenge is skipped', () => {
+    const focus = selectHomeFocus(
+      input({
+        daysThisWeek: 1,
+        dailyChallenge: { exercise: 'push', target: 25, done: true },
+      }),
+    );
+    expect(focus.kind).not.toBe('daily-challenge');
+  });
+
+  it('6. goal-met when the weekly target is reached', () => {
+    const focus = selectHomeFocus(input({ daysThisWeek: 4, weeklyGoal: 4 }));
+    expect(focus).toEqual({ kind: 'goal-met', days: 4, goal: 4 });
+  });
+
+  it('7. recovery is the fallback when nothing is pressing', () => {
+    const focus = selectHomeFocus(input({ daysThisWeek: 1, weeklyGoal: 4 }));
+    expect(focus.kind).toBe('recovery');
+  });
+});
+
+describe('selectHomeFocus — solo (no couple) paths', () => {
+  const solo = {
+    paired: false,
+    awaitingPartner: false,
+    partnerName: null,
+    streak: 0,
+    atRisk: false,
+    partnerTrainedToday: false,
+  } as const;
+
+  it('an unpaired veteran who has not trained is nudged to invite', () => {
+    // invite-partner sits above daily-challenge, so an unpaired athlete is always
+    // pushed toward the growth loop first.
+    const focus = selectHomeFocus(
+      input({
+        trainedToday: false,
+        couple: { ...solo },
+        dailyChallenge: { exercise: 'squat', target: 30, done: false },
+      }),
+    );
+    expect(focus.kind).toBe('invite-partner');
+  });
+});

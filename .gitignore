@@ -1,0 +1,64 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# Firebase — these hold REAL project credentials; excluded from the public repo.
+# Re-add them locally (or via CI secrets) to build.
+google-services.json
+GoogleService-Info.plist
+.firebase/
+firebase-debug.log
+
+# typescript
+*.tsbuildinfo
+
+# generated native folders
+/ios
+/android
+
+# Pose model — fetched via `npm run fetch-model`, not committed (~3MB binary)
+assets/models/*.tflite
+
+# Generated UI sounds — rebuilt via `node scripts/generate-sounds.js`
+assets/sounds/*.wav
+
+.cursor/hooks.json
+.cursor/hooks/after-agent-response.js
+
+# Firebase/GCP service-account keys — NEVER commit these
+*firebase-adminsdk*.json
+*service-account*.json
+
+# Local credential backups / placeholders
+*.placeholder.bak

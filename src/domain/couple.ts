@@ -1,0 +1,361 @@
+/**
+ * The couple bond — two athletes who train together, on their own phones.
+ *
+ * Framework-free and synchronous on purpose, exactly like `duel.ts`: this module
+ * owns the document shape, the pair code, the shared-streak rule and the
+ * in-sync/milestone maths, while `services/coupleService.ts` is the thin
+ * Firestore wire on top. That split is what lets the rules that actually matter
+ * for retention be proven in `couple.test.ts` without a network or a device.
+ *
+ * The defining rule: **a couple streak only advances on days BOTH partners
+ * trained.** That is the whole hook — neither partner wants to be the one who
+ * breaks it — and it is why couple mode cannot be used alone.
+ */
+
+import { calculateStreak } from './progression';
+
+/** One half of a couple. */
+export interface CoupleMember {
+  uid: string;
+  displayName: string;
+  avatarUrl: string | null;
+  /** ISO `YYYY-MM-DD` days this member trained, used for the shared streak. */
+  trainedDays: string[];
+  /** All-time reps this member has contributed to the couple. */
+  totalReps: number;
+}
+
+export interface Couple {
+  /** Doc id — also the human-typed pair code. */
+  id: string;
+  /** Both member uids, denormalised so Firestore rules can check membership. */
+  memberUids: string[];
+  members: CoupleMember[];
+  /** Set while the invite is open and nobody has taken the second seat. */
+  pending: boolean;
+  /**
+   * The most recent poke from one partner to the other. `at` is a Firestore
+   * timestamp, kept structurally typed so this module stays free of any Firebase
+   * import — the whole point of the domain/service split.
+   */
+  nudge?: {
+    fromUid: string;
+    at?: { toMillis?: () => number } | null;
+  } | null;
+}
+
+/**
+ * Millisecond stamp of a nudge, or null when it is absent or still resolving.
+ *
+ * A freshly written nudge briefly carries an unresolved server timestamp, which
+ * is exactly when we must *not* treat it as new — hence the guarded read rather
+ * than trusting the field's presence.
+ */
+export function nudgeAt(couple: Couple | null): number | null {
+  const at = couple?.nudge?.at;
+  if (!at || typeof at.toMillis !== 'function') return null;
+  const millis = at.toMillis();
+  return Number.isFinite(millis) ? millis : null;
+}
+
+/* ------------------------------------------------------------------ *
+ * Pair code
+ * ------------------------------------------------------------------ */
+
+/**
+ * Unambiguous alphabet — no I/O/0/1, which are the characters people misread
+ * when copying a code off someone else's screen.
+ */
+export const PAIR_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+export const PAIR_CODE_LENGTH = 6;
+
+/** A fresh pair code. `random` is injectable so tests are deterministic. */
+export function makePairCode(random: () => number = Math.random): string {
+  let code = '';
+  for (let i = 0; i < PAIR_CODE_LENGTH; i++) {
+    const index = Math.floor(random() * PAIR_CODE_ALPHABET.length) % PAIR_CODE_ALPHABET.length;
+    code += PAIR_CODE_ALPHABET[index];
+  }
+  return code;
+}
+
+/**
+ * Canonicalise a code a human typed or pasted: upper-cased, with the spaces and
+ * dashes people add for readability stripped. Returns '' when nothing usable is
+ * left, so callers can treat empty as "not a code".
+ */
+export function normalizePairCode(input: string): string {
+  const cleaned = input.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return cleaned.length === PAIR_CODE_LENGTH ? cleaned : '';
+}
+
+/* ------------------------------------------------------------------ *
+ * Invite links
+ * ------------------------------------------------------------------ */
+
+/**
+ * The universal-link host for couple invites. A tapped `https://repchamp.gg/...`
+ * link opens the app (once associated domains are configured) or the web; the
+ * `repchamp://` scheme is the local fallback the app always understands.
+ */
+export const INVITE_WEB_BASE = 'https://repchamp.gg';
+
+/**
+ * Build the shareable invite link for a pair code.
+ *
+ * A web URL rather than a bare `repchamp://` scheme so it's tappable in any
+ * messenger and still means something if the recipient hasn't installed the app
+ * yet (it can land on a "get RepChamp" page). The app maps the same path to its
+ * pairing flow.
+ */
+export function inviteLink(code: string): string {
+  return `${INVITE_WEB_BASE}/couple/join?code=${encodeURIComponent(code)}`;
+}
+
+/**
+ * Pull a pair code out of an invite URL (or return null if there isn't one).
+ *
+ * Tolerant of both the web link and the `repchamp://couple/join?code=...` scheme,
+ * and normalises whatever it finds — so a lightly-mangled link still pairs.
+ */
+export function parseInviteCode(url: string): string | null {
+  const match = /[?&]code=([^&#]+)/.exec(url);
+  if (!match) return null;
+  const code = normalizePairCode(decodeURIComponent(match[1] as string));
+  return code || null;
+}
+
+/* ------------------------------------------------------------------ *
+ * Membership
+ * ------------------------------------------------------------------ */
+
+export function memberOf(couple: Couple, uid: string): CoupleMember | null {
+  return couple.members.find((m) => m.uid === uid) ?? null;
+}
+
+/** The *other* person. Null while the couple is still waiting for a partner. */
+export function partnerOf(couple: Couple, uid: string): CoupleMember | null {
+  return couple.members.find((m) => m.uid !== uid) ?? null;
+}
+
+export function isPaired(couple: Couple | null): boolean {
+  return couple != null && couple.members.length === 2 && !couple.pending;
+}
+
+/* ------------------------------------------------------------------ *
+ * Totals, streak, milestones
+ * ------------------------------------------------------------------ */
+
+/** Every rep the two of them have logged together, all time. */
+export function combinedReps(couple: Couple): number {
+  return couple.members.reduce((total, m) => total + m.totalReps, 0);
+}
+
+/**
+ * The shared streak: days on which **both** partners trained.
+ *
+ * Implemented as the solo streak over the *intersection* of the two day sets,
+ * so it inherits the app's existing promise that a single rest day does not
+ * break a streak (see `calculateStreak`) — the couple is held to the same
+ * standard as an individual, just with two people on the hook for each day.
+ */
+export function calculateCoupleStreak(couple: Couple, today: string): number {
+  if (couple.members.length < 2) return 0;
+
+  const [first, second] = couple.members as [CoupleMember, CoupleMember];
+  const secondDays = new Set(second.trainedDays);
+  const bothTrained = first.trainedDays.filter((day) => secondDays.has(day));
+
+  return calculateStreak(bothTrained, today);
+}
+
+/** True when the shared streak dies unless someone trains today. */
+export function streakAtRisk(couple: Couple, today: string): boolean {
+  if (!isPaired(couple)) return false;
+  const bothToday = couple.members.every((m) => m.trainedDays.includes(today));
+  return !bothToday && calculateCoupleStreak(couple, today) > 0;
+}
+
+/**
+ * Whichever partner has not logged today yet — the one a nudge should go to.
+ * Null when both are done (nothing to nudge about).
+ */
+export function memberBehindToday(couple: Couple, today: string): CoupleMember | null {
+  return couple.members.find((m) => !m.trainedDays.includes(today)) ?? null;
+}
+
+/**
+ * Combined-rep milestones. These are the shareable moments ("we've done 1,000
+ * push-ups together"), so they are spaced to stay reachable rather than
+ * doubling away into the distance.
+ */
+export const COMBINED_MILESTONES = [100, 250, 500, 1_000, 2_500, 5_000, 10_000] as const;
+
+/** The next milestone above `total`, or null once they've passed them all. */
+export function nextMilestone(total: number): number | null {
+  return COMBINED_MILESTONES.find((m) => m > total) ?? null;
+}
+
+/** The highest milestone `total` has reached, or null before the first one. */
+export function lastMilestoneReached(total: number): number | null {
+  let reached: number | null = null;
+  for (const m of COMBINED_MILESTONES) {
+    if (total >= m) reached = m;
+  }
+  return reached;
+}
+
+/* ------------------------------------------------------------------ *
+ * Couple levels
+ *
+ * A shared level the couple climbs together — the sense of "we're building
+ * something" that a solo XP bar can't give. Level is earned from combined reps
+ * (the work) plus a bonus per streak day (the consistency), so a couple that
+ * shows up every day out-levels one that binges once. Kept a pure calculation so
+ * the thresholds are testable and easy to retune.
+ * ------------------------------------------------------------------ */
+
+/** Named tiers, each with the minimum couple-points to reach it. */
+export const COUPLE_TIERS = [
+  { level: 1, name: 'New Duo', min: 0 },
+  { level: 2, name: 'Training Partners', min: 250 },
+  { level: 3, name: 'In Step', min: 750 },
+  { level: 4, name: 'Power Couple', min: 2_000 },
+  { level: 5, name: 'Unstoppable', min: 5_000 },
+  { level: 6, name: 'Legends', min: 12_000 },
+] as const;
+
+/** Each streak day is worth this many points on top of the raw reps. */
+const STREAK_POINT_BONUS = 50;
+
+/** Combined-effort points: every rep, plus a bonus for each shared streak day. */
+export function couplePoints(combined: number, streak: number): number {
+  return combined + streak * STREAK_POINT_BONUS;
+}
+
+export interface CoupleLevel {
+  level: number;
+  name: string;
+  points: number;
+  /** Points at the start of the current tier. */
+  tierMin: number;
+  /** Points needed to reach the next tier, or null at the top. */
+  nextAt: number | null;
+  /** 0..1 progress through the current tier (1 at the top tier). */
+  progress: number;
+}
+
+/** Resolve combined reps + streak into the couple's live level and progress. */
+export function coupleLevel(combined: number, streak: number): CoupleLevel {
+  const points = couplePoints(combined, streak);
+
+  // Typed as the tier element (not the first tier's narrow literal) so it can be
+  // reassigned as we walk up the ladder.
+  let tier: (typeof COUPLE_TIERS)[number] = COUPLE_TIERS[0];
+  for (const t of COUPLE_TIERS) {
+    if (points >= t.min) tier = t;
+  }
+  const next = COUPLE_TIERS.find((t) => t.min > tier.min) ?? null;
+  const span = next ? next.min - tier.min : 0;
+  const progress = next ? Math.min(1, (points - tier.min) / span) : 1;
+
+  return {
+    level: tier.level,
+    name: tier.name,
+    points,
+    tierMin: tier.min,
+    nextAt: next?.min ?? null,
+    progress,
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * Badges — one-off shared achievements the couple unlocks.
+ * ------------------------------------------------------------------ */
+
+export interface CoupleBadge {
+  id: string;
+  emoji: string;
+  title: string;
+  /** One-line description of how it's earned. */
+  detail: string;
+  earned: boolean;
+}
+
+/**
+ * The couple's badge shelf, each marked earned or not from the current state.
+ *
+ * Pure derivation — no persisted "unlocked" flags — so a badge can never get out
+ * of sync with reality, and the rules stay in one testable place.
+ */
+export function coupleBadges(combined: number, streak: number): CoupleBadge[] {
+  return [
+    {
+      id: 'first-together',
+      emoji: '🤝',
+      title: 'First Steps',
+      detail: 'Logged your first reps together',
+      earned: combined > 0,
+    },
+    {
+      id: 'week-streak',
+      emoji: '🔥',
+      title: 'One Week Strong',
+      detail: 'A 7-day shared streak',
+      earned: streak >= 7,
+    },
+    {
+      id: 'month-streak',
+      emoji: '📅',
+      title: 'Monthly Duo',
+      detail: 'A 30-day shared streak',
+      earned: streak >= 30,
+    },
+    {
+      id: 'thousand',
+      emoji: '💪',
+      title: 'Thousand Club',
+      detail: '1,000 reps together',
+      earned: combined >= 1_000,
+    },
+    {
+      id: 'five-thousand',
+      emoji: '🏆',
+      title: 'Five Thousand',
+      detail: '5,000 reps together',
+      earned: combined >= 5_000,
+    },
+    {
+      id: 'power-couple',
+      emoji: '⚡',
+      title: 'Power Couple',
+      detail: 'Reached couple level 4',
+      earned: coupleLevel(combined, streak).level >= 4,
+    },
+  ];
+}
+
+/* ------------------------------------------------------------------ *
+ * Live "in sync"
+ * ------------------------------------------------------------------ */
+
+/**
+ * How recently both partners must have completed a rep to count as in sync.
+ *
+ * Long enough to survive the pause at the top of a push-up, short enough that
+ * it stops glowing when one of them actually stops.
+ */
+export const IN_SYNC_WINDOW_MS = 3_000;
+
+/**
+ * True while both partners are actively repping — the signal the together HUD
+ * glows on. Either side never having repped is not "in sync".
+ */
+export function isInSync(
+  now: number,
+  myLastRepAt: number | null,
+  partnerLastRepAt: number | null,
+): boolean {
+  if (myLastRepAt === null || partnerLastRepAt === null) return false;
+  return now - myLastRepAt <= IN_SYNC_WINDOW_MS && now - partnerLastRepAt <= IN_SYNC_WINDOW_MS;
+}

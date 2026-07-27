@@ -1,0 +1,1586 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,500;0,600;0,700;0,800;1,800&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(140% 100% at 50% 0%,#e8ebe6 0%,#d6dbd3 100%);font-family:'Plus Jakarta Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px}
+  a{color:#16A34A}a:hover{color:#15803D}
+  .phone{width:390px;height:844px;background:#0b0f0d;border-radius:52px;padding:12px;box-shadow:0 40px 90px -30px rgba(0,0,0,.55),0 0 0 2px rgba(0,0,0,.06);position:relative;flex:none}
+  .screen{width:100%;height:100%;border-radius:40px;overflow:hidden;position:relative;background:#F6F7F5}
+  .notch{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:120px;height:32px;background:#0b0f0d;border-radius:0 0 20px 20px;z-index:60}
+  .sb{position:absolute;top:0;left:0;right:0;height:52px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 8px;z-index:50;font:800 14px 'Plus Jakarta Sans'}
+  .scr{position:absolute;top:52px;bottom:0;left:0;right:0;overflow-y:auto;overflow-x:hidden}
+  .scr::-webkit-scrollbar{display:none}
+  .pad{padding:8px 20px 116px}
+  .card{background:#fff;border-radius:24px;box-shadow:0 2px 10px rgba(15,30,20,.05)}
+  .h1{font:800 30px 'Plus Jakarta Sans';color:#0F1512;letter-spacing:-.02em;margin:0}
+  .sec{font:800 13px 'Plus Jakarta Sans';letter-spacing:.04em;color:#0F1512;margin:0}
+  .muted{color:#8a938c}
+  .nav{position:absolute;bottom:0;left:0;right:0;height:92px;background:rgba(255,255,255,.86);backdrop-filter:blur(20px);border-top:1px solid rgba(0,0,0,.06);display:flex;padding:10px 8px 26px;z-index:40}
+  .navb{flex:1;background:none;border:0;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;font:800 10px 'Plus Jakarta Sans';padding:4px 0;transition:transform .24s cubic-bezier(.2,.7,.3,1.3)}
+  .navb svg{transition:transform .24s cubic-bezier(.2,.7,.3,1.3)}
+  .navb:active{transform:scale(.9)}
+  .cam{position:absolute;inset:0;background:radial-gradient(120% 90% at 50% 30%,#1c2a22 0%,#0e1512 55%,#070a08 100%)}
+  .scan{position:absolute;left:0;right:0;height:130px;background:linear-gradient(180deg,transparent,rgba(34,197,94,.13),transparent);animation:scan 3.2s ease-in-out infinite}
+  @keyframes scan{0%{top:-130px}100%{top:100%}}
+  @keyframes pop{0%{transform:scale(1)}40%{transform:scale(1.14)}100%{transform:scale(1)}}
+  @keyframes joint{0%,100%{opacity:.55}50%{opacity:1}}
+  @keyframes fall{0%{transform:translateY(-40px) rotate(0);opacity:0}12%{opacity:1}100%{transform:translateY(760px) rotate(420deg);opacity:0}}
+  @keyframes rise{0%{transform:translateY(30px);opacity:0}100%{transform:translateY(0);opacity:1}}
+  @keyframes flashb{0%{opacity:.85}100%{opacity:0}}
+  @keyframes plusone{0%{transform:translateY(0) scale(.6);opacity:0}25%{transform:translateY(-6px) scale(1.1);opacity:1}100%{transform:translateY(-52px) scale(1);opacity:0}}
+  @keyframes countpop{0%{transform:scale(1.8);opacity:0}30%{transform:scale(1);opacity:1}100%{transform:scale(.7);opacity:0}}
+  .joints circle{animation:joint 1.6s ease-in-out infinite}
+  @keyframes stepin{0%{opacity:0;transform:translateY(16px)}100%{opacity:1;transform:translateY(0)}}
+  @keyframes toastin{0%{opacity:0;transform:translate(-50%,-14px)}100%{opacity:1;transform:translate(-50%,0)}}
+  .obstep{animation:stepin .42s cubic-bezier(.2,.7,.2,1)}
+  .screen-in{animation:stepin .36s ease}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spin{animation:spin .9s linear infinite;transform-origin:center}
+  @keyframes checkpop{0%{transform:scale(0)}60%{transform:scale(1.18)}100%{transform:scale(1)}}
+  .checkpop{animation:checkpop .34s cubic-bezier(.2,.8,.3,1.2)}
+  @keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+  .floaty{animation:floaty 2.6s ease-in-out infinite}
+  @keyframes sparkle{0%,100%{opacity:.35;transform:scale(.85)}50%{opacity:1;transform:scale(1.1)}}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(18px)}}
+  @keyframes bobsq{0%,100%{transform:translateY(0)}50%{transform:translateY(26px)}}
+  .rig{animation:bob 1.35s ease-in-out infinite}
+  .rig.sq{animation:bobsq 1.5s ease-in-out infinite}
+  video.feed{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+  .btm{position:absolute;left:50%;transform:translateX(-50%);bottom:9px;width:130px;height:5px;border-radius:3px;background:#0F1512;opacity:.9;z-index:55}
+  .btmw{background:#fff}
+  .press{transition:transform .12s ease}.press:active{transform:scale(.96)}
+  .conf{position:absolute;top:0;width:10px;height:14px;border-radius:2px;animation:fall linear infinite}
+</style>
+</helmet>
+
+<div class="phone">
+  <div class="notch"></div>
+  <div class="screen">
+    <div class="sb" style="{{sbStyle}}"><span>9:41</span><span>5G ▮▮▮</span></div>
+
+    <!-- ======================= HOME ======================= -->
+    <sc-if value="{{isHome}}" hint-placeholder-val="{{ true }}">
+    <div class="scr"><div class="pad screen-in">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:10px 0 20px">
+        <div><div style="font:700 13px 'Plus Jakarta Sans';color:#8a938c">Good morning</div><h1 class="h1">Home</h1></div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <button class="press" onClick="{{openNotifs}}" style="position:relative;width:42px;height:42px;border-radius:20px;border:0;background:#fff;box-shadow:0 2px 10px rgba(15,30,20,.05);cursor:pointer;font-size:18px">🔔<sc-if value="{{notifDot}}" hint-placeholder-val="{{ true }}"><span style="position:absolute;top:8px;right:9px;width:9px;height:9px;border-radius:50%;background:#ef4444;border:2px solid #fff"></span></sc-if></button>
+          <div style="display:flex;align-items:center;gap:6px;background:#fff;padding:9px 14px;border-radius:20px;box-shadow:0 2px 10px rgba(15,30,20,.05)"><span style="font-size:19px">🔥</span><span style="font:800 17px 'Plus Jakarta Sans';color:#F59E0B">3</span></div>
+        </div>
+      </div>
+
+      <!-- level card -->
+      <div class="card" style="padding:20px;background:linear-gradient(135deg,#16A34A,#22C55E);box-shadow:0 14px 30px -10px rgba(34,197,94,.5)">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
+          <div style="width:56px;height:56px;border-radius:18px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font:800 24px 'Plus Jakarta Sans';color:#fff;border:2px solid rgba(255,255,255,.4)">J</div>
+          <div style="flex:1"><div style="font:800 19px 'Plus Jakarta Sans';color:#fff">James</div><div style="font:700 12px 'Plus Jakarta Sans';color:rgba(255,255,255,.8)">👑 {{rankName}} · Level {{level}}</div></div>
+          <div style="text-align:right"><div style="font:800 22px 'Plus Jakarta Sans';color:#fff">{{homeXp}}</div><div style="font:700 10px 'Plus Jakarta Sans';color:rgba(255,255,255,.75)">XP</div></div>
+        </div>
+        <div style="height:10px;border-radius:6px;background:rgba(255,255,255,.25);overflow:hidden"><div style="height:100%;background:#fff;border-radius:6px;transition:width .9s cubic-bezier(.2,.7,.2,1);width: {{homeXpPct}}%"></div></div>
+        <div style="display:flex;justify-content:space-between;margin-top:8px;font:700 11px 'Plus Jakarta Sans';color:rgba(255,255,255,.85)"><span>{{homeXpToGo}} XP to Level {{nextLevel}}</span><span>{{homeXp}} / 1,000</span></div>
+      </div>
+
+      <!-- streak + weekly goal -->
+      <div style="display:flex;gap:12px;margin-top:14px">
+        <button class="card press" onClick="{{openRecap}}" style="flex:1;padding:16px;border:0;text-align:left;cursor:pointer;background:#fff"><div style="display:flex;align-items:center;justify-content:space-between"><div style="font:700 11px 'Plus Jakarta Sans';color:#8a938c">This week</div><span style="color:#c3ccc5;font-size:16px">›</span></div><div style="display:flex;align-items:baseline;gap:4px;margin-top:4px"><span style="font:800 26px 'Plus Jakarta Sans';color:#0F1512">3</span><span style="font:800 14px 'Plus Jakarta Sans';color:#8a938c">/ 4 days</span></div><div style="display:flex;gap:5px;margin-top:10px"><span style="flex:1;height:6px;border-radius:3px;background:#22C55E"></span><span style="flex:1;height:6px;border-radius:3px;background:#22C55E"></span><span style="flex:1;height:6px;border-radius:3px;background:#22C55E"></span><span style="flex:1;height:6px;border-radius:3px;background:#e6eae4"></span></div></button>
+        <div class="card press" style="flex:1;padding:16px"><div style="font:700 11px 'Plus Jakarta Sans';color:#8a938c">League</div><div style="display:flex;align-items:center;gap:7px;margin-top:6px"><span style="font-size:22px">{{leagueEmoji}}</span><div><div style="font:800 15px 'Plus Jakarta Sans';color:#0F1512">{{leagueName}}</div><div style="font:700 10px 'Plus Jakarta Sans';color:#8a938c">Rank #{{leagueRank}}</div></div></div></div>
+      </div>
+
+      <div class="sec" style="margin:26px 0 12px">Today's Challenges</div>
+      <button class="press" onClick="{{startPushDuel}}" style="width:100%;border:0;cursor:pointer;text-align:left;padding:18px;border-radius:24px;background:linear-gradient(120deg,#22C55E,#15803D);box-shadow:0 10px 24px -10px rgba(34,197,94,.5);display:flex;align-items:center;gap:14px;margin-bottom:12px">
+        <div style="width:52px;height:52px;border-radius:16px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:26px">💪</div>
+        <div style="flex:1"><div style="font:800 17px 'Plus Jakarta Sans';color:#fff">Push-up Power</div><div style="font:600 12px 'Plus Jakarta Sans';color:rgba(255,255,255,.85)">3 sets of 15 · Earn 200 XP</div></div>
+        <div style="width:40px;height:40px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;color:#16A34A;font-size:18px">▶</div>
+      </button>
+      <button class="press" onClick="{{startSquatDuel}}" style="width:100%;border:0;cursor:pointer;text-align:left;padding:18px;border-radius:24px;background:linear-gradient(120deg,#a855f7,#7c3aed);box-shadow:0 10px 24px -10px rgba(168,85,247,.5);display:flex;align-items:center;gap:14px">
+        <div style="width:52px;height:52px;border-radius:16px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:26px">🦵</div>
+        <div style="flex:1"><div style="font:800 17px 'Plus Jakarta Sans';color:#fff">Squat Strength</div><div style="font:600 12px 'Plus Jakarta Sans';color:rgba(255,255,255,.85)">3 sets of 15 · Earn 200 XP</div></div>
+        <div style="width:40px;height:40px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;color:#7c3aed;font-size:18px">▶</div>
+      </button>
+
+      <div class="sec" style="margin:26px 0 12px">Recovery</div>
+      <button class="press" onClick="{{openRest}}" style="width:100%;border:0;cursor:pointer;text-align:left;padding:16px;border-radius:20px;background:linear-gradient(120deg,#0ea5e9,#0369a1);box-shadow:0 10px 24px -12px rgba(14,165,233,.5);display:flex;align-items:center;gap:12px">
+        <div style="width:44px;height:44px;border-radius:13px;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:20px">🧘</div>
+        <div style="flex:1"><div style="font:800 15px 'Plus Jakarta Sans';color:#fff">Rest &amp; recover</div><div style="font:600 11px 'Plus Jakarta Sans';color:rgba(255,255,255,.9)">Muscles grow on rest days · keep your streak</div></div>
+        <span style="color:rgba(255,255,255,.8);font-size:20px">›</span>
+      </button>
+
+      <div class="sec" style="margin:26px 0 12px">Jump back in</div>
+      <button class="press" onClick="{{openOppPick}}" style="width:100%;border:0;cursor:pointer;text-align:left;padding:16px;border-radius:20px;background:#fff;box-shadow:0 2px 10px rgba(15,30,20,.05);display:flex;align-items:center;gap:12px">
+        <div style="width:44px;height:44px;border-radius:13px;background:#eafaf0;display:flex;align-items:center;justify-content:center;font-size:20px">⚔️</div>
+        <div style="flex:1"><div style="font:800 15px 'Plus Jakarta Sans';color:#0F1512">Duel a friend</div><div style="font:600 11px 'Plus Jakarta Sans';color:#8a938c">Adrian is online now</div></div>
+        <span style="color:#c3ccc5;font-size:20px">›</span>
+      </button>
+    </div></div>
+    </sc-if>
+
+    <!-- ======================= ARENA ======================= -->
+    <sc-if value="{{isArena}}" hint-placeholder-val="{{ false }}">
+    <div class="scr"><div class="pad screen-in">
+      <h1 class="h1" style="margin:14px 0 20px">Arena</h1>
+      <button class="press" onClick="{{openOppPick}}" style="width:100%;border:0;cursor:pointer;text-align:left;padding:22px;border-radius:26px;background:linear-gradient(130deg,#22C55E,#15803D);box-shadow:0 16px 34px -12px rgba(34,197,94,.55);position:relative;overflow:hidden;margin-bottom:14px">
+        <div style="position:absolute;right:-10px;top:-6px;font-size:96px;opacity:.18">⚔️</div>
+        <div style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.14em;color:rgba(255,255,255,.85)">HEAD TO HEAD</div>
+        <div style="font:800 24px 'Plus Jakarta Sans';color:#fff;margin:6px 0 4px">1 vs 1 Duel</div>
+        <div style="font:600 13px 'Plus Jakarta Sans';color:rgba(255,255,255,.9);max-width:220px">Challenge a friend to a live rep fight. Winner takes the XP.</div>
+        <div style="margin-top:16px;display:inline-flex;align-items:center;gap:8px;background:#fff;color:#16A34A;font:800 14px 'Plus Jakarta Sans';padding:11px 20px;border-radius:16px">Start a duel →</div>
+      </button>
+
+      <!-- leaderboard -->
+      <div class="card press" onClick="{{openLeaderboard}}" style="padding:18px;margin-bottom:14px;cursor:pointer">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px"><div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">🏆</span><span class="sec">Weekly Leaderboard</span></div><span style="font:800 11px 'Plus Jakarta Sans';color:#16A34A">See all ›</span></div>
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <div style="display:flex;align-items:center;gap:12px;padding:9px 8px;border-radius:12px"><span style="font:800 14px 'Plus Jakarta Sans';color:#F59E0B;width:22px">1</span><div style="width:34px;height:34px;border-radius:50%;background:#fde68a;display:flex;align-items:center;justify-content:center;font:800 13px 'Plus Jakarta Sans';color:#92400e">M</div><span style="flex:1;font:800 14px 'Plus Jakarta Sans';color:#0F1512">Mia</span><span style="font:800 13px 'Plus Jakarta Sans';color:#8a938c">4,120</span></div>
+          <div style="display:flex;align-items:center;gap:12px;padding:9px 8px;border-radius:12px"><span style="font:800 14px 'Plus Jakarta Sans';color:#94a29a;width:22px">2</span><div style="width:34px;height:34px;border-radius:50%;background:#ddd6fe;display:flex;align-items:center;justify-content:center;font:800 13px 'Plus Jakarta Sans';color:#5b21b6">A</div><span style="flex:1;font:800 14px 'Plus Jakarta Sans';color:#0F1512">Adrian</span><span style="font:800 13px 'Plus Jakarta Sans';color:#8a938c">3,880</span></div>
+          <div style="display:flex;align-items:center;gap:12px;padding:9px 8px;border-radius:12px"><span style="font:800 14px 'Plus Jakarta Sans';color:#b08d57;width:22px">3</span><div style="width:34px;height:34px;border-radius:50%;background:#bfdbfe;display:flex;align-items:center;justify-content:center;font:800 13px 'Plus Jakarta Sans';color:#1e40af">Z</div><span style="flex:1;font:800 14px 'Plus Jakarta Sans';color:#0F1512">Zheng</span><span style="font:800 13px 'Plus Jakarta Sans';color:#8a938c">3,540</span></div>
+          <div style="display:flex;align-items:center;gap:12px;padding:11px 8px;border-radius:14px;background:#eafaf0;border:1.5px solid #bbf7d0;margin-top:4px"><span style="font:800 14px 'Plus Jakarta Sans';color:#16A34A;width:22px">14</span><div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#22C55E,#15803D);display:flex;align-items:center;justify-content:center;font:800 13px 'Plus Jakarta Sans';color:#fff">J</div><span style="flex:1;font:800 14px 'Plus Jakarta Sans';color:#0F1512">You</span><span style="font:800 13px 'Plus Jakarta Sans';color:#16A34A">1,240</span></div>
+        </div>
+        <div style="text-align:center;margin-top:12px;font:800 11px 'Plus Jakarta Sans';color:#16A34A">Win 2 more duels to reach Gold 🚀</div>
+      </div>
+
+      <button class="press" onClick="{{openDaily}}" style="width:100%;border:0;cursor:pointer;text-align:left;padding:16px;border-radius:20px;background:linear-gradient(120deg,#F59E0B,#f97316);display:flex;align-items:center;gap:12px">
+        <div style="width:44px;height:44px;border-radius:13px;background:rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-size:20px">🎯</div>
+        <div style="flex:1"><div style="font:800 15px 'Plus Jakarta Sans';color:#fff">Daily Challenge</div><div style="font:600 11px 'Plus Jakarta Sans';color:rgba(255,255,255,.9)">Beat 25 push-ups · resets in 6h</div></div>
+        <span style="color:#fff;font-size:20px">›</span>
+      </button>
+    </div></div>
+    </sc-if>
+
+    <!-- ======================= TRAIN ======================= -->
+    <sc-if value="{{isTrain}}" hint-placeholder-val="{{ false }}">
+    <div class="scr"><div class="pad screen-in">
+      <h1 class="h1" style="margin:14px 0 6px">Train</h1>
+      <div style="font:600 13px 'Plus Jakarta Sans';color:#8a938c;margin-bottom:18px">Practice solo — no targets, just reps.</div>
+      <div style="display:flex;gap:12px;margin-bottom:14px">
+        <button class="press" onClick="{{startPracticePush}}" style="flex:1;border:0;cursor:pointer;text-align:left;padding:16px;border-radius:22px;background:linear-gradient(150deg,#22C55E,#15803D);height:170px;display:flex;flex-direction:column;justify-content:space-between">
+          <div style="font:800 18px 'Plus Jakarta Sans';color:#fff">Push-Ups</div>
+          <div><div style="font-size:40px;text-align:right">💪</div><div style="font:700 11px 'Plus Jakarta Sans';color:rgba(255,255,255,.85);margin-top:8px">Upper Body</div></div>
+        </button>
+        <button class="press" onClick="{{startPracticeSquat}}" style="flex:1;border:0;cursor:pointer;text-align:left;padding:16px;border-radius:22px;background:linear-gradient(150deg,#a855f7,#7c3aed);height:170px;display:flex;flex-direction:column;justify-content:space-between">
+          <div style="font:800 18px 'Plus Jakarta Sans';color:#fff">Squats</div>
+          <div><div style="font-size:40px;text-align:right">🦵</div><div style="font:700 11px 'Plus Jakarta Sans';color:rgba(255,255,255,.85);margin-top:8px">Lower Body</div></div>
+        </button>
+      </div>
+      <button class="press" onClick="{{startPracticePush}}" style="width:100%;border:0;cursor:pointer;text-align:left;padding:16px;border-radius:20px;background:#fff;box-shadow:0 2px 10px rgba(15,30,20,.05);display:flex;align-items:center;gap:12px;margin-bottom:24px">
+        <div style="width:44px;height:44px;border-radius:13px;background:#eef2ff;display:flex;align-items:center;justify-content:center;font-size:20px">🤖</div>
+        <div style="flex:1"><div style="font:800 15px 'Plus Jakarta Sans';color:#0F1512">Practice with AI</div><div style="font:600 11px 'Plus Jakarta Sans';color:#8a938c">Real-time form coaching, no pressure</div></div>
+        <span style="color:#c3ccc5;font-size:20px">›</span>
+      </button>
+
+      <div class="sec" style="margin-bottom:12px">Push-Up Roadmap</div>
+      <div class="card" style="padding:18px">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px"><div style="font:800 34px 'Plus Jakarta Sans';color:#22C55E">10</div><div style="flex:1"><div style="font:800 14px 'Plus Jakarta Sans';color:#0F1512">Your max in a row</div><div style="font:600 11px 'Plus Jakarta Sans';color:#8a938c">Next milestone: 15 reps</div></div></div>
+        <div style="display:flex;align-items:center;gap:0">
+          <span style="width:30px;height:30px;border-radius:50%;background:#22C55E;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex:none">✓</span>
+          <span style="flex:1;height:4px;background:#22C55E"></span>
+          <span style="width:30px;height:30px;border-radius:50%;background:#22C55E;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex:none">✓</span>
+          <span style="flex:1;height:4px;background:linear-gradient(90deg,#22C55E,#e6eae4)"></span>
+          <span style="width:34px;height:34px;border-radius:50%;background:#fff;border:3px solid #22C55E;color:#16A34A;display:flex;align-items:center;justify-content:center;font:800 12px 'Plus Jakarta Sans';flex:none">15</span>
+          <span style="flex:1;height:4px;background:#e6eae4"></span>
+          <span style="width:30px;height:30px;border-radius:50%;background:#e6eae4;color:#9aa39d;display:flex;align-items:center;justify-content:center;font:800 11px 'Plus Jakarta Sans';flex:none">25</span>
+        </div>
+      </div>
+    </div></div>
+    </sc-if>
+
+    <!-- ======================= FRIENDS ======================= -->
+    <sc-if value="{{isFriends}}" hint-placeholder-val="{{ false }}">
+    <div class="scr"><div class="pad screen-in">
+      <h1 class="h1" style="margin:14px 0 20px">Friends</h1>
+      <div style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.06em;color:#8a938c;margin-bottom:12px">ONLINE NOW</div>
+      <div style="display:flex;gap:16px;margin-bottom:26px">
+        <button class="press" onClick="{{openAdd}}" style="border:0;background:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px"><div style="width:58px;height:58px;border-radius:50%;background:#eafaf0;border:2px dashed #86efac;display:flex;align-items:center;justify-content:center;font-size:24px;color:#16A34A">+</div><span style="font:700 11px 'Plus Jakarta Sans';color:#8a938c">Add</span></button>
+        <button class="press" onClick="{{pickAdrian}}" style="border:0;background:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px"><div style="position:relative"><div style="width:58px;height:58px;border-radius:50%;background:#ddd6fe;display:flex;align-items:center;justify-content:center;font:800 22px 'Plus Jakarta Sans';color:#5b21b6">A</div><span style="position:absolute;bottom:2px;right:2px;width:14px;height:14px;border-radius:50%;background:#22C55E;border:2.5px solid #F6F7F5"></span></div><span style="font:700 11px 'Plus Jakarta Sans';color:#0F1512">Adrian</span></button>
+        <button class="press" onClick="{{pickZheng}}" style="border:0;background:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px"><div style="position:relative"><div style="width:58px;height:58px;border-radius:50%;background:#bfdbfe;display:flex;align-items:center;justify-content:center;font:800 22px 'Plus Jakarta Sans';color:#1e40af">Z</div><span style="position:absolute;bottom:2px;right:2px;width:14px;height:14px;border-radius:50%;background:#22C55E;border:2.5px solid #F6F7F5"></span></div><span style="font:700 11px 'Plus Jakarta Sans';color:#0F1512">Zheng</span></button>
+      </div>
+
+      <div style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.06em;color:#8a938c;margin-bottom:12px">ALL FRIENDS</div>
+      <div class="card" style="padding:8px">
+        <div style="display:flex;align-items:center;gap:12px;padding:11px 10px"><button class="press" onClick="{{openAdrian}}" style="flex:1;display:flex;align-items:center;gap:12px;border:0;background:none;cursor:pointer;text-align:left;padding:0"><div style="width:44px;height:44px;border-radius:50%;background:#ddd6fe;display:flex;align-items:center;justify-content:center;font:800 16px 'Plus Jakarta Sans';color:#5b21b6">A</div><div><div style="font:800 15px 'Plus Jakarta Sans';color:#0F1512">Adrian</div><div style="font:600 11px 'Plus Jakarta Sans';color:#22C55E">● Online · Lv.4</div></div></button><button class="press" onClick="{{startPushDuel}}" style="border:0;cursor:pointer;background:#22C55E;color:#fff;font:800 12px 'Plus Jakarta Sans';padding:9px 16px;border-radius:13px">Duel</button></div>
+        <div style="height:1px;background:#f0f2ef;margin:0 10px"></div>
+        <div style="display:flex;align-items:center;gap:12px;padding:11px 10px"><button class="press" onClick="{{openZheng}}" style="flex:1;display:flex;align-items:center;gap:12px;border:0;background:none;cursor:pointer;text-align:left;padding:0"><div style="width:44px;height:44px;border-radius:50%;background:#bfdbfe;display:flex;align-items:center;justify-content:center;font:800 16px 'Plus Jakarta Sans';color:#1e40af">Z</div><div><div style="font:800 15px 'Plus Jakarta Sans';color:#0F1512">Zheng</div><div style="font:600 11px 'Plus Jakarta Sans';color:#22C55E">● Online · Lv.6</div></div></button><button class="press" onClick="{{startPushDuel}}" style="border:0;cursor:pointer;background:#22C55E;color:#fff;font:800 12px 'Plus Jakarta Sans';padding:9px 16px;border-radius:13px">Duel</button></div>
+        <div style="height:1px;background:#f0f2ef;margin:0 10px"></div>
+        <div style="display:flex;align-items:center;gap:12px;padding:11px 10px"><button class="press" onClick="{{openMia}}" style="flex:1;display:flex;align-items:center;gap:12px;border:0;background:none;cursor:pointer;text-align:left;padding:0"><div style="width:44px;height:44px;border-radius:50%;background:#fde68a;display:flex;align-items:center;justify-content:center;font:800 16px 'Plus Jakarta Sans';color:#92400e">M</div><div><div style="font:800 15px 'Plus Jakarta Sans';color:#0F1512">Mia</div><div style="font:600 11px 'Plus Jakarta Sans';color:#8a938c">Offline · Lv.7</div></div></button><button class="press" onClick="{{nudgeMia}}" style="border:0;cursor:pointer;background:#eef2ee;color:#8a938c;font:800 12px 'Plus Jakarta Sans';padding:9px 16px;border-radius:13px">Nudge</button></div>
+      </div>
+    </div></div>
+    </sc-if>
+
+    <!-- ======================= PROFILE ======================= -->
+    <sc-if value="{{isProfile}}" hint-placeholder-val="{{ false }}">
+    <div class="scr"><div class="pad screen-in">
+      <div style="display:flex;justify-content:flex-end;margin:8px 0 -12px"><button class="press" onClick="{{openSettings}}" style="width:40px;height:40px;border-radius:13px;border:0;background:#fff;box-shadow:0 2px 8px rgba(15,30,20,.06);cursor:pointer;display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F1512" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg></button></div>
+      <div style="text-align:center;padding:6px 0 10px">
+        <div style="width:88px;height:88px;border-radius:28px;margin:0 auto;background:linear-gradient(135deg,#22C55E,#15803D);display:flex;align-items:center;justify-content:center;font:800 38px 'Plus Jakarta Sans';color:#fff;box-shadow:0 12px 26px -8px rgba(34,197,94,.5)">{{profileInitial}}</div>
+        <div style="font:800 22px 'Plus Jakarta Sans';color:#0F1512;margin-top:12px">James</div>
+        <div style="font:700 12px 'Plus Jakarta Sans';color:#8a938c">@{{usernameOr}} · 👑 {{rankName}} · Level {{level}}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:18px 0">
+        <div class="card" style="padding:16px"><div style="font:800 26px 'Plus Jakarta Sans';color:#22C55E">1,204</div><div style="font:700 11px 'Plus Jakarta Sans';color:#8a938c">Total reps</div></div>
+        <div class="card" style="padding:16px"><div style="font:800 26px 'Plus Jakarta Sans';color:#a855f7">8</div><div style="font:700 11px 'Plus Jakarta Sans';color:#8a938c">Duels won</div></div>
+        <div class="card" style="padding:16px"><div style="font:800 26px 'Plus Jakarta Sans';color:#F59E0B">67%</div><div style="font:700 11px 'Plus Jakarta Sans';color:#8a938c">Win rate</div></div>
+        <div class="card" style="padding:16px"><div style="font:800 26px 'Plus Jakarta Sans';color:#EF4444">5</div><div style="font:700 11px 'Plus Jakarta Sans';color:#8a938c">Best streak</div></div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><span class="sec">Achievements</span><button class="press" onClick="{{openAch}}" style="border:0;background:none;cursor:pointer;font:800 12px 'Plus Jakarta Sans';color:#16A34A">See all ›</button></div>
+      <div style="display:flex;gap:12px">
+        <div style="flex:1;text-align:center;background:#fff;border-radius:18px;padding:16px 8px;box-shadow:0 2px 10px rgba(15,30,20,.05)"><div style="font-size:30px">🥇</div><div style="font:800 10px 'Plus Jakarta Sans';color:#0F1512;margin-top:6px">First Win</div></div>
+        <div style="flex:1;text-align:center;background:#fff;border-radius:18px;padding:16px 8px;box-shadow:0 2px 10px rgba(15,30,20,.05)"><div style="font-size:30px">🔥</div><div style="font:800 10px 'Plus Jakarta Sans';color:#0F1512;margin-top:6px">3-Day Streak</div></div>
+        <div style="flex:1;text-align:center;background:#fff;border-radius:18px;padding:16px 8px;box-shadow:0 2px 10px rgba(15,30,20,.05);opacity:.45"><div style="font-size:30px">💯</div><div style="font:800 10px 'Plus Jakarta Sans';color:#0F1512;margin-top:6px">100 Reps</div></div>
+      </div>
+      <div style="margin-top:22px;padding:16px;background:#fff;border-radius:18px;box-shadow:0 2px 10px rgba(15,30,20,.05);display:flex;align-items:center;gap:12px">
+        <span style="font-size:20px">✨</span><div style="flex:1"><div style="font:800 14px 'Plus Jakarta Sans';color:#0F1512">RepChamp Pro</div><div style="font:600 11px 'Plus Jakarta Sans';color:#8a938c">Unlimited duels & advanced stats</div></div><button class="press" onClick="{{tryPro}}" style="border:0;cursor:pointer;background:#0F1512;color:#fff;font:800 12px 'Plus Jakarta Sans';padding:10px 16px;border-radius:13px">Try free</button>
+      </div>
+    </div></div>
+    </sc-if>
+
+    <!-- ======================= BOTTOM NAV ======================= -->
+    <div class="nav">
+      <button class="navb" onClick="{{goHome}}" style="color: {{cHome}}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform: {{tfHome}}"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/></svg><span>Home</span></button>
+      <button class="navb" onClick="{{goArena}}" style="color: {{cArena}}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform: {{tfArena}}"><path d="M6 9V4h12v5a6 6 0 0 1-12 0Z"/><path d="M4 5H2v2a3 3 0 0 0 3 3M20 5h2v2a3 3 0 0 1-3 3M9 20h6M12 15v5"/></svg><span>Arena</span></button>
+      <button class="navb" onClick="{{goTrain}}" style="color: {{cTrain}}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform: {{tfTrain}}"><path d="M6.5 6.5 17.5 17.5M4 8l1-1M20 16l-1 1M8 4 7 5M17 19l-1 1"/><rect x="2.5" y="7" width="4" height="10" rx="1.2" transform="rotate(-45 4.5 12)"/><rect x="17.5" y="7" width="4" height="10" rx="1.2" transform="rotate(-45 19.5 12)"/></svg><span>Train</span></button>
+      <button class="navb" onClick="{{goFriends}}" style="color: {{cFriends}}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform: {{tfFriends}}"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M16 5.5a3 3 0 0 1 0 5.6M18 20c0-2.4-.9-4.2-2.3-5.2"/></svg><span>Friends</span></button>
+      <button class="navb" onClick="{{goProfile}}" style="color: {{cProfile}}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform: {{tfProfile}}"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.8 3.4-6 7.5-6s7.5 2.2 7.5 6"/></svg><span>Profile</span></button>
+    </div>
+
+    <!-- ======================= TOAST ======================= -->
+    <sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}">
+    <div key="{{toast}}" style="position:absolute;top:64px;left:50%;transform:translateX(-50%);z-index:120;background:#0F1512;color:#fff;font:800 13px 'Plus Jakarta Sans';padding:12px 20px;border-radius:16px;box-shadow:0 14px 34px -10px rgba(0,0,0,.5);white-space:nowrap;animation:toastin .3s cubic-bezier(.2,.7,.2,1);max-width:90%">{{toast}}</div>
+    </sc-if>
+
+    <!-- ======================= ADD FRIEND SCREEN ======================= -->
+    <sc-if value="{{isAdd}}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;z-index:55;background:#F6F7F5;overflow:hidden">
+      <div class="sb" style="color:#0F1512"><span>9:41</span><span>5G ▮▮▮</span></div>
+      <div style="position:absolute;top:52px;left:0;right:0;bottom:0;overflow-y:auto" class="scr">
+        <div style="padding:6px 20px 40px">
+          <div style="display:flex;align-items:center;gap:12px;margin:6px 0 18px">
+            <button class="press" onClick="{{goFriends}}" style="width:40px;height:40px;border-radius:13px;border:0;background:#fff;box-shadow:0 2px 8px rgba(15,30,20,.06);cursor:pointer;font-size:18px;color:#0F1512">‹</button>
+            <h1 class="h1" style="flex:1">Add Friends</h1>
+          </div>
+
+          <!-- search -->
+          <div style="display:flex;align-items:center;gap:10px;background:#fff;border-radius:16px;padding:14px 16px;box-shadow:0 2px 10px rgba(15,30,20,.05);margin-bottom:20px">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8a938c" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
+            <span style="font:600 14px 'Plus Jakarta Sans';color:#b0b8b1">Search by username…</span>
+          </div>
+
+          <!-- invite card -->
+          <div style="border-radius:22px;padding:20px;background:linear-gradient(135deg,#16A34A,#22C55E);box-shadow:0 14px 30px -12px rgba(34,197,94,.5);margin-bottom:24px">
+            <div style="font:800 17px 'Plus Jakarta Sans';color:#fff">Invite a rival 💪</div>
+            <div style="font:600 12px 'Plus Jakarta Sans';color:rgba(255,255,255,.9);margin-top:4px;max-width:250px">Share your link — when they join, you both get 100 XP.</div>
+            <div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.16);border:1px dashed rgba(255,255,255,.5);border-radius:14px;padding:12px 14px;margin-top:14px">
+              <span style="flex:1;font:700 13px 'Plus Jakarta Sans';color:#fff">repchamp.gg/@adriamatz</span>
+              <button class="press" onClick="{{copyLink}}" style="border:0;cursor:pointer;background:#fff;color:#16A34A;font:800 12px 'Plus Jakarta Sans';padding:8px 14px;border-radius:11px">Copy</button>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:12px">
+              <button class="press" onClick="{{shareStory}}" style="flex:1;border:0;cursor:pointer;background:rgba(255,255,255,.16);color:#fff;font:800 12px 'Plus Jakarta Sans';padding:11px;border-radius:12px">Share link</button>
+              <button class="press" onClick="{{copyLink}}" style="flex:1;border:0;cursor:pointer;background:rgba(255,255,255,.16);color:#fff;font:800 12px 'Plus Jakarta Sans';padding:11px;border-radius:12px">Invite contacts</button>
+            </div>
+          </div>
+
+          <div style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.06em;color:#8a938c;margin-bottom:10px">SUGGESTED FOR YOU</div>
+          <div class="card" style="padding:8px">
+            <div style="display:flex;align-items:center;gap:12px;padding:11px 10px"><div style="width:44px;height:44px;border-radius:50%;background:#fecdd3;display:flex;align-items:center;justify-content:center;font:800 16px 'Plus Jakarta Sans';color:#be123c">L</div><div style="flex:1"><div style="font:800 14px 'Plus Jakarta Sans';color:#0F1512">Lena</div><div style="font:600 10px 'Plus Jakarta Sans';color:#8a938c">2 mutual friends</div></div><button class="press" onClick="{{addLena}}" style="border:0;cursor:pointer;background: {{addState.lena.bg}};color: {{addState.lena.col}};font:800 12px 'Plus Jakarta Sans';padding:9px 18px;border-radius:13px">{{addState.lena.label}}</button></div>
+            <div style="height:1px;background:#f0f2ef;margin:0 10px"></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:11px 10px"><div style="width:44px;height:44px;border-radius:50%;background:#bbf7d0;display:flex;align-items:center;justify-content:center;font:800 16px 'Plus Jakarta Sans';color:#15803d">K</div><div style="flex:1"><div style="font:800 14px 'Plus Jakarta Sans';color:#0F1512">Kojo</div><div style="font:600 10px 'Plus Jakarta Sans';color:#8a938c">In your Silver League</div></div><button class="press" onClick="{{addKojo}}" style="border:0;cursor:pointer;background: {{addState.kojo.bg}};color: {{addState.kojo.col}};font:800 12px 'Plus Jakarta Sans';padding:9px 18px;border-radius:13px">{{addState.kojo.label}}</button></div>
+            <div style="height:1px;background:#f0f2ef;margin:0 10px"></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:11px 10px"><div style="width:44px;height:44px;border-radius:50%;background:#e9d5ff;display:flex;align-items:center;justify-content:center;font:800 16px 'Plus Jakarta Sans';color:#7c3aed">D</div><div style="flex:1"><div style="font:800 14px 'Plus Jakarta Sans';color:#0F1512">Dani</div><div style="font:600 10px 'Plus Jakarta Sans';color:#8a938c">From your contacts</div></div><button class="press" onClick="{{addDani}}" style="border:0;cursor:pointer;background: {{addState.dani.bg}};color: {{addState.dani.col}};font:800 12px 'Plus Jakarta Sans';padding:9px 18px;border-radius:13px">{{addState.dani.label}}</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ======================= SETTINGS SCREEN ======================= -->
+    <sc-if value="{{isSettings}}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;z-index:55;background:#F6F7F5;overflow:hidden">
+      <div class="sb" style="color:#0F1512"><span>9:41</span><span>5G ▮▮▮</span></div>
+      <div style="position:absolute;top:52px;left:0;right:0;bottom:0;overflow-y:auto" class="scr">
+        <div style="padding:6px 20px 40px">
+          <div style="display:flex;align-items:center;gap:12px;margin:6px 0 22px">
+            <button class="press" onClick="{{goProfile}}" style="width:40px;height:40px;border-radius:13px;border:0;background:#fff;box-shadow:0 2px 8px rgba(15,30,20,.06);cursor:pointer;font-size:18px;color:#0F1512">‹</button>
+            <h1 class="h1" style="flex:1">Settings</h1>
+          </div>
+
+          <div style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.06em;color:#8a938c;margin-bottom:10px">DURING WORKOUTS</div>
+          <div class="card" style="padding:6px 16px;margin-bottom:22px">
+            <div style="display:flex;align-items:center;gap:12px;padding:14px 0"><span style="font-size:18px">🔊</span><div style="flex:1"><div style="font:800 14px 'Plus Jakarta Sans';color:#0F1512">Rep sounds</div><div style="font:600 10px 'Plus Jakarta Sans';color:#8a938c">Beep on every counted rep</div></div><button class="press" onClick="{{tSound}}" style="width:50px;height:30px;border-radius:16px;border:0;cursor:pointer;padding:3px;display:flex;background: {{soundTrack}};justify-content: {{soundJust}}"><span style="width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></span></button></div>
+            <div style="height:1px;background:#f0f2ef"></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:14px 0"><span style="font-size:18px">📳</span><div style="flex:1"><div style="font:800 14px 'Plus Jakarta Sans';color:#0F1512">Haptics</div><div style="font:600 10px 'Plus Jakarta Sans';color:#8a938c">Vibrate on rep &amp; duel events</div></div><button class="press" onClick="{{tHaptic}}" style="width:50px;height:30px;border-radius:16px;border:0;cursor:pointer;padding:3px;display:flex;background: {{hapticTrack}};justify-content: {{hapticJust}}"><span style="width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></span></button></div>
+            <div style="height:1px;background:#f0f2ef"></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:14px 0"><span style="font-size:18px">🗣️</span><div style="flex:1"><div style="font:800 14px 'Plus Jakarta Sans';color:#0F1512">Voice coach</div><div style="font:600 10px 'Plus Jakarta Sans';color:#8a938c">Spoken form cues while you train</div></div><button class="press" onClick="{{tVoice}}" style="width:50px;height:30px;border-radius:16px;border:0;cursor:pointer;padding:3px;display:flex;background: {{voiceTrack}};justify-content: {{voiceJust}}"><span style="width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></span></button></div>
+          </div>
+
+          <div style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.06em;color:#8a938c;margin-bottom:10px">NOTIFICATIONS &amp; PRIVACY</div>
+          <div class="card" style="padding:6px 16px;margin-bottom:22px">
+            <div style="display:flex;align-items:center;gap:12px;padding:14px 0"><span style="font-size:18px">🔔</span><div style="flex:1"><div style="font:800 14px 'Plus Jakarta Sans';color:#0F1512">Duel invites</div><div style="font:600 10px 'Plus Jakarta Sans';color:#8a938c">Get notified when challenged</div></div><button class="press" onClick="{{tNotif}}" style="width:50px;height:30px;border-radius:16px;border:0;cursor:pointer;padding:3px;display:flex;background: {{notifTrack}};justify-content: {{notifJust}}"><span style="width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></span></button></div>
+            <div style="height:1px;background:#f0f2ef"></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:14px 0"><span style="font-size:18px">🔒</span><div style="flex:1"><div style="font:800 14px 'Plus Jakarta Sans';color:#0F1512">Private profile</div><div style="font:600 10px 'Plus Jakarta Sans';color:#8a938c">Hide from the global leaderboard</div></div><button class="press" onClick="{{tPrivacy}}" style="width:50px;height:30px;border-radius:16px;border:0;cursor:pointer;padding:3px;display:flex;background: {{privacyTrack}};justify-content: {{privacyJust}}"><span style="width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></span></button></div>
+          </div>
+
+          <div class="card" style="padding:6px 16px;margin-bottom:22px">
+            <button class="press" onClick="{{camPerms}}" style="width:100%;border:0;background:none;cursor:pointer;display:flex;align-items:center;gap:12px;padding:15px 0;text-align:left"><span style="font-size:18px">📷</span><span style="flex:1;font:800 14px 'Plus Jakarta Sans';color:#0F1512">Camera &amp; permissions</span><span style="color:#c3ccc5;font-size:18px">›</span></button>
+            <div style="height:1px;background:#f0f2ef"></div>
+            <button class="press" onClick="{{helpSupport}}" style="width:100%;border:0;background:none;cursor:pointer;display:flex;align-items:center;gap:12px;padding:15px 0;text-align:left"><span style="font-size:18px">❓</span><span style="flex:1;font:800 14px 'Plus Jakarta Sans';color:#0F1512">Help &amp; support</span><span style="color:#c3ccc5;font-size:18px">›</span></button>
+            <div style="height:1px;background:#f0f2ef"></div>
+            <button class="press" onClick="{{replayIntro}}" style="width:100%;border:0;background:none;cursor:pointer;display:flex;align-items:center;gap:12px;padding:15px 0;text-align:left"><span style="font-size:18px">🔁</span><span style="flex:1;font:800 14px 'Plus Jakarta Sans';color:#0F1512">Replay intro</span><span style="color:#c3ccc5;font-size:18px">›</span></button>
+          </div>
+
+          <button class="press" onClick="{{logOut}}" style="width:100%;height:52px;border:0;border-radius:16px;background:#fff;box-shadow:0 2px 10px rgba(15,30,20,.05);color:#ef4444;font:800 14px 'Plus Jakarta Sans';cursor:pointer">Log out</button>
+          <div style="text-align:center;margin-top:16px;font:600 11px 'Plus Jakarta Sans';color:#b0b8b1">RepChamp v2.0 · Made for champions</div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ======================= FRIEND PROFILE SCREEN ======================= -->
+    <sc-if value="{{isFriend}}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;z-index:55;background:#F6F7F5;overflow:hidden">
+      <div class="sb" style="color:#0F1512"><span>9:41</span><span>5G ▮▮▮</span></div>
+      <div style="position:absolute;top:52px;left:0;right:0;bottom:0;overflow-y:auto" class="scr">
+        <div style="padding:6px 20px 40px">
+          <div style="display:flex;align-items:center;gap:12px;margin:6px 0 8px">
+            <button class="press" onClick="{{goFriends}}" style="width:40px;height:40px;border-radius:13px;border:0;background:#fff;box-shadow:0 2px 8px rgba(15,30,20,.06);cursor:pointer;font-size:18px;color:#0F1512">‹</button>
+            <span style="flex:1"></span>
+          </div>
+          <div style="text-align:center;padding:6px 0 10px">
+            <div style="width:88px;height:88px;border-radius:28px;margin:0 auto;display:flex;align-items:center;justify-content:center;font:800 38px 'Plus Jakarta Sans';background: {{frBg}};color: {{frCol}}">{{frInitial}}</div>
+            <div style="font:800 22px 'Plus Jakarta Sans';color:#0F1512;margin-top:12px">{{frName}}</div>
+            <div style="font:700 12px 'Plus Jakarta Sans';color:#8a938c">{{frHandle}} · Level {{frLevel}}</div>
+            <div style="font:800 11px 'Plus Jakarta Sans';margin-top:6px;color: {{frStatusCol}}">{{frStatus}}</div>
+          </div>
+
+          <!-- head to head -->
+          <div style="border-radius:22px;padding:18px;background:linear-gradient(120deg,#0F1512,#1f2a24);margin:14px 0 18px">
+            <div style="text-align:center;font:800 10px 'Plus Jakarta Sans';letter-spacing:.14em;color:#86efac;margin-bottom:12px">HEAD TO HEAD</div>
+            <div style="display:flex;align-items:center;justify-content:center;gap:20px">
+              <div style="text-align:center"><div style="font:800 40px 'Plus Jakarta Sans';color:#22C55E">{{h2hYou}}</div><div style="font:700 10px 'Plus Jakarta Sans';color:rgba(255,255,255,.6)">YOU</div></div>
+              <div style="font:800 16px 'Plus Jakarta Sans';color:rgba(255,255,255,.4)">–</div>
+              <div style="text-align:center"><div style="font:800 40px 'Plus Jakarta Sans';color:#fff">{{h2hThem}}</div><div style="font:700 10px 'Plus Jakarta Sans';color:rgba(255,255,255,.6)">{{frUpper}}</div></div>
+            </div>
+            <div style="text-align:center;margin-top:10px;font:700 11px 'Plus Jakarta Sans';color:rgba(255,255,255,.75)">{{h2hLabel}}</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+            <div class="card" style="padding:16px"><div style="font:800 24px 'Plus Jakarta Sans';color:#22C55E">{{frReps}}</div><div style="font:700 11px 'Plus Jakarta Sans';color:#8a938c">Total reps</div></div>
+            <div class="card" style="padding:16px"><div style="font:800 24px 'Plus Jakarta Sans';color:#a855f7">{{frWins}}</div><div style="font:700 11px 'Plus Jakarta Sans';color:#8a938c">Duels won</div></div>
+          </div>
+
+          <div style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.06em;color:#8a938c;margin-bottom:10px">RECENT DUELS WITH YOU</div>
+          <div class="card" style="padding:8px;margin-bottom:22px">
+            <button class="press" onClick="{{openMatchWin}}" style="width:100%;border:0;background:none;cursor:pointer;display:flex;align-items:center;gap:12px;padding:11px 10px;text-align:left"><span style="width:34px;height:34px;border-radius:10px;background:#eafaf0;display:flex;align-items:center;justify-content:center;font-size:16px">💪</span><div style="flex:1"><div style="font:800 13px 'Plus Jakarta Sans';color:#0F1512">Push-ups · 12–9</div><div style="font:600 10px 'Plus Jakarta Sans';color:#8a938c">2 days ago</div></div><span style="font:800 11px 'Plus Jakarta Sans';color:#16A34A;background:#eafaf0;padding:4px 10px;border-radius:10px">You won</span><span style="color:#c3ccc5;font-size:16px">›</span></button>
+            <div style="height:1px;background:#f0f2ef;margin:0 10px"></div>
+            <button class="press" onClick="{{openMatchLoss}}" style="width:100%;border:0;background:none;cursor:pointer;display:flex;align-items:center;gap:12px;padding:11px 10px;text-align:left"><span style="width:34px;height:34px;border-radius:10px;background:#f3e8ff;display:flex;align-items:center;justify-content:center;font-size:16px">🦵</span><div style="flex:1"><div style="font:800 13px 'Plus Jakarta Sans';color:#0F1512">Squats · 14–16</div><div style="font:600 10px 'Plus Jakarta Sans';color:#8a938c">5 days ago</div></div><span style="font:800 11px 'Plus Jakarta Sans';color:#ef4444;background:#fee2e2;padding:4px 10px;border-radius:10px">Lost</span><span style="color:#c3ccc5;font-size:16px">›</span></button>
+          </div>
+
+          <button class="press" onClick="{{startPushDuel}}" style="width:100%;height:60px;border:0;border-radius:20px;background:linear-gradient(120deg,#22C55E,#15803D);color:#fff;font:800 17px 'Plus Jakarta Sans';cursor:pointer;box-shadow:0 12px 26px -8px rgba(34,197,94,.5)">⚔️ Challenge {{frName}}</button>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ======================= MATCH DETAIL SCREEN ======================= -->
+    <sc-if value="{{isMatch}}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;z-index:58;background:#F6F7F5;overflow:hidden">
+      <div class="sb" style="color:#0F1512"><span>9:41</span><span>5G ▮▮▮</span></div>
+      <div style="position:absolute;top:52px;left:0;right:0;bottom:0;overflow-y:auto" class="scr">
+        <div style="padding:6px 20px 40px">
+          <div style="display:flex;align-items:center;gap:12px;margin:6px 0 16px">
+            <button class="press" onClick="{{openFriendBack}}" style="width:40px;height:40px;border-radius:13px;border:0;background:#fff;box-shadow:0 2px 8px rgba(15,30,20,.06);cursor:pointer;font-size:18px;color:#0F1512">‹</button>
+            <h1 class="h1" style="flex:1;font-size:24px">Match detail</h1>
+          </div>
+
+          <!-- scoreline -->
+          <div style="border-radius:24px;padding:22px;background: {{mBg}};box-shadow:0 16px 34px -14px rgba(15,30,20,.3)">
+            <div style="text-align:center;font:800 10px 'Plus Jakarta Sans';letter-spacing:.14em;color:rgba(255,255,255,.8)">{{mExercise}} · {{mWhen}}</div>
+            <div style="display:flex;align-items:center;justify-content:center;gap:26px;margin-top:14px">
+              <div style="text-align:center"><div style="width:52px;height:52px;border-radius:16px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font:800 20px 'Plus Jakarta Sans';color:#fff;margin:0 auto">Y</div><div style="font:800 40px 'Plus Jakarta Sans';color:#fff;margin-top:8px;line-height:1">{{mYou}}</div><div style="font:700 10px 'Plus Jakarta Sans';color:rgba(255,255,255,.7)">YOU</div></div>
+              <div style="font:800 18px 'Plus Jakarta Sans';color:rgba(255,255,255,.5)">–</div>
+              <div style="text-align:center"><div style="width:52px;height:52px;border-radius:16px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font:800 20px 'Plus Jakarta Sans';color:#fff;margin:0 auto">{{frInitial}}</div><div style="font:800 40px 'Plus Jakarta Sans';color:#fff;margin-top:8px;line-height:1">{{mThem}}</div><div style="font:700 10px 'Plus Jakarta Sans';color:rgba(255,255,255,.7)">{{frUpper}}</div></div>
+            </div>
+            <div style="text-align:center;margin-top:14px"><span style="display:inline-block;font:800 12px 'Plus Jakarta Sans';color: {{mBg}};background:#fff;padding:6px 16px;border-radius:20px">{{mResult}}</span></div>
+          </div>
+
+          <!-- rep progression -->
+          <div class="card" style="padding:18px;margin-top:18px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px"><span class="sec">Rep progression</span><span style="font:700 10px 'Plus Jakarta Sans';color:#8a938c">20-second duel</span></div>
+            <div style="display:flex;align-items:flex-end;gap:5px;height:120px">
+              <sc-for list="{{mBars}}" as="b" hint-placeholder-count="10">
+              <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:3px;height:100%">
+                <div style="height: {{b.you}}%;background:#22C55E;border-radius:4px;min-height:3px"></div>
+                <div style="height: {{b.them}}%;background:#c4b5fd;border-radius:4px;min-height:3px"></div>
+              </div>
+              </sc-for>
+            </div>
+            <div style="display:flex;gap:16px;margin-top:14px">
+              <div style="display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:#22C55E"></span><span style="font:700 11px 'Plus Jakarta Sans';color:#8a938c">You</span></div>
+              <div style="display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:#c4b5fd"></span><span style="font:700 11px 'Plus Jakarta Sans';color:#8a938c">{{frName}}</span></div>
+            </div>
+          </div>
+
+          <!-- stat rows -->
+          <div class="card" style="padding:6px 18px;margin-top:16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0"><span style="font:700 13px 'Plus Jakarta Sans';color:#8a938c">Peak pace</span><span style="font:800 13px 'Plus Jakarta Sans';color:#0F1512">{{mPace}} reps/10s</span></div>
+            <div style="height:1px;background:#f0f2ef"></div>
+            <div style="display:flex;align-items:center;justify-content:between;padding:14px 0;justify-content:space-between"><span style="font:700 13px 'Plus Jakarta Sans';color:#8a938c">Avg form score</span><span style="font:800 13px 'Plus Jakarta Sans';color:#16A34A">{{mForm}}%</span></div>
+            <div style="height:1px;background:#f0f2ef"></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0"><span style="font:700 13px 'Plus Jakarta Sans';color:#8a938c">XP earned</span><span style="font:800 13px 'Plus Jakarta Sans';color:#0F1512">+{{mXp}} XP</span></div>
+          </div>
+
+          <button class="press" onClick="{{startPushDuel}}" style="width:100%;height:58px;border:0;border-radius:20px;background:linear-gradient(120deg,#22C55E,#15803D);color:#fff;font:800 16px 'Plus Jakarta Sans';cursor:pointer;box-shadow:0 12px 26px -8px rgba(34,197,94,.5);margin-top:20px">⚔️ Rematch {{frName}}</button>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ======================= ACHIEVEMENTS SCREEN ======================= -->
+    <sc-if value="{{isAch}}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;z-index:55;background:#F6F7F5;overflow:hidden">
+      <div class="sb" style="color:#0F1512"><span>9:41</span><span>5G ▮▮▮</span></div>
+      <div style="position:absolute;top:52px;left:0;right:0;bottom:0;overflow-y:auto" class="scr">
+        <div style="padding:6px 20px 40px">
+          <div style="display:flex;align-items:center;gap:12px;margin:6px 0 18px">
+            <button class="press" onClick="{{closeOverlay}}" style="width:40px;height:40px;border-radius:13px;border:0;background:#fff;box-shadow:0 2px 8px rgba(15,30,20,.06);cursor:pointer;font-size:18px;color:#0F1512">‹</button>
+            <h1 class="h1" style="flex:1">Achievements</h1>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:14px;background:linear-gradient(120deg,#16A34A,#22C55E);border-radius:22px;padding:18px 20px;margin-bottom:22px;box-shadow:0 14px 30px -12px rgba(34,197,94,.5)">
+            <div style="font:800 34px 'Plus Jakarta Sans';color:#fff">2<span style="font-size:18px;color:rgba(255,255,255,.75)">/6</span></div>
+            <div style="flex:1"><div style="font:800 14px 'Plus Jakarta Sans';color:#fff">Badges unlocked</div><div style="font:600 11px 'Plus Jakarta Sans';color:rgba(255,255,255,.85)">Keep training to earn the rest</div></div>
+          </div>
+
+          <div style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.06em;color:#8a938c;margin-bottom:12px">EARNED</div>
+          <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px">
+            <div class="card" style="padding:14px;display:flex;align-items:center;gap:14px"><div style="width:48px;height:48px;border-radius:14px;background:#fef3c7;display:flex;align-items:center;justify-content:center;font-size:24px">🥇</div><div style="flex:1"><div style="font:800 15px 'Plus Jakarta Sans';color:#0F1512">First Win</div><div style="font:600 11px 'Plus Jakarta Sans';color:#8a938c">Win your first duel</div></div><span style="font:800 11px 'Plus Jakarta Sans';color:#16A34A;background:#eafaf0;padding:5px 10px;border-radius:12px">Earned</span></div>
+            <div class="card" style="padding:14px;display:flex;align-items:center;gap:14px"><div style="width:48px;height:48px;border-radius:14px;background:#fee2e2;display:flex;align-items:center;justify-content:center;font-size:24px">🔥</div><div style="flex:1"><div style="font:800 15px 'Plus Jakarta Sans';color:#0F1512">3-Day Streak</div><div style="font:600 11px 'Plus Jakarta Sans';color:#8a938c">Train 3 days in a row</div></div><span style="font:800 11px 'Plus Jakarta Sans';color:#16A34A;background:#eafaf0;padding:5px 10px;border-radius:12px">Earned</span></div>
+          </div>
+
+          <div style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.06em;color:#8a938c;margin-bottom:12px">IN PROGRESS</div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div class="card" style="padding:14px;display:flex;align-items:center;gap:14px;opacity:.9"><div style="width:48px;height:48px;border-radius:14px;background:#f0f2ef;display:flex;align-items:center;justify-content:center;font-size:24px;filter:grayscale(1)">💯</div><div style="flex:1"><div style="font:800 15px 'Plus Jakarta Sans';color:#0F1512">Century</div><div style="font:600 11px 'Plus Jakarta Sans';color:#8a938c">Do 100 reps in one session</div><div style="height:6px;border-radius:4px;background:#f0f2ef;margin-top:8px;overflow:hidden"><div style="width:64%;height:100%;background:#22C55E;border-radius:4px"></div></div></div><span style="font:800 11px 'Plus Jakarta Sans';color:#8a938c">64/100</span></div>
+            <div class="card" style="padding:14px;display:flex;align-items:center;gap:14px;opacity:.9"><div style="width:48px;height:48px;border-radius:14px;background:#f0f2ef;display:flex;align-items:center;justify-content:center;font-size:24px;filter:grayscale(1)">🏆</div><div style="flex:1"><div style="font:800 15px 'Plus Jakarta Sans';color:#0F1512">Duel Master</div><div style="font:600 11px 'Plus Jakarta Sans';color:#8a938c">Win 25 duels</div><div style="height:6px;border-radius:4px;background:#f0f2ef;margin-top:8px;overflow:hidden"><div style="width:32%;height:100%;background:#22C55E;border-radius:4px"></div></div></div><span style="font:800 11px 'Plus Jakarta Sans';color:#8a938c">8/25</span></div>
+            <div class="card" style="padding:14px;display:flex;align-items:center;gap:14px;opacity:.9"><div style="width:48px;height:48px;border-radius:14px;background:#f0f2ef;display:flex;align-items:center;justify-content:center;font-size:24px;filter:grayscale(1)">👑</div><div style="flex:1"><div style="font:800 15px 'Plus Jakarta Sans';color:#0F1512">Champion</div><div style="font:600 11px 'Plus Jakarta Sans';color:#8a938c">Reach the Gold League</div><div style="height:6px;border-radius:4px;background:#f0f2ef;margin-top:8px;overflow:hidden"><div style="width:20%;height:100%;background:#22C55E;border-radius:4px"></div></div></div><span style="font:800 11px 'Plus Jakarta Sans';color:#8a938c">Silver</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ======================= NOTIFICATIONS SCREEN ======================= -->
+    <sc-if value="{{isNotifs}}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;z-index:55;background:#F6F7F5;overflow:hidden">
+      <div class="sb" style="color:#0F1512"><span>9:41</span><span>5G ▮▮▮</span></div>
+      <div style="position:absolute;top:52px;left:0;right:0;bottom:0;overflow-y:auto" class="scr">
+        <div style="padding:6px 20px 40px">
+          <div style="display:flex;align-items:center;gap:12px;margin:6px 0 18px">
+            <button class="press" onClick="{{closeOverlay}}" style="width:40px;height:40px;border-radius:13px;border:0;background:#fff;box-shadow:0 2px 8px rgba(15,30,20,.06);cursor:pointer;font-size:18px;color:#0F1512">‹</button>
+            <h1 class="h1" style="flex:1">Notifications</h1>
+          </div>
+
+          <sc-if value="{{notifOff}}" hint-placeholder-val="{{ false }}">
+          <div class="card" style="padding:18px;display:flex;align-items:center;gap:12px;margin-bottom:16px;background:#fff8ec"><span style="font-size:20px">🔕</span><div style="flex:1"><div style="font:800 14px 'Plus Jakarta Sans';color:#0F1512">Duel invites are muted</div><div style="font:600 11px 'Plus Jakarta Sans';color:#8a938c">Turn on Duel invites in Settings to get pinged</div></div></div>
+          </sc-if>
+
+          <!-- incoming duel -->
+          <div style="border-radius:22px;padding:18px;background:linear-gradient(120deg,#22C55E,#15803D);box-shadow:0 12px 26px -12px rgba(34,197,94,.5);margin-bottom:16px">
+            <div style="display:flex;align-items:center;gap:12px"><div style="width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font:800 17px 'Plus Jakarta Sans';color:#fff;border:2px solid rgba(255,255,255,.4)">A</div><div style="flex:1"><div style="font:800 15px 'Plus Jakarta Sans';color:#fff">Adrian challenged you</div><div style="font:600 11px 'Plus Jakarta Sans';color:rgba(255,255,255,.9)">Push-up duel · 20s · 2 min ago</div></div></div>
+            <div style="display:flex;gap:10px;margin-top:14px"><button class="press" onClick="{{startPushDuel}}" style="flex:1;height:44px;border:0;border-radius:14px;background:#fff;color:#16A34A;font:800 14px 'Plus Jakarta Sans';cursor:pointer">Accept</button><button class="press" onClick="{{laterDuel}}" style="width:100px;height:44px;border:0;border-radius:14px;background:rgba(255,255,255,.2);color:#fff;font:800 14px 'Plus Jakarta Sans';cursor:pointer">Later</button></div>
+          </div>
+
+          <div style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.06em;color:#8a938c;margin-bottom:10px">EARLIER</div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div class="card" style="padding:14px;display:flex;align-items:center;gap:14px"><div style="width:44px;height:44px;border-radius:14px;background:#fef3c7;display:flex;align-items:center;justify-content:center;font-size:22px">🏅</div><div style="flex:1"><div style="font:800 14px 'Plus Jakarta Sans';color:#0F1512">You climbed 3 spots</div><div style="font:600 11px 'Plus Jakarta Sans';color:#8a938c">Now #14 in Silver League · 5h ago</div></div></div>
+            <div class="card" style="padding:14px;display:flex;align-items:center;gap:14px"><div style="width:44px;height:44px;border-radius:14px;background:#e0f2fe;display:flex;align-items:center;justify-content:center;font-size:22px">👋</div><div style="flex:1"><div style="font:800 14px 'Plus Jakarta Sans';color:#0F1512">Mia started following you</div><div style="font:600 11px 'Plus Jakarta Sans';color:#8a938c">Yesterday</div></div><button class="press" onClick="{{followMia}}" style="border:0;background:#eafaf0;color:#16A34A;font:800 11px 'Plus Jakarta Sans';padding:7px 14px;border-radius:12px;cursor:pointer">{{addState.mia.label}}</button></div>
+            <div class="card" style="padding:14px;display:flex;align-items:center;gap:14px"><div style="width:44px;height:44px;border-radius:14px;background:#fee2e2;display:flex;align-items:center;justify-content:center;font-size:22px">🔥</div><div style="flex:1"><div style="font:800 14px 'Plus Jakarta Sans';color:#0F1512">Streak reminder</div><div style="font:600 11px 'Plus Jakarta Sans';color:#8a938c">Train today to keep your 3-day streak · Yesterday</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ======================= OPPONENT PICKER SCREEN ======================= -->
+    <sc-if value="{{isOppPick}}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;z-index:58;background:#F6F7F5;overflow:hidden">
+      <div class="sb" style="color:#0F1512"><span>9:41</span><span>5G ▮▮▮</span></div>
+      <div style="position:absolute;top:52px;left:0;right:0;bottom:0;overflow-y:auto" class="scr">
+        <div style="padding:6px 20px 40px">
+          <div style="display:flex;align-items:center;gap:12px;margin:6px 0 18px">
+            <button class="press" onClick="{{closeOverlay}}" style="width:40px;height:40px;border-radius:13px;border:0;background:#fff;box-shadow:0 2px 8px rgba(15,30,20,.06);cursor:pointer;font-size:18px;color:#0F1512">‹</button>
+            <div style="flex:1"><h1 class="h1">Choose your rival</h1><div style="font:600 12px 'Plus Jakarta Sans';color:#8a938c;margin-top:2px">Push-up duel · 20 seconds · winner takes the XP</div></div>
+          </div>
+
+          <button class="press" onClick="{{quickMatch}}" style="width:100%;border:0;cursor:pointer;text-align:left;padding:18px;border-radius:22px;background:linear-gradient(120deg,#F59E0B,#f97316);box-shadow:0 12px 26px -12px rgba(245,158,11,.5);display:flex;align-items:center;gap:14px;margin-bottom:22px">
+            <div style="width:48px;height:48px;border-radius:15px;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:24px">⚡</div>
+            <div style="flex:1"><div style="font:800 16px 'Plus Jakarta Sans';color:#fff">Quick Match</div><div style="font:600 11px 'Plus Jakarta Sans';color:rgba(255,255,255,.9)">We'll pair you with someone at your level</div></div>
+            <span style="color:rgba(255,255,255,.85);font-size:20px">›</span>
+          </button>
+
+          <div style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.06em;color:#8a938c;margin-bottom:10px">CHALLENGE A FRIEND</div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <button class="press" onClick="{{pickAdrian}}" style="border:0;cursor:pointer;text-align:left;width:100%;background:#fff;border-radius:18px;padding:14px;box-shadow:0 2px 10px rgba(15,30,20,.05);display:flex;align-items:center;gap:14px"><div style="position:relative"><div style="width:48px;height:48px;border-radius:50%;background:#ddd6fe;display:flex;align-items:center;justify-content:center;font:800 18px 'Plus Jakarta Sans';color:#5b21b6">A</div><span style="position:absolute;bottom:0;right:0;width:13px;height:13px;border-radius:50%;background:#22C55E;border:2.5px solid #fff"></span></div><div style="flex:1"><div style="font:800 15px 'Plus Jakarta Sans';color:#0F1512">Adrian</div><div style="font:600 11px 'Plus Jakarta Sans';color:#22C55E">● Online · you lead 3–2</div></div><span style="font:800 12px 'Plus Jakarta Sans';color:#16A34A;background:#eafaf0;padding:8px 14px;border-radius:13px">Duel</span></button>
+            <button class="press" onClick="{{pickZheng}}" style="border:0;cursor:pointer;text-align:left;width:100%;background:#fff;border-radius:18px;padding:14px;box-shadow:0 2px 10px rgba(15,30,20,.05);display:flex;align-items:center;gap:14px"><div style="position:relative"><div style="width:48px;height:48px;border-radius:50%;background:#bfdbfe;display:flex;align-items:center;justify-content:center;font:800 18px 'Plus Jakarta Sans';color:#1e40af">Z</div><span style="position:absolute;bottom:0;right:0;width:13px;height:13px;border-radius:50%;background:#22C55E;border:2.5px solid #fff"></span></div><div style="flex:1"><div style="font:800 15px 'Plus Jakarta Sans';color:#0F1512">Zheng</div><div style="font:600 11px 'Plus Jakarta Sans';color:#8a938c">● Online · trails 1–4 · revenge time</div></div><span style="font:800 12px 'Plus Jakarta Sans';color:#16A34A;background:#eafaf0;padding:8px 14px;border-radius:13px">Duel</span></button>
+            <button class="press" onClick="{{pickMia}}" style="border:0;cursor:pointer;text-align:left;width:100%;background:#fff;border-radius:18px;padding:14px;box-shadow:0 2px 10px rgba(15,30,20,.05);display:flex;align-items:center;gap:14px"><div style="position:relative"><div style="width:48px;height:48px;border-radius:50%;background:#fde68a;display:flex;align-items:center;justify-content:center;font:800 18px 'Plus Jakarta Sans';color:#92400e">M</div><span style="position:absolute;bottom:0;right:0;width:13px;height:13px;border-radius:50%;background:#c3ccc5;border:2.5px solid #fff"></span></div><div style="flex:1"><div style="font:800 15px 'Plus Jakarta Sans';color:#0F1512">Mia</div><div style="font:600 11px 'Plus Jakarta Sans';color:#8a938c">Offline · even 2–2 · async duel</div></div><span style="font:800 12px 'Plus Jakarta Sans';color:#16A34A;background:#eafaf0;padding:8px 14px;border-radius:13px">Duel</span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ======================= REST DAY SCREEN ======================= -->
+    <sc-if value="{{isRest}}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;z-index:55;background:#F6F7F5;overflow:hidden">
+      <div class="sb" style="color:#0F1512"><span>9:41</span><span>5G ▮▮▮</span></div>
+      <div style="position:absolute;top:52px;left:0;right:0;bottom:0;overflow-y:auto" class="scr">
+        <div style="padding:6px 20px 40px">
+          <div style="display:flex;align-items:center;gap:12px;margin:6px 0 18px">
+            <button class="press" onClick="{{closeOverlay}}" style="width:40px;height:40px;border-radius:13px;border:0;background:#fff;box-shadow:0 2px 8px rgba(15,30,20,.06);cursor:pointer;font-size:18px;color:#0F1512">‹</button>
+            <h1 class="h1" style="flex:1">Rest Day</h1>
+          </div>
+
+          <!-- hero -->
+          <div style="border-radius:26px;padding:24px;background:linear-gradient(150deg,#0ea5e9,#0369a1);box-shadow:0 16px 34px -12px rgba(14,165,233,.5);position:relative;overflow:hidden;margin-bottom:16px">
+            <div style="position:absolute;right:-14px;top:-12px;font-size:118px;opacity:.16">🧘</div>
+            <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.22);padding:5px 12px;border-radius:20px;font:800 10px 'Plus Jakarta Sans';letter-spacing:.1em;color:#fff">🔥 STREAK SAFE TODAY</div>
+            <div style="font:800 27px 'Plus Jakarta Sans';color:#fff;margin:14px 0 4px;max-width:250px">Take the day to recover</div>
+            <div style="font:600 13px 'Plus Jakarta Sans';color:rgba(255,255,255,.9);max-width:250px">You trained 3 days straight. A light day now means bigger gains next session — and your streak stays alive.</div>
+          </div>
+
+          <!-- streak protect -->
+          <div class="card" style="padding:18px;margin-bottom:16px">
+            <div style="display:flex;align-items:center;gap:12px"><div style="width:44px;height:44px;border-radius:14px;background:#fee2e2;display:flex;align-items:center;justify-content:center;font-size:22px">🔥</div><div style="flex:1"><div style="font:800 15px 'Plus Jakarta Sans';color:#0F1512">3-day streak protected</div><div style="font:600 11px 'Plus Jakarta Sans';color:#8a938c">Rest days don't break your streak</div></div><span style="font:800 11px 'Plus Jakarta Sans';color:#16A34A;background:#eafaf0;padding:5px 10px;border-radius:12px">Active</span></div>
+          </div>
+
+          <!-- light mobility -->
+          <div style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.06em;color:#8a938c;margin-bottom:10px">OPTIONAL LIGHT MOBILITY</div>
+          <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+            <div class="card" style="padding:14px;display:flex;align-items:center;gap:14px"><div style="width:48px;height:48px;border-radius:14px;background:#e0f2fe;display:flex;align-items:center;justify-content:center;font-size:24px">🙆</div><div style="flex:1"><div style="font:800 15px 'Plus Jakarta Sans';color:#0F1512">Shoulder rolls</div><div style="font:600 11px 'Plus Jakarta Sans';color:#8a938c">2 min · loosen up</div></div><span style="color:#c3ccc5;font-size:18px">›</span></div>
+            <div class="card" style="padding:14px;display:flex;align-items:center;gap:14px"><div style="width:48px;height:48px;border-radius:14px;background:#e0f2fe;display:flex;align-items:center;justify-content:center;font-size:24px">🤸</div><div style="flex:1"><div style="font:800 15px 'Plus Jakarta Sans';color:#0F1512">Full-body stretch</div><div style="font:600 11px 'Plus Jakarta Sans';color:#8a938c">5 min · guided flow</div></div><span style="color:#c3ccc5;font-size:18px">›</span></div>
+            <div class="card" style="padding:14px;display:flex;align-items:center;gap:14px"><div style="width:48px;height:48px;border-radius:14px;background:#e0f2fe;display:flex;align-items:center;justify-content:center;font-size:24px">🚶</div><div style="flex:1"><div style="font:800 15px 'Plus Jakarta Sans';color:#0F1512">Easy walk</div><div style="font:600 11px 'Plus Jakarta Sans';color:#8a938c">15 min · active recovery</div></div><span style="color:#c3ccc5;font-size:18px">›</span></div>
+          </div>
+
+          <button class="press" onClick="{{closeOverlay}}" style="width:100%;height:54px;border:0;border-radius:16px;background:#fff;box-shadow:0 2px 10px rgba(15,30,20,.05);color:#0369a1;font:800 15px 'Plus Jakarta Sans';cursor:pointer">Got it — resting today</button>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ======================= WEEKLY RECAP SCREEN ======================= -->
+    <sc-if value="{{isRecap}}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;z-index:55;background:#F6F7F5;overflow:hidden">
+      <div class="sb" style="color:#0F1512"><span>9:41</span><span>5G ▮▮▮</span></div>
+      <div style="position:absolute;top:52px;left:0;right:0;bottom:0;overflow-y:auto" class="scr">
+        <div style="padding:6px 20px 40px">
+          <div style="display:flex;align-items:center;gap:12px;margin:6px 0 18px">
+            <button class="press" onClick="{{closeOverlay}}" style="width:40px;height:40px;border-radius:13px;border:0;background:#fff;box-shadow:0 2px 8px rgba(15,30,20,.06);cursor:pointer;font-size:18px;color:#0F1512">‹</button>
+            <h1 class="h1" style="flex:1">Weekly Recap</h1>
+          </div>
+
+          <!-- hero -->
+          <div style="border-radius:26px;padding:24px;background:linear-gradient(150deg,#16A34A,#065f46);box-shadow:0 16px 34px -12px rgba(34,197,94,.55);position:relative;overflow:hidden;margin-bottom:16px">
+            <div style="position:absolute;right:-16px;top:-14px;font-size:120px;opacity:.16">📈</div>
+            <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.22);padding:5px 12px;border-radius:20px;font:800 10px 'Plus Jakarta Sans';letter-spacing:.1em;color:#fff">JUL 14 – JUL 20</div>
+            <div style="font:800 27px 'Plus Jakarta Sans';color:#fff;margin:14px 0 4px;max-width:250px">Your strongest week yet 💪</div>
+            <div style="font:600 13px 'Plus Jakarta Sans';color:rgba(255,255,255,.9);max-width:250px">You out-repped last week by 23%. Momentum looks unstoppable.</div>
+          </div>
+
+          <!-- stat grid -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+            <div class="card" style="padding:16px"><div style="font-size:20px">🔁</div><div style="font:800 26px 'Plus Jakarta Sans';color:#0F1512;margin-top:6px">642</div><div style="font:700 11px 'Plus Jakarta Sans';color:#8a938c">total reps</div></div>
+            <div class="card" style="padding:16px"><div style="font-size:20px">⚔️</div><div style="font:800 26px 'Plus Jakarta Sans';color:#0F1512;margin-top:6px">5<span style="font-size:16px;color:#8a938c"> / 7</span></div><div style="font:700 11px 'Plus Jakarta Sans';color:#8a938c">duels won</div></div>
+            <div class="card" style="padding:16px"><div style="font-size:20px">⭐</div><div style="font:800 26px 'Plus Jakarta Sans';color:#0F1512;margin-top:6px">1,240</div><div style="font:700 11px 'Plus Jakarta Sans';color:#8a938c">XP earned</div></div>
+            <div class="card" style="padding:16px"><div style="font-size:20px">⏱️</div><div style="font:800 26px 'Plus Jakarta Sans';color:#0F1512;margin-top:6px">48<span style="font-size:16px;color:#8a938c"> min</span></div><div style="font:700 11px 'Plus Jakarta Sans';color:#8a938c">time trained</div></div>
+          </div>
+
+          <!-- daily chart -->
+          <div class="card" style="padding:18px;margin-bottom:16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px"><span class="sec">Reps per day</span><span style="font:700 11px 'Plus Jakarta Sans';color:#16A34A">Best: Sat 148</span></div>
+            <div style="display:flex;align-items:flex-end;gap:10px;height:110px">
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px"><div style="width:100%;height:44%;border-radius:8px 8px 3px 3px;background:#d5efdf"></div><span style="font:700 10px 'Plus Jakarta Sans';color:#8a938c">M</span></div>
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px"><div style="width:100%;height:0;border-radius:8px 8px 3px 3px;background:#eef1ee;min-height:4px"></div><span style="font:700 10px 'Plus Jakarta Sans';color:#8a938c">T</span></div>
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px"><div style="width:100%;height:62%;border-radius:8px 8px 3px 3px;background:#8ee0ab"></div><span style="font:700 10px 'Plus Jakarta Sans';color:#8a938c">W</span></div>
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px"><div style="width:100%;height:0;border-radius:8px 8px 3px 3px;background:#eef1ee;min-height:4px"></div><span style="font:700 10px 'Plus Jakarta Sans';color:#8a938c">T</span></div>
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px"><div style="width:100%;height:78%;border-radius:8px 8px 3px 3px;background:#22C55E"></div><span style="font:700 10px 'Plus Jakarta Sans';color:#8a938c">F</span></div>
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px"><div style="width:100%;height:100%;border-radius:8px 8px 3px 3px;background:linear-gradient(180deg,#16A34A,#22C55E)"></div><span style="font:800 10px 'Plus Jakarta Sans';color:#16A34A">S</span></div>
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px"><div style="width:100%;height:36%;border-radius:8px 8px 3px 3px;background:#d5efdf"></div><span style="font:700 10px 'Plus Jakarta Sans';color:#8a938c">S</span></div>
+            </div>
+          </div>
+
+          <!-- highlight -->
+          <div class="card" style="padding:16px;display:flex;align-items:center;gap:14px;margin-bottom:20px"><div style="width:48px;height:48px;border-radius:14px;background:#fef3c7;display:flex;align-items:center;justify-content:center;font-size:24px">🥇</div><div style="flex:1"><div style="font:800 15px 'Plus Jakarta Sans';color:#0F1512">Week's highlight</div><div style="font:600 12px 'Plus Jakarta Sans';color:#8a938c">Beat Zheng in a 40-rep push-up thriller</div></div></div>
+
+          <button class="press" onClick="{{shareWeek}}" style="width:100%;height:54px;border:0;border-radius:16px;background:linear-gradient(120deg,#16A34A,#22C55E);color:#fff;font:800 15px 'Plus Jakarta Sans';cursor:pointer;box-shadow:0 12px 26px -10px rgba(34,197,94,.5)">Share my week 📤</button>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ======================= DAILY CHALLENGE SCREEN ======================= -->
+    <sc-if value="{{isDaily}}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;z-index:55;background:#F6F7F5;overflow:hidden">
+      <div class="sb" style="color:#0F1512"><span>9:41</span><span>5G ▮▮▮</span></div>
+      <div style="position:absolute;top:52px;left:0;right:0;bottom:0;overflow-y:auto" class="scr">
+        <div style="padding:6px 20px 40px">
+          <div style="display:flex;align-items:center;gap:12px;margin:6px 0 18px">
+            <button class="press" onClick="{{closeOverlay}}" style="width:40px;height:40px;border-radius:13px;border:0;background:#fff;box-shadow:0 2px 8px rgba(15,30,20,.06);cursor:pointer;font-size:18px;color:#0F1512">‹</button>
+            <h1 class="h1" style="flex:1">Daily Challenge</h1>
+          </div>
+
+          <!-- hero -->
+          <div style="border-radius:26px;padding:24px;background:linear-gradient(140deg,#F59E0B,#f97316);box-shadow:0 16px 34px -12px rgba(245,158,11,.55);position:relative;overflow:hidden;margin-bottom:16px">
+            <div style="position:absolute;right:-14px;top:-10px;font-size:104px;opacity:.2">🎯</div>
+            <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.22);padding:5px 12px;border-radius:20px;font:800 10px 'Plus Jakarta Sans';letter-spacing:.1em;color:#fff">⏳ RESETS IN 6H</div>
+            <div style="font:800 26px 'Plus Jakarta Sans';color:#fff;margin:14px 0 4px">Beat 25 Push-ups</div>
+            <div style="font:600 13px 'Plus Jakarta Sans';color:rgba(255,255,255,.92);max-width:230px">Do as many push-ups as you can before the timer runs out. Beat the target to keep your streak alive.</div>
+            <div style="display:flex;gap:20px;margin-top:18px">
+              <div><div style="font:800 22px 'Plus Jakarta Sans';color:#fff">+300</div><div style="font:700 10px 'Plus Jakarta Sans';color:rgba(255,255,255,.85)">XP REWARD</div></div>
+              <div><div style="font:800 22px 'Plus Jakarta Sans';color:#fff">🔥 3</div><div style="font:700 10px 'Plus Jakarta Sans';color:rgba(255,255,255,.85)">DAY STREAK</div></div>
+            </div>
+          </div>
+
+          <!-- your best -->
+          <div class="card" style="padding:18px;margin-bottom:16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><span class="sec">Your best today</span><span style="font:800 12px 'Plus Jakarta Sans';color:#8a938c">22 / 25</span></div>
+            <div style="height:12px;border-radius:7px;background:#f0f2ef;overflow:hidden"><div style="width:88%;height:100%;border-radius:7px;background:linear-gradient(90deg,#F59E0B,#f97316)"></div></div>
+            <div style="font:700 12px 'Plus Jakarta Sans';color:#f97316;margin-top:10px">Just 3 more to clear it 💪</div>
+          </div>
+
+          <!-- friends today -->
+          <div style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.06em;color:#8a938c;margin-bottom:10px">FRIENDS TODAY</div>
+          <div class="card" style="padding:8px;margin-bottom:20px">
+            <div style="display:flex;align-items:center;gap:12px;padding:11px 10px"><div style="width:38px;height:38px;border-radius:50%;background:#ddd6fe;display:flex;align-items:center;justify-content:center;font:800 14px 'Plus Jakarta Sans';color:#5b21b6">A</div><div style="flex:1"><div style="font:800 14px 'Plus Jakarta Sans';color:#0F1512">Adrian</div><div style="font:600 10px 'Plus Jakarta Sans';color:#22C55E">✓ Cleared · 31 reps</div></div><span style="font-size:18px">🏅</span></div>
+            <div style="height:1px;background:#f0f2ef;margin:0 10px"></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:11px 10px"><div style="width:38px;height:38px;border-radius:50%;background:#bfdbfe;display:flex;align-items:center;justify-content:center;font:800 14px 'Plus Jakarta Sans';color:#1e40af">Z</div><div style="flex:1"><div style="font:800 14px 'Plus Jakarta Sans';color:#0F1512">Zheng</div><div style="font:600 10px 'Plus Jakarta Sans';color:#22C55E">✓ Cleared · 27 reps</div></div><span style="font-size:18px">🏅</span></div>
+            <div style="height:1px;background:#f0f2ef;margin:0 10px"></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:11px 10px;opacity:.7"><div style="width:38px;height:38px;border-radius:50%;background:#fde68a;display:flex;align-items:center;justify-content:center;font:800 14px 'Plus Jakarta Sans';color:#92400e">M</div><div style="flex:1"><div style="font:800 14px 'Plus Jakarta Sans';color:#0F1512">Mia</div><div style="font:600 10px 'Plus Jakarta Sans';color:#8a938c">Not started yet</div></div></div>
+          </div>
+
+          <button class="press" onClick="{{startSoloDaily}}" style="width:100%;height:60px;border:0;border-radius:20px;background:linear-gradient(120deg,#F59E0B,#f97316);color:#fff;font:800 17px 'Plus Jakarta Sans';cursor:pointer;box-shadow:0 12px 26px -8px rgba(245,158,11,.5)">Start Challenge</button>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ======================= LEADERBOARD SCREEN ======================= -->
+    <sc-if value="{{isLeaderboard}}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;z-index:55;background:#F6F7F5;overflow:hidden">
+      <div class="sb" style="color:#0F1512"><span>9:41</span><span>5G ▮▮▮</span></div>
+      <div style="position:absolute;top:52px;left:0;right:0;bottom:0;overflow-y:auto" class="scr">
+        <div style="padding:6px 20px 40px">
+          <div style="display:flex;align-items:center;gap:12px;margin:6px 0 18px">
+            <button class="press" onClick="{{closeLeaderboard}}" style="width:40px;height:40px;border-radius:13px;border:0;background:#fff;box-shadow:0 2px 8px rgba(15,30,20,.06);cursor:pointer;font-size:18px;color:#0F1512">‹</button>
+            <h1 class="h1" style="flex:1">Leaderboard</h1>
+          </div>
+
+          <!-- segmented -->
+          <div style="display:flex;gap:6px;background:#eaeee9;border-radius:16px;padding:5px;margin-bottom:20px">
+            <button class="press" onClick="{{lbGlobal}}" style="flex:1;border:0;cursor:pointer;height:38px;border-radius:12px;font:800 13px 'Plus Jakarta Sans';background:{{lbGlobalBg}};color:{{lbGlobalCol}};box-shadow:{{lbGlobalSh}}">Global</button>
+            <button class="press" onClick="{{lbFriends}}" style="flex:1;border:0;cursor:pointer;height:38px;border-radius:12px;font:800 13px 'Plus Jakarta Sans';background:{{lbFriendsBg}};color:{{lbFriendsCol}};box-shadow:{{lbFriendsSh}}">Friends</button>
+          </div>
+
+          <!-- league banner -->
+          <div style="display:flex;align-items:center;gap:12px;background:linear-gradient(120deg,#F59E0B,#f97316);border-radius:20px;padding:16px 18px;margin-bottom:20px">
+            <span style="font-size:34px">🥈</span>
+            <div style="flex:1"><div style="font:800 16px 'Plus Jakarta Sans';color:#fff">Silver League</div><div style="font:600 12px 'Plus Jakarta Sans';color:rgba(255,255,255,.9)">Top 5 promote to Gold · ends in 2 days</div></div>
+          </div>
+
+          <!-- podium -->
+          <div style="display:flex;align-items:flex-end;justify-content:center;gap:10px;margin-bottom:22px">
+            <div style="flex:1;text-align:center">
+              <div style="width:54px;height:54px;border-radius:50%;margin:0 auto;background:#bfdbfe;display:flex;align-items:center;justify-content:center;font:800 20px 'Plus Jakarta Sans';color:#1e40af;border:3px solid #cbd5e1">Z</div>
+              <div style="font:800 12px 'Plus Jakarta Sans';color:#0F1512;margin-top:6px">Zheng</div>
+              <div style="background:#e2e8f0;border-radius:12px 12px 0 0;margin-top:8px;height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center"><div style="font:800 20px 'Plus Jakarta Sans';color:#64748b">3</div><div style="font:700 10px 'Plus Jakarta Sans';color:#94a3b8">3,540</div></div>
+            </div>
+            <div style="flex:1;text-align:center">
+              <div style="font-size:20px">👑</div>
+              <div style="width:62px;height:62px;border-radius:50%;margin:2px auto 0;background:#fde68a;display:flex;align-items:center;justify-content:center;font:800 24px 'Plus Jakarta Sans';color:#92400e;border:3px solid #f59e0b">M</div>
+              <div style="font:800 13px 'Plus Jakarta Sans';color:#0F1512;margin-top:6px">Mia</div>
+              <div style="background:linear-gradient(180deg,#fcd34d,#f59e0b);border-radius:12px 12px 0 0;margin-top:8px;height:88px;display:flex;flex-direction:column;align-items:center;justify-content:center"><div style="font:800 24px 'Plus Jakarta Sans';color:#fff">1</div><div style="font:700 11px 'Plus Jakarta Sans';color:rgba(255,255,255,.9)">4,120</div></div>
+            </div>
+            <div style="flex:1;text-align:center">
+              <div style="width:54px;height:54px;border-radius:50%;margin:0 auto;background:#ddd6fe;display:flex;align-items:center;justify-content:center;font:800 20px 'Plus Jakarta Sans';color:#5b21b6;border:3px solid #d6bda1">A</div>
+              <div style="font:800 12px 'Plus Jakarta Sans';color:#0F1512;margin-top:6px">Adrian</div>
+              <div style="background:#f0e2d0;border-radius:12px 12px 0 0;margin-top:8px;height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center"><div style="font:800 20px 'Plus Jakarta Sans';color:#b08d57">2</div><div style="font:700 10px 'Plus Jakarta Sans';color:#c2a075">3,880</div></div>
+            </div>
+          </div>
+
+          <!-- ranked list -->
+          <div class="card" style="padding:8px">
+            <div style="display:flex;align-items:center;gap:12px;padding:11px 10px"><span style="font:800 14px 'Plus Jakarta Sans';color:#8a938c;width:24px">4</span><div style="width:38px;height:38px;border-radius:50%;background:#fecdd3;display:flex;align-items:center;justify-content:center;font:800 14px 'Plus Jakarta Sans';color:#be123c">L</div><div style="flex:1"><div style="font:800 14px 'Plus Jakarta Sans';color:#0F1512">Lena</div><div style="font:600 10px 'Plus Jakarta Sans';color:#8a938c">Lv.5</div></div><span style="font:800 13px 'Plus Jakarta Sans';color:#0F1512">2,910</span></div>
+            <div style="height:1px;background:#f0f2ef;margin:0 10px"></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:11px 10px"><span style="font:800 14px 'Plus Jakarta Sans';color:#8a938c;width:24px">5</span><div style="width:38px;height:38px;border-radius:50%;background:#bbf7d0;display:flex;align-items:center;justify-content:center;font:800 14px 'Plus Jakarta Sans';color:#15803d">K</div><div style="flex:1"><div style="font:800 14px 'Plus Jakarta Sans';color:#0F1512">Kojo</div><div style="font:600 10px 'Plus Jakarta Sans';color:#8a938c">Lv.4</div></div><span style="font:800 13px 'Plus Jakarta Sans';color:#0F1512">2,640</span></div>
+            <div style="height:1px;background:#f0f2ef;margin:0 10px"></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:11px 10px;opacity:.85"><span style="font:800 14px 'Plus Jakarta Sans';color:#8a938c;width:24px">6</span><div style="width:38px;height:38px;border-radius:50%;background:#e9d5ff;display:flex;align-items:center;justify-content:center;font:800 14px 'Plus Jakarta Sans';color:#7c3aed">D</div><div style="flex:1"><div style="font:800 14px 'Plus Jakarta Sans';color:#0F1512">Dani</div><div style="font:600 10px 'Plus Jakarta Sans';color:#8a938c">Lv.3</div></div><span style="font:800 13px 'Plus Jakarta Sans';color:#0F1512">2,180</span></div>
+          </div>
+
+          <div style="text-align:center;font:700 11px 'Plus Jakarta Sans';color:#b0b8b1;margin:16px 0">· · ·</div>
+
+          <!-- you -->
+          <sc-if value="{{youShown}}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;align-items:center;gap:12px;padding:14px 12px;border-radius:18px;background:linear-gradient(120deg,#16A34A,#22C55E);box-shadow:0 12px 26px -10px rgba(34,197,94,.5)"><span style="font:800 15px 'Plus Jakarta Sans';color:#fff;width:24px">14</span><div style="width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font:800 15px 'Plus Jakarta Sans';color:#fff;border:2px solid rgba(255,255,255,.5)">J</div><div style="flex:1"><div style="font:800 15px 'Plus Jakarta Sans';color:#fff">You</div><div style="font:700 10px 'Plus Jakarta Sans';color:rgba(255,255,255,.85)">▲ up 3 this week</div></div><span style="font:800 15px 'Plus Jakarta Sans';color:#fff">1,240</span></div>
+          <div style="text-align:center;margin-top:14px;font:800 12px 'Plus Jakarta Sans';color:#16A34A">Win 2 more duels to break the top 10 🚀</div>
+          </sc-if>
+          <sc-if value="{{youHiddenGlobal}}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;align-items:center;gap:12px;padding:16px;border-radius:18px;background:#fff;box-shadow:0 2px 10px rgba(15,30,20,.05)"><div style="width:40px;height:40px;border-radius:13px;background:#f0f2ef;display:flex;align-items:center;justify-content:center;font-size:20px">🔒</div><div style="flex:1"><div style="font:800 14px 'Plus Jakarta Sans';color:#0F1512">You're hidden from Global</div><div style="font:600 11px 'Plus Jakarta Sans';color:#8a938c">Private profile is on · turn it off in Settings to rank</div></div></div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ======================= ONBOARDING ======================= -->
+    <sc-if value="{{isOnboarding}}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;z-index:65;background:#F6F7F5;overflow:hidden">
+      <div class="sb" style="color:#0F1512"><span>9:41</span><span>5G ▮▮▮</span></div>
+
+      <sc-if value="{{obShowBar}}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;top:60px;left:24px;right:24px;display:flex;align-items:center;gap:12px;z-index:5">
+        <button class="press" onClick="{{obBack}}" style="width:30px;height:30px;border-radius:10px;border:0;background:#fff;box-shadow:0 2px 6px rgba(15,30,20,.06);cursor:pointer;font-size:15px;color:#0F1512;flex:none">‹</button>
+        <div style="flex:1;height:6px;border-radius:4px;background:#e6eae4;overflow:hidden"><div style="height:100%;background:#22C55E;border-radius:4px;transition:width .4s cubic-bezier(.2,.7,.2,1);width: {{obPct}}%"></div></div>
+      </div>
+      </sc-if>
+
+      <!-- step 0: sign up -->
+      <sc-if value="{{isOb0}}" hint-placeholder-val="{{ true }}">
+      <div class="obstep" style="position:absolute;inset:0;padding:52px 22px 26px;display:flex;flex-direction:column">
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px">
+          <div style="width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#22C55E,#15803D);display:flex;align-items:center;justify-content:center;font-size:17px">👑</div>
+          <span style="font:800 18px 'Plus Jakarta Sans';color:#0F1512;letter-spacing:-.01em">RepChamp</span>
+        </div>
+        <div style="text-align:center;font:700 13px 'Plus Jakarta Sans';color:#8a938c;margin-top:6px">Compete. Improve. Win.</div>
+        <div style="position:relative;flex:1;min-height:0;border-radius:30px;overflow:hidden;background:radial-gradient(125% 100% at 50% 6%,#eafaf0 0%,#eef1ec 52%,#eef1ec 100%);box-shadow:0 24px 54px -24px rgba(34,197,94,.42);margin-top:14px">
+          <div style="position:absolute;inset:0;background:linear-gradient(180deg,transparent 52%,rgba(21,128,61,.12))"></div>
+          <img src="assets/hero-couple.png" alt="RepChamp athletes" style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;z-index:1"/>
+          <div class="floaty" style="position:absolute;top:16px;left:16px;z-index:2;display:flex;align-items:center;gap:8px;background:#fff;padding:8px 13px;border-radius:16px;box-shadow:0 10px 22px -8px rgba(15,30,20,.22)"><span style="font-size:16px">🔥</span><div><div style="font:800 14px 'Plus Jakarta Sans';color:#0F1512;line-height:1">12</div><div style="font:700 8px 'Plus Jakarta Sans';color:#8a938c;letter-spacing:.06em">DAY STREAK</div></div></div>
+          <div class="floaty" style="animation-delay:.8s;position:absolute;top:16px;right:16px;z-index:2;display:flex;align-items:center;gap:8px;background:#fff;padding:8px 13px;border-radius:16px;box-shadow:0 10px 22px -8px rgba(15,30,20,.22)"><span style="font-size:16px">🏆</span><div><div style="font:800 14px 'Plus Jakarta Sans';color:#0F1512;line-height:1">Gold</div><div style="font:700 8px 'Plus Jakarta Sans';color:#8a938c;letter-spacing:.06em">LEAGUE</div></div></div>
+        </div>
+        <div style="text-align:center;margin-top:14px">
+          <h1 class="h1" style="font-size:25px">Ready to compete?</h1>
+          <div style="font:600 13px 'Plus Jakarta Sans';color:#8a938c;margin-top:6px;max-width:280px;margin-left:auto;margin-right:auto">Create your account to challenge friends and climb the leaderboard.</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:11px;margin-top:16px">
+          <button class="press" onClick="{{obNext}}" style="height:54px;border:1.5px solid #e6eae4;border-radius:16px;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;font:800 15px 'Plus Jakarta Sans';color:#0F1512"><span style="font:800 17px 'Plus Jakarta Sans';color:#4285F4">G</span>Sign up with Google</button>
+          <button class="press" onClick="{{obNext}}" style="height:54px;border:1.5px solid #e6eae4;border-radius:16px;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;font:800 15px 'Plus Jakarta Sans';color:#0F1512"><span style="font-size:18px"></span>Sign up with Apple</button>
+        </div>
+        <div style="margin-top:14px;text-align:center;font:600 11px 'Plus Jakarta Sans';color:#b0b8b1;line-height:1.5">By continuing, you agree to RepChamp's <b style="color:#8a938c">Terms</b> and <b style="color:#8a938c">Privacy Policy</b>.</div>
+      </div>
+      </sc-if>
+
+      <!-- step 1: built for bodyweight -->
+      <sc-if value="{{isOb1}}" hint-placeholder-val="{{ false }}">
+      <div class="obstep" style="position:absolute;inset:0;padding:92px 24px 34px;display:flex;flex-direction:column;text-align:center">
+        <h1 class="h1" style="font-size:29px">Built for bodyweight training</h1>
+        <div style="font:600 14px 'Plus Jakarta Sans';color:#8a938c;margin-top:10px">Track push-ups, squats, or both — all in one app.</div>
+        <div style="display:flex;gap:14px;margin-top:34px">
+          <div style="flex:1;border-radius:24px;padding:18px;background:linear-gradient(155deg,#22C55E,#15803D);height:210px;display:flex;flex-direction:column;justify-content:space-between;box-shadow:0 16px 30px -14px rgba(34,197,94,.55);text-align:left"><div style="font:800 18px 'Plus Jakarta Sans';color:#fff">Push-Ups</div><div><div style="font-size:52px;text-align:center">💪</div><div style="font:700 11px 'Plus Jakarta Sans';color:rgba(255,255,255,.9);margin-top:10px">🧍 Upper Body</div></div></div>
+          <div style="flex:1;border-radius:24px;padding:18px;background:linear-gradient(155deg,#a855f7,#7c3aed);height:210px;display:flex;flex-direction:column;justify-content:space-between;box-shadow:0 16px 30px -14px rgba(168,85,247,.55);text-align:left"><div style="font:800 18px 'Plus Jakarta Sans';color:#fff">Squats</div><div><div style="font-size:52px;text-align:center">🦵</div><div style="font:700 11px 'Plus Jakarta Sans';color:rgba(255,255,255,.9);margin-top:10px">🧍 Lower Body</div></div></div>
+        </div>
+        <div style="flex:1"></div>
+        <button class="press" onClick="{{obNext}}" style="width:100%;height:60px;border:0;border-radius:22px;background:linear-gradient(120deg,#22C55E,#15803D);color:#fff;font:800 17px 'Plus Jakarta Sans';cursor:pointer;box-shadow:0 14px 30px -10px rgba(34,197,94,.55)">Continue</button>
+      </div>
+      </sc-if>
+
+      <!-- step 2: username -->
+      <sc-if value="{{isOb2}}" hint-placeholder-val="{{ false }}">
+      <div class="obstep" style="position:absolute;inset:0;padding:88px 24px 34px;display:flex;flex-direction:column">
+        <h1 class="h1">Pick your username</h1>
+        <div style="font:600 14px 'Plus Jakarta Sans';color:#8a938c;margin-top:8px">This is how other players will see you.</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:22px;background:#fff;border:1.5px solid {{userBorder}};border-radius:18px;padding:0 18px;height:60px;box-shadow:0 2px 10px rgba(15,30,20,.05)">
+          <span style="font:800 18px 'Plus Jakarta Sans';color:#b0b8b1">@</span>
+          <input value="{{username}}" onInput="{{onUsername}}" placeholder="username" style="flex:1;border:0;outline:none;background:none;font:700 17px 'Plus Jakarta Sans';color:#0F1512"/>
+          <sc-if value="{{userValid}}" hint-placeholder-val="{{ false }}"><span class="checkpop" style="color:#16A34A;font-size:18px">✓</span></sc-if>
+        </div>
+        <div style="font:600 12px 'Plus Jakarta Sans';color:#8a938c;margin-top:12px">Letters and numbers only. No spaces or special characters.</div>
+        <sc-if value="{{userErr}}" hint-placeholder-val="{{ false }}"><div style="font:800 13px 'Plus Jakarta Sans';color:#ef4444;margin-top:10px">Username cannot be empty.</div></sc-if>
+        <div style="flex:1"></div>
+        <button class="press" onClick="{{usernameNext}}" style="width:100%;height:60px;border:0;border-radius:22px;background: {{userBtnBg}};color: {{userBtnCol}};font:800 17px 'Plus Jakarta Sans';cursor:pointer;transition:background .2s ease">Continue</button>
+      </div>
+      </sc-if>
+
+      <!-- step 3: profile photo -->
+      <sc-if value="{{isOb3}}" hint-placeholder-val="{{ false }}">
+      <div class="obstep" style="position:absolute;inset:0;padding:88px 24px 34px;display:flex;flex-direction:column">
+        <h1 class="h1">Add a profile photo</h1>
+        <div style="font:600 14px 'Plus Jakarta Sans';color:#8a938c;margin-top:8px">Add a photo to personalize your profile.</div>
+        <div style="display:flex;align-items:center;gap:16px;background:#fff;border-radius:20px;padding:16px;margin-top:22px;box-shadow:0 2px 10px rgba(15,30,20,.05)">
+          <div style="width:64px;height:64px;border-radius:50%;background: {{avatarBg}};display:flex;align-items:center;justify-content:center;font:800 26px 'Plus Jakarta Sans';color:#16A34A">{{avatarGlyph}}</div>
+          <div><div style="font:800 17px 'Plus Jakarta Sans';color:#0F1512">@{{usernameOr}}</div><div style="font:600 12px 'Plus Jakarta Sans';color:#8a938c">Profile preview</div></div>
+        </div>
+        <button class="press" onClick="{{choosePhoto}}" style="display:flex;align-items:center;gap:12px;margin-top:16px;background:#eafaf0;border:0;border-radius:16px;padding:18px;cursor:pointer;width:100%;text-align:left"><span style="font-size:20px">🖼️</span><span style="font:800 15px 'Plus Jakarta Sans';color:#16A34A">{{photoLabel}}</span></button>
+        <div style="flex:1"></div>
+        <button class="press" onClick="{{obNext}}" style="width:100%;height:60px;border:0;border-radius:22px;background:linear-gradient(120deg,#22C55E,#15803D);color:#fff;font:800 17px 'Plus Jakarta Sans';cursor:pointer;box-shadow:0 14px 30px -10px rgba(34,197,94,.55)">Continue</button>
+        <button class="press" onClick="{{obNext}}" style="margin-top:12px;background:none;border:0;color:#8a938c;font:800 14px 'Plus Jakarta Sans';cursor:pointer">Skip for now</button>
+      </div>
+      </sc-if>
+
+      <!-- step 4: main goal -->
+      <sc-if value="{{isOb4}}" hint-placeholder-val="{{ false }}">
+      <div class="obstep" style="position:absolute;inset:0;padding:88px 24px 34px;display:flex;flex-direction:column">
+        <h1 class="h1">What's your main goal?</h1>
+        <div style="display:flex;flex-direction:column;gap:12px;margin-top:24px">
+          <button class="press" onClick="{{obNext}}" style="border:0;cursor:pointer;text-align:left;background:#fff;border-radius:18px;padding:16px 18px;box-shadow:0 2px 10px rgba(15,30,20,.05);display:flex;align-items:center;gap:14px"><span style="width:42px;height:42px;border-radius:13px;background:#eafaf0;display:flex;align-items:center;justify-content:center;font-size:19px">🏋️</span><span style="flex:1;font:800 16px 'Plus Jakarta Sans';color:#0F1512">Get Stronger</span><span style="width:22px;height:22px;border-radius:50%;border:2px solid #d4dad4"></span></button>
+          <button class="press" onClick="{{obNext}}" style="border:0;cursor:pointer;text-align:left;background:#fff;border-radius:18px;padding:16px 18px;box-shadow:0 2px 10px rgba(15,30,20,.05);display:flex;align-items:center;gap:14px"><span style="width:42px;height:42px;border-radius:13px;background:#eef2ff;display:flex;align-items:center;justify-content:center;font-size:19px">#️⃣</span><span style="flex:1;font:800 16px 'Plus Jakarta Sans';color:#0F1512">Track My Reps</span><span style="width:22px;height:22px;border-radius:50%;border:2px solid #d4dad4"></span></button>
+          <button class="press" onClick="{{obNext}}" style="border:0;cursor:pointer;text-align:left;background:#fff;border-radius:18px;padding:16px 18px;box-shadow:0 2px 10px rgba(15,30,20,.05);display:flex;align-items:center;gap:14px"><span style="width:42px;height:42px;border-radius:13px;background:#f3e8ff;display:flex;align-items:center;justify-content:center;font-size:19px">✅</span><span style="flex:1;font:800 16px 'Plus Jakarta Sans';color:#0F1512">Improve Form</span><span style="width:22px;height:22px;border-radius:50%;border:2px solid #d4dad4"></span></button>
+          <button class="press" onClick="{{obNext}}" style="border:0;cursor:pointer;text-align:left;background:#fff;border-radius:18px;padding:16px 18px;box-shadow:0 2px 10px rgba(15,30,20,.05);display:flex;align-items:center;gap:14px"><span style="width:42px;height:42px;border-radius:13px;background:#fef3c7;display:flex;align-items:center;justify-content:center;font-size:19px">🏆</span><span style="flex:1;font:800 16px 'Plus Jakarta Sans';color:#0F1512">Compete With Others</span><span style="width:22px;height:22px;border-radius:50%;border:2px solid #d4dad4"></span></button>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- step 5: AI tracking ready -->
+      <sc-if value="{{isOb5}}" hint-placeholder-val="{{ false }}">
+      <div class="obstep" style="position:absolute;inset:0;padding:88px 24px 34px;display:flex;flex-direction:column;text-align:center">
+        <h1 class="h1">AI Tracking Ready</h1>
+        <div style="font:600 15px 'Plus Jakarta Sans';color:#8a938c;margin-top:10px">Point your camera and start training — reps are counted for you.</div>
+        <div style="flex:1;display:flex;align-items:center;justify-content:center">
+          <svg class="floaty" width="180" height="200" viewBox="0 0 340 500" fill="none"><g stroke="#22C55E" stroke-width="6" stroke-linecap="round"><path d="M170 120 L170 178 M120 178 L220 178 M120 178 L80 244 L60 322 M220 178 L260 244 L280 322 M170 178 L170 300 M145 300 L135 402 L125 482 M195 300 L205 402 L215 482 M145 300 L195 300"/></g><g class="joints" fill="#22C55E"><circle cx="170" cy="120" r="14"/><circle cx="120" cy="178" r="10"/><circle cx="220" cy="178" r="10"/><circle cx="80" cy="244" r="10"/><circle cx="260" cy="244" r="10"/><circle cx="145" cy="300" r="10"/><circle cx="195" cy="300" r="10"/></g></svg>
+        </div>
+        <div style="text-align:left;display:flex;flex-direction:column;gap:14px;margin-bottom:24px">
+          <div style="display:flex;align-items:center;gap:12px"><span style="width:40px;height:40px;border-radius:12px;background:#eafaf0;display:flex;align-items:center;justify-content:center;font-size:18px">🏃</span><div><div style="font:800 14px 'Plus Jakarta Sans';color:#0F1512">Detects your form</div><div style="font:600 12px 'Plus Jakarta Sans';color:#8a938c">Tracks body movement in real time</div></div></div>
+          <div style="display:flex;align-items:center;gap:12px"><span style="width:40px;height:40px;border-radius:12px;background:#eafaf0;display:flex;align-items:center;justify-content:center;font-size:18px">⚡</span><div><div style="font:800 14px 'Plus Jakarta Sans';color:#0F1512">Instant feedback</div><div style="font:600 12px 'Plus Jakarta Sans';color:#8a938c">See your count update as you train</div></div></div>
+          <div style="display:flex;align-items:center;gap:12px"><span style="width:40px;height:40px;border-radius:12px;background:#eafaf0;display:flex;align-items:center;justify-content:center;font-size:18px">🔒</span><div><div style="font:800 14px 'Plus Jakarta Sans';color:#0F1512">Stays on your device</div><div style="font:600 12px 'Plus Jakarta Sans';color:#8a938c">Video is processed locally, never uploaded</div></div></div>
+        </div>
+        <button class="press" onClick="{{obNext}}" style="width:100%;height:60px;border:0;border-radius:22px;background:linear-gradient(120deg,#22C55E,#15803D);color:#fff;font:800 17px 'Plus Jakarta Sans';cursor:pointer;box-shadow:0 14px 30px -10px rgba(34,197,94,.55)">Continue</button>
+      </div>
+      </sc-if>
+
+      <!-- step 6: training frequency -->
+      <sc-if value="{{isOb6}}" hint-placeholder-val="{{ false }}">
+      <div class="obstep" style="position:absolute;inset:0;padding:88px 24px 34px;display:flex;flex-direction:column">
+        <h1 class="h1">How often do you want to train?</h1>
+        <div style="font:600 14px 'Plus Jakarta Sans';color:#8a938c;margin-top:10px">Slide to set a weekly goal that feels realistic — you can always adjust later.</div>
+        <div style="background:#fff;border-radius:26px;padding:26px 22px;margin-top:24px;box-shadow:0 2px 14px rgba(15,30,20,.06)">
+          <div style="width:52px;height:52px;border-radius:16px;background:#eafaf0;display:flex;align-items:center;justify-content:center;font-size:22px;margin:0 auto 14px">📅</div>
+          <div style="text-align:center;display:flex;align-items:baseline;justify-content:center;gap:8px"><span style="font:800 56px 'Plus Jakarta Sans';color:#16A34A;line-height:1">{{trainDays}}</span><span style="font:800 17px 'Plus Jakarta Sans';color:#0F1512">days per week</span></div>
+          <input type="range" min="1" max="7" value="{{trainDays}}" onInput="{{onTrainDays}}" style="width:100%;margin-top:22px;accent-color:#22C55E;height:6px"/>
+          <div style="display:flex;justify-content:space-between;margin-top:8px;font:700 12px 'Plus Jakarta Sans';color:#8a938c"><span>1 day</span><span>7 days</span></div>
+          <div style="display:flex;align-items:center;gap:12px;background:#f1f7f2;border-radius:16px;padding:14px;margin-top:20px"><span style="width:44px;height:44px;border-radius:12px;background:#eafaf0;display:flex;align-items:center;justify-content:center;font-size:18px">⚡</span><div><div style="font:800 15px 'Plus Jakarta Sans';color:#0F1512">{{trainTitle}}</div><div style="font:600 12px 'Plus Jakarta Sans';color:#8a938c">{{trainNote}}</div></div></div>
+        </div>
+        <div style="flex:1"></div>
+        <button class="press" onClick="{{obNext}}" style="width:100%;height:60px;border:0;border-radius:22px;background:linear-gradient(120deg,#22C55E,#15803D);color:#fff;font:800 17px 'Plus Jakarta Sans';cursor:pointer;box-shadow:0 14px 30px -10px rgba(34,197,94,.55)">Continue</button>
+      </div>
+      </sc-if>
+
+      <!-- step 7: leaderboards & achievements -->
+      <sc-if value="{{isOb7}}" hint-placeholder-val="{{ false }}">
+      <div class="obstep" style="position:absolute;inset:0;padding:88px 28px 34px;display:flex;flex-direction:column;text-align:center">
+        <h1 class="h1" style="font-size:29px">Leaderboards &amp; Achievements</h1>
+        <div style="font:600 15px 'Plus Jakarta Sans';color:#8a938c;margin-top:12px">Climb the global leaderboard, unlock achievements, and prove you're the champ.</div>
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;position:relative">
+          <span class="conf" style="left:24%;background:#fde047;animation-delay:.1s"></span><span class="conf" style="left:38%;background:#60a5fa;animation-delay:.5s"></span><span class="conf" style="left:62%;background:#f472b6;animation-delay:.2s"></span><span class="conf" style="left:76%;background:#22C55E;animation-delay:.7s"></span>
+          <div style="display:flex;align-items:flex-end;gap:14px">
+            <div class="floaty" style="animation-delay:.3s;width:64px;height:64px;border-radius:20px;background:linear-gradient(160deg,#4ade80,#16A34A);display:flex;align-items:center;justify-content:center;font-size:28px;box-shadow:0 12px 24px -10px rgba(34,197,94,.6)">⬆️</div>
+            <div class="floaty" style="font-size:96px;line-height:1">🏆</div>
+            <div class="floaty" style="animation-delay:.6s;width:64px;height:64px;border-radius:20px;background:linear-gradient(160deg,#60a5fa,#2563eb);display:flex;align-items:center;justify-content:center;font-size:28px;box-shadow:0 12px 24px -10px rgba(37,99,235,.6)">🔥</div>
+          </div>
+        </div>
+        <button class="press" onClick="{{obNext}}" style="width:100%;height:60px;border:0;border-radius:22px;background:linear-gradient(120deg,#22C55E,#15803D);color:#fff;font:800 17px 'Plus Jakarta Sans';cursor:pointer;box-shadow:0 14px 30px -10px rgba(34,197,94,.55)">Continue</button>
+      </div>
+      </sc-if>
+
+      <!-- step 8: incoming challenge -->
+      <sc-if value="{{isOb8}}" hint-placeholder-val="{{ false }}">
+      <div class="obstep" style="position:absolute;inset:0;padding:88px 24px 34px;display:flex;flex-direction:column;text-align:center">
+        <div style="display:inline-flex;align-self:center;font:800 11px 'Plus Jakarta Sans';letter-spacing:.12em;color:#16A34A;background:#eafaf0;padding:6px 14px;border-radius:20px">CHALLENGE</div>
+        <h1 class="h1" style="font-size:30px;margin-top:14px">Incoming Challenge</h1>
+        <div style="font:600 14px 'Plus Jakarta Sans';color:#8a938c;margin-top:10px">Jeff has challenged you to a rep fight. Choose your exercise and see if you can beat him.</div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:18px;margin:26px 0">
+          <div style="width:74px;height:74px;border-radius:50%;background:#93c5fd;display:flex;align-items:center;justify-content:center;font:800 28px 'Plus Jakarta Sans';color:#1e3a8a">J</div>
+          <span class="floaty" style="font-size:26px">⚡</span>
+          <div style="width:74px;height:74px;border-radius:50%;background:#eafaf0;display:flex;align-items:center;justify-content:center;font-size:30px;color:#16A34A">🧍</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;text-align:left">
+          <div style="display:flex;align-items:center;gap:14px;background:#fff;border:1.5px solid #bbf7d0;border-radius:18px;padding:14px 16px;box-shadow:0 2px 10px rgba(15,30,20,.05)"><span style="font-size:24px">🤸</span><div style="flex:1"><div style="font:800 15px 'Plus Jakarta Sans';color:#0F1512">Push-Ups</div><div style="font:600 11px 'Plus Jakarta Sans';color:#8a938c">First to 7 reps</div></div><span style="width:24px;height:24px;border-radius:50%;background:#16A34A;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px">✓</span></div>
+          <div style="display:flex;align-items:center;gap:14px;background:#fff;border-radius:18px;padding:14px 16px;box-shadow:0 2px 10px rgba(15,30,20,.05);opacity:.75"><span style="font-size:24px">🏋️</span><div style="flex:1"><div style="font:800 15px 'Plus Jakarta Sans';color:#0F1512">Squats</div><div style="font:600 11px 'Plus Jakarta Sans';color:#8a938c">First to 7 reps</div></div><span style="width:24px;height:24px;border-radius:50%;border:2px solid #d4dad4"></span></div>
+        </div>
+        <div style="flex:1"></div>
+        <button class="press" onClick="{{goBuilding}}" style="width:100%;height:60px;border:0;border-radius:22px;background:linear-gradient(120deg,#22C55E,#15803D);color:#fff;font:800 17px 'Plus Jakarta Sans';cursor:pointer;box-shadow:0 14px 30px -10px rgba(34,197,94,.55)">Accept Fight</button>
+        <button class="press" onClick="{{goBuilding}}" style="margin-top:10px;width:100%;height:54px;border:1.5px solid #e6eae4;border-radius:20px;background:#fff;color:#0F1512;font:800 15px 'Plus Jakarta Sans';cursor:pointer">Decline Fight</button>
+      </div>
+      </sc-if>
+
+      <!-- step 9: building your profile -->
+      <sc-if value="{{isOb9}}" hint-placeholder-val="{{ false }}">
+      <div class="obstep" style="position:absolute;inset:0;padding:66px 24px 34px;display:flex;flex-direction:column;text-align:center">
+        <div style="position:relative;width:128px;height:128px;margin:0 auto">
+          <svg width="128" height="128" viewBox="0 0 128 128" style="transform:rotate(-90deg)"><circle cx="64" cy="64" r="56" fill="none" stroke="#e6eae4" stroke-width="9"/><circle cx="64" cy="64" r="56" fill="none" stroke="#22C55E" stroke-width="9" stroke-linecap="round" stroke-dasharray="351.9" stroke-dashoffset="{{buildDash}}" style="transition:stroke-dashoffset .1s linear"/></svg>
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center"><div class="floaty" style="width:78px;height:78px;border-radius:50%;background:linear-gradient(160deg,#4ade80,#16A34A);display:flex;align-items:center;justify-content:center;font-size:34px;box-shadow:0 10px 24px -8px rgba(34,197,94,.6)">💪</div></div>
+        </div>
+        <div style="font:800 18px 'Plus Jakarta Sans';color:#16A34A;margin-top:12px">{{buildPct}}%</div>
+        <h1 class="h1" style="font-size:28px;margin-top:12px">Building Your Profile</h1>
+        <div style="font:600 14px 'Plus Jakarta Sans';color:#8a938c;margin-top:8px">Personalizing RepChamp just for you.</div>
+        <div style="background:#fff;border-radius:24px;padding:8px 16px;margin-top:26px;box-shadow:0 2px 14px rgba(15,30,20,.06);text-align:left">
+          <sc-for list="{{buildItems}}" as="it" hint-placeholder-count="4">
+          <div style="display:flex;align-items:center;gap:14px;padding:15px 4px">
+            <span style="width:44px;height:44px;border-radius:13px;background: {{it.bg}};display:flex;align-items:center;justify-content:center;font-size:18px">{{it.icon}}</span>
+            <div style="flex:1"><div style="font:800 15px 'Plus Jakarta Sans';color:#0F1512">{{it.label}}</div><div style="font:700 11px 'Plus Jakarta Sans';color: {{it.subCol}}">{{it.sub}}</div></div>
+            <sc-if value="{{it.done}}" hint-placeholder-val="{{ false }}"><span class="checkpop" style="width:26px;height:26px;border-radius:50%;background:#16A34A;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px">✓</span></sc-if>
+            <sc-if value="{{it.active}}" hint-placeholder-val="{{ false }}"><span class="spin" style="width:20px;height:20px;border-radius:50%;border:3px solid #d9f0e0;border-top-color:#22C55E;display:inline-block"></span></sc-if>
+          </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- step 10: paywall trial timeline -->
+      <sc-if value="{{isOb10}}" hint-placeholder-val="{{ false }}">
+      <div class="obstep" style="position:absolute;inset:0;padding:56px 24px 26px;display:flex;flex-direction:column;overflow-y:auto" class="scr">
+        <button class="press" onClick="{{obBack}}" style="width:34px;height:34px;border-radius:11px;border:0;background:#fff;box-shadow:0 2px 6px rgba(15,30,20,.06);cursor:pointer;font-size:17px;color:#0F1512;align-self:flex-start;margin-bottom:14px">‹</button>
+        <h1 class="h1" style="text-align:center;font-size:27px">Start your FREE 3-Day trial to continue</h1>
+        <div style="margin-top:24px;display:flex;flex-direction:column;gap:2px">
+          <div style="display:flex;gap:14px"><div style="display:flex;flex-direction:column;align-items:center"><div style="width:44px;height:44px;border-radius:50%;background:#16A34A;display:flex;align-items:center;justify-content:center;font-size:19px">🔓</div><div style="width:3px;flex:1;background:#16A34A;min-height:26px"></div></div><div style="padding-bottom:14px"><div style="font:800 16px 'Plus Jakarta Sans';color:#0F1512">Today</div><div style="font:600 12px 'Plus Jakarta Sans';color:#8a938c">Unlock all RepChamp features like unlimited duels, advanced stats, and more.</div></div></div>
+          <div style="display:flex;gap:14px"><div style="display:flex;flex-direction:column;align-items:center"><div style="width:44px;height:44px;border-radius:50%;background:#22C55E;display:flex;align-items:center;justify-content:center;font-size:18px">🔔</div><div style="width:3px;flex:1;background:#e6eae4;min-height:26px"></div></div><div style="padding-bottom:14px"><div style="font:800 16px 'Plus Jakarta Sans';color:#0F1512">In 2 Days — Reminder</div><div style="font:600 12px 'Plus Jakarta Sans';color:#8a938c">We'll send you a reminder that your trial is ending soon if you've allowed notifications.</div></div></div>
+          <div style="display:flex;gap:14px"><div style="display:flex;flex-direction:column;align-items:center"><div style="width:44px;height:44px;border-radius:50%;background:#F59E0B;display:flex;align-items:center;justify-content:center;font-size:18px">👑</div></div><div><div style="font:800 16px 'Plus Jakarta Sans';color:#0F1512">In 3 Days — Billing Starts</div><div style="font:600 12px 'Plus Jakarta Sans';color:#8a938c">You'll be charged on 25 Jul 2026 unless you cancel anytime before.</div></div></div>
+        </div>
+        <div style="flex:1;min-height:16px"></div>
+        <div style="position:relative;border:2px solid {{yrBorder}};border-radius:18px;padding:16px 18px;display:flex;align-items:center;gap:14px;cursor:pointer" class="press" onClick="{{selYearly}}">
+          <div style="position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:#22C55E;color:#fff;font:800 10px 'Plus Jakarta Sans';letter-spacing:.06em;padding:3px 12px;border-radius:12px">3 DAYS FREE</div>
+          <sc-if value="{{planYear}}" hint-placeholder-val="{{ true }}"><span class="checkpop" style="width:26px;height:26px;border-radius:50%;background:#16A34A;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px">✓</span></sc-if>
+          <sc-if value="{{planMonth}}" hint-placeholder-val="{{ false }}"><span style="width:26px;height:26px;border-radius:50%;border:2px solid #d4dad4"></span></sc-if>
+          <div style="flex:1"><div style="font:800 16px 'Plus Jakarta Sans';color:#0F1512">Yearly</div><div style="font:600 11px 'Plus Jakarta Sans';color:#8a938c">billed annually</div></div>
+          <div style="font:800 16px 'Plus Jakarta Sans';color:#0F1512">34,99 €/yr</div>
+        </div>
+        <div style="border:2px solid {{moBorder}};border-radius:18px;padding:16px 18px;display:flex;align-items:center;gap:14px;margin-top:12px;cursor:pointer" class="press" onClick="{{selMonthly}}">
+          <sc-if value="{{planMonth}}" hint-placeholder-val="{{ false }}"><span class="checkpop" style="width:26px;height:26px;border-radius:50%;background:#16A34A;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px">✓</span></sc-if>
+          <sc-if value="{{planYear}}" hint-placeholder-val="{{ true }}"><span style="width:26px;height:26px;border-radius:50%;border:2px solid #d4dad4"></span></sc-if>
+          <div style="flex:1"><div style="font:800 16px 'Plus Jakarta Sans';color:#0F1512">Monthly</div><div style="font:600 11px 'Plus Jakarta Sans';color:#8a938c">billed monthly</div></div>
+          <div style="font:800 16px 'Plus Jakarta Sans';color:#0F1512">8,99 €/mo</div>
+        </div>
+        <div style="text-align:center;margin:14px 0;font:800 13px 'Plus Jakarta Sans';color:#0F1512">✓ No Payment Due Now</div>
+        <button class="press" onClick="{{obNext}}" style="width:100%;height:60px;border:0;border-radius:22px;background:linear-gradient(120deg,#22C55E,#15803D);color:#fff;font:800 17px 'Plus Jakarta Sans';cursor:pointer;box-shadow:0 14px 30px -10px rgba(34,197,94,.55)">Start Free Trial</button>
+        <div style="text-align:center;margin-top:12px;font:600 12px 'Plus Jakarta Sans';color:#8a938c">{{trialFooter}}</div>
+      </div>
+      </sc-if>
+
+      <!-- step 11: one-time offer -->
+      <sc-if value="{{isOb11}}" hint-placeholder-val="{{ false }}">
+      <div class="obstep" style="position:absolute;inset:0;padding:56px 24px 26px;display:flex;flex-direction:column;text-align:center">
+        <button class="press" onClick="{{obDone}}" style="width:34px;height:34px;border-radius:50%;border:0;background:#f0f2ef;cursor:pointer;font-size:16px;color:#0F1512;align-self:flex-end">✕</button>
+        <h1 class="h1" style="font-size:27px;margin-top:6px">Your one-time offer</h1>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center">
+          <div style="position:relative">
+            <span style="position:absolute;left:-34px;top:10px;font-size:22px;animation:sparkle 1.8s ease-in-out infinite">✨</span>
+            <span style="position:absolute;right:-34px;top:30px;font-size:22px;animation:sparkle 1.8s ease-in-out infinite .6s">✨</span>
+            <div style="width:220px;height:120px;border-radius:26px;background:linear-gradient(150deg,#4ade80,#16A34A);display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 20px 40px -14px rgba(34,197,94,.6)"><span style="font:800 54px 'Plus Jakarta Sans';color:#fff;line-height:1">34%</span><span style="font:800 20px 'Plus Jakarta Sans';color:#fff;letter-spacing:.08em">OFF</span></div>
+          </div>
+          <div style="margin-top:28px;font:800 20px 'Plus Jakarta Sans';color:#0F1512"><span style="text-decoration:line-through;color:#b0b8b1">34,99 €</span> 22,99 €/year</div>
+          <div style="font:600 13px 'Plus Jakarta Sans';color:#8a938c;margin-top:6px">34% less than the regular annual plan</div>
+        </div>
+        <div style="position:relative;border:2px solid #22C55E;border-radius:18px;padding:16px 18px;display:flex;align-items:center;gap:14px;text-align:left">
+          <div style="position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:#22C55E;color:#fff;font:800 10px 'Plus Jakarta Sans';letter-spacing:.06em;padding:3px 12px;border-radius:12px">3 DAYS FREE</div>
+          <span style="width:26px;height:26px;border-radius:50%;background:#16A34A;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px">✓</span>
+          <div style="flex:1"><div style="font:800 16px 'Plus Jakarta Sans';color:#0F1512">Yearly</div><div style="font:600 11px 'Plus Jakarta Sans';color:#8a938c">billed annually</div></div>
+          <div style="font:800 16px 'Plus Jakarta Sans';color:#0F1512">22,99 €/yr</div>
+        </div>
+        <button class="press" onClick="{{obDone}}" style="width:100%;height:60px;border:0;border-radius:22px;background:linear-gradient(120deg,#22C55E,#15803D);color:#fff;font:800 17px 'Plus Jakarta Sans';cursor:pointer;box-shadow:0 14px 30px -10px rgba(34,197,94,.55);margin-top:16px">Start Free Trial</button>
+        <div style="text-align:center;margin-top:12px;font:800 12px 'Plus Jakarta Sans';color:#16A34A">✓ No Commitment · Cancel Anytime</div>
+      </div>
+      </sc-if>
+    </div>
+    </sc-if>
+
+    <!-- ======================= CALIBRATE ======================= -->
+    <sc-if value="{{isCalibrate}}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;z-index:75;overflow:hidden">
+      <div class="cam" style="{{camStyle}}"></div>
+      <sc-if value="{{camOn}}" hint-placeholder-val="{{ false }}"><video class="feed" ref="{{videoRef}}"></video></sc-if>
+      <div style="position:absolute;inset:0;box-shadow:inset 0 0 160px 50px rgba(0,0,0,.7)"></div>
+      <div class="scan"></div>
+      <div class="sb" style="color:#fff"><span>9:41</span><span>5G ▮▮▮</span></div>
+
+      <!-- framing brackets -->
+      <div style="position:absolute;top:150px;left:44px;right:44px;bottom:210px;border-radius:24px;pointer-events:none">
+        <div style="position:absolute;top:0;left:0;width:40px;height:40px;border-top:3px solid {{accent}};border-left:3px solid {{accent}};border-radius:14px 0 0 0"></div>
+        <div style="position:absolute;top:0;right:0;width:40px;height:40px;border-top:3px solid {{accent}};border-right:3px solid {{accent}};border-radius:0 14px 0 0"></div>
+        <div style="position:absolute;bottom:0;left:0;width:40px;height:40px;border-bottom:3px solid {{accent}};border-left:3px solid {{accent}};border-radius:0 0 0 14px"></div>
+        <div style="position:absolute;bottom:0;right:0;width:40px;height:40px;border-bottom:3px solid {{accent}};border-right:3px solid {{accent}};border-radius:0 0 14px 0"></div>
+      </div>
+
+      <!-- silhouette -->
+      <svg viewBox="0 0 340 500" style="position:absolute;top:150px;left:0;width:100%;height:auto;z-index:10;opacity:.5" fill="none">
+        <g stroke="{{accent}}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="filter:drop-shadow(0 0 5px {{glow}})">
+          <path d="M148 64 L158 58 L170 64 L182 58 L192 64 M170 108 L170 64 M128 120 L170 108 L212 120 M128 120 L212 120 M128 120 L144 250 M212 120 L196 250 M144 250 L196 250 M128 120 L104 178 L92 236 M212 120 L236 178 L248 236 M144 250 L138 344 L132 438 M196 250 L202 344 L208 438"/>
+        </g>
+      </svg>
+
+      <div style="position:absolute;top:100px;left:0;right:0;text-align:center;z-index:12">
+        <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(9,14,11,.6);backdrop-filter:blur(8px);border:1px solid {{calibChipBd}};padding:8px 16px;border-radius:22px">
+          <span style="width:8px;height:8px;border-radius:50%;background:{{accent}};box-shadow:0 0 8px {{accent}};animation:sparkle 1s ease-in-out infinite"></span>
+          <span style="font:800 12px 'Plus Jakarta Sans';letter-spacing:.06em;color:#fff">{{calibStatus}}</span>
+        </div>
+      </div>
+
+      <div style="position:absolute;bottom:70px;left:0;right:0;display:flex;flex-direction:column;align-items:center;z-index:12">
+        <div style="position:relative;width:82px;height:82px">
+          <svg width="82" height="82" viewBox="0 0 82 82" style="transform:rotate(-90deg)"><circle cx="41" cy="41" r="36" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="6"/><circle cx="41" cy="41" r="36" fill="none" stroke="{{accent}}" stroke-width="6" stroke-linecap="round" stroke-dasharray="226.2" stroke-dashoffset="{{calibDash}}" style="transition:stroke-dashoffset .1s linear"/></svg>
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:800 20px 'Plus Jakarta Sans';color:#fff">{{calibPct}}<span style="font-size:11px">%</span></div>
+        </div>
+        <div style="font:700 12px 'Plus Jakarta Sans';color:rgba(255,255,255,.75);margin-top:14px">Stand back so your whole body is in frame</div>
+      </div>
+      <div class="btm btmw"></div>
+    </div>
+    </sc-if>
+
+    <!-- ======================= COUNTDOWN ======================= -->
+    <sc-if value="{{isCountdown}}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;z-index:75;overflow:hidden">
+      <div class="cam" style="{{camStyle}}"></div>
+      <sc-if value="{{camOn}}" hint-placeholder-val="{{ false }}"><video class="feed" ref="{{videoRef}}"></video></sc-if>
+      <div style="position:absolute;inset:0;box-shadow:inset 0 0 160px 50px rgba(0,0,0,.75)"></div>
+      <div class="sb" style="color:#fff"><span>9:41</span><span>5G ▮▮▮</span></div>
+      <sc-if value="{{isVersus}}" hint-placeholder-val="{{ true }}">
+      <div style="position:absolute;top:96px;left:0;right:0;display:flex;align-items:center;justify-content:center;gap:16px;z-index:10">
+        <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#22C55E,#15803D);display:flex;align-items:center;justify-content:center;font:800 18px 'Plus Jakarta Sans';color:#fff;border:2px solid #22C55E">Y</div>
+        <span style="font:800 16px 'Plus Jakarta Sans';color:rgba(255,255,255,.7)">VS</span>
+        <div style="width:44px;height:44px;border-radius:50%;background: {{oppAvBg}};display:flex;align-items:center;justify-content:center;font:800 18px 'Plus Jakarta Sans';color:#fff;border:2px solid {{oppBorder}}">{{oppInitial}}</div>
+      </div>
+      </sc-if>
+      <sc-if value="{{isSolo}}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;top:96px;left:0;right:0;display:flex;align-items:center;justify-content:center;z-index:10">
+        <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(245,158,11,.22);border:1px solid rgba(245,158,11,.5);padding:8px 16px;border-radius:20px;backdrop-filter:blur(6px)"><span style="font-size:16px">🎯</span><span style="font:800 14px 'Plus Jakarta Sans';color:#fff">Target {{soloTarget}} reps</span></div>
+      </div>
+      </sc-if>
+      <sc-if value="{{isPractice}}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;top:96px;left:0;right:0;display:flex;align-items:center;justify-content:center;z-index:10">
+        <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);padding:8px 16px;border-radius:20px;backdrop-filter:blur(6px)"><span style="font-size:16px">🤖</span><span style="font:800 14px 'Plus Jakarta Sans';color:#fff">Free practice · no pressure</span></div>
+      </div>
+      </sc-if>
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+        <div style="font:800 11px 'Plus Jakarta Sans';letter-spacing:.24em;color:{{accent}};margin-bottom:8px">{{exerciseLabel}} · GET READY</div>
+        <div key="{{countKey}}" style="font:800 150px 'Plus Jakarta Sans';color:#fff;line-height:1;text-shadow:0 8px 40px rgba(0,0,0,.6);animation:countpop .62s ease forwards">{{countText}}</div>
+      </div>
+      <div class="btm btmw"></div>
+    </div>
+    </sc-if>
+
+    <!-- ======================= DUEL OVERLAY ======================= -->
+    <sc-if value="{{isDueling}}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;z-index:70;overflow:hidden">
+      <div class="cam" style="{{camStyle}}"></div>
+      <sc-if value="{{camOn}}" hint-placeholder-val="{{ false }}"><video class="feed" ref="{{videoRef}}"></video></sc-if>
+      <div style="position:absolute;inset:0;z-index:2;pointer-events:none;background:linear-gradient(180deg,rgba(6,10,8,.5) 0%,transparent 26%,transparent 62%,rgba(6,10,8,.75) 100%)"></div>
+      <div class="scan"></div>
+      <sc-if value="{{isPush}}" hint-placeholder-val="{{ false }}"><div key="{{reps}}" style="position:absolute;inset:0;z-index:15;pointer-events:none;box-shadow:inset 0 0 60px 6px rgba(34,197,94,.55);animation:flashb .45s ease forwards"></div></sc-if>
+      <sc-if value="{{isSquat}}" hint-placeholder-val="{{ false }}"><div key="{{reps}}" style="position:absolute;inset:0;z-index:15;pointer-events:none;box-shadow:inset 0 0 60px 6px rgba(168,85,247,.55);animation:flashb .45s ease forwards"></div></sc-if>
+      <div class="sb" style="color:#fff"><span>9:41</span><span>5G ▮▮▮</span></div>
+
+      <svg viewBox="0 0 340 500" class="{{rigClass}}" style="position:absolute;top:150px;left:0;width:100%;height:auto;z-index:10" fill="none">
+        <g stroke="{{accent}}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity=".85" style="filter:drop-shadow(0 0 5px {{glow}})">
+          <!-- face -->
+          <path d="M148 64 L158 58 L170 64 L182 58 L192 64"/>
+          <!-- shoulders + torso -->
+          <path d="M128 120 L212 120 M128 120 L144 250 M212 120 L196 250 M144 250 L196 250"/>
+          <!-- neck to nose -->
+          <path d="M170 108 L170 64 M128 120 L170 108 L212 120"/>
+          <!-- arms -->
+          <path d="M128 120 L104 178 L92 236 M212 120 L236 178 L248 236"/>
+          <!-- hands -->
+          <path d="M92 236 L80 244 M92 236 L86 252 M92 236 L96 250 M248 236 L260 244 M248 236 L254 252 M248 236 L244 250"/>
+          <!-- legs -->
+          <path d="M144 250 L138 344 L132 438 M196 250 L202 344 L208 438"/>
+          <!-- feet -->
+          <path d="M132 438 L128 452 L140 456 M208 438 L212 452 L200 456"/>
+        </g>
+        <g class="joints" fill="{{accent}}" style="filter:drop-shadow(0 0 4px {{glowStrong}})">
+          <circle cx="170" cy="64" r="4.5"/><circle cx="158" cy="58" r="3"/><circle cx="182" cy="58" r="3"/><circle cx="148" cy="64" r="3"/><circle cx="192" cy="64" r="3"/>
+          <circle cx="128" cy="120" r="7"/><circle cx="212" cy="120" r="7"/>
+          <circle cx="104" cy="178" r="6"/><circle cx="236" cy="178" r="6"/>
+          <circle cx="92" cy="236" r="6"/><circle cx="248" cy="236" r="6"/>
+          <circle cx="80" cy="244" r="2.6"/><circle cx="86" cy="252" r="2.6"/><circle cx="96" cy="250" r="2.6"/><circle cx="260" cy="244" r="2.6"/><circle cx="254" cy="252" r="2.6"/><circle cx="244" cy="250" r="2.6"/>
+          <circle cx="144" cy="250" r="6.5"/><circle cx="196" cy="250" r="6.5"/>
+          <circle cx="138" cy="344" r="6.5"/><circle cx="202" cy="344" r="6.5"/>
+          <circle cx="132" cy="438" r="6"/><circle cx="208" cy="438" r="6"/>
+          <circle cx="128" cy="452" r="2.6"/><circle cx="140" cy="456" r="2.6"/><circle cx="212" cy="452" r="2.6"/><circle cx="200" cy="456" r="2.6"/>
+        </g>
+      </svg>
+
+      <div style="position:absolute;bottom:150px;right:18px;z-index:20;display:flex;align-items:center;gap:6px;background:rgba(9,14,11,.6);backdrop-filter:blur(8px);border:1px solid rgba(34,197,94,.35);padding:6px 11px;border-radius:20px">
+        <span style="width:7px;height:7px;border-radius:50%;background:#22C55E;box-shadow:0 0 8px #22C55E;animation:sparkle 1.2s ease-in-out infinite"></span>
+        <span style="font:800 9px 'Plus Jakarta Sans';letter-spacing:.08em;color:#86efac">33 KEYPOINTS · 60 FPS</span>
+      </div>
+
+      <!-- battle bar -->
+      <div style="position:absolute;top:66px;left:16px;right:16px;z-index:20">
+        <sc-if value="{{isVersus}}" hint-placeholder-val="{{ true }}">
+        <div style="text-align:center;margin-bottom:10px"><div style="font:800 18px 'Plus Jakarta Sans';color:#fff;letter-spacing:.02em;text-shadow:0 2px 12px rgba(0,0,0,.5)">VS {{oppUpper}}</div><div style="font:800 9px 'Plus Jakarta Sans';letter-spacing:.22em;color:#86efac;margin-top:2px">TUG OF WAR BATTLE</div></div>
+        <div style="display:flex;align-items:center;gap:10px;background:rgba(9,14,11,.55);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:10px 12px">
+          <div style="display:flex;align-items:center;gap:8px;flex:1">
+            <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#22C55E,#15803D);display:flex;align-items:center;justify-content:center;font:800 15px 'Plus Jakarta Sans';color:#fff;border:2px solid #22C55E">Y</div>
+            <div><div style="font:800 11px 'Plus Jakarta Sans';color:#fff">You</div><div style="font:800 20px 'Plus Jakarta Sans';color:#22C55E;line-height:1">{{reps}}</div></div>
+          </div>
+          <div style="text-align:center"><div style="font:800 20px 'Plus Jakarta Sans';color:#fff;line-height:1">{{timeStr}}</div><div style="font:700 9px 'Plus Jakarta Sans';color:rgba(255,255,255,.5);letter-spacing:.1em">LEFT</div></div>
+          <div style="display:flex;align-items:center;gap:8px;flex:1;flex-direction:row-reverse;text-align:right">
+            <div style="width:36px;height:36px;border-radius:50%;background: {{oppAvBg}};display:flex;align-items:center;justify-content:center;font:800 15px 'Plus Jakarta Sans';color:#fff;border:2px solid {{oppBorder}}">{{oppInitial}}</div>
+            <div><div style="font:800 11px 'Plus Jakarta Sans';color:#fff">{{oppName}}</div><div style="font:800 20px 'Plus Jakarta Sans';color: {{oppRepCol}};line-height:1">{{oppReps}}</div></div>
+          </div>
+        </div>
+        <div style="margin-top:8px;height:9px;border-radius:5px;background:#a855f7;overflow:hidden"><div style="height:100%;background:linear-gradient(90deg,#22C55E,#4ade80);border-radius:5px;transition:width .4s ease;width: {{tugPct}}%"></div></div>
+        </sc-if>
+        <sc-if value="{{isSolo}}" hint-placeholder-val="{{ false }}">
+        <div style="text-align:center;margin-bottom:10px"><span style="font:800 10px 'Plus Jakarta Sans';letter-spacing:.16em;color:#fbbf24;background:rgba(245,158,11,.18);padding:5px 12px;border-radius:20px;backdrop-filter:blur(6px)">{{exerciseLabel}} · DAILY CHALLENGE</span></div>
+        <div style="display:flex;align-items:center;gap:12px;background:rgba(9,14,11,.55);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:12px 16px">
+          <div style="flex:1"><div style="font:700 9px 'Plus Jakarta Sans';color:rgba(255,255,255,.55);letter-spacing:.14em">TARGET</div><div style="font:800 22px 'Plus Jakarta Sans';color:#fbbf24;line-height:1.05">{{reps}}<span style="color:rgba(255,255,255,.55);font-size:15px"> / {{soloTarget}}</span></div></div>
+          <div style="text-align:right"><div style="font:800 22px 'Plus Jakarta Sans';color:#fff;line-height:1">{{timeStr}}</div><div style="font:700 9px 'Plus Jakarta Sans';color:rgba(255,255,255,.5);letter-spacing:.1em">LEFT</div></div>
+        </div>
+        <div style="margin-top:8px;height:9px;border-radius:5px;background:rgba(255,255,255,.18);overflow:hidden"><div style="height:100%;background:linear-gradient(90deg,#F59E0B,#fbbf24);border-radius:5px;transition:width .4s ease;width: {{soloPct}}%"></div></div>
+        </sc-if>
+        <sc-if value="{{isPractice}}" hint-placeholder-val="{{ false }}">
+        <div style="text-align:center;margin-bottom:10px"><span style="font:800 10px 'Plus Jakarta Sans';letter-spacing:.16em;color:#fff;background:rgba(255,255,255,.16);padding:5px 12px;border-radius:20px;backdrop-filter:blur(6px)">{{exerciseLabel}} · PRACTICE</span></div>
+        <div style="display:flex;align-items:center;gap:12px;background:rgba(9,14,11,.55);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:12px 16px">
+          <div style="flex:1"><div style="font:700 9px 'Plus Jakarta Sans';color:rgba(255,255,255,.55);letter-spacing:.14em">REPS</div><div style="font:800 22px 'Plus Jakarta Sans';color:#22C55E;line-height:1.05">{{reps}}</div></div>
+          <div style="text-align:right"><div style="font:800 22px 'Plus Jakarta Sans';color:#fff;line-height:1">{{timeStr}}</div><div style="font:700 9px 'Plus Jakarta Sans';color:rgba(255,255,255,.5);letter-spacing:.1em">LEFT</div></div>
+        </div>
+        </sc-if>
+      </div>
+
+      <!-- rep count (centered) -->
+      <div style="position:absolute;top:46%;left:0;right:0;transform:translateY(-50%);z-index:20;text-align:center;pointer-events:none">
+        <div style="font:700 13px 'Plus Jakarta Sans';color:rgba(255,255,255,.7);letter-spacing:.3em;margin-bottom:2px">REPS</div>
+        <div style="position:relative;display:inline-block"><div style="font:800 150px 'Plus Jakarta Sans';color:#fff;line-height:.82;text-shadow:0 6px 30px rgba(0,0,0,.6)" key="{{reps}}"><span style="display:inline-block;animation:pop .3s ease">{{reps}}</span></div><div key="{{reps}}" style="position:absolute;top:4px;right:-40px;font:800 34px 'Plus Jakarta Sans';color:{{accent}};animation:plusone .7s ease forwards;text-shadow:0 2px 8px rgba(0,0,0,.5)">+1</div></div>
+      </div>
+      <div key="cue{{reps}}" style="position:absolute;bottom:150px;left:50%;transform:translateX(-50%);z-index:20;background:rgba(34,197,94,.92);padding:9px 16px;border-radius:14px;font:800 13px 'Plus Jakarta Sans';color:#062012;box-shadow:0 8px 20px rgba(34,197,94,.4);white-space:nowrap">{{formCue}}</div>
+
+      <button class="press" onClick="{{giveUp}}" style="position:absolute;bottom:78px;left:22px;right:22px;z-index:20;height:58px;border:0;border-radius:18px;background:#ef4444;display:flex;align-items:center;justify-content:center;gap:8px;font:800 16px 'Plus Jakarta Sans';color:#fff;cursor:pointer;box-shadow:0 12px 28px -8px rgba(239,68,68,.6)">⚑ Give Up</button>
+      <div style="position:absolute;bottom:44px;left:0;right:0;z-index:20;text-align:center;font:800 13px 'Plus Jakarta Sans';color:rgba(255,255,255,.7)">⏱ {{timeStr}}</div>
+      <div class="btm btmw"></div>
+    </div>
+    </sc-if>
+
+    <!-- ======================= RESULT ======================= -->
+    <sc-if value="{{isResult}}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;z-index:80;background:{{resultBg}};overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px">
+      <div style="position:absolute;inset:0;pointer-events:none;overflow:hidden">{{confetti}}</div>
+      <div style="text-align:center;z-index:2;animation:rise .5s ease">
+        <div style="font-size:88px;line-height:1">{{resultEmoji}}</div>
+        <div style="font:800 36px 'Plus Jakarta Sans';color:#fff;letter-spacing:-.02em;margin-top:8px">{{resultTitle}}</div>
+        <div style="font:600 14px 'Plus Jakarta Sans';color:rgba(255,255,255,.85);margin-top:4px">{{resultSub}}</div>
+        <sc-if value="{{isVersus}}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;align-items:center;justify-content:center;gap:24px;margin:32px 0;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2);border-radius:24px;padding:20px 28px;backdrop-filter:blur(8px)">
+          <div style="text-align:center"><div style="font:800 44px 'Plus Jakarta Sans';color:#fff">{{reps}}</div><div style="font:700 11px 'Plus Jakarta Sans';color:rgba(255,255,255,.75)">YOU</div></div>
+          <div style="font:800 18px 'Plus Jakarta Sans';color:rgba(255,255,255,.6)">vs</div>
+          <div style="text-align:center"><div style="font:800 44px 'Plus Jakarta Sans';color:rgba(255,255,255,.85)">{{oppReps}}</div><div style="font:700 11px 'Plus Jakarta Sans';color:rgba(255,255,255,.75)">{{oppUpper}}</div></div>
+        </div>
+        </sc-if>
+        <sc-if value="{{isSolo}}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;align-items:center;justify-content:center;gap:24px;margin:32px 0;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2);border-radius:24px;padding:20px 28px;backdrop-filter:blur(8px)">
+          <div style="text-align:center"><div style="font:800 44px 'Plus Jakarta Sans';color:#fff">{{reps}}</div><div style="font:700 11px 'Plus Jakarta Sans';color:rgba(255,255,255,.75)">YOUR REPS</div></div>
+          <div style="font:800 18px 'Plus Jakarta Sans';color:rgba(255,255,255,.6)">/</div>
+          <div style="text-align:center"><div style="font:800 44px 'Plus Jakarta Sans';color:rgba(255,255,255,.85)">{{soloTarget}}</div><div style="font:700 11px 'Plus Jakarta Sans';color:rgba(255,255,255,.75)">TARGET</div></div>
+        </div>
+        </sc-if>
+        <sc-if value="{{isPractice}}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;align-items:center;justify-content:center;margin:32px 0;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2);border-radius:24px;padding:24px 40px;backdrop-filter:blur(8px)">
+          <div style="text-align:center"><div style="font:800 60px 'Plus Jakarta Sans';color:#fff;line-height:1">{{reps}}</div><div style="font:700 11px 'Plus Jakarta Sans';color:rgba(255,255,255,.75);margin-top:4px">REPS LOGGED</div></div>
+        </div>
+        </sc-if>
+        <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.95);padding:12px 22px;border-radius:18px;font:800 16px 'Plus Jakarta Sans';color:#16A34A;box-shadow:0 8px 20px rgba(0,0,0,.2)">✨ +{{xpGain}} XP</div>
+      </div>
+      <div style="position:absolute;bottom:44px;left:24px;right:24px;z-index:2;display:flex;flex-direction:column;gap:12px">
+        <button class="press" onClick="{{openForm}}" style="height:52px;border:0;border-radius:16px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);color:#fff;font:800 14px 'Plus Jakarta Sans';cursor:pointer;backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;gap:8px">📊 View form report</button>
+        <button class="press" onClick="{{openShare}}" style="height:52px;border:0;border-radius:16px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);color:#fff;font:800 14px 'Plus Jakarta Sans';cursor:pointer;backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;gap:8px">📤 Share result</button>
+        <div style="display:flex;gap:12px">
+          <button class="press" onClick="{{rematch}}" style="flex:1;height:56px;border:1.5px solid rgba(255,255,255,.4);border-radius:18px;background:rgba(255,255,255,.12);color:#fff;font:800 15px 'Plus Jakarta Sans';cursor:pointer;backdrop-filter:blur(6px)">Rematch</button>
+          <button class="press" onClick="{{finishDuel}}" style="flex:1;height:56px;border:0;border-radius:18px;background:#fff;color:#0F1512;font:800 15px 'Plus Jakarta Sans';cursor:pointer">Done</button>
+        </div>
+      </div>
+      <div class="btm btmw"></div>
+    </div>
+    </sc-if>
+
+    <!-- ======================= FORM REPORT ======================= -->
+    <sc-if value="{{isForm}}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;z-index:85;background:#F6F7F5;overflow:hidden">
+      <div class="sb" style="color:#0F1512"><span>9:41</span><span>5G ▮▮▮</span></div>
+      <div style="position:absolute;top:52px;left:0;right:0;bottom:0;overflow-y:auto" class="scr">
+        <div style="padding:6px 20px 40px">
+          <div style="display:flex;align-items:center;gap:12px;margin:6px 0 16px">
+            <button class="press" onClick="{{closeForm}}" style="width:40px;height:40px;border-radius:13px;border:0;background:#fff;box-shadow:0 2px 8px rgba(15,30,20,.06);cursor:pointer;font-size:18px;color:#0F1512">‹</button>
+            <h1 class="h1" style="flex:1;font-size:24px">Form report</h1>
+          </div>
+
+          <div style="border-radius:24px;padding:22px;background:linear-gradient(135deg,#16A34A,#065f46);box-shadow:0 16px 34px -14px rgba(34,197,94,.5);display:flex;align-items:center;gap:18px">
+            <div style="position:relative;width:88px;height:88px;flex:none">
+              <svg width="88" height="88" viewBox="0 0 88 88" style="transform:rotate(-90deg)"><circle cx="44" cy="44" r="38" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="7"/><circle cx="44" cy="44" r="38" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-dasharray="238.8" stroke-dashoffset="{{formDash}}"/></svg>
+              <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center"><span style="font:800 26px 'Plus Jakarta Sans';color:#fff;line-height:1">{{formScore}}</span><span style="font:700 9px 'Plus Jakarta Sans';color:rgba(255,255,255,.8)">/100</span></div>
+            </div>
+            <div><div style="font:800 18px 'Plus Jakarta Sans';color:#fff">{{formGrade}}</div><div style="font:600 12px 'Plus Jakarta Sans';color:rgba(255,255,255,.9);margin-top:4px;max-width:150px">{{formSummary}}</div></div>
+          </div>
+
+          <div class="card" style="padding:18px;margin-top:16px">
+            <span class="sec">Movement quality</span>
+            <div style="display:flex;flex-direction:column;gap:16px;margin-top:16px">
+              <sc-for list="{{formMetrics}}" as="m" hint-placeholder-count="3">
+              <div>
+                <div style="display:flex;justify-content:space-between;margin-bottom:7px"><span style="font:700 12px 'Plus Jakarta Sans';color:#0F1512">{{m.label}}</span><span style="font:800 12px 'Plus Jakarta Sans';color: {{m.col}}">{{m.pct}}%</span></div>
+                <div style="height:8px;border-radius:5px;background:#eef1ee;overflow:hidden"><div style="height:100%;border-radius:5px;background: {{m.col}};width: {{m.pct}}%"></div></div>
+              </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div class="card" style="padding:18px;margin-top:16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px"><span class="sec">Per-rep depth</span><span style="font:700 10px 'Plus Jakarta Sans';color:#8a938c">{{reps}} reps tracked</span></div>
+            <div style="display:flex;align-items:flex-end;gap:4px;height:96px">
+              <sc-for list="{{repBars}}" as="b" hint-placeholder-count="8">
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end">
+                <div style="width:100%;height: {{b.h}}%;background: {{b.col}};border-radius:4px;min-height:4px"></div>
+              </div>
+              </sc-for>
+            </div>
+            <div style="display:flex;gap:16px;margin-top:12px">
+              <div style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:3px;background:#22C55E"></span><span style="font:700 10px 'Plus Jakarta Sans';color:#8a938c">Full depth</span></div>
+              <div style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:3px;background:#fbbf24"></span><span style="font:700 10px 'Plus Jakarta Sans';color:#8a938c">Partial</span></div>
+            </div>
+          </div>
+
+          <div class="card" style="padding:16px;margin-top:16px;display:flex;align-items:center;gap:14px;background:#eafaf0"><span style="font-size:22px">💡</span><div style="flex:1"><div style="font:800 13px 'Plus Jakarta Sans';color:#0F1512">Coaching tip</div><div style="font:600 12px 'Plus Jakarta Sans';color:#476b56;margin-top:2px">{{formTip}}</div></div></div>
+
+          <button class="press" onClick="{{closeForm}}" style="width:100%;height:56px;border:0;border-radius:18px;background:#0F1512;color:#fff;font:800 15px 'Plus Jakarta Sans';cursor:pointer;margin-top:20px">Back to results</button>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ======================= SHARE CARD ======================= -->
+    <sc-if value="{{isShare}}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;z-index:90;background:rgba(6,10,8,.7);backdrop-filter:blur(6px);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px">
+      <div style="width:100%;border-radius:28px;overflow:hidden;background:linear-gradient(160deg,#16A34A,#065f46);box-shadow:0 30px 60px -20px rgba(0,0,0,.6);animation:rise .4s ease">
+        <div style="padding:26px 24px 22px">
+          <div style="display:flex;align-items:center;justify-content:space-between"><div style="display:flex;align-items:center;gap:8px"><span style="font-size:22px">👑</span><span style="font:800 16px 'Plus Jakarta Sans';color:#fff">RepChamp</span></div><span style="font:800 10px 'Plus Jakarta Sans';letter-spacing:.14em;color:rgba(255,255,255,.7)">DUEL RESULT</span></div>
+          <div style="text-align:center;padding:22px 0 14px"><div style="font-size:60px">{{resultEmoji}}</div><div style="font:800 28px 'Plus Jakarta Sans';color:#fff;margin-top:4px">{{resultTitle}}</div></div>
+          <sc-if value="{{isVersus}}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;align-items:center;justify-content:center;gap:22px;background:rgba(255,255,255,.14);border-radius:20px;padding:16px 22px">
+            <div style="text-align:center"><div style="font:800 38px 'Plus Jakarta Sans';color:#fff">{{reps}}</div><div style="font:700 10px 'Plus Jakarta Sans';color:rgba(255,255,255,.75)">JAMES</div></div>
+            <div style="font:800 15px 'Plus Jakarta Sans';color:rgba(255,255,255,.6)">vs</div>
+            <div style="text-align:center"><div style="font:800 38px 'Plus Jakarta Sans';color:rgba(255,255,255,.85)">{{oppReps}}</div><div style="font:700 10px 'Plus Jakarta Sans';color:rgba(255,255,255,.75)">{{oppUpper}}</div></div>
+          </div>
+          </sc-if>
+          <sc-if value="{{isSolo}}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;align-items:center;justify-content:center;gap:22px;background:rgba(255,255,255,.14);border-radius:20px;padding:16px 22px">
+            <div style="text-align:center"><div style="font:800 38px 'Plus Jakarta Sans';color:#fff">{{reps}}</div><div style="font:700 10px 'Plus Jakarta Sans';color:rgba(255,255,255,.75)">REPS</div></div>
+            <div style="font:800 15px 'Plus Jakarta Sans';color:rgba(255,255,255,.6)">/</div>
+            <div style="text-align:center"><div style="font:800 38px 'Plus Jakarta Sans';color:rgba(255,255,255,.85)">{{soloTarget}}</div><div style="font:700 10px 'Plus Jakarta Sans';color:rgba(255,255,255,.75)">TARGET</div></div>
+          </div>
+          </sc-if>
+          <sc-if value="{{isPractice}}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.14);border-radius:20px;padding:18px 22px">
+            <div style="text-align:center"><div style="font:800 46px 'Plus Jakarta Sans';color:#fff;line-height:1">{{reps}}</div><div style="font:700 10px 'Plus Jakarta Sans';color:rgba(255,255,255,.75);margin-top:4px">REPS · PRACTICE</div></div>
+          </div>
+          </sc-if>
+          <div style="text-align:center;margin-top:14px;font:700 12px 'Plus Jakarta Sans';color:rgba(255,255,255,.85)">{{exerciseLabel}} · +{{xpGain}} XP · 🔥 3-day streak</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;width:100%;margin-top:18px">
+        <button class="press" onClick="{{saveImg}}" style="flex:1;height:54px;border:0;border-radius:16px;background:#fff;color:#0F1512;font:800 14px 'Plus Jakarta Sans';cursor:pointer">Save image</button>
+        <button class="press" onClick="{{shareStory}}" style="flex:1;height:54px;border:0;border-radius:16px;background:#22C55E;color:#fff;font:800 14px 'Plus Jakarta Sans';cursor:pointer">Share to story</button>
+      </div>
+      <button class="press" onClick="{{closeShare}}" style="margin-top:14px;background:none;border:0;color:rgba(255,255,255,.75);font:800 14px 'Plus Jakarta Sans';cursor:pointer">Close</button>
+    </div>
+    </sc-if>
+
+    <!-- ======================= LEAGUE PROMOTION ======================= -->
+    <sc-if value="{{isLevelUp}}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;z-index:90;background:linear-gradient(165deg,#F59E0B,#b45309);overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center">
+      <div style="position:absolute;inset:0;pointer-events:none;overflow:hidden">
+        <span class="conf" style="left:12%;background:#fff;animation-delay:.1s"></span><span class="conf" style="left:26%;background:#fde047;animation-delay:.5s"></span><span class="conf" style="left:44%;background:#fff;animation-delay:.2s"></span><span class="conf" style="left:58%;background:#fca5a5;animation-delay:.7s"></span><span class="conf" style="left:72%;background:#fde047;animation-delay:.35s"></span><span class="conf" style="left:88%;background:#fff;animation-delay:.6s"></span>
+      </div>
+      <div style="z-index:2;display:flex;flex-direction:column;align-items:center">
+        <div style="font:800 12px 'Plus Jakarta Sans';letter-spacing:.18em;color:rgba(255,255,255,.9)">LEAGUE PROMOTION</div>
+        <div class="floaty" style="position:relative;width:150px;height:150px;margin:22px 0 6px">
+          <div style="position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.5),transparent 70%);animation:sparkle 2s ease-in-out infinite"></div>
+          <div style="position:absolute;inset:14px;border-radius:36px;background:linear-gradient(160deg,#fef9c3,#fbbf24);display:flex;align-items:center;justify-content:center;font-size:64px;box-shadow:0 18px 40px -12px rgba(180,83,9,.6)">🏆</div>
+        </div>
+        <div style="font:800 34px 'Plus Jakarta Sans';color:#fff;letter-spacing:-.02em;margin-top:14px">Gold League!</div>
+        <div style="font:600 14px 'Plus Jakarta Sans';color:rgba(255,255,255,.9);margin-top:6px;max-width:280px">You out-repped your way out of Silver. Tougher rivals, bigger rewards.</div>
+
+        <div style="width:280px;margin-top:26px">
+          <div style="display:flex;justify-content:space-between;font:800 11px 'Plus Jakarta Sans';color:rgba(255,255,255,.9);margin-bottom:8px"><span>LVL {{level}}</span><span>{{xpNow}} / 1000 XP</span></div>
+          <div style="height:12px;border-radius:8px;background:rgba(0,0,0,.22);overflow:hidden"><div style="height:100%;border-radius:8px;background:linear-gradient(90deg,#fff,#fde047);transition:width .9s cubic-bezier(.2,.7,.2,1);width: {{xpFill}}%"></div></div>
+          <div style="font:700 12px 'Plus Jakarta Sans';color:#fff;margin-top:10px">+{{xpGain}} XP earned this duel</div>
+        </div>
+      </div>
+      <div style="position:absolute;bottom:44px;left:24px;right:24px;z-index:2">
+        <button class="press" onClick="{{closeLevelUp}}" style="width:100%;height:56px;border:0;border-radius:18px;background:#fff;color:#b45309;font:800 16px 'Plus Jakarta Sans';cursor:pointer;box-shadow:0 12px 26px -10px rgba(0,0,0,.4)">Claim reward</button>
+      </div>
+    </div>
+    </sc-if>
+
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { onboarded:false, step:0, tab:'home', mode:null, exercise:'push', reps:0, oppReps:0, timeLeft:20, won:false, share:false, view:null, lbTab:'global', friendSel:'adrian', sound:true, haptic:true, voice:false, notif:true, privacy:false, solo:false, target:25, practice:false, opp:'adrian', camOn:false, username:'', userErr:false, photo:false, trainDays:4, buildPct:0, plan:'year', level:7, xpFill:62, showLevelUp:false, promoted:false, calibPct:0, toast:null, added:{} };
+
+  showToast(msg){ clearTimeout(this._toast); this.setState({toast:msg}); this._toast = setTimeout(()=>this.setState({toast:null}), 2200); }
+
+  runLevelUp(){
+    this.setState({ mode:null, showLevelUp:true, xpFill:62, promoted:true });
+    clearTimeout(this._lu);
+    this._lu = setTimeout(()=>this.setState({ xpFill:100, level:8 }), 550);
+  }
+
+  runBuild(){
+    clearInterval(this._b);
+    this._b = setInterval(()=>{
+      this.setState(st=>{
+        const p = st.buildPct + 2;
+        if(p>=100){ clearInterval(this._b); setTimeout(()=>this.setState(s2=>s2.step===9?{step:10}:{}), 650); return {buildPct:100}; }
+        return {buildPct:p};
+      });
+    }, 60);
+  }
+
+  clearTimers(){ clearInterval(this._t); clearInterval(this._r); clearInterval(this._o); clearInterval(this._c); clearInterval(this._b); clearInterval(this._cal); }
+  componentWillUnmount(){ this.clearTimers(); this.stopCam(); clearTimeout(this._toast); clearTimeout(this._lu); }
+
+  initCam(){
+    if(this._stream){ this.setState({camOn:true}); return; }
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ this.setState({camOn:false}); return; }
+    navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user' }, audio:false })
+      .then(stream=>{ this._stream = stream; this.setState({camOn:true}); if(this._video){ this._video.srcObject = stream; } })
+      .catch(()=>{ this.setState({camOn:false}); });
+  }
+  stopCam(){ if(this._stream){ this._stream.getTracks().forEach(t=>t.stop()); this._stream=null; } this._video=null; if(this.state.camOn) this.setState({camOn:false}); }
+  videoRef(el){ this._video = el; if(el){ el.muted=true; el.autoplay=true; el.playsInline=true; el.setAttribute('playsinline',''); if(this._stream){ el.srcObject=this._stream; const p=el.play&&el.play(); if(p&&p.catch) p.catch(()=>{}); } } }
+
+  beep(){
+    if(!this.state.sound) return;
+    try{
+      const A = this._ac || (this._ac = new (window.AudioContext||window.webkitAudioContext)());
+      if(A.state==='suspended') A.resume();
+      const o = A.createOscillator(), g = A.createGain();
+      o.type='sine'; o.frequency.value=880;
+      g.gain.setValueAtTime(0.0001, A.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.18, A.currentTime+0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, A.currentTime+0.12);
+      o.connect(g); g.connect(A.destination);
+      o.start(); o.stop(A.currentTime+0.13);
+    }catch(e){}
+  }
+  buzz(ms){ if(this.state.haptic && navigator.vibrate) try{ navigator.vibrate(ms); }catch(e){} }
+  repFeedback(){ this.beep(); this.buzz(20); }
+  say(text){
+    if(!this.state.voice || !window.speechSynthesis) return;
+    try{ const u = new SpeechSynthesisUtterance(text); u.rate=1.05; u.pitch=1; u.volume=1; speechSynthesis.cancel(); speechSynthesis.speak(u); }catch(e){}
+  }
+
+  setTab(t){ this.clearTimers(); this.stopCam(); this.setState({ tab:t, mode:null, view:null }); }
+
+  start(exercise, solo, target, practice){
+    this.clearTimers();
+    this.initCam();
+    this.setState({ mode:'calibrate', exercise, solo:!!solo, practice:!!practice, target:target||25, reps:0, oppReps:0, timeLeft:practice?45:(solo?30:20), won:false, share:false, count:3, calibPct:0, view:null });
+    this._cal = setInterval(()=>{
+      this.setState(s=>{
+        const p = s.calibPct + 4;
+        if(p>=100){ clearInterval(this._cal); this.buzz(30); setTimeout(()=>this.startCountdown(), 550); return {calibPct:100}; }
+        return {calibPct:p};
+      });
+    }, 45);
+  }
+
+  startCountdown(){
+    this.setState({ mode:'countdown' });
+    this._c = setInterval(()=>{
+      this.setState(s=>{
+        const n = s.count - 1;
+        if(n < 0){ clearInterval(this._c); this.beginDuel(); return {}; }
+        return { count:n };
+      });
+    }, 650);
+  }
+
+  beginDuel(){
+    const solo = this.state.solo, practice = this.state.practice;
+    this.setState({ mode:'duel' });
+    this.say(practice?'Practice time. Nice and steady.':(solo?'Go! Beat the target.':'Go! Let\u2019s move.'));
+    this._t = setInterval(()=>{
+      this.setState(s=>{
+        const tl = s.timeLeft - 1;
+        if(tl<=0){ this.clearTimers(); const won = practice ? true : (solo ? s.reps>=s.target : s.reps>=s.oppReps); this.buzz(won?[40,60,120]:60); return { timeLeft:0, mode:'result', won }; }
+        return { timeLeft:tl };
+      });
+    }, 900);
+    this._r = setInterval(()=>{ this.setState(s=>{ if(s.mode==='duel' && Math.random()<0.82){ this.repFeedback(); const n=s.reps+1; const lines = s.exercise==='squat' ? ['Deep squat!','Drive through heels','Chest up','Knees tracking'] : ['Great depth!','Keep the tempo','Nice and controlled','Push through!']; if(solo && !practice && n===s.target){ this.say('Target cleared!'); this.buzz([30,50,90]); } else if(n%5===0){ this.say(lines[(n/5-1)%4]); } return {reps:n}; } return {}; }); }, 780);
+    if(!solo) this._o = setInterval(()=>{ this.setState(s=> s.mode==='duel' && Math.random()<0.72 ? {oppReps:s.oppReps+1}:{} ); }, 860);
+  }
+
+  renderVals(){
+    const s = this.state;
+    const active = t => s.tab===t && !s.mode ? '#22C55E' : '#9aa39d';
+    const navtf = t => s.tab===t && !s.mode ? 'scale(1.16) translateY(-1px)' : 'scale(1)';
+    const cue = s.reps===0 ? 'Get set…' : (s.exercise==='squat'
+      ? (s.reps%4===0 ? 'Full depth! 🔥' : (s.reps%3===0 ? 'Drive up' : 'Chest tall'))
+      : (s.reps%4===0 ? 'Explosive! 🔥' : (s.reps%3===0 ? 'Nice tempo' : 'Perfect depth')));
+    const total = s.reps + s.oppReps;
+    const tug = total===0 ? 50 : Math.round((s.reps/total)*100);
+    const conf = [];
+    if(s.mode==='result' && s.won){
+      const cols=['#fde047','#22C55E','#60a5fa','#f472b6','#fb923c'];
+      for(let i=0;i<26;i++){ conf.push(React.createElement('span',{key:i,className:'conf',style:{left:(Math.random()*100)+'%',background:cols[i%5],animationDelay:(Math.random()*2)+'s',animationDuration:(2+Math.random()*1.6)+'s'}})); }
+    }
+    const acc = s.exercise==='squat' ? '#a855f7' : '#22C55E';
+    const glow = s.exercise==='squat' ? 'rgba(168,85,247,.6)' : 'rgba(34,197,94,.6)';
+    const glowStrong = s.exercise==='squat' ? 'rgba(168,85,247,.9)' : 'rgba(34,197,94,.9)';
+    return {
+      isHome:s.tab==='home'&&!s.mode, isArena:s.tab==='arena'&&!s.mode, isTrain:s.tab==='train'&&!s.mode,
+      rankName: s.promoted?'Challenger':'Contender', homeXp: s.promoted?620:238, homeXpPct: s.promoted?62:24, homeXpToGo: s.promoted?380:762, nextLevel: s.level+1,
+      profileInitial: (s.username&&s.username[0]?s.username[0].toUpperCase():'J'),
+      leagueEmoji: s.promoted?'🥇':'🥈', leagueName: s.promoted?'Gold':'Silver', leagueRank: s.promoted?9:14,
+      isFriends:s.tab==='friends'&&!s.mode, isProfile:s.tab==='profile'&&!s.mode,
+      isLevelUp:s.showLevelUp, level:s.level, xpFill:s.xpFill, xpNow:Math.round(s.xpFill*10),
+      isDueling:s.mode==='duel', isResult:s.mode==='result', isShare:s.mode==='result'&&s.share,
+      isForm:s.mode==='result'&&s.formOpen, openForm:()=>this.setState({formOpen:true}), closeForm:()=>this.setState({formOpen:false}),
+      toast:s.toast, hasToast:!!s.toast,
+      copyLink:()=>this.showToast('Link copied to clipboard'),
+      saveImg:()=>this.showToast('Saved to your photos 📸'),
+      shareStory:()=>this.showToast('Shared to your story 🎉'),
+      shareWeek:()=>this.showToast('Weekly recap shared 📤'),
+      tryPro:()=>this.showToast('Starting your free trial ✨'),
+      camPerms:()=>this.showToast('Camera access is enabled ✓'),
+      helpSupport:()=>this.showToast('Support chat is on the way 💬'),
+      addLena:()=>{ this.setState(st=>({added:{...st.added,lena:true}})); this.showToast('Lena added ✓'); },
+      addKojo:()=>{ this.setState(st=>({added:{...st.added,kojo:true}})); this.showToast('Kojo added ✓'); },
+      addDani:()=>{ this.setState(st=>({added:{...st.added,dani:true}})); this.showToast('Dani added ✓'); },
+      followMia:()=>{ this.setState(st=>({added:{...st.added,mia:true}})); this.showToast('You followed Mia ✓'); },
+      nudgeMia:()=>this.showToast('Nudged Mia 👋'),
+      laterDuel:()=>this.showToast('Reminder set for later ⏰'),
+      addState:{
+        lena:{ label:s.added.lena?'Added':'Add', bg:s.added.lena?'#eafaf0':'#22C55E', col:s.added.lena?'#16A34A':'#fff' },
+        kojo:{ label:s.added.kojo?'Added':'Add', bg:s.added.kojo?'#eafaf0':'#22C55E', col:s.added.kojo?'#16A34A':'#fff' },
+        dani:{ label:s.added.dani?'Added':'Add', bg:s.added.dani?'#eafaf0':'#22C55E', col:s.added.dani?'#16A34A':'#fff' },
+        mia:{ label:s.added.mia?'Following':'Follow' }
+      },
+      ...(()=>{ const base=s.won?90:82; const sc=Math.min(99,base+(s.exercise==='squat'?2:0));
+        const seed=(i)=>{ const v=Math.sin(i*12.9898)*43758.5453; return v-Math.floor(v); };
+        const bars=[]; for(let i=0;i<Math.min(s.reps||8,14);i++){ const full=seed(i)>0.28; bars.push({ h: full?(72+Math.round(seed(i+3)*26)):(40+Math.round(seed(i+5)*22)), col: full?'#22C55E':'#fbbf24' }); }
+        const m = s.exercise==='squat'
+          ? [{label:'Squat depth',pct:sc,col:'#16A34A'},{label:'Knee alignment',pct:Math.max(60,sc-14),col:'#16A34A'},{label:'Tempo consistency',pct:Math.max(58,sc-9),col:'#F59E0B'}]
+          : [{label:'Range of motion',pct:sc,col:'#16A34A'},{label:'Back alignment',pct:Math.max(62,sc-11),col:'#16A34A'},{label:'Tempo consistency',pct:Math.max(58,sc-7),col:'#F59E0B'}];
+        return { formScore:sc, formDash:(238.8*(1-sc/100)).toFixed(1),
+          formGrade: sc>=92?'Excellent form':(sc>=84?'Solid form':'Good effort'),
+          formSummary: s.exercise==='squat'?'Depth and control were on point.':'Clean lockouts, steady pace.',
+          formMetrics:m, repBars:bars,
+          formTip: s.exercise==='squat'?'Pause 1 count at the bottom to lock in full depth on every rep.':'Lower your chest a touch deeper to turn partials into full-depth reps.' };
+      })(),
+      closeLevelUp:()=>{ clearTimeout(this._lu); this.stopCam(); this.setState({ showLevelUp:false, tab:'home', share:false, view:null }); },
+      isSolo:s.solo&&!s.practice, isVersus:!s.solo&&!s.practice, isPractice:s.practice, soloTarget:s.target, soloRemain:Math.max(0,s.target-s.reps),
+      startPracticePush:()=>this.start('push', true, 0, true), startPracticeSquat:()=>this.start('squat', true, 0, true),
+      soloPct:Math.min(100,Math.round((s.reps/(s.target||1))*100)), soloCleared:s.reps>=s.target,
+      startSoloDaily:()=>this.start('push', true, 25),
+      isCountdown:s.mode==='countdown', countText: s.count>0 ? String(s.count) : 'GO!', countKey:'c'+s.count,
+      isCalibrate:s.mode==='calibrate', calibPct:s.calibPct||0, calibLocked:(s.calibPct||0)>=100,
+      calibStatus:(s.calibPct||0)>=100?'Body locked':((s.calibPct||0)>55?'Tracking 33 keypoints…':'Detecting body…'),
+      calibDash:(226.2*(1-(s.calibPct||0)/100)).toFixed(1),
+      calibChipBd:(s.calibPct||0)>=100?'rgba(34,197,94,.6)':'rgba(255,255,255,.2)',
+      openShare:()=>this.setState({share:true}), closeShare:()=>this.setState({share:false}),
+      isLeaderboard:s.view==='lb'&&!s.mode,
+      isDaily:s.view==='daily'&&!s.mode,
+      isAch:s.view==='ach'&&!s.mode, openAch:()=>this.setState({view:'ach'}),
+      isFriend:s.view==='friend'&&!s.mode,
+      isSettings:s.view==='settings'&&!s.mode, openSettings:()=>this.setState({view:'settings'}),
+      isAdd:s.view==='add'&&!s.mode, openAdd:()=>this.setState({view:'add'}),
+      tSound:()=>this.setState(x=>({sound:!x.sound})), tHaptic:()=>this.setState(x=>({haptic:!x.haptic})), tVoice:()=>this.setState(x=>({voice:!x.voice})), tNotif:()=>this.setState(x=>({notif:!x.notif})), tPrivacy:()=>this.setState(x=>({privacy:!x.privacy})),
+      soundTrack:s.sound?'#22C55E':'#d4dad4', soundJust:s.sound?'flex-end':'flex-start',
+      hapticTrack:s.haptic?'#22C55E':'#d4dad4', hapticJust:s.haptic?'flex-end':'flex-start',
+      voiceTrack:s.voice?'#22C55E':'#d4dad4', voiceJust:s.voice?'flex-end':'flex-start',
+      notifTrack:s.notif?'#22C55E':'#d4dad4', notifJust:s.notif?'flex-end':'flex-start',
+      privacyTrack:s.privacy?'#22C55E':'#d4dad4', privacyJust:s.privacy?'flex-end':'flex-start',
+      openAdrian:()=>this.setState({view:'friend',friendSel:'adrian'}), openZheng:()=>this.setState({view:'friend',friendSel:'zheng'}), openMia:()=>this.setState({view:'friend',friendSel:'mia'}),
+      isMatch:s.view==='match'&&!s.mode, openMatchWin:()=>this.setState({view:'match',matchId:'win'}), openMatchLoss:()=>this.setState({view:'match',matchId:'loss'}), openFriendBack:()=>this.setState({view:'friend'}),
+      ...(()=>{ const won=s.matchId!=='loss';
+        const bars = won
+          ? [{you:20,them:15},{you:35,them:28},{you:48,them:40},{you:60,them:52},{you:70,them:58},{you:78,them:66},{you:85,them:72},{you:92,them:78},{you:96,them:82},{you:100,them:88}]
+          : [{you:18,them:22},{you:30,them:38},{you:42,them:50},{you:52,them:60},{you:60,them:70},{you:68,them:78},{you:74,them:84},{you:80,them:90},{you:86,them:94},{you:90,them:100}];
+        return { mBars:bars,
+          mBg: won?'linear-gradient(130deg,#16A34A,#065f46)':'linear-gradient(130deg,#475569,#1e293b)',
+          mExercise: won?'PUSH-UPS':'SQUATS', mWhen: won?'2 days ago':'5 days ago',
+          mYou: won?12:14, mThem: won?9:16, mResult: won?'🏆 You won':'Lost — so close',
+          mPace: won?7:6, mForm: won?94:88, mXp: won?200:60 };
+      })(),
+      isOppPick:s.view==='opppick'&&!s.mode, openOppPick:()=>this.setState({view:'opppick'}),
+      pickAdrian:()=>{ this.setState({opp:'adrian'}); this.start('push',false); },
+      pickZheng:()=>{ this.setState({opp:'zheng'}); this.start('push',false); },
+      pickMia:()=>{ this.setState({opp:'mia'}); this.start('push',false); },
+      quickMatch:()=>{ const ids=['adrian','zheng','mia']; const id=ids[Math.floor(Math.random()*ids.length)]; this.setState({opp:id}); this.start('push',false); },
+      ...(()=>{ const O={adrian:{n:'Adrian',i:'A',bg:'#5b21b6',bd:'#a855f7',rc:'#c4b5fd'}, zheng:{n:'Zheng',i:'Z',bg:'#1e40af',bd:'#3b82f6',rc:'#93c5fd'}, mia:{n:'Mia',i:'M',bg:'#92400e',bd:'#f59e0b',rc:'#fcd34d'}}; const o=O[s.opp]||O.adrian; return { oppName:o.n, oppUpper:o.n.toUpperCase(), oppInitial:o.i, oppAvBg:o.bg, oppBorder:o.bd, oppRepCol:o.rc }; })(),
+      ...(()=>{ const F={ adrian:{name:'Adrian',initial:'A',bg:'#ddd6fe',col:'#5b21b6',handle:'@adrianfit',level:4,status:'● Online',statusCol:'#22C55E',reps:980,wins:12,h2hYou:3,h2hThem:2,label:"You're ahead 3–2 🔥"}, zheng:{name:'Zheng',initial:'Z',bg:'#bfdbfe',col:'#1e40af',handle:'@zhengreps',level:6,status:'● Online',statusCol:'#22C55E',reps:1520,wins:24,h2hYou:1,h2hThem:4,label:'Zheng leads 4–1 — time for revenge'}, mia:{name:'Mia',initial:'M',bg:'#fde68a',col:'#92400e',handle:'@miachamp',level:7,status:'Offline',statusCol:'#8a938c',reps:2100,wins:31,h2hYou:2,h2hThem:2,label:'Dead even 2–2 — settle it'} }; const f=F[s.friendSel]||F.adrian; return { frName:f.name, frInitial:f.initial, frBg:f.bg, frCol:f.col, frHandle:f.handle, frLevel:f.level, frStatus:f.status, frStatusCol:f.statusCol, frReps:f.reps.toLocaleString(), frWins:f.wins, frUpper:f.name.toUpperCase(), h2hYou:f.h2hYou, h2hThem:f.h2hThem, h2hLabel:f.label }; })(),
+      openLeaderboard:()=>this.setState({view:'lb'}), closeLeaderboard:()=>this.setState({view:null}),
+      openDaily:()=>this.setState({view:'daily'}), closeOverlay:()=>this.setState({view:null}),
+      isRecap:s.view==='recap'&&!s.mode, openRecap:()=>this.setState({view:'recap'}),
+      isRest:s.view==='rest'&&!s.mode, openRest:()=>this.setState({view:'rest'}),
+      isNotifs:s.view==='notifs'&&!s.mode, openNotifs:()=>this.setState({view:'notifs'}), notifDot:s.notif, notifOff:!s.notif,
+      youHiddenGlobal:s.privacy&&s.lbTab==='global', youShown:!(s.privacy&&s.lbTab==='global'),
+      lbGlobal:()=>this.setState({lbTab:'global'}), lbFriends:()=>this.setState({lbTab:'friends'}),
+      lbGlobalBg:s.lbTab==='global'?'#fff':'transparent', lbGlobalCol:s.lbTab==='global'?'#0F1512':'#8a938c', lbGlobalSh:s.lbTab==='global'?'0 2px 6px rgba(15,30,20,.08)':'none',
+      lbFriendsBg:s.lbTab==='friends'?'#fff':'transparent', lbFriendsCol:s.lbTab==='friends'?'#0F1512':'#8a938c', lbFriendsSh:s.lbTab==='friends'?'0 2px 6px rgba(15,30,20,.08)':'none',
+      isPush:s.exercise!=='squat', isSquat:s.exercise==='squat',
+      isOnboarding:!s.onboarded,
+      isOb0:!s.onboarded&&s.step===0, isOb1:!s.onboarded&&s.step===1, isOb2:!s.onboarded&&s.step===2, isOb3:!s.onboarded&&s.step===3, isOb4:!s.onboarded&&s.step===4, isOb5:!s.onboarded&&s.step===5, isOb6:!s.onboarded&&s.step===6, isOb7:!s.onboarded&&s.step===7, isOb8:!s.onboarded&&s.step===8, isOb9:!s.onboarded&&s.step===9, isOb10:!s.onboarded&&s.step===10, isOb11:!s.onboarded&&s.step===11,
+      obShowBar:!s.onboarded&&s.step>0&&s.step<9, obPct:Math.round(Math.min(s.step,9)/9*100),
+      obNext:()=>this.setState(st=>({step:st.step+1})), obBack:()=>this.setState(st=>({step:Math.max(0,st.step-1)})), obDone:()=>{ this.setState({onboarded:true,step:0}); },
+      username:s.username, usernameOr:s.username||'champion',
+      onUsername:(e)=>{ const v=e.target.value.replace(/[^a-zA-Z0-9]/g,''); this.setState({username:v,userErr:false}); },
+      userValid:s.username.length>=3, userErr:s.userErr,
+      userBorder:s.userErr?'#ef4444':(s.username.length>=3?'#22C55E':'#e6eae4'),
+      userBtnBg:s.username.length>=1?'linear-gradient(120deg,#22C55E,#15803D)':'#e6eae4', userBtnCol:s.username.length>=1?'#fff':'#b0b8b1',
+      usernameNext:()=>{ if(!this.state.username){ this.setState({userErr:true}); return; } this.setState(st=>({step:st.step+1})); },
+      avatarGlyph:s.photo?'📷':(s.username?s.username[0].toUpperCase():'?'), avatarBg:s.photo?'#dbeafe':'#eafaf0', photoLabel:s.photo?'Photo added ✓':'Choose from library',
+      choosePhoto:()=>this.setState({photo:true}),
+      trainDays:s.trainDays, onTrainDays:(e)=>this.setState({trainDays:+e.target.value}),
+      trainTitle:s.trainDays<=2?'Easy does it':(s.trainDays<=4?'Great habit':(s.trainDays<=6?'On fire':'Elite mode')),
+      trainNote:s.trainDays<=2?'Perfect for building a routine':(s.trainDays<=4?'A sustainable, strong pace':(s.trainDays<=6?'Serious gains incoming':'Every single day — respect')),
+      goBuilding:()=>{ this.setState({step:9,buildPct:0}); this.runBuild(); },
+      buildPct:s.buildPct, buildDash:(351.9*(1-s.buildPct/100)).toFixed(1),
+      buildItems:[
+        {icon:'👤',label:'Setting up your profile',sub:s.buildPct>25?'Done':'Working…',bg:'#eafaf0',done:s.buildPct>25,active:s.buildPct<=25,subCol:s.buildPct>25?'#16A34A':'#8a938c'},
+        {icon:'🎯',label:'Calibrating your targets',sub:s.buildPct>55?'Done':(s.buildPct>25?'Working…':'Queued'),bg:'#eef2ff',done:s.buildPct>55,active:s.buildPct>25&&s.buildPct<=55,subCol:s.buildPct>55?'#16A34A':'#8a938c'},
+        {icon:'🤖',label:'Preparing AI rep tracking',sub:s.buildPct>82?'Done':(s.buildPct>55?'Working…':'Queued'),bg:'#f3e8ff',done:s.buildPct>82,active:s.buildPct>55&&s.buildPct<=82,subCol:s.buildPct>82?'#16A34A':'#8a938c'},
+        {icon:'🏆',label:'Finding your league',sub:s.buildPct>=100?'Done':(s.buildPct>82?'Working…':'Queued'),bg:'#fef3c7',done:s.buildPct>=100,active:s.buildPct>82&&s.buildPct<100,subCol:s.buildPct>=100?'#16A34A':'#8a938c'}
+      ],
+      planYear:s.plan==='year', planMonth:s.plan==='month', selYearly:()=>this.setState({plan:'year'}), selMonthly:()=>this.setState({plan:'month'}),
+      yrBorder:s.plan==='year'?'#22C55E':'#e6eae4', moBorder:s.plan==='month'?'#22C55E':'#e6eae4',
+      trialFooter:s.plan==='year'?'3 days free, then 34,99 €/year. Cancel anytime.':'8,99 €/month. Cancel anytime.',
+      replayIntro:()=>{ this.clearTimers(); this.setState({onboarded:false,step:0,mode:null,view:null,tab:'home'}); },
+      logOut:()=>{ this.clearTimers(); this.setState({onboarded:false,step:0,mode:null,view:null,tab:'home',reps:0,oppReps:0,solo:false,practice:false,share:false}); },
+      cHome:active('home'), cArena:active('arena'), cTrain:active('train'), cFriends:active('friends'), cProfile:active('profile'),
+      tfHome:navtf('home'), tfArena:navtf('arena'), tfTrain:navtf('train'), tfFriends:navtf('friends'), tfProfile:navtf('profile'),
+      sbStyle:{ color: s.mode ? '#fff' : '#0F1512' },
+      camOn:s.camOn, videoRef:this.videoRef.bind(this),
+      camStyle: s.exercise==='squat'
+        ? { background:'radial-gradient(120% 90% at 50% 30%,#241c30 0%,#120e18 55%,#070509 100%)' }
+        : { background:'radial-gradient(120% 90% at 50% 30%,#1c2a22 0%,#0e1512 55%,#070a08 100%)' },
+      accent:acc, glow, glowStrong, rigClass: s.exercise==='squat' ? 'rig sq' : 'rig',
+      reps:s.reps, oppReps:s.oppReps,
+      timeStr:'0:'+String(s.timeLeft).padStart(2,'0'),
+      tugPct:tug, formCue:cue,
+      exerciseLabel: s.exercise==='squat' ? 'SQUAT' : 'PUSH-UP',
+      resultBg: s.won ? 'linear-gradient(160deg,#16A34A,#065f46)' : 'linear-gradient(160deg,#334155,#0f172a)',
+      resultEmoji: s.won ? '🏆' : (s.exercise==='squat' ? '🦵' : '💪'),
+      resultTitle: s.practice ? 'Nice session! 💪' : (s.solo ? (s.won ? 'Cleared! 🎯' : 'Not quite') : (s.won ? 'You Win!' : 'Good effort')),
+      resultSub: s.practice ? 'Reps logged — that all counts toward your progress.' : (s.solo ? (s.won ? 'You cleared the daily target. Streak safe! 🔥' : 'So close — try again to clear it.') : (s.won ? 'You out-repped your rival. Champion behaviour.' : 'So close — rematch and take it back.')),
+      xpGain: s.practice ? 40 : (s.solo ? (s.won ? 300 : 80) : (s.won ? 200 : 60)),
+      confetti: conf,
+      goHome:()=>this.setTab('home'), goArena:()=>this.setTab('arena'), goTrain:()=>this.setTab('train'),
+      goFriends:()=>this.setTab('friends'), goProfile:()=>this.setTab('profile'),
+      startPushDuel:()=>this.start('push'), startSquatDuel:()=>this.start('squat'),
+      giveUp:()=>{ this.clearTimers(); this.setState(s=>({mode:'result',won:false,share:false})); },
+      rematch:()=>this.start(s.exercise, s.solo, s.target, s.practice),
+      finishDuel:()=>{ this.clearTimers(); if(this.state.won && !this.state.solo && !this.state.practice){ this.runLevelUp(); return; } this.stopCam(); this.setState({mode:null,tab:'home',share:false,view:null}); },
+      noop:()=>{}
+    };
+  }
+}
+</script>
+</body>
+</html>

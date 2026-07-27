@@ -7,7 +7,7 @@ import { PUSHUP_LADDER } from '@/domain/programme';
 import { getExercise } from '@/vision/exercises';
 import { isPurchasesConfigured } from '@/services/purchases';
 import { selectProgramme, useProfileStore } from '@/state/profileStore';
-import { useProStore } from '@/state/proStore';
+import { useEffectivePro } from '@/state/proStore';
 import { font } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
 
@@ -23,7 +23,7 @@ export function ProgrammeCard() {
   const router = useRouter();
   const state = useProfileStore(selectProgramme);
   const startProgramme = useProfileStore((s) => s.startProgramme);
-  const isPro = useProStore((s) => s.isPro);
+  const isPro = useEffectivePro();
 
   // Guided programmes are the flagship Pro offering. A non-Pro athlete tapping
   // "start" gets the upgrade invite instead of enrolling; a Pro enrols directly.

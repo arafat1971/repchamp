@@ -13,7 +13,7 @@ import { cancelStreakReminder, scheduleStreakReminder } from '@/lib/notification
 import { createCouple, joinCoupleByCode, leaveCouple, nudgePartner } from '@/services/coupleService';
 import { useAuthStore } from '@/state/authStore';
 import { useCouple } from '@/state/useCouple';
-import { useProfileStore } from '@/state/profileStore';
+import { selectPairingBonusActive, useProfileStore } from '@/state/profileStore';
 import { font, text } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
 
@@ -31,6 +31,7 @@ export default function CoupleInviteScreen() {
   const cloudConfigured = useAuthStore((s) => s.configured);
   const displayName = useProfileStore((s) => s.displayName);
   const avatarUri = useProfileStore((s) => s.avatarUri);
+  const bonusActive = useProfileStore(selectPairingBonusActive);
 
   const router = useRouter();
   const { couple, paired, partner, streak, combined, code, loading, atRisk, level, badges } =
@@ -155,6 +156,15 @@ export default function CoupleInviteScreen() {
       {/* ---------------- Paired ---------------- */}
       {!loading && paired && partner ? (
         <>
+          {bonusActive ? (
+            <View style={styles.bonusBanner}>
+              <Text style={{ fontSize: 18 }}>🎁</Text>
+              <Text style={styles.bonusText}>
+                You both unlocked a free week of Pro — the full library and programmes are on.
+              </Text>
+            </View>
+          ) : null}
+
           <LinearGradient colors={gradients.brandStrong} style={[styles.pairedCard, shadow.brand]}>
             <Text style={styles.pairedEyebrow}>YOU'RE PAIRED WITH</Text>
             <View style={styles.pairedRow}>
@@ -409,6 +419,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  bonusBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: palette.amber50,
+    borderWidth: 1,
+    borderColor: '#fcd34d',
+    borderRadius: radius['2xl'],
+    padding: 14,
+    marginBottom: 14,
+  },
+  bonusText: { ...font('bold', 12.5, { color: palette.amber900 }), flex: 1, lineHeight: 17 },
   pairedCard: { borderRadius: radius['4xl'], padding: 22, gap: 16 },
   levelBlock: { gap: 6 },
   levelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },

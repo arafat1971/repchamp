@@ -51,6 +51,13 @@ export interface ProfileState {
   personalBests: Record<ExerciseId, number>;
   /** The active training programme, or null when not enrolled. */
   programme: ProgrammeProgress | null;
+  /**
+   * Epoch ms until which a locally-granted Pro bonus is active (0 = none). Given
+   * to both partners when a couple pairs — rewarding the invite loop and seeding
+   * a Pro trial that can convert. Never overrides a *real* RevenueCat entitlement;
+   * it's OR'd in as a temporary grant.
+   */
+  pairingBonusUntil: number;
 
   completeOnboarding: (input: { username: string; weeklyGoal: number; avatarUri: string | null }) => void;
   setUsername: (username: string) => void;
@@ -61,6 +68,8 @@ export interface ProfileState {
   startProgramme: (programmeId: string) => void;
   /** Leave the current programme. */
   leaveProgramme: () => void;
+  /** Grant a Pro bonus for `days` from now (idempotent — never shortens an active one). */
+  grantPairingBonus: (days: number) => void;
   reset: () => void;
 }
 
@@ -78,6 +87,7 @@ const initialState = {
     (Object.keys(EXERCISES) as ExerciseId[]).map((id) => [id, 0]),
   ) as Record<ExerciseId, number>,
   programme: null as ProgrammeProgress | null,
+  pairingBonusUntil: 0,
 };
 
 export const useProfileStore = create<ProfileState>()(
@@ -129,6 +139,13 @@ export const useProfileStore = create<ProfileState>()(
       startProgramme: (programmeId) => set({ programme: { programmeId, completedDays: 0 } }),
       leaveProgramme: () => set({ programme: null }),
 
+      grantPairingBonus: (days) =>
+        set((state) => {
+          const proposed = Date.now() + days * 24 * 60 * 60 * 1000;
+          // Never shorten an already-active bonus — extend to the later expiry.
+          return { pairingBonusUntil: Math.max(state.pairingBonusUntil, proposed) };
+        }),
+
       reset: () => set({ ...initialState }),
     }),
     {
@@ -178,6 +195,14 @@ export function selectStreak(state: Pick<ProfileState, 'sessions'>, today = dayK
     state.sessions.map((s) => s.day),
     today,
   );
+}
+
+/** Whether the locally-granted pairing Pro bonus is still active. */
+export function selectPairingBonusActive(
+  state: Pick<ProfileState, 'pairingBonusUntil'>,
+  now = Date.now(),
+): boolean {
+  return state.pairingBonusUntil > now;
 }
 
 /** Distinct days trained this week, for the "3 / 4 days" tile. */

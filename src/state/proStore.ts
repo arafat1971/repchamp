@@ -5,6 +5,7 @@ import {
   fetchIsPro,
   watchCustomerInfo,
 } from '@/services/purchases';
+import { selectPairingBonusActive, useProfileStore } from '@/state/profileStore';
 
 /**
  * The athlete's Pro entitlement, kept live.
@@ -59,7 +60,19 @@ export const useProStore = create<ProState>()((set) => ({
   setPro: (isPro) => set({ isPro }),
 }));
 
-/** Convenience selector for the common "am I pro?" read. */
+/**
+ * The effective Pro state: a real RevenueCat entitlement OR an active local
+ * pairing bonus. Gates should read this so the free-Pro-week reward for pairing
+ * actually unlocks the paid depth. The real entitlement is authoritative — the
+ * bonus only ever *adds* access, never removes it.
+ */
+export function useEffectivePro(): boolean {
+  const isPro = useProStore((s) => s.isPro);
+  const bonusActive = useProfileStore(selectPairingBonusActive);
+  return isPro || bonusActive;
+}
+
+/** Convenience selector for the common "am I pro?" read (includes the bonus). */
 export function useIsPro(): boolean {
-  return useProStore((s) => s.isPro);
+  return useEffectivePro();
 }

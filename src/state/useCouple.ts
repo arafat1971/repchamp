@@ -32,6 +32,10 @@ import { dayKey } from '@/domain/progression';
 import { presentNudge } from '@/lib/notifications';
 import { watchMyCouple } from '@/services/coupleService';
 import { useAuthStore } from '@/state/authStore';
+import { useProfileStore } from '@/state/profileStore';
+
+/** Free Pro days granted to both partners when a couple pairs — the invite reward. */
+const PAIRING_BONUS_DAYS = 7;
 
 export interface CoupleView {
   /** The raw bond, or null when this athlete has not paired with anyone. */
@@ -85,6 +89,8 @@ export function useCouple(): CoupleView {
    */
   const seenNudgeAt = useRef<number | null>(null);
   const seededNudge = useRef(false);
+  /** Whether this device has already granted the pairing bonus for this bond. */
+  const rewardedPairing = useRef(false);
 
   useEffect(() => {
     if (!uid) {
@@ -96,6 +102,18 @@ export function useCouple(): CoupleView {
     const unsubscribe = watchMyCouple(uid, (next) => {
       setCouple(next);
       setLoading(false);
+
+      // Reward the invite loop: the moment a bond is fully paired (both seats
+      // filled), grant BOTH partners a free week of Pro. Each device sees the
+      // transition on its own snapshot, so both get it. Guarded by a ref so it
+      // fires once per app run, and `grantPairingBonus` never shortens an active
+      // bonus, so re-pairing can't stack repeatedly within a session.
+      const fullyPaired = !!next && next.memberUids.length >= 2 && next.pending === false;
+      if (fullyPaired && !rewardedPairing.current) {
+        rewardedPairing.current = true;
+        useProfileStore.getState().grantPairingBonus(PAIRING_BONUS_DAYS);
+      }
+      if (!fullyPaired) rewardedPairing.current = false;
 
       // Surface a nudge the *partner* sent, once. The first snapshot only seeds
       // the baseline, so a poke from yesterday doesn't fire on every launch.

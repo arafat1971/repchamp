@@ -18,7 +18,7 @@ import { OpponentPacer, getOpponent } from '@/domain/opponent';
 import { shouldPromptUpgrade } from '@/domain/paywallGate';
 import type { SessionMode } from '@/domain/progression';
 import { isPurchasesConfigured } from '@/services/purchases';
-import { useProStore } from '@/state/proStore';
+import { useEffectivePro, useProStore } from '@/state/proStore';
 import {
   lockHaptic,
   playCountSound,
@@ -99,7 +99,7 @@ export default function SessionScreen() {
    * whole-store subscription re-rendered this screen — and the HUD and overlay
    * beneath it — on every store write, including the per-frame pose updates.
    */
-  const isPro = useProStore((s) => s.isPro);
+  const isPro = useEffectivePro();
   const proReady = useProStore((s) => s.ready);
 
   const phase = useSessionStore((s) => s.phase);

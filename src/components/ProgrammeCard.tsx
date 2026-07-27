@@ -5,7 +5,9 @@ import { StyleSheet, Text, View } from 'react-native';
 import { PressableScale, ProgressBar } from '@/components/ui';
 import { PUSHUP_LADDER } from '@/domain/programme';
 import { getExercise } from '@/vision/exercises';
+import { isPurchasesConfigured } from '@/services/purchases';
 import { selectProgramme, useProfileStore } from '@/state/profileStore';
+import { useProStore } from '@/state/proStore';
 import { font } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
 
@@ -21,21 +23,43 @@ export function ProgrammeCard() {
   const router = useRouter();
   const state = useProfileStore(selectProgramme);
   const startProgramme = useProfileStore((s) => s.startProgramme);
+  const isPro = useProStore((s) => s.isPro);
+
+  // Guided programmes are the flagship Pro offering. A non-Pro athlete tapping
+  // "start" gets the upgrade invite instead of enrolling; a Pro enrols directly.
+  // The gate only bites once billing is live, so the app is never dead-ended.
+  const gated = !isPro && isPurchasesConfigured();
+  const enroll = (programmeId: string) => {
+    if (gated) {
+      router.push({ pathname: '/modal/paywall', params: { source: 'programme' } });
+      return;
+    }
+    startProgramme(programmeId);
+  };
 
   // ---- Not enrolled: offer the flagship ladder ----
   if (!state) {
     return (
       <PressableScale
-        onPress={() => startProgramme(PUSHUP_LADDER.id)}
+        onPress={() => enroll(PUSHUP_LADDER.id)}
         accessibilityRole="button"
         accessibilityLabel={`Start the programme: ${PUSHUP_LADDER.title}`}
       >
         <LinearGradient colors={gradients.brandDeep} style={[styles.card, shadow.brand]}>
-          <Text style={styles.eyebrow}>NEW · 4-WEEK PROGRAMME</Text>
+          <View style={styles.headerRow}>
+            <Text style={styles.eyebrow}>NEW · 4-WEEK PROGRAMME</Text>
+            {gated ? (
+              <View style={styles.proTag}>
+                <Text style={font('extrabold', 9, { color: palette.amber900 })}>PRO</Text>
+              </View>
+            ) : null}
+          </View>
           <Text style={styles.title}>{PUSHUP_LADDER.title}</Text>
           <Text style={styles.body}>{PUSHUP_LADDER.description}</Text>
           <View style={styles.ctaPill}>
-            <Text style={styles.ctaText}>Start programme →</Text>
+            <Text style={styles.ctaText}>
+              {gated ? 'Unlock with Pro →' : 'Start programme →'}
+            </Text>
           </View>
         </LinearGradient>
       </PressableScale>
@@ -54,7 +78,7 @@ export function ProgrammeCard() {
           You finished all {state.totalDays} days. Start another to keep climbing.
         </Text>
         <PressableScale
-          onPress={() => startProgramme(PUSHUP_LADDER.id)}
+          onPress={() => enroll(PUSHUP_LADDER.id)}
           accessibilityRole="button"
           accessibilityLabel="Restart a programme"
           style={styles.ghostPill}
@@ -131,6 +155,12 @@ const styles = StyleSheet.create({
   card: { borderRadius: radius['4xl'], padding: 20 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   eyebrow: { ...font('extrabold', 10, { color: 'rgba(255,255,255,0.85)' }), letterSpacing: 1.5 },
+  proTag: {
+    backgroundColor: palette.amber200,
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
   dayCount: { ...font('extrabold', 12, { color: 'rgba(255,255,255,0.9)' }) },
   title: { ...font('extrabold', 24, { color: palette.white }), marginTop: 10 },
   body: { ...font('bold', 12, { color: 'rgba(255,255,255,0.9)' }), marginTop: 6, lineHeight: 18 },

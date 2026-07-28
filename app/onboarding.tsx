@@ -979,15 +979,45 @@ function YourPlan({
         <Text style={[text.body, styles.centeredCopy]}>{plan.blurb}</Text>
       </Animated.View>
 
+      {/* The athlete's actual week, drawn as training days — a schedule they
+          can read beats an emoji standing in for the idea of one. */}
       <View style={styles.planVisual}>
-        <Floating distance={7}>
-          <View style={styles.valueBubbleGreen}>
-            <Text style={{ fontSize: 68 }}>{plan.emoji}</Text>
+        <LinearGradient
+          colors={gradients.brandStrong}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.planCard, shadow.brand]}
+        >
+          <View style={styles.planCardHead}>
+            <Text style={styles.planCardEyebrow}>YOUR WEEK</Text>
+            <Text style={{ fontSize: 20 }}>{plan.emoji}</Text>
           </View>
-        </Floating>
+
+          <View style={styles.planWeekRow}>
+            {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => {
+              // Spread the chosen days evenly across the week.
+              const active = Math.round((i * weeklyGoal) / 7) !== Math.round(((i + 1) * weeklyGoal) / 7);
+              return (
+                <View key={i} style={[styles.planDay, active && styles.planDayOn]}>
+                  <Text
+                    style={font('extrabold', 12, {
+                      color: active ? palette.green700 : 'rgba(255,255,255,0.55)',
+                    })}
+                  >
+                    {d}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+
+          <Text style={styles.planCardFoot}>
+            {weeklyGoal}× a week · about 2 minutes a session
+          </Text>
+        </LinearGradient>
       </View>
 
-      <View style={{ gap: 12, marginBottom: 22 }}>
+      <View style={{ gap: 12, marginTop: 18 }}>
         <StaggerIn index={0} step={90}>
           <View style={styles.valuePoint}>
             <View style={styles.valuePointIcon}>
@@ -1014,6 +1044,7 @@ function YourPlan({
         </StaggerIn>
       </View>
 
+      <View style={{ flex: 1 }} />
       <PrimaryButton label="Looks right" onPress={onNext} />
     </View>
   );
@@ -2096,7 +2127,7 @@ const styles = StyleSheet.create({
     shadowRadius: 22,
     elevation: 8,
   },
-  valueBubbleImg: { width: 138, height: 138 },
+  valueBubbleImg: { width: 152, height: 101 },
   valueCoupleWrap: { alignItems: 'center', justifyContent: 'center', width: '100%' },
   valueCoupleImg: {
     width: 268,
@@ -2142,10 +2173,36 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   chartAxisLabel: { ...font('bold', 9.5, { color: palette.grey450 }) },
-  chartTrophy: { position: 'absolute', top: -22, right: 2, zIndex: 3 },
+  chartTrophy: { position: 'absolute', top: -30, right: -6, zIndex: 3 },
 
   // Personalised plan / projection / first-week screens
-  planVisual: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 150 },
+  planVisual: { alignItems: 'center', justifyContent: 'center', marginTop: 26, marginBottom: 8 },
+  planCard: { width: '100%', borderRadius: radius['4xl'], padding: 20 },
+  planCardHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  planCardEyebrow: {
+    ...font('extrabold', 10.5, { color: 'rgba(255,255,255,0.85)' }),
+    letterSpacing: 2,
+  },
+  planWeekRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 6 },
+  planDay: {
+    flex: 1,
+    height: 42,
+    borderRadius: radius.md,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  planDayOn: { backgroundColor: palette.white },
+  planCardFoot: {
+    ...font('semibold', 12, { color: 'rgba(240,255,244,0.92)' }),
+    marginTop: 16,
+    textAlign: 'center',
+  },
   projectionWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
   projectionNote: {
     flexDirection: 'row',
@@ -2186,10 +2243,9 @@ const styles = StyleSheet.create({
 
   // Antidote screen
   antidoteVisual: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 190,
+    marginTop: 26,
     position: 'relative',
   },
   boardMock: { width: '100%', maxWidth: 320, padding: 16, borderRadius: radius['4xl'] },
@@ -2220,7 +2276,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  boardMockBadge: { position: 'absolute', top: -14, right: 4 },
+  boardMockBadge: { position: 'absolute', top: -26, right: -2, zIndex: 4 },
   antidoteBubble: {
     width: 176,
     height: 176,
@@ -2263,7 +2319,7 @@ const styles = StyleSheet.create({
   coachVisual: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 200 },
   /** Bubble-sized frame the cue chips and score badge position against. */
   coachStage: { width: 216, height: 200, alignItems: 'center', justifyContent: 'center' },
-  coachBubbleImg: { width: 150, height: 150 },
+  coachBubbleImg: { width: 162, height: 108 },
   coachBubble: {
     width: 180,
     height: 180,

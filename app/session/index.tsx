@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraDenied } from '@/components/session/CameraDenied';
 import { CameraStage, StatusChip } from '@/components/session/CameraStage';
 import { CameraTutorial } from '@/components/session/CameraTutorial';
+import { PoseDebugHud } from '@/components/session/PoseDebugHud';
 import { PoseOverlay } from '@/components/session/PoseOverlay';
 import { ProgressRing, RingPercent } from '@/components/session/ProgressRing';
 import { DuelHud } from '@/components/session/DuelHud';
@@ -452,16 +453,25 @@ export default function SessionScreen() {
         cameraReady={cameraReady}
         height={height}
       >
-        {/* Brand logo, pinned to the top-left over the live camera for every
-            phase of the session (calibrating, countdown and the duel itself). */}
-        <View pointerEvents="none" style={[styles.logoWrap, { top: insets.top + 6 }]}>
-          <Image
-            source={require('../../assets/topicon.png')}
-            style={styles.logo}
-            contentFit="contain"
-            accessibilityLabel="RepChamp"
-          />
-        </View>
+        {/* Brand mark, pinned to the top-right over the live camera. Per the
+            iOS HIG it (1) sits inside the safe area at the standard 16pt margin,
+            (2) rides on a translucent material capsule rather than a bare shadow
+            so it stays legible over any camera content, and (3) yields the top
+            band to the score HUD during the active set — branding must never
+            obstruct functional content — so it shows only while calibrating and
+            counting down. */}
+        {phase === 'calibrating' || phase === 'countdown' ? (
+          <View pointerEvents="none" style={[styles.logoWrap, { top: insets.top + 8 }]}>
+            <View style={styles.logoBadge}>
+              <Image
+                source={require('../../assets/brand-camera.png')}
+                style={styles.logo}
+                contentFit="contain"
+                accessibilityLabel="RepChamp"
+              />
+            </View>
+          </View>
+        ) : null}
 
         {/* Live skeleton, drawn on the UI thread straight from the shared
             keypoint buffer so it tracks at the camera's frame rate. */}
@@ -566,6 +576,19 @@ export default function SessionScreen() {
           />
         ) : null}
 
+        {/* Dev-only pipeline diagnostics — proves the model produces a usable
+            depth signal from a real body, which unit tests (synthetic poses)
+            cannot. Compiled out for athletes via the __DEV__ guard inside. */}
+        {phase === 'active' ? (
+          <PoseDebugHud
+            depth={depth}
+            tracking={tracking}
+            reps={reps}
+            downThreshold={definition.downThreshold}
+            upThreshold={definition.upThreshold}
+          />
+        ) : null}
+
         {/* First-run coaching overlay — how to position the phone and stand for
             a clean read. Skippable at any moment; sits above every phase. */}
         {showTutorial && !cameraBlocked ? <CameraTutorial onDismiss={dismissTutorial} /> : null}
@@ -617,20 +640,28 @@ const styles = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center' },
   logoWrap: {
     position: 'absolute',
-    left: 16,
-    // Left-aligned over the live feed so it never sits behind the centered
+    // Standard HIG layout margin from the safe-area edge.
+    right: 16,
+    // Right-aligned over the live feed so it never sits behind the centered
     // status chip or countdown digit.
-    alignItems: 'flex-start',
+    alignItems: 'flex-end',
     zIndex: 10,
   },
+  // Translucent "material" capsule (HIG vibrancy) so the mark stays legible over
+  // any camera content without relying on a bare drop shadow.
+  logoBadge: {
+    backgroundColor: 'rgba(9,14,11,0.28)',
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.18)',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
   logo: {
-    width: 44,
-    height: 44,
-    // Lift the logo off the busy camera feed so it reads at any brightness.
-    shadowColor: palette.black,
-    shadowOpacity: 0.45,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 2 },
+    // The mark is a 3:2 landscape image, so give it a wider box than tall to
+    // scale in without squishing.
+    width: 72,
+    height: 48,
   },
   topChip: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   brackets: {

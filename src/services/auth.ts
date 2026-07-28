@@ -13,6 +13,7 @@
 import auth, {
   type FirebaseAuthTypes,
 } from '@react-native-firebase/auth';
+import Constants from 'expo-constants';
 import {
   GoogleSignin,
   statusCodes,
@@ -26,6 +27,25 @@ export interface AuthUser {
   email: string | null;
   displayName: string | null;
   photoURL: string | null;
+}
+
+/**
+ * The Firebase "Web client" OAuth id, required by Google Sign-In.
+ *
+ * Read from app config rather than hardcoded: it is only present once Google
+ * sign-in has actually been enabled in the Firebase console. Until then
+ * `isGoogleAuthConfigured()` is false and the UI hides the Google button
+ * instead of offering a control that would throw when tapped.
+ */
+export function googleWebClientId(): string | null {
+  const extra = Constants.expoConfig?.extra as { googleWebClientId?: string } | undefined;
+  const id = extra?.googleWebClientId?.trim();
+  return id ? id : null;
+}
+
+/** True when Google sign-in can actually complete (Firebase + a web client id). */
+export function isGoogleAuthConfigured(): boolean {
+  return isFirebaseConfigured() && googleWebClientId() !== null;
 }
 
 /** Stable local identity used before/without a backend. */
@@ -101,10 +121,17 @@ export async function signUpWithEmail(email: string, password: string): Promise<
  * Google sign-in. `webClientId` comes from the Firebase console (OAuth 2.0
  * "Web client"). Also links onto an anonymous account when present.
  */
-export async function signInWithGoogle(webClientId: string): Promise<AuthUser> {
+export async function signInWithGoogle(webClientId?: string): Promise<AuthUser> {
   if (!isFirebaseConfigured()) return LOCAL_USER;
 
-  GoogleSignin.configure({ webClientId });
+  const clientId = webClientId ?? googleWebClientId();
+  if (!clientId) {
+    throw new Error(
+      'Google sign-in is not configured: set extra.googleWebClientId in app.json',
+    );
+  }
+
+  GoogleSignin.configure({ webClientId: clientId });
   await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
 
   const result = await GoogleSignin.signIn();

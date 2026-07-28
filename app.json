@@ -96,6 +96,7 @@
         "projectId": "d6be255f-fe5b-40f6-a206-f6e2810f9295"
       },
       "posthogKey": "phc_vhhgbS2KfchGjb4SnvgiV3URwPukzXLxPHRyEoP6oFh2",
+      "googleWebClientId": "",
       "revenueCatGoogle": "goog_MDPFQjukqNGkgnzOHPmxMJnnAmf",
       "sentryDsn": "https://placeholder@sentry.io/0"
     }

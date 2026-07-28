@@ -111,7 +111,9 @@ export default function ArenaScreen() {
                   color={row.color}
                 />
                 <View style={styles.boardNameWrap}>
-                  <Text style={styles.boardName}>{row.name}</Text>
+                  <Text style={styles.boardName} numberOfLines={1}>
+                    {row.name}
+                  </Text>
                   {'isAI' in row && row.isAI ? (
                     <View style={styles.aiPill}>
                       <Text style={font('extrabold', 8, { color: palette.green700 })}>AI</Text>

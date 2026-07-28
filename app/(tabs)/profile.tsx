@@ -82,10 +82,13 @@ export default function ProfileScreen() {
               <Text style={{ fontSize: 12 }}>✏️</Text>
             </View>
           </PressableScale>
-          <Text style={[font('extrabold', 22, { color: palette.ink }), { marginTop: 12 }]}>
+          <Text
+            style={[font('extrabold', 22, { color: palette.ink }), { marginTop: 12 }]}
+            numberOfLines={1}
+          >
             {profile.displayName}
           </Text>
-          <Text style={[text.captionMd, { fontWeight: '700' }]}>
+          <Text style={[text.captionMd, { fontWeight: '700' }]} numberOfLines={1}>
             @{profile.username || 'champion'} · 👑 {level.rankName} · Level {level.level}
           </Text>
           <View style={{ width: 180, marginTop: 10 }}>

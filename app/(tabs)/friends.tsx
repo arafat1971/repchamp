@@ -270,7 +270,9 @@ export default function FriendsScreen() {
                       size={44}
                     />
                     <View>
-                      <Text style={text.cardTitle}>{f.displayName}</Text>
+                      <Text style={text.cardTitle} numberOfLines={1}>
+                        {f.displayName}
+                      </Text>
                       <Text style={font('semibold', 11, { color: palette.grey600 })}>
                         Lv.{f.level}
                       </Text>

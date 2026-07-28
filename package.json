@@ -78,5 +78,13 @@
     "postinstall": "node scripts/generate-sounds.js",
     "trace-reps": "bash scripts/trace-reps.sh"
   },
-  "private": true
+  "private": true,
+  "expo": {
+    "autolinking": {
+      "exclude": [
+        "expo-app-metrics",
+        "expo-observe"
+      ]
+    }
+  }
 }

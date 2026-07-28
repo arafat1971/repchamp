@@ -627,11 +627,9 @@ function CoupleHero({
             row used to lead with "Shared Streak", which the subtitle already
             says — each chip now adds something the copy above doesn't. */}
         <View style={styles.coupleChips}>
-          <CoupleChip emoji="📱" label="2 phones" />
-          <View style={styles.coupleChipDivider} />
           <CoupleChip emoji="⚡" label="Live reps" />
           <View style={styles.coupleChipDivider} />
-          <CoupleChip emoji="🎁" label="Free week" />
+          <CoupleChip emoji="🎁" label="Free week for two" />
         </View>
       </LinearGradient>
     </PressableScale>
@@ -801,21 +799,28 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   /** Single-purpose circular control — one icon, one action. */
+  /**
+   * Single-purpose circular control — one icon, one action.
+   *
+   * The border is deliberately stronger than `palette.border`: at #e6eae4 on
+   * the #F6F7F5 canvas the edge was invisible and the control read as a bare
+   * floating emoji rather than a button.
+   */
   iconButton: {
     position: 'relative',
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: palette.white,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: '#d8e3d8',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#1e3c28',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.10,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 10,
+    elevation: 3,
   },
   /** Raised state — rivals are waiting, so the control itself signals it. */
   iconButtonAlert: {
@@ -902,10 +907,17 @@ const styles = StyleSheet.create({
    * last chip over unmasked artwork. Keeping them in the left column means
    * every chip lands on darkened background.
    */
+  /**
+   * Chips are capped to the masked left column and allowed to wrap.
+   *
+   * Unbounded they ran the full card width and landed on the couple's hands,
+   * where the gradient has already cleared — the last chip sat on raw photo.
+   */
   coupleChips: {
     position: 'absolute',
-    left: 20,
+    left: 22,
     bottom: 14,
+    maxWidth: 220,
     zIndex: 3,
     flexDirection: 'row',
     alignItems: 'center',

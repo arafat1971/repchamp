@@ -220,7 +220,7 @@ export default function OnboardingScreen() {
             ]}
             visual={
               <View style={styles.valueCoupleWrap}>
-                <Image source={HERO_COUPLE} style={styles.valueCoupleImg} contentFit="contain" />
+                <Image source={HERO_COUPLE} style={styles.valueCoupleImg} contentFit="cover" />
                 <Floating distance={6} delay={300} style={styles.valueBadgeVs}>
                   <Image source={BADGE_VS} style={{ width: 46, height: 46 }} contentFit="contain" />
                 </Floating>
@@ -1400,27 +1400,32 @@ function AiCoach({ onNext }: { onNext: () => void }) {
       </Animated.View>
 
       <View style={styles.coachVisual}>
-        <Floating distance={7}>
-          <View style={styles.coachBubble}>
-            <Image source={IC_PUSHUP} style={{ width: 108, height: 108 }} contentFit="contain" />
-          </View>
-        </Floating>
-        {/* Live-cue chips, the same coaching lines the session actually speaks. */}
-        <Floating distance={5} delay={260} style={styles.coachCueTop}>
-          <View style={styles.coachCue}>
-            <Text style={font('extrabold', 11, { color: palette.green700 })}>Great depth!</Text>
-          </View>
-        </Floating>
-        <Floating distance={5} delay={620} style={styles.coachCueBottom}>
-          <View style={styles.coachCue}>
-            <Text style={font('extrabold', 11, { color: palette.green700 })}>Keep the tempo</Text>
-          </View>
-        </Floating>
-        {/* The real form-score badge, so the "scored 0–100" claim below is
-            shown rather than merely asserted. */}
-        <Floating distance={6} delay={880} style={styles.coachScore}>
-          <Image source={IC_SCORE} style={{ width: 54, height: 54 }} contentFit="contain" />
-        </Floating>
+        {/* Fixed-size stage so the cue chips and score badge anchor to the
+            bubble. Positioned against the full-width container they drifted to
+            the screen edges and the score clipped off-screen. */}
+        <View style={styles.coachStage}>
+          <Floating distance={7}>
+            <View style={styles.coachBubble}>
+              <Image source={IC_PUSHUP} style={styles.coachBubbleImg} contentFit="contain" />
+            </View>
+          </Floating>
+          {/* Live-cue chips, the same coaching lines the session actually speaks. */}
+          <Floating distance={5} delay={260} style={styles.coachCueTop}>
+            <View style={styles.coachCue}>
+              <Text style={font('extrabold', 11, { color: palette.green700 })}>Great depth!</Text>
+            </View>
+          </Floating>
+          <Floating distance={5} delay={620} style={styles.coachCueBottom}>
+            <View style={styles.coachCue}>
+              <Text style={font('extrabold', 11, { color: palette.green700 })}>Keep the tempo</Text>
+            </View>
+          </Floating>
+          {/* The real form-score badge, so the "scored 0–100" claim below is
+              shown rather than merely asserted. */}
+          <Floating distance={6} delay={880} style={styles.coachScore}>
+            <Image source={IC_SCORE} style={{ width: 50, height: 50 }} contentFit="contain" />
+          </Floating>
+        </View>
       </View>
 
       <View style={{ gap: 12, marginBottom: 18 }}>
@@ -1834,9 +1839,18 @@ function Offer({ onDone }: { onDone: () => void }) {
           </>
         ) : (
           <>
-            <Text style={{ fontSize: 64 }}>💪</Text>
+            {/* Trophy over an emoji: the screen otherwise reads as a blank page
+                with a stray glyph, which is a weak note to end onboarding on. */}
+            <Floating distance={8}>
+              <View style={styles.offerReadyBubble}>
+                <Image source={TROPHY_GOLD} style={{ width: 108, height: 108 }} contentFit="contain" />
+              </View>
+            </Floating>
+            <Text style={font('extrabold', 19, { color: palette.ink, marginTop: 22 })}>
+              Your plan is ready
+            </Text>
             <Text style={[text.body, styles.centeredCopy]}>
-              Your plan is ready. Jump into your first set.
+              First session takes about two minutes. No equipment needed.
             </Text>
           </>
         )}
@@ -2001,9 +2015,19 @@ const styles = StyleSheet.create({
     shadowRadius: 22,
     elevation: 8,
   },
-  valueBubbleImg: { width: 96, height: 96 },
+  valueBubbleImg: { width: 138, height: 138 },
   valueCoupleWrap: { alignItems: 'center', justifyContent: 'center', width: '100%' },
-  valueCoupleImg: { width: 230, height: 172 },
+  valueCoupleImg: {
+    width: 268,
+    height: 190,
+    borderRadius: radius['3xl'],
+    overflow: 'hidden',
+    shadowColor: '#0b2313',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 20,
+    elevation: 6,
+  },
   valueBadgeVs: { position: 'absolute', top: 4, right: 44 },
   // Progress-chart value visual (step 4)
   chartCardWrap: { width: '100%', alignItems: 'center' },
@@ -2115,12 +2139,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   coupleLinkImg: { width: 40, height: 40 },
-  coachScore: { position: 'absolute', bottom: 20, right: 0 },
+  coachScore: { position: 'absolute', bottom: 14, right: -4 },
   coupleStreakRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16 },
   coupleStreakLabel: { ...font('extrabold', 13, { color: 'rgba(240,255,244,0.92)' }) },
 
   // AI coach screen
-  coachVisual: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 190 },
+  coachVisual: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 200 },
+  /** Bubble-sized frame the cue chips and score badge position against. */
+  coachStage: { width: 216, height: 200, alignItems: 'center', justifyContent: 'center' },
+  coachBubbleImg: { width: 150, height: 150 },
   coachBubble: {
     width: 180,
     height: 180,
@@ -2141,8 +2168,8 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     ...shadow.card,
   },
-  coachCueTop: { position: 'absolute', top: 8, right: 6 },
-  coachCueBottom: { position: 'absolute', bottom: 14, left: 2 },
+  coachCueTop: { position: 'absolute', top: 4, right: -10 },
+  coachCueBottom: { position: 'absolute', bottom: 26, left: -12 },
 
   // First-week ladder
   weekWrap: {
@@ -2478,6 +2505,19 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
   },
   offerMiddle: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  offerReadyBubble: {
+    width: 176,
+    height: 176,
+    borderRadius: 88,
+    backgroundColor: palette.amber50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#f59e0b',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.24,
+    shadowRadius: 22,
+    elevation: 8,
+  },
   offerBadge: {
     width: 220,
     height: 120,

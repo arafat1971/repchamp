@@ -149,6 +149,11 @@ export const PressableScale = forwardRef<View, PressableProps & { children: Reac
     return (
       <AnimatedPressable
         ref={ref}
+        {...props}
+        // Declared after the spread: with `{...props}` last, a caller passing
+        // onPressIn/onPressOut silently replaced the scale animation and
+        // haptic instead of composing with them. Both callbacks still forward
+        // to the caller's handler below.
         onPressIn={(e) => {
           scale.value = withTiming(0.96, { duration: 90 });
           lightImpactHaptic();
@@ -159,7 +164,6 @@ export const PressableScale = forwardRef<View, PressableProps & { children: Reac
           props.onPressOut?.(e);
         }}
         style={[animatedStyle, style as StyleProp<ViewStyle>]}
-        {...props}
       >
         {children}
       </AnimatedPressable>

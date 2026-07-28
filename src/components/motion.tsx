@@ -1,5 +1,5 @@
-import { useEffect, type ReactNode } from 'react';
-import type { StyleProp, ViewStyle } from 'react-native';
+import { useEffect, useState, type ReactNode } from 'react';
+import type { StyleProp, TextStyle, ViewStyle } from 'react-native';
 import Animated, {
   Easing,
   FadeInDown,
@@ -131,6 +131,61 @@ export function PopOnChange({
   const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: value.value }] }));
 
   return <Animated.View style={[style, animatedStyle]}>{children}</Animated.View>;
+}
+
+/**
+ * A number that counts up to its value on mount.
+ *
+ * Used where the number *is* the promise — a projected XP total reads as a
+ * claim when it simply appears, but as something being earned when it climbs.
+ * Runs on the JS thread via a rAF-style interval rather than Reanimated,
+ * because the value has to be formatted (thousands separators) on the way out,
+ * which a worklet cannot do.
+ */
+export function CountUp({
+  value,
+  duration = 1100,
+  delay = 250,
+  format = (n: number) => n.toLocaleString(),
+  style,
+}: {
+  value: number;
+  duration?: number;
+  delay?: number;
+  format?: (n: number) => string;
+  style?: StyleProp<TextStyle>;
+}) {
+  const [shown, setShown] = useState(0);
+
+  useEffect(() => {
+    let raf = 0;
+    let start = 0;
+    let cancelled = false;
+
+    const tick = (now: number) => {
+      if (cancelled) return;
+      if (!start) start = now;
+      const elapsed = now - start;
+      // Ease-out cubic so it decelerates into the final figure rather than
+      // stopping dead.
+      const t = Math.min(1, elapsed / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setShown(Math.round(value * eased));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+
+    const timer = setTimeout(() => {
+      raf = requestAnimationFrame(tick);
+    }, delay);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      cancelAnimationFrame(raf);
+    };
+  }, [value, duration, delay]);
+
+  return <Animated.Text style={style}>{format(shown)}</Animated.Text>;
 }
 
 /**

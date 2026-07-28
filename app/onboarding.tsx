@@ -237,7 +237,7 @@ export default function OnboardingScreen() {
               <View style={styles.valueCoupleWrap}>
                 <Image source={HERO_COUPLE} style={styles.valueCoupleImg} contentFit="cover" />
                 <Floating distance={6} delay={300} style={styles.valueBadgeVs}>
-                  <Image source={BADGE_VS} style={{ width: 46, height: 46 }} contentFit="contain" />
+                  <Image source={BADGE_VS} style={{ width: 56, height: 37 }} contentFit="contain" />
                 </Floating>
               </View>
             }
@@ -649,7 +649,7 @@ function ProgressChartVisual() {
 
       {/* Small trophy accent floating off the card corner keeps the league hook. */}
       <Floating distance={6} delay={300} style={styles.chartTrophy}>
-        <Image source={TROPHY_GOLD} style={{ width: 54, height: 54 }} contentFit="contain" />
+        <Image source={TROPHY_GOLD} style={{ width: 66, height: 44 }} contentFit="contain" />
       </Floating>
     </View>
   );
@@ -1360,7 +1360,7 @@ function YourAntidote({ blocker, onNext }: { blocker: Blocker | null; onNext: ()
         </Card>
 
         <Floating distance={7} delay={420} style={styles.boardMockBadge}>
-          <Image source={TROPHY_GOLD} style={{ width: 58, height: 58 }} contentFit="contain" />
+          <Image source={TROPHY_GOLD} style={{ width: 72, height: 48 }} contentFit="contain" />
         </Floating>
       </View>
 
@@ -1950,7 +1950,7 @@ function Offer({ onDone }: { onDone: () => void }) {
                 to, restated as a commitment. */}
             <Floating distance={7}>
               <View style={styles.offerReadyBubble}>
-                <Image source={TROPHY_GOLD} style={{ width: 104, height: 104 }} contentFit="contain" />
+                <Image source={TROPHY_GOLD} style={{ width: 126, height: 84 }} contentFit="contain" />
               </View>
             </Floating>
             <Text style={font('extrabold', 21, { color: palette.ink, marginTop: 20 })}>
@@ -2228,7 +2228,7 @@ const styles = StyleSheet.create({
     padding: 13,
     marginTop: 10,
   },
-  paywallTrophy: { width: 92, height: 92 },
+  paywallTrophy: { width: 104, height: 69 },
   commitFootnote: {
     ...text.caption,
     color: palette.grey450,

@@ -98,16 +98,48 @@ export default function ProfileScreen() {
       </StaggerIn>
 
       <StaggerIn index={2}>
-        <View style={styles.statGrid}>
-          <View style={styles.statRow}>
-            <StatTile value={totalReps.toLocaleString()} label="Total reps" color={palette.green500} />
-            <StatTile value={duelsWon} label="Duels won" color={palette.purple500} />
+        {/* A new athlete's stats are four zeros, which reads as a dead screen at
+            the moment they are exploring. Until the first session lands, the
+            grid is replaced by a prompt that says what to do about it. */}
+        {profile.sessions.length === 0 ? (
+          <PressableScale
+            onPress={() =>
+              router.push({ pathname: '/session', params: { exercise: 'push', mode: 'practice' } })
+            }
+            accessibilityRole="button"
+            accessibilityLabel="Start your first set"
+          >
+            <Card style={styles.emptyStats}>
+              <Text style={{ fontSize: 34 }}>📊</Text>
+              <Text style={font('extrabold', 16, { color: palette.ink, marginTop: 8 })}>
+                No stats yet
+              </Text>
+              <Text style={[text.captionMd, { textAlign: 'center', marginTop: 4 }]}>
+                Your reps, duels and streak land here after your first set.
+              </Text>
+              <View style={styles.emptyStatsCta}>
+                <Text style={font('extrabold', 13, { color: palette.green700 })}>
+                  Start your first set →
+                </Text>
+              </View>
+            </Card>
+          </PressableScale>
+        ) : (
+          <View style={styles.statGrid}>
+            <View style={styles.statRow}>
+              <StatTile
+                value={totalReps.toLocaleString()}
+                label="Total reps"
+                color={palette.green500}
+              />
+              <StatTile value={duelsWon} label="Duels won" color={palette.purple500} />
+            </View>
+            <View style={styles.statRow}>
+              <StatTile value={`${winRate}%`} label="Win rate" color={palette.amber500} />
+              <StatTile value={bestStreak} label="Best streak" color={palette.red500} />
+            </View>
           </View>
-          <View style={styles.statRow}>
-            <StatTile value={`${winRate}%`} label="Win rate" color={palette.amber500} />
-            <StatTile value={bestStreak} label="Best streak" color={palette.red500} />
-          </View>
-        </View>
+        )}
       </StaggerIn>
 
       <StaggerIn index={3}>
@@ -207,6 +239,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     ...shadow.card,
+  },
+  emptyStats: { alignItems: 'center', padding: 24 },
+  emptyStatsCta: {
+    marginTop: 14,
+    backgroundColor: palette.green50,
+    borderWidth: 1,
+    borderColor: '#bfeccb',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
   },
   statGrid: { gap: 12, marginVertical: 18 },
   statRow: { flexDirection: 'row', gap: 12 },

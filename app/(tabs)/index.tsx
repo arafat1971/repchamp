@@ -135,7 +135,7 @@ export default function HomeScreen() {
 
   return (
     <Screen>
-      {/* Header — identity + a live-tracking pill, matching the design. */}
+      {/* Header — identity block on the left, single-purpose controls right. */}
       <View style={styles.header}>
         <PressableScale
           onPress={() => router.push('/(tabs)/profile')}
@@ -157,12 +157,19 @@ export default function HomeScreen() {
               )}
             </View>
           </LinearGradient>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={styles.greeting}>{greeting()}</Text>
             <View style={styles.nameRow}>
-              <Text style={font('extrabold', 19, { color: palette.ink })}>{profile.displayName}</Text>
+              <Text
+                style={font('extrabold', 19, { color: palette.ink })}
+                numberOfLines={1}
+              >
+                {profile.displayName}
+              </Text>
               <View style={styles.lvlChip}>
-                <Text style={font('extrabold', 11, { color: palette.green600 })}>Lv.{level.level}</Text>
+                <Text style={font('extrabold', 11, { color: palette.green600 })}>
+                  Lv.{level.level}
+                </Text>
               </View>
               {streak > 0 ? (
                 <PopOnChange trigger={streak} style={styles.streakChip}>
@@ -171,39 +178,54 @@ export default function HomeScreen() {
                 </PopOnChange>
               ) : null}
             </View>
+            {/* Activity moved under the identity block, where it has the width
+                to keep its honest label ("N training partners ready") instead
+                of being truncated inside a fixed-width pill. */}
+            <View style={styles.liveCountInline}>
+              <View style={styles.liveDotSmall} />
+              <Text
+                style={font('semibold', 10.5, { color: palette.grey600 })}
+                numberOfLines={1}
+              >
+                {activity.count} {activity.label}
+              </Text>
+            </View>
           </View>
         </PressableScale>
 
-        <PressableScale
-          onPress={() => router.push('/modal/notifications')}
-          accessibilityRole="button"
-          accessibilityLabel={
-            pendingDuels > 0 ? `Notifications, ${pendingDuels} pending` : 'Notifications'
-          }
-          style={styles.livePill}
-        >
-          <View style={styles.bellWrap}>
-            <Text style={{ fontSize: 16 }}>🔔</Text>
+        {/* Right side: two single-purpose controls rather than one overloaded
+            pill. The old control was labelled "Live Tracking" and showed an
+            activity count, but tapped through to notifications — the label
+            promised one thing and the tap did another. Now the count is a
+            passive status chip and the bell is just a bell. */}
+        {/* Smart notification control: it changes state with the thing it
+            reports on. Idle it's a quiet outline button; with rivals waiting it
+            fills with brand colour, swaps to a duel glyph and carries a count —
+            so the header itself tells you there's something to act on rather
+            than making you tap to find out. */}
+        <View style={styles.headerActions}>
+          <PressableScale
+            onPress={() => router.push('/modal/notifications')}
+            accessibilityRole="button"
+            accessibilityLabel={
+              pendingDuels > 0
+                ? `${pendingDuels} ${pendingDuels === 1 ? 'rival' : 'rivals'} waiting on you`
+                : 'Notifications'
+            }
+            style={[styles.iconButton, pendingDuels > 0 && styles.iconButtonAlert]}
+          >
+            <Text style={{ fontSize: pendingDuels > 0 ? 16 : 17 }}>
+              {pendingDuels > 0 ? '⚔️' : '🔔'}
+            </Text>
             {pendingDuels > 0 ? (
               <PopOnChange trigger={pendingDuels} style={styles.bellDot}>
                 <Text style={font('extrabold', 9, { color: palette.white })}>
                   {pendingDuels > 9 ? '9+' : pendingDuels}
                 </Text>
               </PopOnChange>
-            ) : (
-              <View style={styles.liveDotPulse} />
-            )}
-          </View>
-          <View style={{ gap: 2 }}>
-            <Text style={font('extrabold', 12, { color: palette.green700 })}>Live Tracking</Text>
-            <View style={styles.liveCountInline}>
-              <View style={styles.liveDotSmall} />
-              <Text style={font('semibold', 10.5, { color: palette.grey600 })}>
-                {activity.count} {activity.label}
-              </Text>
-            </View>
-          </View>
-        </PressableScale>
+            ) : null}
+          </PressableScale>
+        </View>
       </View>
 
       {/* Couple hero (design centrepiece) OR the adaptive hero for urgent states. */}
@@ -408,7 +430,7 @@ export default function HomeScreen() {
                         />
                       ) : (
                         <View style={[styles.vsAvatar, styles.vsAvatarMe]}>
-                          <Text style={{ fontSize: 18 }}>🧑🏻</Text>
+                          <Text style={{ fontSize: 20 }}>🏋️‍♂️</Text>
                         </View>
                       )}
                       <Image source={BADGE_VS} style={styles.vsBadge} contentFit="contain" />
@@ -422,7 +444,7 @@ export default function HomeScreen() {
                         />
                       ) : (
                         <View style={[styles.vsAvatar, styles.vsAvatarThem]}>
-                          <Text style={{ fontSize: 18 }}>🧔🏽</Text>
+                          <Text style={{ fontSize: 20 }}>🤸‍♀️</Text>
                         </View>
                       )}
                     </View>
@@ -430,9 +452,19 @@ export default function HomeScreen() {
                       <Text style={font('extrabold', 14.5, { color: palette.ink })}>
                         {title}
                       </Text>
-                      <Text style={font('semibold', 12, { color: '#4a7c5a' })}>
-                        {sub}
-                      </Text>
+                      <View style={styles.challengeSubRow}>
+                        <Text style={font('semibold', 12, { color: '#4a7c5a' })}>
+                          {sub}
+                        </Text>
+                        {/* The seeded duel is between labelled AI partners. With
+                            face avatars these read as people, so the badge is
+                            required here — not just on the Arena board. */}
+                        {ch ? (
+                          <View style={styles.aiPill}>
+                            <Text style={font('extrabold', 8, { color: palette.green700 })}>AI</Text>
+                          </View>
+                        ) : null}
+                      </View>
                     </View>
                     <View style={styles.challengeTrailing}>
                       <Image source={BADGE_LIVE} style={styles.liveBadge} contentFit="contain" />
@@ -515,57 +547,106 @@ function CoupleHero({
             : 'Open couple mode'
       }
     >
-      {/* Couple photo on a green gradient card: a large soft radial glow sits
-          behind the figures so the cutout's edge never shows as a hard box, the
-          photo bleeds off the right, and a left scrim keeps the copy crisp. */}
+      {/* Compact couple banner: the full crowned-couple photo fills the card as
+          a background (shifted left so the couple sits toward the middle,
+          uncropped), a left→right scrim keeps the copy legible, and the CTA +
+          proof chips sit over the photo. */}
+      {/* Base sits at the photo's own mid-green rather than fading to near
+          black: the image already carries a baked-in vignette, so a dark card
+          gradient underneath it was double-darkening the same pixels and
+          muddying the couple. */}
       <LinearGradient
-        colors={['#22a353', '#12923f', '#0b7331']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+        colors={['#3E7D37', '#2A6B33', '#1E5225']}
+        start={{ x: 0.4, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
         style={styles.coupleHero}
       >
-        {/* Big soft radial glow behind the couple — dissolves the photo edge. */}
-        <LinearGradient
-          colors={['rgba(255,255,255,0.30)', 'rgba(190,255,214,0.10)', 'transparent']}
-          start={{ x: 0.5, y: 0.15 }}
-          end={{ x: 0.5, y: 0.95 }}
-          style={styles.coupleHeroGlow}
-        />
         <Image
           source={HERO_COUPLE}
           style={styles.coupleHeroPhoto}
           contentFit="cover"
-          contentPosition="top"
+          // Framed toward the right so the couple sits in the clear half of the
+          // card rather than behind the copy column.
+          contentPosition="right"
         />
-        {/* Left→right scrim so white text stays readable over the photo. */}
+
+        {/**
+         * The single mask behind the copy: solid black at the left edge fading
+         * to fully transparent across the card.
+         *
+         * A short ramp: it turns over by ~26% and is fully clear by ~68%, so
+         * the mask sits under the copy without reaching across the couple.
+         * Deliberately much shorter than the card — running it to the right
+         * edge dimmed the artwork for no legibility gain, since the text never
+         * extends past the copy column.
+         *
+         * Built as a LinearGradient rather than a bitmap so it scales to any
+         * card width without the banding a stretched gradient image shows.
+         */}
         <LinearGradient
-          colors={['rgba(9,84,38,0.96)', 'rgba(9,84,38,0.55)', 'transparent']}
-          locations={[0, 0.48, 0.78]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={StyleSheet.absoluteFill}
+          colors={[
+            'rgba(0,0,0,0.77)',
+            'rgba(0,0,0,0.76)',
+            'rgba(0,0,0,0.60)',
+            'rgba(0,0,0,0.28)',
+            'transparent',
+          ]}
+          locations={[0, 0.26, 0.4, 0.54, 0.68]}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          // Explicit layer between the photo (1) and the copy (3). Without it
+          // the gradient defaults to z-index 0 and the photo's explicit
+          // `zIndex: 1` lifts the artwork *above* the mask on Android, leaving
+          // the text sitting on the raw image.
+          style={[StyleSheet.absoluteFill, styles.coupleHeroMask]}
+          pointerEvents="none"
         />
 
         <View style={styles.coupleHeroContent}>
           <View>
-            <Text style={styles.coupleEyebrow}>COUPLE MODE</Text>
             <Text style={font('extrabold', 26, { color: palette.white, lineHeight: 29 })}>
-              Train{'\n'}Together
+              Train{'\n'}
+              <Text style={{ color: '#8AE06B' }}>Together</Text>
             </Text>
-            <Text style={styles.coupleHeroSub}>One shared streak. Never train alone.</Text>
+            <Text style={styles.coupleHeroSub}>
+              One shared streak.{'\n'}Every single day.
+            </Text>
           </View>
 
           <View style={styles.coupleCtaLight}>
             <Text style={font('extrabold', 13.5, { color: palette.green700 })}>
-              {paired ? 'Open couple mode' : 'Invite partner'}
+              {paired ? 'Open couple mode' : 'Start Together'}
             </Text>
             <View style={styles.coupleCtaArrowLight}>
               <Text style={font('extrabold', 12, { color: palette.white })}>→</Text>
             </View>
           </View>
         </View>
+
+        {/* Proof chips: the mechanics, not a restatement of the subtitle. The
+            row used to lead with "Shared Streak", which the subtitle already
+            says — each chip now adds something the copy above doesn't. */}
+        <View style={styles.coupleChips}>
+          <CoupleChip emoji="📱" label="2 phones" />
+          <View style={styles.coupleChipDivider} />
+          <CoupleChip emoji="⚡" label="Live reps" />
+          <View style={styles.coupleChipDivider} />
+          <CoupleChip emoji="🎁" label="Free week" />
+        </View>
       </LinearGradient>
     </PressableScale>
+  );
+}
+
+/** One proof chip in the couple banner footer — emoji + short label. */
+function CoupleChip({ emoji, label }: { emoji: string; label: string }) {
+  return (
+    <View style={styles.coupleChip}>
+      <Text style={{ fontSize: 12 }}>{emoji}</Text>
+      <Text style={styles.coupleChipLabel} numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
   );
 }
 
@@ -665,12 +746,14 @@ function RowCard({
 const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
+    // Top-aligned: the identity block runs to three lines, so centring pushed
+    // the control down beside the name instead of sitting square in the corner.
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     marginTop: 8,
-    marginBottom: 18,
+    marginBottom: 20,
   },
-  identity: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  identity: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
   avatarRing: {
     width: 48,
     height: 48,
@@ -708,33 +791,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
     paddingVertical: 2,
   },
-  livePill: {
+  headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 9,
-    backgroundColor: '#ecfdf5',
-    borderWidth: 1,
-    borderColor: '#86efac',
-    borderRadius: 16,
-    paddingHorizontal: 11,
-    paddingVertical: 8,
-    width: 161,
-    height: 45,
-    shadowColor: '#22c55e',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 3,
+    justifyContent: 'flex-end',
+    gap: 8,
+    // Nudged down so the icon optically centres against the name row rather
+    // than the smaller greeting above it.
+    marginTop: 6,
   },
-  bellWrap: { position: 'relative', width: 18, alignItems: 'center', justifyContent: 'center' },
-  liveDotPulse: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: palette.green500,
+  /** Single-purpose circular control — one icon, one action. */
+  iconButton: {
+    position: 'relative',
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: palette.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#1e3c28',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.10,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  /** Raised state — rivals are waiting, so the control itself signals it. */
+  iconButtonAlert: {
+    backgroundColor: palette.green50,
+    borderColor: palette.green500,
+    shadowColor: '#16a34a',
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
   },
   bellDot: {
     position: 'absolute',
@@ -749,53 +838,85 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   streakInline: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  liveCountInline: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 },
+  liveCountInline: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 },
   liveDotSmall: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: palette.green500 },
 
-  // Couple hero — couple photo on a green gradient card, glow-blended edge.
+  // Couple hero — compact banner: full couple photo as the card background,
+  // copy + CTA over it, proof chips pinned along the bottom.
   coupleHero: {
     position: 'relative',
     borderRadius: 26,
     overflow: 'hidden',
     height: 210,
+    // Hairline inner edge — stops the card reading as a flat rectangle against
+    // the light canvas and catches the light the way a physical card would.
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.16)',
     ...shadow.brand,
   },
-  // Large soft radial glow centred on the couple so the cutout edge dissolves.
-  coupleHeroGlow: {
-    position: 'absolute',
-    right: -70,
-    top: -60,
-    width: 330,
-    height: 330,
-    borderRadius: 165,
-    zIndex: 1,
-  },
+  /**
+   * Photo fills the whole card, edge to edge.
+   *
+   * Offset with `left`/`right` alone, never a scale transform: scale expands
+   * from the centre, so combining the two compounds the shift and crops the
+   * couple. `cover` already fills the frame. Legibility comes from the mask
+   * above rather than from insetting the image, so the artwork is never
+   * letterboxed against the card colour.
+   */
   coupleHeroPhoto: {
     position: 'absolute',
-    right: -30,
-    bottom: 24,
-    top: -24,
-    width: 260,
-    zIndex: 2,
+    top: 0,
+    bottom: 0,
+    // Nudged right so the couple sits clear of the copy column; `cover` plus
+    // the small right overhang keeps the card filled.
+    left: 19,
+    right: -32,
+    zIndex: 1,
   },
+  /** Sits above the photo (1), below the copy (3). */
+  coupleHeroMask: { zIndex: 2 },
   coupleHeroContent: {
     position: 'relative',
     zIndex: 3,
     flex: 1,
-    padding: 20,
+    paddingHorizontal: 22,
+    paddingTop: 22,
+    // Clears the chip row pinned to the card's foot.
+    paddingBottom: 48,
     justifyContent: 'space-between',
-    maxWidth: 210,
-  },
-  coupleEyebrow: {
-    ...font('extrabold', 10.5, { color: 'rgba(255,255,255,0.8)' }),
-    letterSpacing: 2.5,
-    marginBottom: 6,
+    // Holds the copy inside the masked half of the card.
+    maxWidth: 224,
   },
   coupleHeroSub: {
-    ...font('semibold', 12, { color: 'rgba(230,255,238,0.92)' }),
-    marginTop: 8,
-    lineHeight: 16,
-    maxWidth: 170,
+    ...font('semibold', 11, { color: 'rgba(235,255,241,0.92)' }),
+    marginTop: 9,
+    lineHeight: 15,
+    // Narrower now the copy is shorter — keeps both lines well inside the
+    // masked area rather than trailing into the clear part of the gradient.
+    maxWidth: 168,
+  },
+  /**
+   * Proof chips, pinned bottom-left rather than spanning the full width.
+   *
+   * The mask only covers the left of the card, so a full-width row put the
+   * last chip over unmasked artwork. Keeping them in the left column means
+   * every chip lands on darkened background.
+   */
+  coupleChips: {
+    position: 'absolute',
+    left: 20,
+    bottom: 14,
+    zIndex: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  coupleChip: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  coupleChipLabel: font('bold', 10.5, { color: 'rgba(240,255,244,0.95)' }),
+  coupleChipDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: 12,
+    backgroundColor: 'rgba(255,255,255,0.35)',
   },
   coupleCtaLight: {
     flexDirection: 'row',
@@ -807,7 +928,14 @@ const styles = StyleSheet.create({
     paddingRight: 7,
     paddingVertical: 7,
     borderRadius: 24,
-    ...shadow.card,
+    // Lifted off the photo with a deeper, tighter shadow than a card on canvas
+    // needs — over imagery a soft card shadow disappears and the pill reads as
+    // a flat sticker rather than a control.
+    shadowColor: '#04170b',
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
   coupleCtaArrowLight: {
     width: 24,
@@ -837,7 +965,7 @@ const styles = StyleSheet.create({
   },
 
   // Stat cards
-  row: { flexDirection: 'row', gap: 12, marginTop: 16, alignItems: 'stretch' },
+  row: { flexDirection: 'row', gap: 12, marginTop: 18, alignItems: 'stretch' },
   rowTight: { flexDirection: 'row', gap: 12 },
   statCard: {
     flex: 1,
@@ -888,7 +1016,9 @@ const styles = StyleSheet.create({
 
   // Quick tiles
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  sectionSpacing: { marginTop: 24, marginBottom: 12 },
+  // Consistent section rhythm — iOS groups content with generous, even gaps
+  // rather than varying margins per section.
+  sectionSpacing: { marginTop: 28, marginBottom: 14 },
   quickTile: {
     height: 130,
     borderRadius: 20,
@@ -965,6 +1095,16 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   challengeRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  challengeSubRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 1 },
+  /** Matches the Arena leaderboard's AI badge so labelling is consistent. */
+  aiPill: {
+    backgroundColor: palette.green50,
+    borderWidth: 1,
+    borderColor: '#bfeccb',
+    borderRadius: 5,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
   vsAvatars: { flexDirection: 'row', alignItems: 'center' },
   vsAvatar: {
     width: 38,

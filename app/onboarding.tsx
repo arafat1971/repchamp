@@ -25,6 +25,7 @@ import Animated, {
   withDelay,
   withRepeat,
   withSequence,
+  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -91,6 +92,20 @@ const BLOCKERS = [
   { id: 'motivation' as const, emoji: '😮‍💨', label: 'I lose motivation', sub: 'Training alone gets boring' },
   { id: 'time' as const, emoji: '⏰', label: 'I never have time', sub: 'The gym is a whole production' },
   { id: 'form' as const, emoji: '🤔', label: "I'm unsure about form", sub: "I don't know if I'm doing it right" },
+] as const;
+
+/** Illustrative leaderboard rows for the antidote screen. */
+const BOARD_MOCK = [
+  { medal: '🥇', emoji: '🏃‍♀️', name: 'Nova', xp: '1,240', tint: '#ede9fe', you: false },
+  { medal: '🥈', emoji: '💪', name: 'You', xp: '1,180', tint: '#eafaf0', you: true },
+  { medal: '🥉', emoji: '🤾‍♂️', name: 'Titan', xp: '1,020', tint: '#dbeafe', you: false },
+] as const;
+
+/** The three commitments made during onboarding, restated at the finish. */
+const READY_STATS = [
+  { emoji: '⏱️', value: '2 min', label: 'per session' },
+  { emoji: '📱', value: 'No gear', label: 'phone only' },
+  { emoji: '🔥', value: 'Day 1', label: 'starts today' },
 ] as const;
 
 const BUILD_STEPS = [
@@ -820,9 +835,11 @@ function Frequency({
           <Text style={font('extrabold', 17, { color: palette.ink })}>days per week</Text>
         </View>
 
-        {/* Discrete steppers rather than a slider: 7 options don't need a
-            continuous control, and tap targets are easier to hit than a thumb. */}
+        {/* A track with a sliding thumb rather than seven separate buttons: the
+            thumb springs to the tapped day, so changing the goal reads as one
+            continuous control while each day keeps its own large tap target. */}
         <View style={styles.dayPicker}>
+          <DayThumb value={value} />
           {[1, 2, 3, 4, 5, 6, 7].map((d) => (
             <Pressable
               key={d}
@@ -830,7 +847,7 @@ function Frequency({
               accessibilityRole="radio"
               accessibilityState={{ selected: value === d }}
               accessibilityLabel={`${d} days per week`}
-              style={[styles.dayChip, value === d && styles.dayChipActive]}
+              style={styles.dayChip}
             >
               <Text
                 style={font('extrabold', 14, {
@@ -1271,20 +1288,50 @@ function YourAntidote({ blocker, onNext }: { blocker: Blocker | null; onNext: ()
         <Text style={[text.body, styles.centeredCopy]}>{answer.blurb}</Text>
       </Animated.View>
 
+      {/* A live board rather than a symbol in a circle: showing the thing being
+          promised — your row climbing past a rival's — sells it far harder than
+          an icon standing in for the idea. */}
       <View style={styles.antidoteVisual}>
-        <Floating distance={8}>
-          <View style={styles.antidoteBubble}>
-            <Text style={{ fontSize: 74 }}>{answer.emoji}</Text>
+        <Card style={styles.boardMock}>
+          <View style={styles.boardMockHead}>
+            <Text style={styles.chartEyebrow}>THIS WEEK</Text>
+            <View style={styles.chartTrendPill}>
+              <Text style={font('extrabold', 11, { color: palette.green700 })}>LIVE</Text>
+            </View>
           </View>
+
+          {BOARD_MOCK.map((r, i) => (
+            <StaggerIn key={r.name} index={i} step={130}>
+              <View style={[styles.boardMockRow, r.you && styles.boardMockRowYou]}>
+                <Text style={styles.boardMockRank}>{r.medal}</Text>
+                <View style={[styles.boardMockDot, { backgroundColor: r.tint }]}>
+                  <Text style={{ fontSize: 15 }}>{r.emoji}</Text>
+                </View>
+                <Text
+                  style={font('extrabold', 13.5, {
+                    color: r.you ? palette.green700 : palette.ink,
+                    flex: 1,
+                  })}
+                  numberOfLines={1}
+                >
+                  {r.name}
+                </Text>
+                <Text style={font('extrabold', 13, { color: palette.grey600 })}>{r.xp}</Text>
+              </View>
+            </StaggerIn>
+          ))}
+        </Card>
+
+        <Floating distance={7} delay={420} style={styles.boardMockBadge}>
+          <Image source={TROPHY_GOLD} style={{ width: 58, height: 58 }} contentFit="contain" />
         </Floating>
       </View>
 
-      <StaggerIn index={0} step={110}>
+      <StaggerIn index={3} step={130}>
         <View style={styles.commitRow}>
-          <Text style={{ fontSize: 16 }}>💡</Text>
+          <Text style={{ fontSize: 16 }}>{answer.emoji}</Text>
           <Text style={[text.captionMd, { flex: 1 }]}>
-            This is the one thing most fitness apps get wrong — and the reason people quit in week
-            two.
+            The board resets every Monday, so there is always a gap worth closing.
           </Text>
         </View>
       </StaggerIn>
@@ -1310,7 +1357,7 @@ function CoupleMode({ onNext }: { onNext: () => void }) {
           <Text style={styles.valueEyebrowText}>COUPLE MODE</Text>
         </View>
         <Text style={[text.h1, { fontSize: 27, textAlign: 'center' }]}>
-          The streak you{'\n'}won&apos;t want to break
+          Two people.{'\n'}One unbreakable streak.
         </Text>
         <Text style={[text.body, styles.centeredCopy]}>
           Pair with your partner and you share one streak. Miss a day and you both lose it — which
@@ -1391,10 +1438,10 @@ function AiCoach({ onNext }: { onNext: () => void }) {
           <Text style={styles.valueEyebrowText}>AI FORM COACH</Text>
         </View>
         <Text style={[text.h1, { fontSize: 27, textAlign: 'center' }]}>
-          It watches every rep
+          Your form, checked{'\n'}on every single rep
         </Text>
         <Text style={[text.body, styles.centeredCopy]}>
-          17 body points, tracked live. You get depth and tempo feedback mid-set — not a guess
+          17 body points tracked live. Depth and tempo feedback while you move — not a guess
           afterwards.
         </Text>
       </Animated.View>
@@ -1451,6 +1498,28 @@ function AiCoach({ onNext }: { onNext: () => void }) {
       <PrimaryButton label="Count my first rep" onPress={onNext} />
     </View>
   );
+}
+
+/**
+ * The sliding selection thumb behind the day picker.
+ *
+ * Springs between the seven slots so adjusting the weekly goal feels like one
+ * control being dragged rather than seven buttons being toggled. Width is a
+ * percentage so it tracks the row regardless of screen size.
+ */
+function DayThumb({ value }: { value: number }) {
+  const slot = Math.min(6, Math.max(0, value - 1));
+  const offset = useSharedValue(slot);
+
+  useEffect(() => {
+    offset.value = withSpring(slot, { damping: 16, stiffness: 220 });
+  }, [slot, offset]);
+
+  const style = useAnimatedStyle(() => ({
+    left: `${(offset.value / 7) * 100}%`,
+  }));
+
+  return <Animated.View style={[styles.dayThumb, style]} pointerEvents="none" />;
 }
 
 function Challenge({ username, onNext }: { username: string; onNext: () => void }) {
@@ -1839,19 +1908,31 @@ function Offer({ onDone }: { onDone: () => void }) {
           </>
         ) : (
           <>
-            {/* Trophy over an emoji: the screen otherwise reads as a blank page
-                with a stray glyph, which is a weak note to end onboarding on. */}
-            <Floating distance={8}>
+            {/* Ends onboarding on the plan they just built rather than a stray
+                emoji on a blank page — the three numbers are what they agreed
+                to, restated as a commitment. */}
+            <Floating distance={7}>
               <View style={styles.offerReadyBubble}>
-                <Image source={TROPHY_GOLD} style={{ width: 108, height: 108 }} contentFit="contain" />
+                <Image source={TROPHY_GOLD} style={{ width: 104, height: 104 }} contentFit="contain" />
               </View>
             </Floating>
-            <Text style={font('extrabold', 19, { color: palette.ink, marginTop: 22 })}>
+            <Text style={font('extrabold', 21, { color: palette.ink, marginTop: 20 })}>
               Your plan is ready
             </Text>
-            <Text style={[text.body, styles.centeredCopy]}>
-              First session takes about two minutes. No equipment needed.
-            </Text>
+
+            <View style={styles.readyStats}>
+              {READY_STATS.map((stat, i) => (
+                <StaggerIn key={stat.label} index={i} step={120}>
+                  <View style={styles.readyStat}>
+                    <Text style={{ fontSize: 20 }}>{stat.emoji}</Text>
+                    <Text style={font('extrabold', 17, { color: palette.ink, marginTop: 4 })}>
+                      {stat.value}
+                    </Text>
+                    <Text style={styles.readyStatLabel}>{stat.label}</Text>
+                  </View>
+                </StaggerIn>
+              ))}
+            </View>
           </>
         )}
       </View>
@@ -2104,7 +2185,42 @@ const styles = StyleSheet.create({
   },
 
   // Antidote screen
-  antidoteVisual: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 170 },
+  antidoteVisual: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 190,
+    position: 'relative',
+  },
+  boardMock: { width: '100%', maxWidth: 320, padding: 16, borderRadius: radius['4xl'] },
+  boardMockHead: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  boardMockRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: radius.lg,
+  },
+  boardMockRowYou: {
+    backgroundColor: palette.green50,
+    borderWidth: 1.5,
+    borderColor: palette.green200,
+  },
+  boardMockRank: { fontSize: 15, width: 22, textAlign: 'center' },
+  boardMockDot: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  boardMockBadge: { position: 'absolute', top: -14, right: 4 },
   antidoteBubble: {
     width: 176,
     height: 176,
@@ -2360,16 +2476,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
   },
-  dayPicker: { flexDirection: 'row', gap: 6, marginTop: 22 },
+  dayPicker: {
+    flexDirection: 'row',
+    marginTop: 22,
+    position: 'relative',
+    backgroundColor: palette.divider,
+    borderRadius: radius.lg,
+    padding: 3,
+  },
+  /** Springs between the seven slots; width matches one slot of the row. */
+  dayThumb: {
+    position: 'absolute',
+    top: 3,
+    bottom: 3,
+    width: '14.28%',
+    backgroundColor: palette.green500,
+    borderRadius: radius.md,
+  },
   dayChip: {
     flex: 1,
     height: 40,
-    borderRadius: radius.md,
-    backgroundColor: palette.divider,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dayChipActive: { backgroundColor: palette.green500 },
   frequencyNote: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2505,6 +2634,23 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
   },
   offerMiddle: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  readyStats: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 10,
+    marginTop: 22,
+  },
+  readyStat: {
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: radius['2xl'],
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    minWidth: 96,
+  },
+  readyStatLabel: { ...font('bold', 10.5, { color: palette.grey600 }), marginTop: 2 },
   offerReadyBubble: {
     width: 176,
     height: 176,

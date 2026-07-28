@@ -5,6 +5,7 @@ import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import type { PurchasesPackage } from 'react-native-purchases';
 
 import { track } from '@/lib/analytics';
+import { captureError } from '@/lib/crash';
 import { ModalHeader } from '@/components/ModalHeader';
 import { Card, PressableScale, PrimaryButton, Screen } from '@/components/ui';
 import {
@@ -43,6 +44,10 @@ export default function PaywallScreen() {
   const [packages, setPackages] = useState<PurchasesPackage[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Set when the offering fetch fails, so we can offer a retry instead of spinning. */
+  const [loadFailed, setLoadFailed] = useState(false);
+  /** Bumped to re-run the offering fetch when the athlete taps "Try again". */
+  const [reloadKey, setReloadKey] = useState(0);
 
   const billingReady = isPurchasesConfigured();
 
@@ -55,17 +60,31 @@ export default function PaywallScreen() {
   // which is the one worth anchoring on.
   useEffect(() => {
     let cancelled = false;
-    void fetchOffering().then((offering) => {
-      if (cancelled || !offering) return;
-      const pkgs = offering.availablePackages;
-      setPackages(pkgs);
-      const annual = pkgs.find((p) => p.packageType === 'ANNUAL') ?? pkgs[0];
-      setSelectedId(annual?.identifier ?? null);
-    });
+    setLoadFailed(false);
+
+    fetchOffering()
+      .then((offering) => {
+        if (cancelled) return;
+        // A missing offering is a real, terminal outcome (misconfigured store or
+        // no products) — not a reason to spin forever. Render it as an empty
+        // list so the "no plans available" copy shows.
+        const pkgs = offering?.availablePackages ?? [];
+        setPackages(pkgs);
+        const annual = pkgs.find((p) => p.packageType === 'ANNUAL') ?? pkgs[0];
+        setSelectedId(annual?.identifier ?? null);
+      })
+      .catch((error: unknown) => {
+        // Never leave the athlete on an endless spinner with no way to buy —
+        // a failed fetch here is lost revenue, so surface it and offer a retry.
+        if (cancelled) return;
+        captureError(error);
+        setLoadFailed(true);
+      });
+
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadKey]);
 
   const selected = useMemo(
     () => packages?.find((p) => p.identifier === selectedId) ?? null,
@@ -134,6 +153,20 @@ export default function PaywallScreen() {
             Billing isn’t set up in this build yet. See FIREBASE_SETUP.md / the RevenueCat
             steps to connect real subscriptions.
           </Text>
+        ) : loadFailed ? (
+          <View style={{ gap: 10 }}>
+            <Text style={styles.disclaimer}>
+              We couldn’t load the subscription plans. Check your connection and try again.
+            </Text>
+            <PressableScale
+              onPress={() => setReloadKey((k) => k + 1)}
+              accessibilityRole="button"
+              accessibilityLabel="Try loading plans again"
+              style={styles.retryButton}
+            >
+              <Text style={font('extrabold', 14, { color: palette.green700 })}>Try again</Text>
+            </PressableScale>
+          </View>
         ) : packages === null ? (
           <ActivityIndicator color={palette.green500} style={{ marginVertical: 12 }} />
         ) : packages.length === 0 ? (
@@ -326,5 +359,14 @@ const styles = StyleSheet.create({
     color: palette.grey450,
     textAlign: 'center',
     marginTop: 14,
+  },
+  retryButton: {
+    alignSelf: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 22,
+    borderRadius: radius.xl,
+    backgroundColor: palette.green50,
+    borderWidth: 1,
+    borderColor: palette.green200,
   },
 });

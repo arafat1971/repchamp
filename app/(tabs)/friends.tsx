@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Card, Divider, Eyebrow, PressableScale, Screen } from '@/components/ui';
+import { captureError } from '@/lib/crash';
 import { OPPONENTS, type Opponent } from '@/domain/opponent';
 import { usePhantomSeed } from '@/domain/seedPhantoms';
 import { fetchFriends, type Friend } from '@/services/leaderboardService';
@@ -39,9 +40,13 @@ export default function FriendsScreen() {
   useEffect(() => {
     if (!uid) return;
     let cancelled = false;
-    void fetchFriends(uid).then((list) => {
-      if (!cancelled) setCloudFriends(list);
-    });
+    fetchFriends(uid)
+      .then((list) => {
+        if (!cancelled) setCloudFriends(list);
+      })
+      // Degrades quietly by design: the bot rivals still render, so a failed
+      // cloud fetch costs nothing visible. Logged rather than surfaced.
+      .catch(captureError);
     return () => {
       cancelled = true;
     };

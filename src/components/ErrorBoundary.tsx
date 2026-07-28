@@ -2,6 +2,7 @@ import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { PrimaryButton } from '@/components/ui';
+import { captureError } from '@/lib/crash';
 import { text } from '@/theme/typography';
 import { palette } from '@/theme/tokens';
 
@@ -25,8 +26,12 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
-    // Replace with a crash reporter (Sentry, Bugsnag) before shipping.
-    console.error('[RepChamp] Unhandled error', error, info.componentStack);
+    // Report to the crash service so production render crashes are visible —
+    // without this a white-screen bug is invisible outside a dev console.
+    captureError(error);
+    if (__DEV__) {
+      console.error('[RepChamp] Unhandled error', error, info.componentStack);
+    }
   }
 
   private reset = () => this.setState({ error: null });

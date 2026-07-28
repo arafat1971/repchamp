@@ -9,6 +9,7 @@ import { inviteLink } from '@/domain/couple';
 import { ModalHeader } from '@/components/ModalHeader';
 import { Avatar, Card, Divider, Eyebrow, PressableScale, Screen } from '@/components/ui';
 import { track } from '@/lib/analytics';
+import { captureError } from '@/lib/crash';
 import { cancelStreakReminder, scheduleStreakReminder } from '@/lib/notifications';
 import { createCouple, joinCoupleByCode, leaveCouple, nudgePartner } from '@/services/coupleService';
 import { useAuthStore } from '@/state/authStore';
@@ -53,6 +54,7 @@ export default function CoupleInviteScreen() {
 
   const [creating, setCreating] = useState(false);
   const [joining, setJoining] = useState(false);
+  const [nudging, setNudging] = useState(false);
   const [entered, setEntered] = useState('');
   const [copied, setCopied] = useState(false);
 
@@ -129,7 +131,19 @@ export default function CoupleInviteScreen() {
       {
         text: 'Unpair',
         style: 'destructive',
-        onPress: () => void leaveCouple(couple.id),
+        onPress: async () => {
+          try {
+            await leaveCouple(couple.id);
+          } catch (error) {
+            // A failed unpair leaves the bond intact — say so, rather than
+            // letting the athlete believe they've left.
+            captureError(error);
+            Alert.alert(
+              'Could not unpair',
+              "We couldn't break the bond just now. Check your connection and try again.",
+            );
+          }
+        },
       },
     ]);
   };
@@ -226,17 +240,34 @@ export default function CoupleInviteScreen() {
 
           <View style={styles.actions}>
             <PressableScale
-              onPress={() => {
-                if (!couple || !uid) return;
-                void nudgePartner(couple.id, uid, displayName || 'Your partner');
-                track('couple_nudge_sent');
-                Alert.alert('Nudge sent', `${partner.displayName} will get a push to come train.`);
+              onPress={async () => {
+                if (!couple || !uid || nudging) return;
+                // Await the write before claiming it was sent — telling someone
+                // their partner got a nudge that never left the device is worse
+                // than telling them it failed.
+                setNudging(true);
+                try {
+                  await nudgePartner(couple.id, uid, displayName || 'Your partner');
+                  track('couple_nudge_sent');
+                  Alert.alert(
+                    'Nudge sent',
+                    `${partner.displayName} will get a push to come train.`,
+                  );
+                } catch (error) {
+                  captureError(error);
+                  Alert.alert(
+                    'Nudge failed',
+                    "We couldn't send that nudge. Check your connection and try again.",
+                  );
+                } finally {
+                  setNudging(false);
+                }
               }}
               accessibilityRole="button"
               accessibilityLabel={`Nudge ${partner.displayName} to train`}
               style={styles.action}
             >
-              <Text style={styles.actionLabel}>👋 Nudge</Text>
+              <Text style={styles.actionLabel}>{nudging ? '👋 Sending…' : '👋 Nudge'}</Text>
             </PressableScale>
             <PressableScale
               onPress={() => router.push('/modal/couple-card')}

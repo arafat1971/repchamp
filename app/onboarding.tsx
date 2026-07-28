@@ -424,9 +424,10 @@ function Welcome({ onNext, onTryNow }: { onNext: () => void; onTryNow: () => voi
       </View>
 
       <View style={{ alignItems: 'center', marginTop: 14 }}>
-        <Text style={[text.h1, { fontSize: 25 }]}>Ready to compete?</Text>
+        <Text style={[text.h1, { fontSize: 25 }]}>Your phone counts.{'\n'}You just move.</Text>
         <Text style={[text.body, styles.centeredCopy]}>
-          Create your account to challenge friends and climb the leaderboard.
+          Point the camera at yourself and every clean rep is counted — because your form is
+          scored live, not guessed afterwards.
         </Text>
       </View>
 
@@ -524,9 +525,9 @@ function Showcase({ onNext }: { onNext: () => void }) {
           <View style={styles.liveDot} />
           <Text style={styles.showcaseEyebrow}>SEE IT IN ACTION</Text>
         </View>
-        <Text style={[text.h1, { fontSize: 28, textAlign: 'center' }]}>Just point and go</Text>
+        <Text style={[text.h1, { fontSize: 28, textAlign: 'center' }]}>Watch it count</Text>
         <Text style={[text.body, styles.centeredCopy]}>
-          Your camera counts every rep in real time — no taps, no wearables.
+          No taps. No wearables. No counting in your head and losing track at twelve.
         </Text>
       </Animated.View>
 
@@ -670,8 +671,10 @@ function Username({
 
   return (
     <View style={[styles.step, styles.stepPadded]}>
-      <Text style={text.h1}>Pick your username</Text>
-      <Text style={[text.body, { marginTop: 8 }]}>This is how other players will see you.</Text>
+      <Text style={text.h1}>Claim your name</Text>
+      <Text style={[text.body, { marginTop: 8 }]}>
+        This is the name your rivals will see on the leaderboard.
+      </Text>
 
       <View style={[styles.usernameField, { borderColor }]}>
         <Text style={font('extrabold', 18, { color: palette.grey450 })}>@</Text>
@@ -768,7 +771,10 @@ function Goal({
 }) {
   return (
     <View style={[styles.step, styles.stepPadded]}>
-      <Text style={text.h1}>What&apos;s your main goal?</Text>
+      <Text style={text.h1}>What are you here for?</Text>
+      <Text style={[text.body, { marginTop: 8 }]}>
+        Your answer decides what the app puts in front of you.
+      </Text>
       <View style={{ gap: 12, marginTop: 24 }}>
         {GOALS.map((g) => (
           <PressableScale
@@ -821,9 +827,9 @@ function Frequency({
 
   return (
     <View style={[styles.step, styles.stepPadded]}>
-      <Text style={text.h1}>How often do you want to train?</Text>
+      <Text style={text.h1}>How many days{'\n'}can you actually commit?</Text>
       <Text style={[text.body, { marginTop: 10 }]}>
-        Pick a weekly goal that feels realistic — you can always adjust later.
+        Be honest — a goal you hit beats a goal you admire. You can change it later.
       </Text>
 
       <Card style={styles.frequencyCard}>
@@ -1230,8 +1236,8 @@ function YourFirstWeek({
         <View style={styles.commitRow}>
           <Text style={{ fontSize: 16 }}>🔥</Text>
           <Text style={[text.captionMd, { flex: 1 }]}>
-            Finish {opener?.label ?? 'day one'} and your streak is alive. Most people quit before
-            the first rep — you&apos;re {opener?.target ?? 0} away.
+            Day one is the smallest day of the week — {opener?.target ?? 0} reps. It only gets
+            heavier once you&apos;ve proved you&apos;ll show up.
           </Text>
         </View>
       </StaggerIn>
@@ -1362,7 +1368,7 @@ function YourAntidote({ blocker, onNext }: { blocker: Blocker | null; onNext: ()
         <View style={styles.commitRow}>
           <Text style={{ fontSize: 16 }}>{answer.emoji}</Text>
           <Text style={[text.captionMd, { flex: 1 }]}>
-            The board resets every Monday, so there is always a gap worth closing.
+            The board wipes every Monday. Whoever showed up most, wins the week.
           </Text>
         </View>
       </StaggerIn>
@@ -1388,11 +1394,11 @@ function CoupleMode({ onNext }: { onNext: () => void }) {
           <Text style={styles.valueEyebrowText}>COUPLE MODE</Text>
         </View>
         <Text style={[text.h1, { fontSize: 27, textAlign: 'center' }]}>
-          Two people.{'\n'}One unbreakable streak.
+          Skip a day and{'\n'}you let them down
         </Text>
         <Text style={[text.body, styles.centeredCopy]}>
-          Pair with your partner and you share one streak. Miss a day and you both lose it — which
-          is exactly why it works.
+          One streak between two people. Your rest day breaks their streak too — which is exactly
+          why nobody takes one.
         </Text>
       </Animated.View>
 
@@ -1469,11 +1475,11 @@ function AiCoach({ onNext }: { onNext: () => void }) {
           <Text style={styles.valueEyebrowText}>AI FORM COACH</Text>
         </View>
         <Text style={[text.h1, { fontSize: 27, textAlign: 'center' }]}>
-          Your form, checked{'\n'}on every single rep
+          A coach that never{'\n'}sees your video
         </Text>
         <Text style={[text.body, styles.centeredCopy]}>
-          17 body points tracked live. Depth and tempo feedback while you move — not a guess
-          afterwards.
+          17 body points tracked live, scored while you move — and every frame stays on your
+          phone. Nothing uploaded, nothing recorded.
         </Text>
       </Animated.View>
 
@@ -1740,10 +1746,10 @@ function Paywall({
           <Text style={styles.valueEyebrowText}>3 DAYS FREE</Text>
         </View>
         <Text style={[text.h1, { fontSize: 27, textAlign: 'center' }]}>
-          Everything unlocked,{'\n'}nothing to pay today
+          Three days free,{'\n'}because week one is the hard part
         </Text>
         <Text style={[text.body, styles.centeredCopy]}>
-          Cancel any time in the first three days and you won&apos;t be charged.
+          Every exercise, every programme, unlocked. Cancel before day three and you pay nothing.
         </Text>
       </Animated.View>
 

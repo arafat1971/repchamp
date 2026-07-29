@@ -99,6 +99,10 @@
       "googleWebClientId": "",
       "revenueCatGoogle": "goog_MDPFQjukqNGkgnzOHPmxMJnnAmf",
       "sentryDsn": "https://placeholder@sentry.io/0"
+    },
+    "runtimeVersion": "2.0.0",
+    "updates": {
+      "url": "https://u.expo.dev/d6be255f-fe5b-40f6-a206-f6e2810f9295"
     }
   }
 }

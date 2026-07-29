@@ -3,14 +3,6 @@ import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Camera } from 'react-native-vision-camera';
 import type { CameraDevice, CameraOutput } from 'react-native-vision-camera';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-} from 'react-native-reanimated';
-import { useEffect } from 'react';
 
 import { text } from '@/theme/typography';
 import { palette } from '@/theme/tokens';
@@ -33,34 +25,7 @@ const BACKDROP: Record<string, readonly [string, string, string]> = {
   stretch: [palette.camPurpleTop, palette.camPurpleMid, palette.camPurpleBottom],
 };
 
-/**
- * The sweeping scan line from the prototype. Purely decorative — it signals
- * "the camera is analysing" without implying a specific detection state.
- */
-function ScanLine({ height }: { height: number }) {
-  const progress = useSharedValue(0);
 
-  useEffect(() => {
-    progress.value = withRepeat(
-      withTiming(1, { duration: 3200, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      false,
-    );
-  }, [progress]);
-
-  const style = useAnimatedStyle(() => ({
-    transform: [{ translateY: -130 + progress.value * (height + 130) }],
-  }));
-
-  return (
-    <Animated.View pointerEvents="none" style={[styles.scanWrap, style]}>
-      <LinearGradient
-        colors={['transparent', 'rgba(34,197,94,0.13)', 'transparent']}
-        style={StyleSheet.absoluteFill}
-      />
-    </Animated.View>
-  );
-}
 
 /**
  * Shared camera surface for every phase of a session.
@@ -75,7 +40,8 @@ export function CameraStage({
   device,
   isActive,
   cameraReady,
-  height,
+  height: _height,
+  cameraRef,
   children,
 }: {
   exercise: string;
@@ -85,6 +51,7 @@ export function CameraStage({
   isActive: boolean;
   cameraReady: boolean;
   height: number;
+  cameraRef?: React.RefObject<any>;
   children?: ReactNode;
 }) {
   const colors = BACKDROP[exercise] ?? BACKDROP.push!;
@@ -100,6 +67,7 @@ export function CameraStage({
 
       {cameraReady && device ? (
         <Camera
+          ref={cameraRef}
           isActive={isActive}
           device={device}
           outputs={outputs}
@@ -113,7 +81,6 @@ export function CameraStage({
 
       {/* Inset vignette — the prototype's `box-shadow: inset 0 0 160px 50px`. */}
       <View pointerEvents="none" style={styles.vignette} />
-      <ScanLine height={height} />
 
       {children}
     </View>
@@ -151,12 +118,7 @@ const styles = StyleSheet.create({
     // iOS renders the inset glow via shadow; Android approximates with a border.
     borderWidth: 0,
   },
-  scanWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: 130,
-  },
+
   chip: {
     flexDirection: 'row',
     alignItems: 'center',

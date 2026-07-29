@@ -1,7 +1,7 @@
 import { BlurView } from 'expo-blur';
 import { Redirect, Tabs, usePathname, useRouter } from 'expo-router';
-import { Image, StyleSheet, TouchableOpacity, View, type ColorValue } from 'react-native';
-import Animated, { useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import { Image, Platform, StyleSheet, TouchableOpacity, View, type ColorValue } from 'react-native';
+import Animated, { useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 
@@ -17,18 +17,33 @@ type IconProps = { color: ColorValue; focused: boolean; size: number };
 /**
  * Tab icons are inline SVG paths lifted from the prototype rather than an icon
  * font, so the stroke weight and corner radii match the design exactly.
+ *
+ * Upgraded: icons now scale + lift with spring physics, and show an active
+ * indicator dot underneath when focused.
  */
 function AnimatedIcon({ focused, children }: { focused: boolean; children: React.ReactNode }) {
   const style = useAnimatedStyle(
     () => ({
       transform: [
-        { scale: withSpring(focused ? 1.16 : 1, { damping: 12, stiffness: 220 }) },
-        { translateY: withSpring(focused ? -1 : 0, { damping: 12, stiffness: 220 }) },
+        { scale: withSpring(focused ? 1.18 : 1, { damping: 14, stiffness: 240 }) },
+        { translateY: withSpring(focused ? -2 : 0, { damping: 14, stiffness: 240 }) },
       ],
     }),
     [focused],
   );
-  return <Animated.View style={style}>{children}</Animated.View>;
+  const dotStyle = useAnimatedStyle(
+    () => ({
+      opacity: withTiming(focused ? 1 : 0, { duration: 200 }),
+      transform: [{ scale: withSpring(focused ? 1 : 0.5, { damping: 14, stiffness: 240 }) }],
+    }),
+    [focused],
+  );
+  return (
+    <View style={styles.iconWrapper}>
+      <Animated.View style={style}>{children}</Animated.View>
+      <Animated.View style={[styles.activeDot, dotStyle]} />
+    </View>
+  );
 }
 
 function HomeIcon({ color, focused }: IconProps) {
@@ -173,6 +188,10 @@ function ProfileIcon({ color, focused }: IconProps) {
   );
 }
 
+/**
+ * Floating Train FAB — the primary action button that hovers above the tab bar.
+ * Premium design with gradient glow, spring bounce, and a soft green squircle.
+ */
 function TrainFab({ bottomPosition }: { bottomPosition: number }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -181,8 +200,8 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
   const scaleStyle = useAnimatedStyle(
     () => ({
       transform: [
-        { scale: withSpring(focused ? 1.12 : 1, { damping: 12, stiffness: 220 }) },
-        { translateY: withSpring(focused ? -2 : 0, { damping: 12, stiffness: 220 }) },
+        { scale: withSpring(focused ? 1.14 : 1, { damping: 14, stiffness: 240 }) },
+        { translateY: withSpring(focused ? -3 : 0, { damping: 14, stiffness: 240 }) },
       ],
     }),
     [focused],
@@ -198,8 +217,6 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
         }}
         style={styles.fabButton}
       >
-        {/* A soft rounded backing gives clear tap affordance (it reads as a
-            button) while staying modern — the icon sits proud on top. */}
         <View style={styles.fabBacking} />
         <Image source={IC_TRAIN} style={styles.fabImage} resizeMode="contain" />
       </TouchableOpacity>
@@ -213,7 +230,7 @@ export default function TabsLayout() {
 
   if (!onboarded) return <Redirect href="/onboarding" />;
 
-  const tabBarHeight = 56 + Math.max(insets.bottom, 16);
+  const tabBarHeight = 60 + Math.max(insets.bottom, 16);
 
   return (
     <View style={StyleSheet.absoluteFill}>
@@ -226,7 +243,7 @@ export default function TabsLayout() {
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: '#16a34a',
-          tabBarInactiveTintColor: '#8e8e93',
+          tabBarInactiveTintColor: '#94a3b8',
           tabBarStyle: [
             styles.tabBar,
             {
@@ -238,7 +255,7 @@ export default function TabsLayout() {
           tabBarItemStyle: styles.tabItem,
           tabBarBackground: () => (
             <BlurView
-              intensity={85}
+              intensity={92}
               tint="light"
               style={StyleSheet.absoluteFill}
             />
@@ -263,16 +280,27 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
+  /**
+   * Floating glass tab bar — sits above the content with a blur backdrop,
+   * subtle border, and elevated shadow for a premium floating feel.
+   */
   tabBar: {
     position: 'absolute',
-    left: 0,
-    right: 0,
+    left: 12,
+    right: 12,
     bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(0, 0, 0, 0.1)',
-    elevation: 0,
-    paddingTop: 6,
+    backgroundColor: Platform.OS === 'android' ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.82)',
+    borderTopWidth: 0,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(0,0,0,0.06)',
+    borderRadius: 28,
+    marginBottom: 4,
+    elevation: 8,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    paddingTop: 8,
   },
   tabItem: {
     paddingVertical: 2,
@@ -281,7 +309,23 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.extrabold,
     fontSize: 10,
     letterSpacing: -0.1,
+    marginTop: 1,
+  },
+  /** Wrapper to center the icon and position the active dot below it. */
+  iconWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 32,
+  },
+  /** Small green dot that appears under the active tab icon. */
+  activeDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#16a34a',
     marginTop: 3,
+    position: 'absolute',
+    bottom: -2,
   },
   fabContainer: {
     position: 'absolute',
@@ -289,13 +333,16 @@ const styles = StyleSheet.create({
     zIndex: 999,
     elevation: 10,
   },
-  // A soft green squircle backing (reads as a button) with the icon proud on top.
   fabButton: {
     width: 72,
     height: 72,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  /**
+   * Soft green squircle backing with brand shadow glow —
+   * gives the FAB a premium, elevated feel that's consistent with the brand.
+   */
   fabBacking: {
     position: 'absolute',
     width: 60,
@@ -306,8 +353,8 @@ const styles = StyleSheet.create({
     borderColor: '#bbf7d0',
     shadowColor: '#16a34a',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.28,
-    shadowRadius: 12,
+    shadowOpacity: 0.3,
+    shadowRadius: 14,
     elevation: 8,
   },
   fabImage: {
@@ -316,4 +363,3 @@ const styles = StyleSheet.create({
     transform: [{ translateX: -10 }, { translateY: 1 }, { rotate: '25deg' }],
   },
 });
-

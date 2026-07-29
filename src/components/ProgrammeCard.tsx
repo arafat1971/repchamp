@@ -1,6 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
+import { useShallow } from 'zustand/shallow';
 
 import { PressableScale, ProgressBar } from '@/components/ui';
 import { PUSHUP_LADDER } from '@/domain/programme';
@@ -21,7 +22,7 @@ import { gradients, palette, radius, shadow } from '@/theme/tokens';
  */
 export function ProgrammeCard() {
   const router = useRouter();
-  const state = useProfileStore(selectProgramme);
+  const state = useProfileStore(useShallow(selectProgramme));
   const startProgramme = useProfileStore((s) => s.startProgramme);
   const isPro = useEffectivePro();
 

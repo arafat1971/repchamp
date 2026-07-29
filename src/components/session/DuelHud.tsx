@@ -1,7 +1,13 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
+import { useEffect } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PopOnChange } from '@/components/motion';
@@ -62,6 +68,22 @@ export function DuelHud({
   const tugPercent = total === 0 ? 50 : Math.round((reps / total) * 100);
   const soloPercent = target ? Math.min(100, Math.round((reps / target) * 100)) : 0;
 
+  const tugShared = useSharedValue(50);
+
+  useEffect(() => {
+    tugShared.value = withSpring(tugPercent, { damping: 15, stiffness: 120 });
+  }, [tugPercent, tugShared]);
+
+  const tugStyle = useAnimatedStyle(() => ({
+    flex: Math.max(0.001, tugShared.value / 100),
+  }));
+
+  const tugSpacerStyle = useAnimatedStyle(() => ({
+    flex: Math.max(0.001, 1 - (tugShared.value / 100)),
+  }));
+
+
+
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       {/* Top: score / target bar */}
@@ -72,6 +94,9 @@ export function DuelHud({
               <Text style={styles.versusTitle}>VS {opponent.name.toUpperCase()}</Text>
               <Text style={styles.versusSub}>TUG OF WAR BATTLE</Text>
             </View>
+
+
+
             <View style={styles.duelCard}>
             {/* Row: [you avatar] [your score] · TIME/clock · [their score] [their avatar] */}
             <View style={styles.duelRow}>
@@ -107,11 +132,11 @@ export function DuelHud({
               </View>
             </View>
 
-            {/* Split bar: green from the left is your share, blue from the right is
-                theirs — the divider sits where you're winning/losing. */}
+            {/* Split interactive bar: green from the left, blue from the right with 3px divider */}
             <View style={styles.duelBarTrack}>
-              <View style={[styles.duelBarMe, { width: `${tugPercent}%` }]} />
+              <Animated.View style={[styles.duelBarMe, tugStyle]} />
               <View style={styles.duelBarDivider} />
+              <Animated.View style={tugSpacerStyle} />
             </View>
             </View>
           </View>
@@ -306,14 +331,41 @@ const styles = StyleSheet.create({
   },
   duelClock: { ...font('extrabold', 22, { color: palette.white }), lineHeight: 24 },
   duelBarTrack: {
-    height: 12,
+    height: 14,
     borderRadius: 7,
     backgroundColor: DUEL_RIVAL,
     overflow: 'hidden',
     flexDirection: 'row',
   },
   duelBarMe: { height: '100%', backgroundColor: palette.green500 },
-  duelBarDivider: { width: 3, height: '100%', backgroundColor: 'rgba(255,255,255,0.85)' },
+  duelBarDivider: {
+    width: 3,
+    height: '100%',
+    backgroundColor: '#ffffff',
+    shadowColor: '#ffffff',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  horizontalDepthTrack: {
+    width: '100%',
+    height: 3,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 1.5,
+    overflow: 'hidden',
+    marginBottom: 4,
+    flexDirection: 'row',
+  },
+  horizontalDepthFill: {
+    height: 3,
+    borderRadius: 1.5,
+    shadowColor: '#22c55e',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+    elevation: 3,
+  },
   pillHeading: { alignItems: 'center', marginBottom: 10 },
   pillText: {
     ...font('extrabold', 10, { color: palette.white }),

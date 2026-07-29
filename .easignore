@@ -1,0 +1,40 @@
+# EAS Build Ignore File
+# Uses managed prebuild workflow (EAS prebuilds native folders on cloud servers)
+
+# Dependencies & Build Outputs
+node_modules/
+.expo/
+dist/
+web-build/
+*.tsbuildinfo
+
+# Generated native directories (MUST be ignored so EAS runs managed prebuild)
+/android
+/ios
+
+# Non-mobile project directories
+/website
+
+# System & Tooling
+.git/
+.DS_Store
+.claude/
+.cursor/
+.qodo/
+
+# Logs & Debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.log
+
+# Firebase admin secret keys & local backups
+*firebase-adminsdk*.json
+*service-account*.json
+*.placeholder.bak
+
+# EXPLICIT INCLUSIONS: Ensure Firebase client config & models/audio assets are included
+!google-services.json
+!GoogleService-Info.plist
+!assets/models/movenet.tflite
+!assets/sounds/*.wav

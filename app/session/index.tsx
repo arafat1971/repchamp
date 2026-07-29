@@ -5,6 +5,7 @@ import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
 import { useCameraPermission } from 'react-native-vision-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { captureRef } from 'react-native-view-shot';
 
 import { CameraDenied } from '@/components/session/CameraDenied';
 import { CameraStage, StatusChip } from '@/components/session/CameraStage';
@@ -113,6 +114,8 @@ export default function SessionScreen() {
   const depth = useSessionStore((s) => s.depth);
   const formCue = useSessionStore((s) => s.formCue);
   const startSession = useSessionStore((s) => s.start);
+  const cameraStageRef = useRef<View>(null);
+  const cameraRef = useRef<any>(null);
 
   // The pre-set camera tutorial shows once, then never again. Seeding local
   // state from the persisted flag means dismissing it hides it instantly this
@@ -198,6 +201,19 @@ export default function SessionScreen() {
       if (completedRep) {
         repFeedback();
         myLastRepAt.current = Date.now();
+        if (cameraRef.current && typeof cameraRef.current.takePhoto === 'function') {
+          Promise.resolve()
+            .then(() => cameraRef.current.takePhoto())
+            .then((photo: { path: string }) => {
+              if (photo && photo.path) {
+                const uri = photo.path.startsWith('file://') ? photo.path : `file://${photo.path}`;
+                useSessionStore.getState().setCapturedSnapshotUri(uri);
+              }
+            })
+            .catch(() => {
+              // Silently ignore if camera photo capture is not enabled or fails
+            });
+        }
       }
       useSessionStore.getState().applyPose({ depth, tracking, completedRep });
     },
@@ -404,6 +420,13 @@ export default function SessionScreen() {
       void recordCoupleSession(couple.id, coupleMe.uid, s.reps, dayKey());
     }
 
+    // Capture real workout photo snapshot for the share card before screen teardown
+    if (cameraStageRef.current) {
+      void captureRef(cameraStageRef, { format: 'png', quality: 0.8 })
+        .then((uri) => useSessionStore.getState().setCapturedSnapshotUri(uri))
+        .catch(() => {});
+    }
+
     // Navigation waits for the clip: leaving this screen tears down the camera
     // session, and an encoder killed mid-flush writes an empty file.
     let cancelled = false;
@@ -444,7 +467,7 @@ export default function SessionScreen() {
   }
 
   return (
-    <View style={styles.root}>
+    <View ref={cameraStageRef} style={styles.root}>
       <CameraStage
         exercise={exercise}
         outputs={outputs}
@@ -452,6 +475,7 @@ export default function SessionScreen() {
         isActive={isActive}
         cameraReady={cameraReady}
         height={height}
+        cameraRef={cameraRef}
       >
         {/* Brand mark, pinned to the top-right over the live camera. Per the
             iOS HIG it (1) sits inside the safe area at the standard 16pt margin,

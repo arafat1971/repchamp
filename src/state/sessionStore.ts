@@ -40,6 +40,8 @@ export interface SessionState {
   won: boolean;
   xpGained: number;
   formReport: FormReport | null;
+  /** Real captured camera snapshot during practice for the share card. */
+  capturedSnapshotUri: string | null;
 
   start: (config: SessionConfig) => void;
   setCalibration: (percent: number) => void;
@@ -51,6 +53,7 @@ export interface SessionState {
   setOpponentReps: (reps: number) => void;
   /** Record the live opponent's display name once it resolves from the duel doc. */
   setOpponentName: (name: string) => void;
+  setCapturedSnapshotUri: (uri: string | null) => void;
   tickClock: () => void;
   finish: (options?: { forfeited?: boolean }) => void;
   reset: () => void;
@@ -84,6 +87,7 @@ const idle = {
   won: false,
   xpGained: 0,
   formReport: null,
+  capturedSnapshotUri: null as string | null,
 };
 
 /**
@@ -172,6 +176,8 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
 
   setOpponentName: (name) =>
     set((s) => s.config ? { config: { ...s.config, opponentName: name } } : {}),
+
+  setCapturedSnapshotUri: (uri) => set({ capturedSnapshotUri: uri }),
 
   tickClock: () => {
     const state = get();

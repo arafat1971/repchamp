@@ -8,7 +8,7 @@ import { track } from '@/lib/analytics';
 import { HeroCard } from '@/components/home/HeroCard';
 import { CoupleStrip } from '@/components/home/CoupleStrip';
 import { PopOnChange, StaggerIn } from '@/components/motion';
-import { Avatar, Card, Chevron, PressableScale, Screen, SectionLabel } from '@/components/ui';
+import { Avatar, Card, PressableScale, Screen, SectionLabel } from '@/components/ui';
 import { selectHomeFocus, type HomeFocus } from '@/domain/homeFocus';
 import { liveActivity } from '@/domain/liveActivity';
 import { usePhantomSeed } from '@/domain/seedPhantoms';
@@ -23,7 +23,7 @@ import {
 import { useCouple } from '@/state/useCouple';
 import { useIncomingDuelCount } from '@/state/useIncomingDuelCount';
 import type { ExerciseId } from '@/vision/exercises';
-import { font, text } from '@/theme/typography';
+import { font } from '@/theme/typography';
 import { gradients, palette, shadow } from '@/theme/tokens';
 
 /** Push-ups is the featured daily challenge; mirrors `app/modal/daily.tsx`. */
@@ -37,7 +37,7 @@ const HERO_COUPLE = require('../../assets/couple-hero.png');
 const TROPHY_BRONZE = require('../../assets/trophy-bronze.png');
 const IC_LIGHTNING = require('../../assets/ic-lightning.png');
 const IC_TARGET = require('../../assets/ic-target.png');
-const IC_SCORE = require('../../assets/ic-score32.png');
+
 const BADGE_VS = require('../../assets/badge-vs.png');
 const BADGE_LIVE = require('../../assets/badge-live.png');
 
@@ -392,7 +392,7 @@ export default function HomeScreen() {
           }
         >
           <LinearGradient
-            colors={['#ffffff', '#f0fdf4', '#fefce8']}
+            colors={['#f0fdf4', '#dcfce7', '#fefce8']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.challengeCard}
@@ -453,7 +453,7 @@ export default function HomeScreen() {
                         {title}
                       </Text>
                       <View style={styles.challengeSubRow}>
-                        <Text style={font('semibold', 12, { color: '#4a7c5a' })}>
+                        <Text style={font('semibold', 12, { color: '#15803d' })}>
                           {sub}
                         </Text>
                         {/* The seeded duel is between labelled AI partners. With
@@ -490,31 +490,72 @@ export default function HomeScreen() {
         </PressableScale>
       </StaggerIn>
 
-      {/* Below the fold — low-frequency actions, framed-icon rows. */}
+      {/* Below the fold — premium action cards. */}
       <SectionLabel style={styles.sectionSpacing}>More</SectionLabel>
       <StaggerIn index={5}>
-        <RowCard
-          image={IC_LIGHTNING}
-          iconBg="#fff7e0"
-          iconBorder="#fcd34d"
-          cardBg="#fffbeb"
-          cardBorder="#fef08a"
-          title="⚡ Find an opponent"
-          subtitle="Quick match with anyone"
+        {/* Quick Match — vibrant orange/amber card */}
+        <PressableScale
           onPress={() => router.push({ pathname: '/duel/new', params: { queue: '1' } })}
-        />
+          accessibilityRole="button"
+          accessibilityLabel="Quick match with anyone"
+        >
+          <LinearGradient
+            colors={['#ea580c', '#f97316', '#fb923c']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.premiumRowCard}
+          >
+            <View style={styles.premiumRowLeft}>
+              <View style={[styles.premiumIconRing, { borderColor: 'rgba(255,255,255,0.35)', backgroundColor: 'rgba(255,255,255,0.15)' }]}>
+                <Image source={IC_LIGHTNING} style={styles.premiumIconImg} contentFit="contain" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={font('extrabold', 15, { color: palette.white })}>
+                  ⚡ Quick Match
+                </Text>
+                <Text style={font('semibold', 11, { color: 'rgba(255,255,255,0.8)' })}>
+                  Find an opponent instantly
+                </Text>
+              </View>
+            </View>
+            <View style={[styles.premiumArrow, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+              <Text style={font('extrabold', 14, { color: palette.white })}>→</Text>
+            </View>
+          </LinearGradient>
+        </PressableScale>
+
         <View style={{ height: 10 }} />
-        <RowCard
-          image={IC_TARGET}
-          iconBg="#ffeaea"
-          iconBorder="#fca5a5"
-          cardBg="#fff1f2"
-          cardBorder="#fecdd3"
-          title="🎯 Daily challenge"
-          subtitle="Earn 2× XP before midnight"
-          trailing={<Image source={IC_SCORE} style={styles.scoreIcon} contentFit="contain" />}
+
+        {/* Daily Challenge — vibrant green card */}
+        <PressableScale
           onPress={() => router.push('/modal/daily')}
-        />
+          accessibilityRole="button"
+          accessibilityLabel="Daily challenge: earn 2x XP"
+        >
+          <LinearGradient
+            colors={['#15803d', '#16a34a', '#22c55e']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.premiumRowCard}
+          >
+            <View style={styles.premiumRowLeft}>
+              <View style={[styles.premiumIconRing, { borderColor: 'rgba(255,255,255,0.35)', backgroundColor: 'rgba(255,255,255,0.15)' }]}>
+                <Image source={IC_TARGET} style={styles.premiumIconImg} contentFit="contain" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={font('extrabold', 15, { color: palette.white })}>
+                  🎯 Daily Challenge
+                </Text>
+                <Text style={font('semibold', 11, { color: 'rgba(255,255,255,0.8)' })}>
+                  Earn 2× XP before midnight
+                </Text>
+              </View>
+            </View>
+            <View style={[styles.premiumArrow, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+              <Text style={font('extrabold', 14, { color: palette.white })}>→</Text>
+            </View>
+          </LinearGradient>
+        </PressableScale>
       </StaggerIn>
     </Screen>
   );
@@ -696,50 +737,6 @@ function QuickTile({
   );
 }
 
-/** A quiet full-width row for secondary actions, with a framed image icon. */
-function RowCard({
-  image,
-  iconBg,
-  iconBorder,
-  cardBg,
-  cardBorder,
-  title,
-  subtitle,
-  trailing,
-  onPress,
-}: {
-  image: number;
-  iconBg: string;
-  iconBorder: string;
-  /** Soft card-wide tint so each row carries its own colour. */
-  cardBg?: string;
-  cardBorder?: string;
-  title: string;
-  subtitle: string;
-  trailing?: React.ReactNode;
-  onPress: () => void;
-}) {
-  return (
-    <PressableScale onPress={onPress} accessibilityRole="button" accessibilityLabel={title}>
-      <Card
-        style={[
-          styles.rowCard,
-          cardBg ? { backgroundColor: cardBg } : null,
-          cardBorder ? { borderColor: cardBorder } : null,
-        ]}
-      >
-        <View style={[styles.rowIcon, { backgroundColor: iconBg, borderColor: iconBorder }]}>
-          <Image source={image} style={styles.rowIconImg} contentFit="contain" />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={text.cardTitle}>{title}</Text>
-          <Text style={text.caption}>{subtitle}</Text>
-        </View>
-        {trailing ?? <Chevron />}
-      </Card>
-    </PressableScale>
-  );
-}
 
 const styles = StyleSheet.create({
   header: {
@@ -1097,8 +1094,8 @@ const styles = StyleSheet.create({
   challengeCard: {
     borderWidth: 1,
     borderColor: '#bbf7d0',
-    padding: 16,
-    borderRadius: 20,
+    padding: 18,
+    borderRadius: 22,
     overflow: 'hidden',
     shadowColor: '#16a34a',
     shadowOffset: { width: 0, height: 6 },
@@ -1135,5 +1132,48 @@ const styles = StyleSheet.create({
   fireIcon: { width: 34, height: 34 },
   matchProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14 },
   matchProgressBar: { flex: 1, height: 9, borderRadius: 6, backgroundColor: '#f0e9fb', overflow: 'hidden' },
+
+  // Premium dark row cards
+  premiumRowCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+    overflow: 'hidden',
+    shadowColor: '#16a34a',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  premiumRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    flex: 1,
+  },
+  premiumIconRing: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: 'rgba(255,255,255,0.5)',
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  premiumIconImg: { width: 24, height: 24 },
+  premiumArrow: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });
 

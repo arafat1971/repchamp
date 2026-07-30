@@ -293,7 +293,7 @@ export async function nudgePartner(
         // Tagged so the foreground handler can suppress the duplicate (the in-app
         // nudge already showed it) — see `installForegroundNudgeSuppressor`.
         data: { type: 'couple-nudge', coupleId },
-        channelId: 'couple',
+        channelId: 'social',
         priority: 'high',
       }),
     });

@@ -1,14 +1,19 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { useAuthStore } from '@/state/authStore';
 import Animated, { FadeInDown, FadeInUp, ZoomIn } from 'react-native-reanimated';
 
 import { ModalHeader } from '@/components/ModalHeader';
 import { PressableScale, Screen } from '@/components/ui';
+import { duelExerciseOptions, parseDuelExercise } from '@/domain/duelExercises';
+import { canStartWorkout } from '@/domain/paywallGate';
+import { assertClientRateLimit, isBlockedEither } from '@/services/safetyService';
+import { useAuthStore } from '@/state/authStore';
 import { useProfileStore } from '@/state/profileStore';
+import { useEffectivePro } from '@/state/proStore';
+import { showDialog } from '@/state/useDialog';
 import { font } from '@/theme/typography';
 import { palette, radius, shadow } from '@/theme/tokens';
 import type { ExerciseId } from '@/vision/exercises';
@@ -16,40 +21,7 @@ import type { ExerciseId } from '@/vision/exercises';
 const IC_PUSHUP = require('../../assets/ic-pushup.png');
 const IC_SQUAT = require('../../assets/ic-squat.png');
 
-const EXERCISES: {
-  id: ExerciseId;
-  label: string;
-  emoji: string;
-  desc: string;
-  color: string;
-  /** Whole-tile wash when selected. */
-  tintBg: string;
-  /** Icon squircle gradient when selected. */
-  soft: readonly [string, string];
-  /** Soft accent ring around the icon squircle when selected. */
-  ring: string;
-}[] = [
-  {
-    id: 'push',
-    label: 'Push-Ups',
-    emoji: '💪',
-    desc: 'Upper body power',
-    color: '#16a34a',
-    tintBg: '#f0fdf4',
-    soft: ['#dcfce7', '#bbf7d0'],
-    ring: 'rgba(34,197,94,0.35)',
-  },
-  {
-    id: 'squat',
-    label: 'Squats',
-    emoji: '🦵',
-    desc: 'Lower body strength',
-    color: '#7c3aed',
-    tintBg: '#faf5ff',
-    soft: ['#f3e8ff', '#e9d5ff'],
-    ring: 'rgba(139,92,246,0.35)',
-  },
-];
+const EXERCISE_OPTIONS = duelExerciseOptions();
 
 const DURATIONS: { value: number; label: string; desc: string }[] = [
   { value: 20, label: '20s', desc: 'Sprint' },
@@ -71,6 +43,7 @@ const DURATIONS: { value: number; label: string; desc: string }[] = [
 export default function DuelNewScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
+  const isPro = useEffectivePro();
   const avatarUri = useProfileStore((s) => s.avatarUri);
   const displayName = useProfileStore((s) => s.displayName);
   const params = useLocalSearchParams<{
@@ -80,26 +53,59 @@ export default function DuelNewScreen() {
     level?: string;
     queue?: string;
     kind?: string;
+    exercise?: string;
   }>();
 
-  const [exercise, setExercise] = useState<ExerciseId>('push');
-  const [duration, setDuration] = useState(20);
-
-  const selectedExercise = EXERCISES.find((e) => e.id === exercise)!;
-  const selectedDuration = DURATIONS.find((d) => d.value === duration)!;
-  const isTargeted = !!params.name;
   const inviteKind =
     params.kind === 'train' || params.kind === 'compete' || params.kind === 'duel'
       ? params.kind
       : 'duel';
+  const isCoupleTrain = inviteKind === 'train';
+
+  const [exercise, setExercise] = useState<ExerciseId>(() => parseDuelExercise(params.exercise));
+  const [duration, setDuration] = useState(20);
+
+  const selectedExercise = useMemo(
+    () => EXERCISE_OPTIONS.find((e) => e.id === exercise) ?? EXERCISE_OPTIONS[0]!,
+    [exercise],
+  );
+  const selectedDuration = DURATIONS.find((d) => d.value === duration)!;
+  const isTargeted = !!params.name;
+
+  const pickExercise = (id: ExerciseId) => {
+    const allowed = canStartWorkout({
+      isPro,
+      exercise: id,
+      isCoupleMode: isCoupleTrain,
+    });
+    if (!allowed) {
+      router.push({ pathname: '/modal/paywall', params: { source: 'duel-exercise' } });
+      return;
+    }
+    setExercise(id);
+  };
 
   const start = () => {
+    if (
+      !canStartWorkout({
+        isPro,
+        exercise,
+        isCoupleMode: isCoupleTrain,
+      })
+    ) {
+      router.push({ pathname: '/modal/paywall', params: { source: 'duel-exercise' } });
+      return;
+    }
+
     if (params.queue === '1') {
       router.replace({
         pathname: '/duel/queue',
         params: { exercise, duration: String(duration) },
       });
-    } else {
+      return;
+    }
+
+    const go = () => {
       router.replace({
         pathname: '/duel/[id]',
         params: {
@@ -113,7 +119,37 @@ export default function DuelNewScreen() {
           ...(params.level ? { level: params.level } : {}),
         },
       });
+    };
+
+    const myUid = user?.uid;
+    const target = params.target;
+    if (!myUid || !target) {
+      go();
+      return;
     }
+
+    void (async () => {
+      try {
+        if (await isBlockedEither(myUid, target)) {
+          showDialog({
+            title: 'Unavailable',
+            message: 'You can’t challenge this athlete.',
+            tone: 'info',
+            actions: [{ label: 'Got it', variant: 'primary' }],
+          });
+          return;
+        }
+        assertClientRateLimit('duelInvite', myUid);
+        go();
+      } catch (err) {
+        showDialog({
+          title: 'Could not start',
+          message: err instanceof Error ? err.message : 'Please try again.',
+          tone: 'danger',
+          actions: [{ label: 'Got it', variant: 'primary' }],
+        });
+      }
+    })();
   };
 
   return (
@@ -208,15 +244,19 @@ export default function DuelNewScreen() {
       {/* ── Exercise Picker ── */}
       <Animated.View entering={FadeInUp.duration(400).delay(100)}>
         <Text style={styles.sectionLabel}>EXERCISE</Text>
-        <View style={styles.exerciseRow}>
-          {EXERCISES.map((ex) => {
+        <View style={styles.exerciseGrid}>
+          {EXERCISE_OPTIONS.map((ex) => {
             const selected = exercise === ex.id;
+            const locked =
+              !ex.free &&
+              !isPro &&
+              !isCoupleTrain;
             return (
               <PressableScale
                 key={ex.id}
-                onPress={() => setExercise(ex.id)}
+                onPress={() => pickExercise(ex.id)}
                 accessibilityRole="button"
-                accessibilityLabel={ex.label}
+                accessibilityLabel={`${ex.label}${locked ? ' (Pro)' : ''}`}
                 accessibilityState={{ selected }}
                 style={[
                   styles.exerciseTile,
@@ -238,16 +278,27 @@ export default function DuelNewScreen() {
                     selected && { borderColor: ex.ring },
                   ]}
                 >
-                  <Image
-                    source={ex.id === 'squat' ? IC_SQUAT : IC_PUSHUP}
-                    style={styles.exerciseImg}
-                    contentFit="contain"
-                  />
+                  {ex.id === 'push' || ex.id === 'squat' ? (
+                    <Image
+                      source={ex.id === 'squat' ? IC_SQUAT : IC_PUSHUP}
+                      style={styles.exerciseImg}
+                      contentFit="contain"
+                    />
+                  ) : (
+                    <Text style={styles.exerciseEmoji}>{ex.emoji}</Text>
+                  )}
                 </LinearGradient>
-                <Text style={[styles.exerciseTitle, selected && { color: ex.color }]}>
+                <Text style={[styles.exerciseTitle, selected && { color: ex.color }]} numberOfLines={1}>
                   {ex.label}
                 </Text>
-                <Text style={styles.exerciseDesc}>{ex.desc}</Text>
+                <Text style={styles.exerciseDesc} numberOfLines={1}>
+                  {locked ? 'Pro' : ex.desc}
+                </Text>
+                {locked ? (
+                  <View style={styles.proBadge}>
+                    <Text style={styles.proBadgeText}>PRO</Text>
+                  </View>
+                ) : null}
                 {selected ? (
                   <Animated.View
                     entering={ZoomIn.duration(250)}
@@ -426,17 +477,19 @@ const styles = StyleSheet.create({
   },
 
   /* ── Exercise Tiles ── */
-  exerciseRow: { flexDirection: 'row', gap: 12 },
+  exerciseGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   exerciseTile: {
-    flex: 1,
+    width: '31%',
+    flexGrow: 1,
+    minWidth: '30%',
+    maxWidth: '48%',
     alignItems: 'center',
-    paddingVertical: 20,
-    paddingHorizontal: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
     borderRadius: radius['3xl'],
     backgroundColor: palette.white,
-    gap: 10,
+    gap: 8,
     position: 'relative',
-    // Soft neutral lift at rest; the selected state swaps in an accent glow.
     shadowColor: '#0f172a',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.07,
@@ -444,27 +497,35 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   exerciseIconWrap: {
-    width: 78,
-    height: 78,
-    // Squircle rather than a full circle — reads more modern/premium.
-    borderRadius: 26,
+    width: 56,
+    height: 56,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    // Ring stays reserved so the layout doesn't shift on selection; it only
-    // gains colour when the tile is active.
     borderWidth: 2,
     borderColor: 'transparent',
   },
-  exerciseImg: { width: 58, height: 50 },
-  exerciseTitle: font('extrabold', 16.5, { color: palette.ink }),
-  exerciseDesc: { ...font('bold', 10.5, { color: palette.grey500 }), marginTop: -2 },
+  exerciseImg: { width: 42, height: 36 },
+  exerciseEmoji: { fontSize: 26 },
+  exerciseTitle: font('extrabold', 13, { color: palette.ink }),
+  exerciseDesc: { ...font('bold', 10, { color: palette.grey500 }), marginTop: -2 },
+  proBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: palette.amber200,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  proBadgeText: { ...font('extrabold', 8, { color: palette.amber900 }), letterSpacing: 0.6 },
   selectedDot: {
     position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    top: 8,
+    right: 8,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     shadowOffset: { width: 0, height: 2 },
@@ -472,9 +533,10 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 3,
   },
-  selectedCheck: font('extrabold', 11, { color: '#fff' }),
+  selectedCheck: font('extrabold', 10, { color: '#fff' }),
 
   /* ── Duration Chips ── */
+  exerciseRow: { flexDirection: 'row', gap: 12 },
   durationRow: { flexDirection: 'row', gap: 8 },
   durationChip: {
     flex: 1,

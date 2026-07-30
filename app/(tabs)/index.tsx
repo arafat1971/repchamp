@@ -1,14 +1,22 @@
-import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { track } from '@/lib/analytics';
 import { HeroCard } from '@/components/home/HeroCard';
 import { CoupleStrip } from '@/components/home/CoupleStrip';
-import { PopOnChange, StaggerIn } from '@/components/motion';
+import { CountUp, PopOnChange, StaggerIn } from '@/components/motion';
 import { Avatar, Card, PressableScale, Screen, SectionLabel } from '@/components/ui';
 import { selectHomeFocus, type HomeFocus } from '@/domain/homeFocus';
 import { liveActivity } from '@/domain/liveActivity';
@@ -20,28 +28,27 @@ import {
   selectLeague,
   selectLevel,
   selectStreak,
+  selectWeeklyXp,
 } from '@/state/profileStore';
 import { useCouple } from '@/state/useCouple';
 import { useIncomingDuelCount } from '@/state/useIncomingDuelCount';
 import { useLiveActivityCount } from '@/state/useLiveActivityCount';
+import { useSelfPlayer } from '@/state/useSelfPlayer';
 import type { ExerciseId } from '@/vision/exercises';
 import { font } from '@/theme/typography';
 import { gradients, palette, shadow } from '@/theme/tokens';
+import { showDialog } from '@/state/useDialog';
 
 /** Push-ups is the featured daily challenge; mirrors `app/modal/daily.tsx`. */
 const DAILY_EXERCISE: ExerciseId = 'push';
 const DAILY_TARGET = 25;
 
 // Image assets that give the home its illustrated, design-matched look.
-const IC_PUSHUP = require('../../assets/ic-pushup.png');
 const MEDAL_BRONZE = require('../../assets/medal-bronze.png');
 const HERO_COUPLE = require('../../assets/couple-hero.png');
 const TROPHY_BRONZE = require('../../assets/trophy-bronze.png');
-const IC_LIGHTNING = require('../../assets/ic-lightning.png');
-const IC_TARGET = require('../../assets/ic-target.png');
 
 const BADGE_VS = require('../../assets/badge-vs.png');
-const BADGE_LIVE = require('../../assets/badge-live.png');
 
 function greeting(date = new Date()): string {
   const hour = date.getHours();
@@ -54,9 +61,11 @@ export default function HomeScreen() {
   const router = useRouter();
   const profile = useProfileStore();
   const couple = useCouple();
+  const self = useSelfPlayer();
 
   const level = selectLevel(profile);
   const league = selectLeague(profile);
+  const weeklyXp = selectWeeklyXp(profile);
   const streak = selectStreak(profile);
   const daysTrained = selectDaysTrainedThisWeek(profile);
   const goal = profile.weeklyGoal;
@@ -126,6 +135,31 @@ export default function HomeScreen() {
       case 'recovery':
         return router.push('/modal/rest');
     }
+  };
+
+  /**
+   * Couple strip CTAs: "Train together" opens the exercise picker so partners
+   * can choose push-ups, squats, sit-ups, jumping jacks, etc.
+   */
+  const onCoupleAction = async (action: 'train' | 'nudge' | 'open') => {
+    track('home_couple_strip', { action });
+    if (action === 'nudge' || action === 'open') {
+      router.push('/modal/couple-invite');
+      return;
+    }
+    if (!couple.paired || !couple.partner || !self) {
+      router.push('/modal/couple-invite');
+      return;
+    }
+    router.push({
+      pathname: '/duel/new',
+      params: {
+        role: 'host',
+        kind: 'train',
+        target: couple.partner.uid,
+        name: couple.partner.displayName,
+      },
+    });
   };
 
   // The couple hero is the design's centrepiece — it leads in every steady
@@ -207,27 +241,10 @@ export default function HomeScreen() {
             so the header itself tells you there's something to act on rather
             than making you tap to find out. */}
         <View style={styles.headerActions}>
-          <PressableScale
+          <BellButton
+            pendingDuels={pendingDuels}
             onPress={() => router.push('/modal/notifications')}
-            accessibilityRole="button"
-            accessibilityLabel={
-              pendingDuels > 0
-                ? `${pendingDuels} ${pendingDuels === 1 ? 'rival' : 'rivals'} waiting on you`
-                : 'Notifications'
-            }
-            style={[styles.iconButton, pendingDuels > 0 && styles.iconButtonAlert]}
-          >
-            <Text style={{ fontSize: pendingDuels > 0 ? 16 : 17 }}>
-              {pendingDuels > 0 ? '⚔️' : '🔔'}
-            </Text>
-            {pendingDuels > 0 ? (
-              <PopOnChange trigger={pendingDuels} style={styles.bellDot}>
-                <Text style={font('extrabold', 9, { color: palette.white })}>
-                  {pendingDuels > 9 ? '9+' : pendingDuels}
-                </Text>
-              </PopOnChange>
-            ) : null}
-          </PressableScale>
+          />
         </View>
       </View>
 
@@ -256,12 +273,15 @@ export default function HomeScreen() {
             partner={couple.partner}
             streak={couple.streak}
             combined={couple.combined}
-            onPress={() => router.push('/modal/couple-invite')}
+            atRisk={couple.atRisk}
+            levelName={couple.level.name}
+            today={today}
+            onAction={(action) => void onCoupleAction(action)}
           />
         </StaggerIn>
       ) : null}
 
-      {/* This week + league — illustrated stat cards. */}
+      {/* This week + league — visually distinct cards. */}
       <StaggerIn index={2} style={styles.row}>
         <PressableScale
           onPress={() => router.push('/modal/recap')}
@@ -269,7 +289,7 @@ export default function HomeScreen() {
           accessibilityLabel="Weekly recap"
           style={{ flex: 1 }}
         >
-          <Card style={[styles.statCard, { padding: 0 }]}>
+          <Card style={[styles.statCard, styles.weekCard, { padding: 0 }]}>
             <View style={styles.statCardInner}>
               <View style={styles.miniHeader}>
                 <Text style={font('bold', 12, { color: palette.grey600 })}>This Week</Text>
@@ -301,30 +321,40 @@ export default function HomeScreen() {
           accessibilityLabel="League standings"
           style={{ flex: 1 }}
         >
-          <Card style={[styles.statCard, { padding: 0 }]}>
+          <LinearGradient
+            colors={['#fff7ed', '#ffedd5', '#fde68a']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.statCard, styles.leagueCard]}
+          >
             <View style={styles.statCardInner}>
               <View style={styles.miniHeader}>
-                <Text style={font('bold', 12, { color: palette.grey600 })}>League</Text>
-                <View style={styles.tierChip}>
-                  <Text style={font('extrabold', 9.5, { color: palette.green700, letterSpacing: 0.5 })}>TIER 1</Text>
+                <Text style={font('bold', 12, { color: '#92400e' })}>League</Text>
+                <View style={styles.tierChipBronze}>
+                  <Text style={font('extrabold', 9.5, { color: '#92400e', letterSpacing: 0.5 })}>TIER 1</Text>
                 </View>
               </View>
               <View style={styles.leagueRow}>
                 <Image source={MEDAL_BRONZE} style={styles.medalIcon} contentFit="contain" />
                 <Text style={font('extrabold', 18, { color: palette.ink })}>{league.name}</Text>
               </View>
-              <Text style={font('extrabold', 15, { color: palette.green600, marginTop: 4 })}>
-                230 <Text style={font('bold', 11, { color: palette.grey500 })}>XP</Text>
+              <Text style={font('extrabold', 15, { color: '#b45309', marginTop: 4 })}>
+                <CountUp
+                  value={weeklyXp}
+                  style={font('extrabold', 15, { color: '#b45309' })}
+                />{' '}
+                <Text style={font('bold', 11, { color: '#a16207' })}>XP</Text>
               </Text>
               <View style={styles.trophyWrapper} pointerEvents="none">
                 <Image source={TROPHY_BRONZE} style={styles.trophyCorner} contentFit="contain" />
+                <TrophyShine />
               </View>
             </View>
-          </Card>
+          </LinearGradient>
         </PressableScale>
       </StaggerIn>
 
-      {/* Quick start — the two staples. */}
+      {/* Quick start — clean icon tiles, same style throughout. */}
       <View style={styles.sectionHeader}>
         <SectionLabel style={styles.sectionSpacing}>Quick Start</SectionLabel>
         <PressableScale
@@ -335,28 +365,38 @@ export default function HomeScreen() {
           <Text style={font('bold', 12.5, { color: palette.green600 })}>View all ›</Text>
         </PressableScale>
       </View>
-      <StaggerIn index={3} style={styles.rowTight}>
+      <StaggerIn index={3} style={styles.quickGrid}>
         <QuickTile
           label="Push-Ups"
-          subtitle="Track your reps"
-          image={IC_PUSHUP}
-          colors={['#f0fdf4', '#dcfce7']}
-          borderColor="#bbf7d0"
-          shadowColor="rgba(34,197,94,.25)"
-          subtitleColor="#16a34a"
-          imgStyle={{ width: 180, height: 185, marginBottom: -32 }}
+          subtitle="AI tracked"
+          emoji="💪"
+          accent="#16a34a"
+          tint={['#f0fdf4', '#dcfce7']}
           onPress={() => router.push({ pathname: '/session', params: { exercise: 'push', mode: 'practice' } })}
         />
         <QuickTile
           label="Squats"
-          subtitle="Track your reps"
-          image={require('../../assets/ic-squat.png')}
-          colors={['#faf5ff', '#f3e8ff']}
-          borderColor="#e9d5ff"
-          shadowColor="rgba(168,85,247,.25)"
-          subtitleColor="#9333ea"
-          imgStyle={{ width: 165, height: 176, marginBottom: -30 }}
+          subtitle="AI tracked"
+          emoji="🦵"
+          accent="#7c3aed"
+          tint={['#faf5ff', '#f3e8ff']}
           onPress={() => router.push({ pathname: '/session', params: { exercise: 'squat', mode: 'practice' } })}
+        />
+        <QuickTile
+          label="Custom"
+          subtitle="Full library"
+          emoji="🏋️"
+          accent="#ea580c"
+          tint={['#fff7ed', '#ffedd5']}
+          onPress={() => router.push('/(tabs)/train')}
+        />
+        <QuickTile
+          label="AI Camera"
+          subtitle="Start tracking"
+          emoji="📷"
+          accent="#0284c7"
+          tint={['#f0f9ff', '#e0f2fe']}
+          onPress={() => router.push({ pathname: '/session', params: { exercise: 'push', mode: 'practice' } })}
         />
       </StaggerIn>
 
@@ -396,7 +436,6 @@ export default function HomeScreen() {
               // A seeded AI exhibition match — shown live, but clearly labelled
               // AI, with a real scoreboard driven by the phantom's progress.
               if (ch) {
-                const prog = `${Math.round(ch.progress * 100)}%`;
                 return (
                   <>
                     <View style={styles.challengeRow}>
@@ -404,7 +443,7 @@ export default function HomeScreen() {
                         <Avatar
                           initial={ch.player1.initial}
                           emoji={ch.player1.emoji}
-                          size={38}
+                          size={44}
                           background={ch.player1.tintBg}
                           color={ch.player1.tintColor}
                         />
@@ -412,7 +451,7 @@ export default function HomeScreen() {
                         <Avatar
                           initial={ch.player2.initial}
                           emoji={ch.player2.emoji}
-                          size={38}
+                          size={44}
                           background={ch.player2.tintBg}
                           color={ch.player2.tintColor}
                         />
@@ -430,20 +469,13 @@ export default function HomeScreen() {
                         </View>
                       </View>
                       <View style={styles.challengeTrailing}>
-                        <Image source={BADGE_LIVE} style={styles.liveBadge} contentFit="contain" />
+                        <LivePulseBadge />
                         <Text style={font('bold', 11, { color: palette.slate500, marginTop: 3 })}>{ch.timeLeft} left</Text>
                       </View>
                     </View>
                     <View style={styles.matchProgressRow}>
                       <Text style={font('extrabold', 18, { color: '#16a34a', width: 28 })}>{ch.score1}</Text>
-                      <View style={styles.matchProgressBar}>
-                        <LinearGradient
-                          colors={['#22c55e', '#34d26a', '#4ade80']}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 0 }}
-                          style={{ width: prog as `${number}%`, height: '100%' }}
-                        />
-                      </View>
+                      <MatchProgressBar progress={ch.progress} />
                       <Text style={font('extrabold', 18, { color: palette.slate700, width: 28, textAlign: 'right' })}>{ch.score2}</Text>
                     </View>
                   </>
@@ -457,11 +489,11 @@ export default function HomeScreen() {
                 <View style={styles.challengeRow}>
                   <View style={styles.vsAvatars}>
                     <View style={[styles.vsAvatar, styles.vsAvatarMe]}>
-                      <Text style={{ fontSize: 22 }}>👨</Text>
+                      <Text style={{ fontSize: 24 }}>👨</Text>
                     </View>
                     <Image source={BADGE_VS} style={styles.vsBadge} contentFit="contain" />
                     <View style={[styles.vsAvatar, styles.vsAvatarThem]}>
-                      <Text style={{ fontSize: 20 }}>{hasPending ? '🔥' : '👋'}</Text>
+                      <Text style={{ fontSize: 22 }}>{hasPending ? '🔥' : '👋'}</Text>
                     </View>
                   </View>
                   <View style={{ flex: 1 }}>
@@ -482,49 +514,50 @@ export default function HomeScreen() {
         </PressableScale>
       </StaggerIn>
 
-      {/* Below the fold — clean action rows. */}
+      {/* Below the fold — action rows with clear icons. */}
       <SectionLabel style={styles.sectionSpacing}>More</SectionLabel>
       <StaggerIn index={5}>
-        {/* Quick Match */}
-        <PressableScale
+        <MoreRow
+          emoji="⚡"
+          title="Quick Match"
+          subtitle="Real athletes or AI — always a duel"
           onPress={() => router.push({ pathname: '/duel/new', params: { queue: '1' } })}
-          accessibilityRole="button"
-          accessibilityLabel="Quick match with anyone"
-        >
-          <View style={styles.moreCard}>
-            <View style={styles.moreIcon}>
-              <Image source={IC_LIGHTNING} style={styles.moreIconImg} contentFit="contain" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.moreTitle}>Quick Match</Text>
-              <Text style={styles.moreSub}>Find an opponent instantly</Text>
-            </View>
-            <Text style={styles.moreChevron}>›</Text>
-          </View>
-        </PressableScale>
-
+        />
         <View style={{ height: 10 }} />
-
-        {/* Daily Challenge */}
-        <PressableScale
+        <MoreRow
+          emoji="🎯"
+          title="Daily Challenge"
+          subtitle="Clear the target before midnight"
+          pill="+300 XP"
           onPress={() => router.push('/modal/daily')}
-          accessibilityRole="button"
-          accessibilityLabel="Daily challenge: clear the target for 300 XP"
-        >
-          <View style={styles.moreCard}>
-            <View style={styles.moreIcon}>
-              <Image source={IC_TARGET} style={styles.moreIconImg} contentFit="contain" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.moreTitle}>Daily Challenge</Text>
-              <Text style={styles.moreSub}>Clear the target before midnight</Text>
-            </View>
-            <View style={styles.morePill}>
-              <Text style={styles.morePillText}>+300 XP</Text>
-            </View>
-            <Text style={styles.moreChevron}>›</Text>
-          </View>
-        </PressableScale>
+        />
+        <View style={{ height: 10 }} />
+        <MoreRow
+          emoji="👥"
+          title="Invite Friend"
+          subtitle="Challenge someone you know"
+          onPress={() => router.push('/modal/add-friend')}
+        />
+        <View style={{ height: 10 }} />
+        <MoreRow
+          emoji="🏆"
+          title="Tournament"
+          subtitle="Climb the arena brackets"
+          onPress={() => {
+            showDialog({
+              title: 'Tournaments coming soon',
+              message: 'Bracket play is on the way. Jump into Arena for live duels in the meantime.',
+              actions: [
+                { label: 'Not now', variant: 'cancel' },
+                {
+                  label: 'Open Arena',
+                  variant: 'primary',
+                  onPress: () => router.push('/(tabs)/arena'),
+                },
+              ],
+            });
+          }}
+        />
       </StaggerIn>
     </Screen>
   );
@@ -575,39 +608,32 @@ function CoupleHero({
           source={HERO_COUPLE}
           style={styles.coupleHeroPhoto}
           contentFit="cover"
-          // Framed toward the right so the couple sits in the clear half of the
-          // card rather than behind the copy column.
-          contentPosition="right"
+          // Shifted slightly down so the crown is less dominant in the frame.
+          contentPosition={{ top: '18%', right: 0 }}
         />
 
-        {/**
-         * The single mask behind the copy: solid black at the left edge fading
-         * to fully transparent across the card.
-         *
-         * A short ramp: it turns over by ~26% and is fully clear by ~68%, so
-         * the mask sits under the copy without reaching across the couple.
-         * Deliberately much shorter than the card — running it to the right
-         * edge dimmed the artwork for no legibility gain, since the text never
-         * extends past the copy column.
-         *
-         * Built as a LinearGradient rather than a bitmap so it scales to any
-         * card width without the banding a stretched gradient image shows.
-         */}
+        {/* Soft wash over the photo — cuts landmark glow ~30% and mutes the crown. */}
+        <View style={styles.coupleHeroPhotoWash} pointerEvents="none" />
+        <LinearGradient
+          colors={['transparent', 'rgba(10,30,16,0.35)', 'rgba(8,24,12,0.55)']}
+          locations={[0.35, 0.72, 1]}
+          start={{ x: 0.55, y: 0 }}
+          end={{ x: 1, y: 0.35 }}
+          style={styles.coupleHeroCrownFade}
+          pointerEvents="none"
+        />
+
         <LinearGradient
           colors={[
-            'rgba(0,0,0,0.77)',
-            'rgba(0,0,0,0.76)',
-            'rgba(0,0,0,0.60)',
+            'rgba(0,0,0,0.88)',
+            'rgba(0,0,0,0.82)',
+            'rgba(0,0,0,0.62)',
             'rgba(0,0,0,0.28)',
             'transparent',
           ]}
-          locations={[0, 0.26, 0.4, 0.54, 0.68]}
+          locations={[0, 0.22, 0.4, 0.58, 0.74]}
           start={{ x: 0, y: 0.5 }}
           end={{ x: 1, y: 0.5 }}
-          // Explicit layer between the photo (1) and the copy (3). Without it
-          // the gradient defaults to z-index 0 and the photo's explicit
-          // `zIndex: 1` lifts the artwork *above* the mask on Android, leaving
-          // the text sitting on the raw image.
           style={[StyleSheet.absoluteFill, styles.coupleHeroMask]}
           pointerEvents="none"
         />
@@ -623,14 +649,19 @@ function CoupleHero({
             </Text>
           </View>
 
-          <BlurView intensity={40} tint="light" style={styles.coupleCtaLight} experimentalBlurMethod="dimezisBlurView">
-            <Text style={font('extrabold', 13.5, { color: palette.white, textShadowColor: 'rgba(0,0,0,0.15)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 })}>
+          <LinearGradient
+            colors={['#86efac', '#22c55e', '#16a34a']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.coupleCtaBright}
+          >
+            <Text style={font('extrabold', 13.5, { color: palette.white })}>
               {paired ? 'Open couple mode' : 'Start Together'}
             </Text>
-            <View style={styles.coupleCtaArrowLight}>
-              <Text style={font('extrabold', 12, { color: palette.white })}>→</Text>
+            <View style={styles.coupleCtaArrowBright}>
+              <Text style={font('extrabold', 12, { color: palette.green700 })}>→</Text>
             </View>
-          </BlurView>
+          </LinearGradient>
         </View>
 
         {/* Proof chips: the mechanics, not a restatement of the subtitle. The
@@ -658,26 +689,151 @@ function CoupleChip({ emoji, label }: { emoji: string; label: string }) {
   );
 }
 
-/** A square quick-start tile — one exercise, one tap. Image icon or emoji. */
+/** Notification bell — wiggles when rivals are waiting. */
+function BellButton({ pendingDuels, onPress }: { pendingDuels: number; onPress: () => void }) {
+  const rotate = useSharedValue(0);
+
+  useEffect(() => {
+    if (pendingDuels <= 0) {
+      rotate.value = 0;
+      return;
+    }
+    rotate.value = withRepeat(
+      withSequence(
+        withTiming(-12, { duration: 90 }),
+        withTiming(12, { duration: 90 }),
+        withTiming(-8, { duration: 80 }),
+        withTiming(8, { duration: 80 }),
+        withTiming(0, { duration: 70 }),
+        withDelay(2200, withTiming(0, { duration: 0 })),
+      ),
+      -1,
+      false,
+    );
+  }, [pendingDuels, rotate]);
+
+  const wiggleStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotate.value}deg` }],
+  }));
+
+  return (
+    <PressableScale
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={
+        pendingDuels > 0
+          ? `${pendingDuels} ${pendingDuels === 1 ? 'rival' : 'rivals'} waiting on you`
+          : 'Notifications'
+      }
+      style={[styles.iconButton, pendingDuels > 0 && styles.iconButtonAlert]}
+    >
+      <Animated.Text style={[{ fontSize: pendingDuels > 0 ? 16 : 17 }, wiggleStyle]}>
+        {pendingDuels > 0 ? '⚔️' : '🔔'}
+      </Animated.Text>
+      {pendingDuels > 0 ? (
+        <PopOnChange trigger={pendingDuels} style={styles.bellDot}>
+          <Text style={font('extrabold', 9, { color: palette.white })}>
+            {pendingDuels > 9 ? '9+' : pendingDuels}
+          </Text>
+        </PopOnChange>
+      ) : null}
+    </PressableScale>
+  );
+}
+
+/** Soft gold shimmer that sweeps across the league trophy every few seconds. */
+function TrophyShine() {
+  const x = useSharedValue(-40);
+
+  useEffect(() => {
+    x.value = withRepeat(
+      withSequence(
+        withDelay(2800, withTiming(110, { duration: 900, easing: Easing.inOut(Easing.quad) })),
+        withTiming(-40, { duration: 0 }),
+      ),
+      -1,
+      false,
+    );
+  }, [x]);
+
+  const shineStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: x.value }, { rotate: '22deg' }],
+  }));
+
+  return <Animated.View pointerEvents="none" style={[styles.trophyShine, shineStyle]} />;
+}
+
+/** LIVE badge with a pulsing green dot. */
+function LivePulseBadge() {
+  const pulse = useSharedValue(0.45);
+
+  useEffect(() => {
+    pulse.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 700, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.45, { duration: 700, easing: Easing.inOut(Easing.ease) }),
+      ),
+      -1,
+      false,
+    );
+  }, [pulse]);
+
+  const pulseStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
+
+  return (
+    <View style={styles.livePulseBadge}>
+      <Animated.View style={[styles.livePulseDot, pulseStyle]} />
+      <Text style={font('extrabold', 10, { color: palette.green700, letterSpacing: 0.6 })}>LIVE</Text>
+    </View>
+  );
+}
+
+/** Challenge progress bar that fills smoothly on mount. */
+function MatchProgressBar({ progress }: { progress: number }) {
+  const width = useSharedValue(0);
+
+  useEffect(() => {
+    width.value = withDelay(
+      280,
+      withTiming(Math.max(0, Math.min(1, progress)), {
+        duration: 900,
+        easing: Easing.out(Easing.cubic),
+      }),
+    );
+  }, [progress, width]);
+
+  const fillStyle = useAnimatedStyle(() => ({
+    width: `${Math.round(width.value * 100)}%`,
+  }));
+
+  return (
+    <View style={styles.matchProgressBar}>
+      <Animated.View style={[{ height: '100%' }, fillStyle]}>
+        <LinearGradient
+          colors={['#22c55e', '#34d26a', '#4ade80']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={StyleSheet.absoluteFill}
+        />
+      </Animated.View>
+    </View>
+  );
+}
+
+/** Clean quick-start tile — consistent icon bubble, no oversized cartoon art. */
 function QuickTile({
   label,
   subtitle,
-  image,
-  colors,
-  borderColor,
-  shadowColor,
-  subtitleColor,
-  imgStyle,
+  emoji,
+  accent,
+  tint,
   onPress,
 }: {
   label: string;
   subtitle: string;
-  image: number;
-  colors: readonly [string, string];
-  borderColor: string;
-  shadowColor: string;
-  subtitleColor: string;
-  imgStyle?: any;
+  emoji: string;
+  accent: string;
+  tint: readonly [string, string];
   onPress: () => void;
 }) {
   return (
@@ -685,23 +841,55 @@ function QuickTile({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`Practice ${label}`}
-      style={{ flex: 1 }}
+      style={styles.quickTileWrap}
     >
-      <LinearGradient
-        colors={colors}
-        start={{ x: 0.2, y: 0 }}
-        end={{ x: 0.8, y: 1 }}
-        style={[
-          styles.quickTileNew,
-          { borderColor, shadowColor },
-        ]}
-      >
-        <View style={styles.quickImgContainer}>
-          <Image source={image} style={[styles.quickImgBig, imgStyle]} contentFit="contain" />
+      <LinearGradient colors={tint} start={{ x: 0.2, y: 0 }} end={{ x: 0.8, y: 1 }} style={styles.quickTileNew}>
+        <View style={[styles.quickEmojiBubble, { backgroundColor: `${accent}18`, borderColor: `${accent}33` }]}>
+          <Text style={{ fontSize: 26 }}>{emoji}</Text>
         </View>
-        <Text style={font('extrabold', 15, { color: palette.ink, marginTop: 2 })}>{label}</Text>
-        <Text style={font('bold', 11, { color: subtitleColor, marginTop: 1, marginBottom: 5 })}>{subtitle}</Text>
+        <Text style={font('extrabold', 14, { color: palette.ink, marginTop: 10 })} numberOfLines={1}>
+          {label}
+        </Text>
+        <Text style={font('bold', 11, { color: accent, marginTop: 2 })}>{subtitle}</Text>
       </LinearGradient>
+    </PressableScale>
+  );
+}
+
+function MoreRow({
+  emoji,
+  title,
+  subtitle,
+  pill,
+  onPress,
+}: {
+  emoji: string;
+  title: string;
+  subtitle: string;
+  pill?: string;
+  onPress: () => void;
+}) {
+  return (
+    <PressableScale
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+    >
+      <View style={styles.moreCard}>
+        <View style={styles.moreIcon}>
+          <Text style={{ fontSize: 20 }}>{emoji}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.moreTitle}>{title}</Text>
+          <Text style={styles.moreSub}>{subtitle}</Text>
+        </View>
+        {pill ? (
+          <View style={styles.morePill}>
+            <Text style={styles.morePillText}>{pill}</Text>
+          </View>
+        ) : null}
+        <Text style={styles.moreChevron}>›</Text>
+      </View>
     </PressableScale>
   );
 }
@@ -846,6 +1034,21 @@ const styles = StyleSheet.create({
   },
   /** Sits above the photo (1), below the copy (3). */
   coupleHeroMask: { zIndex: 2 },
+  /** Soft green wash to mute cyan landmark glow baked into the hero art. */
+  coupleHeroPhotoWash: {
+    ...StyleSheet.absoluteFill,
+    zIndex: 2,
+    backgroundColor: 'rgba(30, 80, 40, 0.28)',
+  },
+  /** Soft top-right fade so the crown is less dominant. */
+  coupleHeroCrownFade: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: '55%',
+    height: '55%',
+    zIndex: 2,
+  },
   coupleHeroContent: {
     position: 'relative',
     zIndex: 3,
@@ -896,31 +1099,29 @@ const styles = StyleSheet.create({
     height: 12,
     backgroundColor: 'rgba(255,255,255,0.35)',
   },
-  coupleCtaLight: {
+  coupleCtaBright: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 9,
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255,255,255,0.2)',
     paddingLeft: 16,
     paddingRight: 7,
     paddingVertical: 7,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.4)',
-    overflow: 'hidden',
-    // Nudged down 10px per design — sits a touch lower under the hero copy.
+    borderColor: 'rgba(255,255,255,0.45)',
     transform: [{ translateY: 10 }],
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
+    shadowColor: '#16a34a',
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
-  coupleCtaArrowLight: {
+  coupleCtaArrowBright: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: palette.white,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -946,6 +1147,32 @@ const styles = StyleSheet.create({
   // Stat cards
   row: { flexDirection: 'row', gap: 12, marginTop: 18, alignItems: 'stretch' },
   rowTight: { flexDirection: 'row', gap: 12 },
+  weekCard: {
+    backgroundColor: palette.white,
+    borderColor: '#bbf7d0',
+    borderWidth: 1.5,
+  },
+  leagueCard: {
+    borderWidth: 1.5,
+    borderColor: '#f59e0b',
+    overflow: 'hidden',
+  },
+  tierChipBronze: {
+    backgroundColor: 'rgba(146,64,14,0.12)',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: 'rgba(180,83,9,0.35)',
+  },
+  trophyShine: {
+    position: 'absolute',
+    top: 8,
+    bottom: 8,
+    width: 28,
+    backgroundColor: 'rgba(255,255,255,0.45)',
+    opacity: 0.55,
+  },
   statCard: {
     flex: 1,
     height: 146,
@@ -971,15 +1198,16 @@ const styles = StyleSheet.create({
   medalIcon: { width: 66, height: 44, marginRight: -8, marginLeft: -6, marginTop: -4 },
   trophyWrapper: {
     position: 'absolute',
-    right: -10,
-    bottom: -18,
-    width: 100,
-    height: 100,
+    right: -14,
+    bottom: -22,
+    width: 118,
+    height: 118,
     shadowColor: '#78350f',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.35,
     shadowRadius: 10,
     elevation: 8,
+    overflow: 'hidden',
   },
   trophyCorner: {
     width: '100%',
@@ -991,6 +1219,8 @@ const styles = StyleSheet.create({
   // Consistent section rhythm — iOS groups content with generous, even gaps
   // rather than varying margins per section.
   sectionSpacing: { marginTop: 28, marginBottom: 14 },
+  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  quickTileWrap: { width: '47%', flexGrow: 1 },
   quickTile: {
     height: 130,
     borderRadius: 20,
@@ -999,17 +1229,28 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   quickTileNew: {
-    height: 144,
+    minHeight: 128,
     borderRadius: 20,
-    padding: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
     borderWidth: 1,
+    borderColor: 'rgba(15,23,42,0.06)',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    shadowColor: '#0f172a',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.08,
     shadowRadius: 10,
-    elevation: 3,
+    elevation: 2,
+  },
+  quickEmojiBubble: {
+    width: 54,
+    height: 54,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   quickImgContainer: { height: 92, justifyContent: 'center', alignItems: 'center' },
   quickImgBig: { width: 98, height: 92 },
@@ -1079,9 +1320,9 @@ const styles = StyleSheet.create({
   },
   vsAvatars: { flexDirection: 'row', alignItems: 'center' },
   vsAvatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#f0f4f0',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1092,9 +1333,26 @@ const styles = StyleSheet.create({
   vsBadge: { width: 46, height: 31, marginHorizontal: -10, zIndex: 2 },
   challengeTrailing: { alignItems: 'center', justifyContent: 'center' },
   liveBadge: { width: 60, height: 40 },
+  livePulseBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: palette.green50,
+    borderWidth: 1,
+    borderColor: '#86efac',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  livePulseDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: palette.green500,
+  },
   fireIcon: { width: 34, height: 34 },
   matchProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14 },
-  matchProgressBar: { flex: 1, height: 9, borderRadius: 6, backgroundColor: palette.green50, overflow: 'hidden' },
+  matchProgressBar: { flex: 1, height: 12, borderRadius: 6, backgroundColor: palette.green50, overflow: 'hidden' },
 
   // More — clean action rows
   moreCard: {
@@ -1112,7 +1370,9 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 14,
-    backgroundColor: palette.green500,
+    backgroundColor: palette.green50,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
     alignItems: 'center',
     justifyContent: 'center',
   },

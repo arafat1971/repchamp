@@ -3,6 +3,10 @@ import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { PressableScale, PrimaryButton } from '@/components/ui';
+import {
+  EXERCISE_SAFETY_BODY,
+  EXERCISE_SAFETY_TITLE,
+} from '@/domain/exerciseSafety';
 import { font, text } from '@/theme/typography';
 import { palette, radius } from '@/theme/tokens';
 
@@ -27,6 +31,11 @@ const TIPS: readonly { emoji: string; title: string; body: string }[] = [
     emoji: '💡',
     title: 'Keep the light in front',
     body: 'Face a window or lamp. Backlight turns you into a silhouette the model can’t read.',
+  },
+  {
+    emoji: '❤️',
+    title: EXERCISE_SAFETY_TITLE,
+    body: EXERCISE_SAFETY_BODY,
   },
 ];
 

@@ -7,12 +7,17 @@ import { Card, Chevron, Divider, Eyebrow, PressableScale, Screen, Toggle } from 
 import { captureError } from '@/lib/crash';
 import {
   cancelDailyTrainingReminder,
-  scheduleDailyTrainingReminder,
+  syncLocalReminders,
 } from '@/lib/notifications';
 import { clearAllStorage } from '@/lib/storage';
 import { deleteAccount, exportAccountData } from '@/services/accountService';
+import { isPurchasesConfigured, resetPurchases, restore } from '@/services/purchases';
+import { track } from '@/lib/analytics';
 import { useAuthStore } from '@/state/authStore';
+import { useProStore } from '@/state/proStore';
 import { showDialog } from '@/state/useDialog';
+import { dayKey } from '@/domain/progression';
+import { useCouple } from '@/state/useCouple';
 import { useProfileStore } from '@/state/profileStore';
 import { useSettingsStore, type SettingsToggle } from '@/state/settingsStore';
 import { font, text } from '@/theme/typography';
@@ -42,7 +47,7 @@ const PRIVACY_TOGGLES: ToggleRow[] = [
     key: 'dailyReminder',
     emoji: '⏰',
     title: 'Daily reminders',
-    subtitle: 'Come-train nudges, 3 times a day',
+    subtitle: 'One evening nudge if you haven’t trained',
   },
   {
     key: 'privateProfile',
@@ -65,11 +70,23 @@ export default function SettingsScreen() {
   const router = useRouter();
   const settings = useSettingsStore();
   const resetProfile = useProfileStore((s) => s.reset);
+  const sessions = useProfileStore((s) => s.sessions);
+  const couple = useCouple();
   const cloudConfigured = useAuthStore((s) => s.configured);
   const syncStatus = useAuthStore((s) => s.status);
   const cloudSignOut = useAuthStore((s) => s.signOut);
   const uid = useAuthStore((s) => s.user?.uid ?? null);
-  const [busy, setBusy] = useState<null | 'export' | 'delete'>(null);
+  const setPro = useProStore((s) => s.setPro);
+  const refreshPro = useProStore((s) => s.refresh);
+  const [busy, setBusy] = useState<null | 'export' | 'delete' | 'restore'>(null);
+
+  const clearLocalSession = async () => {
+    await resetPurchases();
+    setPro(false);
+    void cloudSignOut();
+    resetProfile();
+    clearAllStorage();
+  };
 
   const logOut = () => {
     showDialog({
@@ -83,16 +100,42 @@ export default function SettingsScreen() {
           label: 'Log out',
           variant: 'destructive',
           onPress: () => {
-            // Sign out of the cloud first (no-op when unconfigured), then wipe
-            // the local device so nothing lingers behind.
-            void cloudSignOut();
-            resetProfile();
-            clearAllStorage();
-            router.replace('/onboarding');
+            void (async () => {
+              await clearLocalSession();
+              router.replace('/onboarding');
+            })();
           },
         },
       ],
     });
+  };
+
+  const onRestore = () => {
+    if (busy || !isPurchasesConfigured()) return;
+    setBusy('restore');
+    void (async () => {
+      const result = await restore();
+      setBusy(null);
+      if (result.ok && result.isPro) {
+        setPro(true);
+        await refreshPro();
+        track('restore_completed', { restored: true });
+        showDialog({
+          title: 'Restored',
+          message: 'Your Pro subscription is active again.',
+          tone: 'success',
+          actions: [{ label: 'Got it', variant: 'primary' }],
+        });
+        return;
+      }
+      track('restore_completed', { restored: false });
+      showDialog({
+        title: result.ok ? 'Nothing to restore' : 'Restore failed',
+        message: result.message ?? 'No active subscription was found for this account.',
+        tone: result.ok ? 'info' : 'danger',
+        actions: [{ label: 'Got it', variant: 'primary' }],
+      });
+    })();
   };
 
   /**
@@ -158,9 +201,7 @@ export default function SettingsScreen() {
                 // half-deleted data; log it, then still wipe local and sign out.
                 captureError(error);
               } finally {
-                void cloudSignOut();
-                resetProfile();
-                clearAllStorage();
+                await clearLocalSession();
                 setBusy(null);
                 router.replace('/onboarding');
               }
@@ -189,8 +230,17 @@ export default function SettingsScreen() {
                 // The daily-reminder toggle owns real OS schedules, so arm or
                 // clear them the moment it flips.
                 if (row.key === 'dailyReminder') {
-                  if (next) void scheduleDailyTrainingReminder();
-                  else void cancelDailyTrainingReminder();
+                  const trainedToday = sessions.some((s) => s.day === dayKey());
+                  if (next) {
+                    void syncLocalReminders({
+                      dailyReminderEnabled: true,
+                      trainedToday,
+                      coupleAtRisk: couple.paired && couple.atRisk,
+                      partnerName: couple.partner?.displayName ?? null,
+                    });
+                  } else {
+                    void cancelDailyTrainingReminder();
+                  }
                 }
                 // Privacy toggle re-syncs immediately so the leaderboard row is
                 // pulled (or restored) right away, not on the next session.
@@ -246,6 +296,22 @@ export default function SettingsScreen() {
           label="Privacy Policy & Terms"
           onPress={() => router.push('/modal/legal')}
         />
+        <Divider />
+        <LinkRow
+          emoji="🚫"
+          label="Blocked users"
+          onPress={() => router.push('/modal/blocked' as never)}
+        />
+        {isPurchasesConfigured() ? (
+          <>
+            <Divider />
+            <LinkRow
+              emoji="♻️"
+              label={busy === 'restore' ? 'Restoring…' : 'Restore purchases'}
+              onPress={onRestore}
+            />
+          </>
+        ) : null}
         {cloudConfigured ? (
           <>
             <Divider />

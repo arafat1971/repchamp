@@ -20,18 +20,17 @@ import { identify, track } from '@/lib/analytics';
 import { initAppCheck } from '@/lib/appCheck';
 import { initCrashReporting, setCrashUser } from '@/lib/crash';
 import {
-  cancelDailyTrainingReminder,
   installForegroundNudgeSuppressor,
   registerForPushNudges,
-  scheduleDailyTrainingReminder,
-  scheduleWeeklyRecap,
 } from '@/lib/notifications';
 import { useAuthStore } from '@/state/authStore';
 import { useProStore } from '@/state/proStore';
 import { usePresenceHeartbeat } from '@/state/usePresenceHeartbeat';
-import { useSettingsStore } from '@/state/settingsStore';
+import { useNotificationSync } from '@/state/useNotificationSync';
+import { useRivalPassedAlert } from '@/state/useRivalPassedAlert';
 import { fontFamily } from '@/theme/typography';
 import { palette } from '@/theme/tokens';
+import { preloadPoseModel } from '@/vision/modelCache';
 
 // Hold the splash until fonts are ready, so the first frame never shows
 // fallback system type in place of Plus Jakarta Sans.
@@ -56,41 +55,56 @@ export default function RootLayout() {
     return releaseAudio;
   }, []);
 
-  // Tap handlers for local/push notifications — weekly recap opens the recap modal.
+  // Tap handlers for local/push notifications.
   useEffect(() => {
     const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const type = response.notification.request.content.data?.type;
+      const data = response.notification.request.content.data ?? {};
+      const type = data.type;
       if (type === 'weekly-recap') {
         router.push('/modal/recap');
+      } else if (type === 'challenge' && typeof data.duelId === 'string') {
+        router.push({ pathname: '/duel/[id]', params: { id: data.duelId, role: 'guest' } });
+      } else if (type === 'rival-passed') {
+        router.push('/(tabs)/friends');
+      } else if (type === 'workout-reminder' || type === 'streak-reminder') {
+        router.push('/(tabs)/train');
+      } else if (type === 'couple-nudge') {
+        router.push('/modal/couple-invite');
       }
     });
     return () => sub.remove();
   }, [router]);
 
-  // Establish the (anonymous) account and start cloud sync. A no-op that just
-  // marks itself ready when Firebase isn't provisioned yet.
+  // Establish the (anonymous) account and start cloud sync. Await App Check
+  // first so early profile writes aren't rejected once enforcement is on.
+  // A no-op that just marks itself ready when Firebase isn't provisioned yet.
   const initializeAuth = useAuthStore((s) => s.initialize);
-  useEffect(() => initializeAuth(), [initializeAuth]);
+  useEffect(() => {
+    let cancelled = false;
+    let stopAuth: (() => void) | undefined;
+    void (async () => {
+      await initAppCheck();
+      if (cancelled) return;
+      stopAuth = initializeAuth();
+    })();
+    return () => {
+      cancelled = true;
+      stopAuth?.();
+    };
+  }, [initializeAuth]);
 
   useEffect(() => {
     initCrashReporting();
-    // Attest this install before the first cloud write, so scores can't be
-    // spoofed by a script holding the public config. No-ops when unconfigured.
-    void initAppCheck();
     track('app_opened');
-    // Draw the athlete back each week to their recap. Idempotent — the fixed id
-    // means re-scheduling on every launch replaces rather than stacks.
-    void scheduleWeeklyRecap();
+    // Warm MoveNet after first paint so session camera is not blocked on load.
+    void preloadPoseModel().catch(() => {
+      // Session hook retries; a failed preload must not crash the shell.
+    });
   }, []);
 
-  // Keep the solo daily reminders in step with the setting: (re)arm the three
-  // fixed schedules while enabled, clear them when off. Fixed ids mean launching
-  // repeatedly just refreshes rather than stacks.
-  const dailyReminder = useSettingsStore((s) => s.dailyReminder);
-  useEffect(() => {
-    if (dailyReminder) void scheduleDailyTrainingReminder();
-    else void cancelDailyTrainingReminder();
-  }, [dailyReminder]);
+  // Low-volume local reminders (≤1/day workout or streak + weekly summary).
+  useNotificationSync();
+  useRivalPassedAlert();
 
   // Once signed in, register this device for push nudges so a partner's poke can
   // reach it even when closed. No-ops until Firebase is provisioned.

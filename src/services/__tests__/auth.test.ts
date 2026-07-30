@@ -223,7 +223,7 @@ describe('signUpWithEmail', () => {
   it('links onto an anonymous account, preserving the uid', async () => {
     const anon = mockUser({ uid: 'keep-uid', isAnonymous: true });
     mockAuthState.currentUser = anon;
-    const u = await signUpWithEmail('a@b.co', 'pw');
+    const u = await signUpWithEmail('a@b.co', 'password1');
     expect(anon.linkWithCredential).toHaveBeenCalledTimes(1);
     expect(mockAuthState.createUserWithEmailAndPassword).not.toHaveBeenCalled();
     expect(u.uid).toBe('keep-uid');
@@ -235,9 +235,18 @@ describe('signUpWithEmail', () => {
     mockAuthState.createUserWithEmailAndPassword.mockResolvedValue({
       user: mockUser({ uid: 'new', email: 'a@b.co' }),
     });
-    const u = await signUpWithEmail('a@b.co', 'pw');
-    expect(mockAuthState.createUserWithEmailAndPassword).toHaveBeenCalledWith('a@b.co', 'pw');
+    const u = await signUpWithEmail('a@b.co', 'password1');
+    expect(mockAuthState.createUserWithEmailAndPassword).toHaveBeenCalledWith(
+      'a@b.co',
+      'password1',
+    );
     expect(u.uid).toBe('new');
+  });
+
+  it('rejects short passwords before calling Firebase', async () => {
+    mockAuthState.currentUser = null;
+    await expect(signUpWithEmail('a@b.co', 'short')).rejects.toThrow(/8/);
+    expect(mockAuthState.createUserWithEmailAndPassword).not.toHaveBeenCalled();
   });
 });
 
@@ -263,6 +272,19 @@ describe('signInWithGoogle', () => {
     const u = await signInWithGoogle('web-client');
     expect(mockAuthState.signInWithCredential).toHaveBeenCalledTimes(1);
     expect(u.uid).toBe('g');
+  });
+
+  it('signs in with the credential when linking fails because Google is already used', async () => {
+    const anon = mockUser({ uid: 'anon', isAnonymous: true });
+    mockAuthState.currentUser = anon;
+    mockGoogle.signIn.mockResolvedValue({ data: { idToken: 'tok' } });
+    anon.linkWithCredential.mockRejectedValue({ code: 'auth/credential-already-in-use' });
+    mockAuthState.signInWithCredential.mockResolvedValue({
+      user: mockUser({ uid: 'existing-google', email: 'g@x.co' }),
+    });
+    const u = await signInWithGoogle('web-client');
+    expect(mockAuthState.signInWithCredential).toHaveBeenCalledTimes(1);
+    expect(u.uid).toBe('existing-google');
   });
 
   it('throws when Google returns no id token', async () => {

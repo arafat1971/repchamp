@@ -90,30 +90,39 @@ describe('RepCounter — push-ups', () => {
     expect(shallow.history[0]?.fullDepth).toBe(false);
   });
 
+  it('rejects partials when requireFullDepth is on (competitive)', () => {
+    const counter = new RepCounter(pushUp, { requireFullDepth: true });
+    const updates = feed(counter, pushUpSet(1, { bottom: 95 }));
+    expect(counter.state.reps).toBe(0);
+    expect(updates.some((u) => u.formCue === 'deeper')).toBe(true);
+
+    feed(counter, pushUpSet(1, { bottom: 70 }));
+    expect(counter.state.reps).toBe(1);
+  });
+
   it('keeps reporting tracking through a brief confidence dip', () => {
     // Confidence collapses at the bottom of a real push-up and recovers at the
     // top; the HUD must not flash "out of frame" once per rep.
     const counter = new RepCounter(pushUp);
     counter.push(pushUpPose(170, 0));
 
-    // 300ms of unusable frames — shorter than the 700ms grace period.
-    for (let t = 33; t <= 300; t += 33) counter.push(pushUpPose(120, t, 0.05));
+    // 600ms of unusable frames — shorter than the 900ms occlusion grace.
+    for (let t = 33; t <= 600; t += 33) counter.push(pushUpPose(120, t, 0.05));
     expect(counter.state.tracking).toBe(true);
 
     // Past the grace period it finally reports lost tracking.
-    for (let t = 333; t <= 900; t += 33) counter.push(pushUpPose(120, t, 0.05));
+    for (let t = 633; t <= 1200; t += 33) counter.push(pushUpPose(120, t, 0.05));
     expect(counter.state.tracking).toBe(false);
   });
 
   it('recovers tracking as soon as confidence returns', () => {
     const counter = new RepCounter(pushUp);
-    for (let t = 0; t <= 900; t += 33) counter.push(pushUpPose(120, t, 0.05));
+    for (let t = 0; t <= 1200; t += 33) counter.push(pushUpPose(120, t, 0.05));
     expect(counter.state.tracking).toBe(false);
 
-    counter.push(pushUpPose(170, 933));
+    counter.push(pushUpPose(170, 1233));
     expect(counter.state.tracking).toBe(true);
   });
-
   it('stops counting while the athlete is out of frame', () => {
     const counter = new RepCounter(pushUp);
     // Same motion, but every joint below the tracking confidence floor.
@@ -135,13 +144,13 @@ describe('RepCounter — push-ups', () => {
     counter.push(pushUpPose(70, 400));
     expect(counter.state.phase).toBe('down');
 
-    // Stay occluded past the grace window.
-    for (let t = 433; t <= 1300; t += 33) counter.push(pushUpPose(70, t, 0.05));
+    // Stay occluded past the 900ms grace window (loss starts ~433).
+    for (let t = 433; t <= 1500; t += 33) counter.push(pushUpPose(70, t, 0.05));
     expect(counter.state.tracking).toBe(false);
     expect(counter.state.phase).toBe('up');
 
     // Returning to the top must NOT close a phantom rep.
-    counter.push(pushUpPose(170, 1333));
+    counter.push(pushUpPose(170, 1533));
     expect(counter.state.reps).toBe(0);
   });
 

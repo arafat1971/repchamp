@@ -61,11 +61,15 @@ export interface QueueInput {
  */
 export async function enqueue(input: QueueInput): Promise<void> {
   if (!isFirebaseConfigured()) return;
-  const ticket = makeTicket(input);
-  await ticketDoc(input.uid).set({
-    ...ticket,
-    enqueuedAt: firestore.FieldValue.serverTimestamp(),
-  });
+  try {
+    const ticket = makeTicket(input);
+    await ticketDoc(input.uid).set({
+      ...ticket,
+      enqueuedAt: firestore.FieldValue.serverTimestamp(),
+    });
+  } catch {
+    // Offline — queue UI falls back to AI rival on timeout.
+  }
 }
 
 /**
@@ -78,59 +82,63 @@ export async function enqueue(input: QueueInput): Promise<void> {
 export async function tryPair(seeker: QueueInput): Promise<string | null> {
   if (!isFirebaseConfigured()) return null;
 
-  // Find the oldest waiting candidates outside the transaction (queries can't run
-  // inside one); the transaction re-validates one before claiming.
-  const snap = await queueCol()
-    .where('status', '==', 'waiting')
-    .orderBy('enqueuedAt', 'asc')
-    .limit(5)
-    .get();
+  try {
+    // Find the oldest waiting candidates outside the transaction (queries can't run
+    // inside one); the transaction re-validates one before claiming.
+    const snap = await queueCol()
+      .where('status', '==', 'waiting')
+      .orderBy('enqueuedAt', 'asc')
+      .limit(5)
+      .get();
 
-  const candidates = snap.docs
-    .map((d) => d.data() as QueueTicket)
-    .filter((t) => canPair(seeker.uid, t));
-  if (candidates.length === 0) return null;
+    const candidates = snap.docs
+      .map((d) => d.data() as QueueTicket)
+      .filter((t) => canPair(seeker.uid, t));
+    if (candidates.length === 0) return null;
 
-  const duelId = firestore().collection(DUELS).doc().id;
-  const guest = makeTicket(seeker);
+    const duelId = firestore().collection(DUELS).doc().id;
+    const guest = makeTicket(seeker);
 
-  return firestore().runTransaction(async (tx) => {
-    const seekerRef = ticketDoc(seeker.uid);
-    const seekerSnap = await tx.get(seekerRef);
-    // If someone paired us while we were scanning, follow that duel instead.
-    if (seekerSnap.exists()) {
-      const mine = seekerSnap.data() as QueueTicket;
-      if (mine.status === 'matched' && mine.duelId) return mine.duelId;
-    }
+    return await firestore().runTransaction(async (tx) => {
+      const seekerRef = ticketDoc(seeker.uid);
+      const seekerSnap = await tx.get(seekerRef);
+      // If someone paired us while we were scanning, follow that duel instead.
+      if (seekerSnap.exists()) {
+        const mine = seekerSnap.data() as QueueTicket;
+        if (mine.status === 'matched' && mine.duelId) return mine.duelId;
+      }
 
-    // Claim the first candidate that's still waiting at transaction time.
-    for (const candidate of candidates) {
-      const candidateRef = ticketDoc(candidate.uid);
-      const candidateSnap = await tx.get(candidateRef);
-      if (!candidateSnap.exists()) continue;
-      const fresh = candidateSnap.data() as QueueTicket;
-      if (!canPair(seeker.uid, fresh)) continue;
+      // Claim the first candidate that's still waiting at transaction time.
+      for (const candidate of candidates) {
+        const candidateRef = ticketDoc(candidate.uid);
+        const candidateSnap = await tx.get(candidateRef);
+        if (!candidateSnap.exists()) continue;
+        const fresh = candidateSnap.data() as QueueTicket;
+        if (!canPair(seeker.uid, fresh)) continue;
 
-      // The waiting athlete hosts; the seeker who claimed them guests.
-      const duel = buildMatchDuel(duelId, fresh, guest);
+        // The waiting athlete hosts; the seeker who claimed them guests.
+        const duel = buildMatchDuel(duelId, fresh, guest);
 
-      tx.set(firestore().collection(DUELS).doc(duelId), {
-        ...duel,
-        createdAt: firestore.FieldValue.serverTimestamp(),
-        startedAt: firestore.FieldValue.serverTimestamp(),
-      });
-      tx.update(candidateRef, { status: 'matched', duelId });
-      tx.set(seekerRef, {
-        ...guest,
-        status: 'matched',
-        duelId,
-        enqueuedAt: firestore.FieldValue.serverTimestamp(),
-      });
-      return duelId;
-    }
+        tx.set(firestore().collection(DUELS).doc(duelId), {
+          ...duel,
+          createdAt: firestore.FieldValue.serverTimestamp(),
+          startedAt: firestore.FieldValue.serverTimestamp(),
+        });
+        tx.update(candidateRef, { status: 'matched', duelId });
+        tx.set(seekerRef, {
+          ...guest,
+          status: 'matched',
+          duelId,
+          enqueuedAt: firestore.FieldValue.serverTimestamp(),
+        });
+        return duelId;
+      }
 
-    return null; // everyone we found got claimed out from under us; stay queued.
-  });
+      return null; // everyone we found got claimed out from under us; stay queued.
+    });
+  } catch {
+    return null;
+  }
 }
 
 /**

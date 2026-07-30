@@ -5,6 +5,7 @@ import Svg, { Path } from 'react-native-svg';
 
 import { ModalHeader } from '@/components/ModalHeader';
 import { Avatar, Card, Divider, Eyebrow, PressableScale, Screen } from '@/components/ui';
+import { isValidUsername, normalizeUsername } from '@/domain/input';
 import { addFriendByUsername } from '@/services/leaderboardService';
 import { usePhantomSeed } from '@/domain/seedPhantoms';
 import { useAuthStore } from '@/state/authStore';
@@ -60,16 +61,25 @@ export default function AddFriendScreen() {
    * to `false`, so the button falls back to a friendly "not available yet" note.
    */
   const addByUsername = async () => {
-    const name = query.trim();
+    const name = normalizeUsername(query);
     if (!name || !uid) return;
+    if (!isValidUsername(name)) {
+      showDialog({
+        title: 'Invalid username',
+        message: 'Usernames are 3–20 characters: letters, numbers, or underscores.',
+        tone: 'danger',
+        actions: [{ label: 'Got it', variant: 'primary' }],
+      });
+      return;
+    }
     setSearching(true);
     try {
       const ok = await addFriendByUsername(uid, name);
       if (ok) {
-        setAdded((prev) => ({ ...prev, [`@${name.toLowerCase()}`]: true }));
+        setAdded((prev) => ({ ...prev, [`@${name}`]: true }));
         showDialog({
           title: 'Friend added',
-          message: `@${name.toLowerCase()} is on your list. They can add you back by your username.`,
+          message: `@${name} is on your list. They can add you back by your username.`,
           tone: 'success',
           actions: [{ label: 'Got it', variant: 'primary' }],
         });

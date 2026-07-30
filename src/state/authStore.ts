@@ -119,30 +119,35 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     const level = selectLevel(p).level;
     const league = selectLeague(p).id;
 
-    await upsertProfile({
-      uid: user.uid,
-      username: (p.username || 'champion').toLowerCase(),
-      displayName: p.displayName,
-      avatarUrl: p.avatarUri,
-      weeklyGoal: p.weeklyGoal,
-      totalXp: p.totalXp,
-      personalBests: p.personalBests,
-    });
-
-    // A private profile means private: pull the row out of the ranked
-    // collection entirely rather than just hiding it in the local UI.
-    if (useSettingsStore.getState().privateProfile) {
-      await removeScore(user.uid);
-    } else {
-      await publishScore({
+    try {
+      await upsertProfile({
         uid: user.uid,
+        username: (p.username || 'champion').toLowerCase(),
         displayName: p.displayName,
         avatarUrl: p.avatarUri,
-        weeklyXp,
+        weeklyGoal: p.weeklyGoal,
         totalXp: p.totalXp,
-        level,
-        league,
+        personalBests: p.personalBests,
       });
+
+      // A private profile means private: pull the row out of the ranked
+      // collection entirely rather than just hiding it in the local UI.
+      if (useSettingsStore.getState().privateProfile) {
+        await removeScore(user.uid);
+      } else {
+        await publishScore({
+          uid: user.uid,
+          displayName: p.displayName,
+          avatarUrl: p.avatarUri,
+          weeklyXp,
+          totalXp: p.totalXp,
+          level,
+          league,
+        });
+      }
+    } catch {
+      // Offline / App Check / transient — keep local state; next sync retries.
+      set({ status: 'error' });
     }
   },
 

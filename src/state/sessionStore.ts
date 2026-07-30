@@ -49,7 +49,12 @@ export interface SessionState {
   tickCountdown: () => void;
   beginActive: () => void;
   /** Called from the pose pipeline on every frame. */
-  applyPose: (input: { depth: number; tracking: boolean; completedRep: RepRecord | null }) => void;
+  applyPose: (input: {
+    depth: number;
+    tracking: boolean;
+    completedRep: RepRecord | null;
+    formCue?: 'deeper' | null;
+  }) => void;
   setOpponentReps: (reps: number) => void;
   /** Record the live opponent's display name once it resolves from the duel doc. */
   setOpponentName: (name: string) => void;
@@ -135,7 +140,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
 
   beginActive: () => set({ phase: 'active' }),
 
-  applyPose: ({ depth, tracking, completedRep }) => {
+  applyPose: ({ depth, tracking, completedRep, formCue }) => {
     const state = get();
     if (state.phase !== 'active') return;
 
@@ -150,8 +155,13 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
        * commits on a real transition.
        */
       const quantised = Math.round(depth * 20) / 20;
-      if (quantised !== state.depth || tracking !== state.tracking) {
-        set({ depth: quantised, tracking });
+      const deeper = formCue === 'deeper' ? 'Go a little deeper' : null;
+      if (quantised !== state.depth || tracking !== state.tracking || deeper) {
+        set({
+          depth: quantised,
+          tracking,
+          ...(deeper ? { formCue: deeper } : {}),
+        });
       }
       return;
     }

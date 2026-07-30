@@ -71,12 +71,11 @@ export default function OpponentPickerScreen() {
       />
 
       <PressableScale
-        onPress={() => {
-          const random = allOpponents[Math.floor(Math.random() * allOpponents.length)]!;
-          start(random.id);
-        }}
+        onPress={() =>
+          router.replace({ pathname: '/duel/new', params: { queue: '1' } })
+        }
         accessibilityRole="button"
-        accessibilityLabel="Quick match with a random rival"
+        accessibilityLabel="Quick match — live athletes or AI rival"
       >
         <LinearGradient colors={gradients.brandStrong} style={[styles.quickMatch, shadow.brand]}>
           <View style={styles.quickIcon}>
@@ -87,7 +86,7 @@ export default function OpponentPickerScreen() {
           <View style={{ flex: 1 }}>
             <Text style={font('extrabold', 16, { color: palette.white })}>Quick Match</Text>
             <Text style={font('semibold', 11, { color: 'rgba(255,255,255,0.9)' })}>
-              We&apos;ll pair you with someone at your level
+              Real athletes first — AI rival if nobody&apos;s free
             </Text>
           </View>
           <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 20 }}>›</Text>

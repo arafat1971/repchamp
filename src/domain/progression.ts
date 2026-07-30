@@ -146,3 +146,14 @@ export function lastNDayKeys(n: number, today: Date = new Date()): string[] {
   }
   return keys;
 }
+
+const WEEKDAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const;
+
+/**
+ * Single weekday letter for an ISO `YYYY-MM-DD` day key.
+ * Uses noon local time so DST edges don't shift the calendar day.
+ */
+export function weekdayLetter(isoDay: string): string {
+  const d = new Date(`${isoDay}T12:00:00`);
+  return WEEKDAY_LETTERS[d.getDay()] ?? '?';
+}

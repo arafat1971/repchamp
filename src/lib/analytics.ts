@@ -1,4 +1,5 @@
-import Constants from 'expo-constants';
+import { posthogKey } from '@/lib/config';
+import { assertHttps } from '@/lib/https';
 
 /**
  * Product analytics — a thin, provider-agnostic wrapper.
@@ -31,6 +32,7 @@ export interface AnalyticsEvents {
 
   home_hero_shown: { kind: string };
   home_hero_tapped: { kind: string };
+  home_couple_strip: { action: 'train' | 'nudge' | 'open' };
 
   couple_invite_created: Record<string, never>;
   couple_paired: { via: 'code' | 'qr' | 'link' };
@@ -40,6 +42,7 @@ export interface AnalyticsEvents {
   paywall_viewed: { source: string };
   trial_started: { plan: string };
   subscribed: { plan: string };
+  restore_completed: { restored: boolean };
 
   share_opened: { kind: string };
 }
@@ -56,11 +59,11 @@ const POSTHOG_HOST = 'https://us.i.posthog.com';
 /** Events are batched and flushed on this cadence to avoid a request per rep. */
 const FLUSH_INTERVAL_MS = 10_000;
 const MAX_BATCH = 20;
+/** Hard ceiling so a long offline session cannot grow the queue forever. */
+const MAX_QUEUE = 200;
 
 function apiKey(): string | undefined {
-  const key = (Constants.expoConfig?.extra as { posthogKey?: string } | undefined)?.posthogKey;
-  // The template ships an empty/placeholder key; treat blank as "not configured".
-  return key && key.trim().length > 0 && !key.startsWith('phc_placeholder') ? key : undefined;
+  return posthogKey();
 }
 
 let distinctId: string | null = null;
@@ -83,6 +86,8 @@ export function track<E extends EventName>(
   if (!apiKey()) return;
   const properties = (args[0] ?? {}) as Record<string, unknown>;
   queue.push({ event, properties, timestamp: new Date().toISOString() });
+  // Drop oldest when offline backlog balloons — keeps memory bounded.
+  if (queue.length > MAX_QUEUE) queue = queue.slice(queue.length - MAX_QUEUE);
   ensureTimer();
   if (queue.length >= MAX_BATCH) void flush();
 }
@@ -112,7 +117,7 @@ export async function flush(): Promise<void> {
   };
 
   try {
-    const res = await fetch(`${POSTHOG_HOST}/batch/`, {
+    const res = await fetch(`${assertHttps(POSTHOG_HOST)}/batch/`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(payload),

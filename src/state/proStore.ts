@@ -36,16 +36,20 @@ export const useProStore = create<ProState>()((set) => ({
 
   initialize: (uid) => {
     let cancelled = false;
+    let unwatch: () => void = () => {};
 
+    // Configure first, then attach the listener. Registering before configure
+    // can no-op or throw on a cold start — and the paywall may race this path.
     void (async () => {
       await configurePurchases(uid);
+      if (cancelled) return;
       const pro = await fetchIsPro();
-      if (!cancelled) set({ isPro: pro, ready: true });
+      if (cancelled) return;
+      set({ isPro: pro, ready: true });
+      unwatch = watchCustomerInfo((next) => {
+        if (!cancelled) set({ isPro: next });
+      });
     })();
-
-    const unwatch = watchCustomerInfo((pro) => {
-      if (!cancelled) set({ isPro: pro });
-    });
 
     return () => {
       cancelled = true;

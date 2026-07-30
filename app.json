@@ -82,9 +82,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#F6F7F5",
-          "image": "./assets/logo.png",
-          "imageWidth": 160
+          "backgroundColor": "#8AC53E",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 220
         }
       ],
       "@sentry/react-native/expo",

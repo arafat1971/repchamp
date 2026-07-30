@@ -4,11 +4,14 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { ModalHeader } from '@/components/ModalHeader';
-import { Avatar, Badge, Card, Divider, Eyebrow, PrimaryButton, Screen, StatTile } from '@/components/ui';
+import { Avatar, Badge, Card, Divider, Eyebrow, PressableScale, PrimaryButton, Screen, StatTile } from '@/components/ui';
 import { getOpponent, OPPONENTS } from '@/domain/opponent';
 import { getPhantomOpponent } from '@/domain/phantomRoster';
+import { blockUser } from '@/services/safetyService';
 import { fetchProfile } from '@/services/userService';
+import { useAuthStore } from '@/state/authStore';
 import { useProfileStore } from '@/state/profileStore';
+import { showDialog } from '@/state/useDialog';
 import { font, text } from '@/theme/typography';
 import { gradients, palette, radius } from '@/theme/tokens';
 
@@ -34,6 +37,7 @@ export default function FriendProfileScreen() {
     online?: string;
   }>();
   const sessions = useProfileStore((s) => s.sessions);
+  const myUid = useAuthStore((s) => s.user?.uid);
 
   const bot = isKnownBot(params.id);
   const friend = bot
@@ -108,6 +112,50 @@ export default function FriendProfileScreen() {
         level: String(displayLevel),
         kind: 'duel',
       },
+    });
+  };
+
+  const onReport = () => {
+    if (bot || !friend.id) return;
+    router.push({
+      pathname: '/modal/report-user',
+      params: { target: friend.id, name: displayName },
+    } as never);
+  };
+
+  const onBlock = () => {
+    if (bot || !myUid || !friend.id) return;
+    showDialog({
+      title: `Block ${displayName}?`,
+      message:
+        'They won’t appear in your friends or discovery. You can unblock them later in Settings.',
+      tone: 'danger',
+      actions: [
+        { label: 'Cancel', variant: 'cancel' },
+        {
+          label: 'Block',
+          variant: 'destructive',
+          onPress: () => {
+            void blockUser(myUid, friend.id, displayName)
+              .then(() => {
+                showDialog({
+                  title: 'Blocked',
+                  message: `${displayName} is blocked.`,
+                  tone: 'success',
+                  actions: [{ label: 'Done', variant: 'primary', onPress: () => router.back() }],
+                });
+              })
+              .catch((err) => {
+                showDialog({
+                  title: 'Could not block',
+                  message: err instanceof Error ? err.message : 'Please try again.',
+                  tone: 'danger',
+                  actions: [{ label: 'Got it', variant: 'primary' }],
+                });
+              });
+          },
+        },
+      ],
     });
   };
 
@@ -193,6 +241,27 @@ export default function FriendProfileScreen() {
       ) : null}
 
       <PrimaryButton label={`Challenge ${displayName}`} onPress={challenge} />
+
+      {!bot && friend.id ? (
+        <View style={styles.safetyRow}>
+          <PressableScale
+            onPress={onReport}
+            accessibilityRole="button"
+            accessibilityLabel={`Report ${displayName}`}
+            style={styles.safetyBtn}
+          >
+            <Text style={font('bold', 13, { color: palette.grey600 })}>Report</Text>
+          </PressableScale>
+          <PressableScale
+            onPress={onBlock}
+            accessibilityRole="button"
+            accessibilityLabel={`Block ${displayName}`}
+            style={styles.safetyBtn}
+          >
+            <Text style={font('extrabold', 13, { color: palette.red500 })}>Block</Text>
+          </PressableScale>
+        </View>
+      ) : null}
     </Screen>
   );
 }
@@ -223,4 +292,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  safetyRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 28,
+    marginTop: 18,
+    marginBottom: 8,
+  },
+  safetyBtn: { paddingVertical: 10, paddingHorizontal: 12 },
 });

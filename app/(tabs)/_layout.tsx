@@ -1,15 +1,21 @@
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect, Tabs, usePathname, useRouter } from 'expo-router';
-import { Image, Platform, StyleSheet, TouchableOpacity, View, type ColorValue } from 'react-native';
-import Animated, { useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import { useEffect } from 'react';
+import { Platform, StyleSheet, TouchableOpacity, View, type ColorValue } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSequence,
+  withSpring,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { useProfileStore } from '@/state/profileStore';
 import { fontFamily } from '@/theme/typography';
 import { selectionHaptic } from '@/lib/feedback';
-
-const IC_TRAIN = require('../../assets/ic-train.png');
 
 /** Matches the shape React Navigation passes to `tabBarIcon`. */
 type IconProps = { color: ColorValue; focused: boolean; size: number };
@@ -137,36 +143,76 @@ function ProfileIcon({ color, focused }: IconProps) {
 }
 
 /**
- * Floating Train FAB — the primary action button that hovers above the tab bar.
- * Premium design with gradient glow, spring bounce, and a soft green squircle.
+ * Floating Train FAB — 58dp circular Material-style action, sits just above
+ * the tab bar so it no longer covers Quick Start tiles.
  */
 function TrainFab({ bottomPosition }: { bottomPosition: number }) {
   const pathname = usePathname();
   const router = useRouter();
   const focused = pathname === '/train';
+  const entered = useSharedValue(0);
+  const focusScale = useSharedValue(1);
 
-  const scaleStyle = useAnimatedStyle(
-    () => ({
-      transform: [
-        { scale: withSpring(focused ? 1.14 : 1, { damping: 14, stiffness: 240 }) },
-        { translateY: withSpring(focused ? -3 : 0, { damping: 14, stiffness: 240 }) },
-      ],
-    }),
-    [focused],
-  );
+  useEffect(() => {
+    entered.value = withDelay(
+      400,
+      withSequence(
+        withSpring(1.12, { damping: 10, stiffness: 220 }),
+        withSpring(1, { damping: 12, stiffness: 200 }),
+      ),
+    );
+  }, [entered]);
+
+  useEffect(() => {
+    focusScale.value = withSpring(focused ? 1.08 : 1, { damping: 14, stiffness: 240 });
+  }, [focused, focusScale]);
+
+  const scaleStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: entered.value * focusScale.value }],
+  }));
 
   return (
     <Animated.View style={[styles.fabContainer, { bottom: bottomPosition }, scaleStyle]}>
       <TouchableOpacity
-        activeOpacity={0.7}
+        activeOpacity={0.85}
         onPress={() => {
           selectionHaptic();
           router.navigate('/train');
         }}
+        accessibilityRole="button"
+        accessibilityLabel="Start workout"
         style={styles.fabButton}
       >
-        <View style={styles.fabBacking} />
-        <Image source={IC_TRAIN} style={styles.fabImage} resizeMode="contain" />
+        <LinearGradient
+          colors={['#34d399', '#16a34a']}
+          start={{ x: 0.15, y: 0 }}
+          end={{ x: 0.9, y: 1 }}
+          style={styles.fabCircle}
+        >
+          <Svg width={26} height={26} viewBox="0 0 24 24" fill="none">
+            <Path
+              d="M7.2 9.2c-1.6 0-2.9 1.2-2.9 2.8s1.3 2.8 2.9 2.8h1.1V9.2H7.2zm8.5 0h-1.1v5.6h1.1c1.6 0 2.9-1.2 2.9-2.8s-1.3-2.8-2.9-2.8z"
+              fill="#ffffff"
+            />
+            <Path
+              d="M8.3 10.4h7.4v3.2H8.3z"
+              fill="#ffffff"
+              opacity={0.95}
+            />
+            <Path
+              d="M4.1 10.6H2.8c-.5 0-.9.4-.9.9v.9c0 .5.4.9.9.9h1.3"
+              stroke="#ffffff"
+              strokeWidth={1.6}
+              strokeLinecap="round"
+            />
+            <Path
+              d="M19.9 10.6h1.3c.5 0 .9.4.9.9v.9c0 .5-.4.9-.9.9h-1.3"
+              stroke="#ffffff"
+              strokeWidth={1.6}
+              strokeLinecap="round"
+            />
+          </Svg>
+        </LinearGradient>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -191,7 +237,7 @@ export default function TabsLayout() {
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: '#16a34a',
-          tabBarInactiveTintColor: '#94a3b8',
+          tabBarInactiveTintColor: '#475569',
           tabBarStyle: [
             styles.tabBar,
             {
@@ -222,7 +268,7 @@ export default function TabsLayout() {
           }}
         />
       </Tabs>
-      <TrainFab bottomPosition={Math.max(insets.bottom, 16) + 120} />
+      <TrainFab bottomPosition={tabBarHeight + 10} />
     </View>
   );
 }
@@ -267,37 +313,31 @@ const styles = StyleSheet.create({
   },
   fabContainer: {
     position: 'absolute',
-    right: 20,
+    alignSelf: 'center',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
     zIndex: 999,
     elevation: 10,
   },
   fabButton: {
-    width: 72,
-    height: 72,
+    width: 58,
+    height: 58,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  /**
-   * Soft green squircle backing with brand shadow glow —
-   * gives the FAB a premium, elevated feel that's consistent with the brand.
-   */
-  fabBacking: {
-    position: 'absolute',
-    width: 60,
-    height: 60,
-    borderRadius: 20,
-    backgroundColor: '#eafaf0',
-    borderWidth: 1,
-    borderColor: '#bbf7d0',
+  fabCircle: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#ffffff',
     shadowColor: '#16a34a',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
     shadowRadius: 14,
-    elevation: 8,
-  },
-  fabImage: {
-    width: 86,
-    height: 86,
-    transform: [{ translateX: -10 }, { translateY: 1 }, { rotate: '25deg' }],
+    elevation: 10,
   },
 });

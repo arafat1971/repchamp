@@ -13,12 +13,18 @@
 import auth, {
   type FirebaseAuthTypes,
 } from '@react-native-firebase/auth';
-import Constants from 'expo-constants';
 import {
   GoogleSignin,
   statusCodes,
 } from '@react-native-google-signin/google-signin';
 
+import {
+  isValidEmail,
+  isValidPassword,
+  normalizeEmail,
+  passwordError,
+} from '@/domain/input';
+import { googleWebClientId as configuredGoogleWebClientId } from '@/lib/config';
 import { isFirebaseConfigured } from '@/lib/firebase';
 
 export interface AuthUser {
@@ -38,9 +44,7 @@ export interface AuthUser {
  * instead of offering a control that would throw when tapped.
  */
 export function googleWebClientId(): string | null {
-  const extra = Constants.expoConfig?.extra as { googleWebClientId?: string } | undefined;
-  const id = extra?.googleWebClientId?.trim();
-  return id ? id : null;
+  return configuredGoogleWebClientId() ?? null;
 }
 
 /** True when Google sign-in can actually complete (Firebase + a web client id). */
@@ -96,7 +100,11 @@ export async function ensureSignedIn(): Promise<AuthUser> {
 
 export async function signInWithEmail(email: string, password: string): Promise<AuthUser> {
   if (!isFirebaseConfigured()) return LOCAL_USER;
-  const cred = await auth().signInWithEmailAndPassword(email.trim(), password);
+  const normalized = normalizeEmail(email);
+  if (!isValidEmail(normalized) || !password) {
+    throw new Error('Enter a valid email and password.');
+  }
+  const cred = await auth().signInWithEmailAndPassword(normalized, password);
   return toAuthUser(cred.user);
 }
 
@@ -108,20 +116,33 @@ export async function signInWithEmail(email: string, password: string): Promise<
 export async function signUpWithEmail(email: string, password: string): Promise<AuthUser> {
   if (!isFirebaseConfigured()) return LOCAL_USER;
 
+  const normalized = normalizeEmail(email);
+  if (!isValidEmail(normalized)) {
+    throw new Error('Enter a valid email address.');
+  }
+  const pwErr = passwordError(password);
+  if (pwErr || !isValidPassword(password)) {
+    throw new Error(pwErr ?? 'Password is invalid.');
+  }
+
   const current = auth().currentUser;
-  const credential = auth.EmailAuthProvider.credential(email.trim(), password);
+  const credential = auth.EmailAuthProvider.credential(normalized, password);
 
   if (current?.isAnonymous) {
     const linked = await current.linkWithCredential(credential);
     return toAuthUser(linked.user);
   }
-  const created = await auth().createUserWithEmailAndPassword(email.trim(), password);
+  const created = await auth().createUserWithEmailAndPassword(normalized, password);
   return toAuthUser(created.user);
 }
 
 /**
  * Google sign-in. `webClientId` comes from the Firebase console (OAuth 2.0
  * "Web client"). Also links onto an anonymous account when present.
+ *
+ * If the Google account is already tied to another Firebase user, linking
+ * fails with `credential-already-in-use` — we then sign in to that account
+ * instead of leaving the athlete stuck on the generic failure toast.
  */
 export async function signInWithGoogle(webClientId?: string): Promise<AuthUser> {
   if (!isFirebaseConfigured()) return LOCAL_USER;
@@ -133,22 +154,33 @@ export async function signInWithGoogle(webClientId?: string): Promise<AuthUser> 
     );
   }
 
-  GoogleSignin.configure({ webClientId: clientId });
-  await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+  try {
+    GoogleSignin.configure({ webClientId: clientId });
+    await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
 
-  const result = await GoogleSignin.signIn();
-  const idToken = result.data?.idToken;
-  if (!idToken) throw new Error('Google sign-in returned no ID token');
+    const result = await GoogleSignin.signIn();
+    const idToken = result.data?.idToken;
+    if (!idToken) throw new Error('Google sign-in returned no ID token');
 
-  const googleCredential = auth.GoogleAuthProvider.credential(idToken);
-  const current = auth().currentUser;
+    const googleCredential = auth.GoogleAuthProvider.credential(idToken);
+    const current = auth().currentUser;
 
-  if (current?.isAnonymous) {
-    const linked = await current.linkWithCredential(googleCredential);
-    return toAuthUser(linked.user);
+    if (current?.isAnonymous) {
+      try {
+        const linked = await current.linkWithCredential(googleCredential);
+        return toAuthUser(linked.user);
+      } catch (linkError) {
+        if (!isCredentialAlreadyInUse(linkError)) throw linkError;
+        const signed = await auth().signInWithCredential(googleCredential);
+        return toAuthUser(signed.user);
+      }
+    }
+    const signed = await auth().signInWithCredential(googleCredential);
+    return toAuthUser(signed.user);
+  } catch (error) {
+    if (isGoogleCancel(error)) throw error;
+    throw new Error(formatGoogleSignInError(error));
   }
-  const signed = await auth().signInWithCredential(googleCredential);
-  return toAuthUser(signed.user);
 }
 
 export async function signOut(): Promise<void> {
@@ -165,6 +197,40 @@ export async function signOut(): Promise<void> {
 export function isGoogleCancel(error: unknown): boolean {
   const code = (error as { code?: string })?.code;
   return code === statusCodes.SIGN_IN_CANCELLED || code === statusCodes.IN_PROGRESS;
+}
+
+function isCredentialAlreadyInUse(error: unknown): boolean {
+  const code = String((error as { code?: string })?.code ?? '');
+  return (
+    code === 'auth/credential-already-in-use' ||
+    code === 'auth/email-already-in-use' ||
+    code === 'auth/account-exists-with-different-credential'
+  );
+}
+
+/** Human-readable Google / Firebase auth failures for the UI. */
+export function formatGoogleSignInError(error: unknown): string {
+  const code = String((error as { code?: string | number })?.code ?? '');
+  const message = error instanceof Error ? error.message : String(error ?? '');
+
+  if (code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+    return 'Google Play Services is missing or outdated on this device.';
+  }
+  // Android ApiException status 10 — SHA fingerprint / OAuth client mismatch.
+  if (
+    code === '10' ||
+    code === 'DEVELOPER_ERROR' ||
+    /DEVELOPER_ERROR|\bstatus code:\s*10\b/i.test(message)
+  ) {
+    return 'Google Sign-In isn’t set up for this build. Add the signing keystore’s SHA-1 in Firebase → Project settings → Android app (for local debug builds: android/app/debug.keystore), then download a fresh google-services.json.';
+  }
+  if (/network/i.test(code) || /network/i.test(message)) {
+    return 'Network error during Google Sign-In. Check your connection and try again.';
+  }
+  if (message && message !== 'Error' && !/^\[.*\]$/.test(message)) {
+    return message;
+  }
+  return "Couldn't sign in with Google. Please try again.";
 }
 
 export { LOCAL_USER };

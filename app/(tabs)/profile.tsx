@@ -17,6 +17,9 @@ import {
   useProfileStore,
 } from '@/state/profileStore';
 import { useIsPro } from '@/state/proStore';
+import { useAuthStore } from '@/state/authStore';
+import { showDialog } from '@/state/useDialog';
+import { deleteAvatar } from '@/services/userService';
 import { font, text } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
 
@@ -121,6 +124,8 @@ export default function ProfileScreen() {
   const profile = useProfileStore();
   const isPro = useIsPro();
   const setAvatar = useProfileStore((s) => s.setAvatar);
+  const syncAvatar = useAuthStore((s) => s.syncAvatar);
+  const pushProfile = useAuthStore((s) => s.pushProfile);
 
   const pickAvatar = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -129,7 +134,34 @@ export default function ProfileScreen() {
       aspect: [1, 1],
       quality: 0.8,
     });
-    if (!result.canceled && result.assets[0]) setAvatar(result.assets[0].uri);
+    if (result.canceled || !result.assets[0]) return;
+    const local = result.assets[0].uri;
+    setAvatar(local);
+    // Upload to Storage so the public profile never stores a file:// URI.
+    const remote = await syncAvatar(local);
+    setAvatar(remote);
+    void pushProfile();
+  };
+
+  const removeAvatar = () => {
+    const uid = useAuthStore.getState().user?.uid;
+    showDialog({
+      title: 'Remove photo?',
+      message: 'Your profile will show your initial instead.',
+      tone: 'info',
+      actions: [
+        { label: 'Cancel', variant: 'cancel' },
+        {
+          label: 'Remove',
+          variant: 'destructive',
+          onPress: () => {
+            setAvatar(null);
+            if (uid) void deleteAvatar(uid);
+            void pushProfile();
+          },
+        },
+      ],
+    });
   };
 
   const level = selectLevel(profile);
@@ -167,6 +199,7 @@ export default function ProfileScreen() {
         <Card style={styles.identityCard}>
           <PressableScale
             onPress={pickAvatar}
+            onLongPress={profile.avatarUri ? removeAvatar : undefined}
             accessibilityRole="button"
             accessibilityLabel="Change profile photo"
             style={styles.avatarWrap}
@@ -291,7 +324,7 @@ export default function ProfileScreen() {
           <View style={{ flex: 1 }}>
             <Text style={font('extrabold', 14.5, { color: palette.ink })}>RepChamp Pro</Text>
             <Text style={text.caption}>
-              {isPro ? 'Active — thanks for the support' : 'Full library, form history & stats'}
+              {isPro ? 'Active — thanks for the support' : 'Full library, programmes & form reports'}
             </Text>
           </View>
           {isPro ? (

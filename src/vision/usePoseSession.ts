@@ -1,24 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useCameraDevice, useFrameOutput } from 'react-native-vision-camera';
 import type { Frame } from 'react-native-vision-camera';
 import { useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { getExercise, type ExerciseId } from './exercises';
+import { POSE_MODEL_SOURCE } from './modelCache';
 import { useAcceleratedModel } from './useAcceleratedModel';
 import { useSessionRecorder } from './useSessionRecorder';
-import { layoutForPixelFormat, packFrameToRgb } from './pixelBuffer';
-import { toModelInput } from './modelInput';
 import { MODEL_INPUT_SIZE, decodePoseTensor, framingConfidence } from './poseDetector';
 import { RepCounter } from './repCounter';
+import { noteInferenceMs, suggestedCameraFps } from './thermal';
 import type { Pose } from './keypoints';
-
-/**
- * The MoveNet model file. Run `npm run fetch-model` once after cloning — it is
- * ~3MB and deliberately untracked, so this require fails loudly if it's missing.
- */
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const MODEL = require('../../assets/models/movenet.tflite');
+import { TARGET_FPS } from '@/components/session/CameraStage';
 
 /**
  * Diagnostics reported from the JS thread.
@@ -145,6 +139,7 @@ export interface PoseSessionCallbacks {
     tracking: boolean;
     reps: number;
     completedRep: ReturnType<RepCounter['push']>['completedRep'];
+    formCue: 'deeper' | null;
   }) => void;
   /** Fired during calibration with 0..1 framing confidence. */
   onFraming?: (confidence: number) => void;
@@ -156,6 +151,11 @@ export interface UsePoseSessionOptions extends PoseSessionCallbacks {
   isActive: boolean;
   /** When false, poses still stream (for framing) but reps are not counted. */
   counting: boolean;
+  /**
+   * Versus / challenges — only full-depth reps increment the score.
+   * Practice keeps counting partials with a “go deeper” cue.
+   */
+  competitive?: boolean;
   /**
    * Binds a third camera output so the session can be filmed. Off by default:
    * preview + analysis + video is more than some devices will bind, and losing
@@ -171,23 +171,32 @@ export interface UsePoseSessionOptions extends PoseSessionCallbacks {
 }
 
 /**
- * Wires the camera → pose model → rep counter pipeline.
+ * Streams the camera → pose model → rep counter pipeline.
  *
  * The model runs in a Vision Camera frame processor on its own worklet thread;
  * only the decoded 17×3 pose crosses to JS, where the rep state machine lives.
  * Keeping the state machine on the JS thread means it stays plain, testable
  * TypeScript (see `repCounter.test.ts`) rather than worklet code.
+ *
+ * Overlay keypoints stay on the UI thread via shared values every inference
+ * frame. JS (`scheduleOnRN`) runs every frame while counting; during calibration
+ * it is throttled so framing updates do not starve the UI thread.
  */
+
+/** Min gap between JS framing updates when not counting (~10 Hz). */
+const FRAMING_JS_INTERVAL_MS = 100;
+
 export function usePoseSession({
   exercise,
   isActive,
   counting,
+  competitive = false,
   record = false,
   recordOnly = false,
   onPose,
   onFraming,
 }: UsePoseSessionOptions) {
-  const model = useAcceleratedModel(MODEL);
+  const model = useAcceleratedModel(POSE_MODEL_SOURCE);
   const definition = useMemo(() => getExercise(exercise), [exercise]);
 
   /**
@@ -202,17 +211,30 @@ export function usePoseSession({
   const poseVisible = useSharedValue(false);
   /** Frame dimensions, so the overlay can undo the preview's cover-scaling. */
   const poseFrame = useSharedValue<{ width: number; height: number }>({ width: 0, height: 0 });
+  /** Worklet-visible counting flag — drives JS-bridge throttle. */
+  const countingSv = useSharedValue(counting ? 1 : 0);
+  const lastJsPushSv = useSharedValue(0);
+  /** Run inference every Nth frame when the device is hot (1 = every frame). */
+  const inferEveryN = useSharedValue(1);
+  const frameTick = useSharedValue(0);
+  const cameraFpsRef = useRef(TARGET_FPS);
+  const [cameraFps, setCameraFps] = useState(TARGET_FPS);
 
-  const counterRef = useRef<RepCounter>(new RepCounter(definition));
+  const counterRef = useRef<RepCounter>(
+    new RepCounter(definition, { requireFullDepth: competitive }),
+  );
   const countingRef = useRef(counting);
   // eslint-disable-next-line react-hooks/refs
   countingRef.current = counting;
 
-  // Rebuild the counter whenever the exercise changes so thresholds and rep
-  // history never carry over from a previous movement.
   useEffect(() => {
-    counterRef.current = new RepCounter(definition);
-  }, [definition]);
+    countingSv.value = counting ? 1 : 0;
+  }, [counting, countingSv]);
+
+  // Rebuild the counter whenever the exercise or competitive gate changes.
+  useEffect(() => {
+    counterRef.current = new RepCounter(definition, { requireFullDepth: competitive });
+  }, [definition, competitive]);
 
   /**
    * Runs on the JS thread. Receives a plain array (worklet boundaries cannot
@@ -233,6 +255,15 @@ export function usePoseSession({
     ) => {
       reportFrameOnce(status, format, width, height, bytesPerRow, outputBytes);
       recordTimings(convertMs, inferMs);
+      noteInferenceMs(inferMs);
+      const nextEvery = inferMs > 48 ? 3 : inferMs > 38 ? 2 : 1;
+      inferEveryN.value = nextEvery;
+      const nextFps = suggestedCameraFps(TARGET_FPS);
+      if (nextFps !== cameraFpsRef.current) {
+        cameraFpsRef.current = nextFps;
+        setCameraFps(nextFps);
+      }
+
       if (status !== 'ok') return;
 
       const pose = decodePoseTensor(values, timestamp);
@@ -249,9 +280,10 @@ export function usePoseSession({
         tracking: update.tracking,
         reps: update.reps,
         completedRep: update.completedRep,
+        formCue: update.formCue,
       });
     },
-    [onPose, onFraming],
+    [onPose, onFraming, inferEveryN],
   );
 
   /**
@@ -267,7 +299,7 @@ export function usePoseSession({
   /**
    * The model's declared input element type. MoveNet MultiPose wants int32 pixel
    * values, unlike the old SinglePose int8 build that took bytes — so the packed
-   * uint8 buffer is widened to match (see `toModelInput`). Read once from the
+   * uint8 buffer is widened to match (see inlined widen below). Read once from the
    * loaded model rather than hard-coded, so a re-quantised model still works.
    */
   const inputDataType = interpreter?.inputs[0]?.dataType ?? 'uint8';
@@ -278,11 +310,26 @@ export function usePoseSession({
       try {
         if (!interpreter) return;
 
-        // `pixelFormat: 'rgb'` resolves to a concrete layout — commonly BGRA,
-        // 4 bytes per pixel — and `targetResolution` is only a hint, so the
-        // frame must be repacked into MoveNet's tightly packed RGB input rather
-        // than fed straight through.
-        const layout = layoutForPixelFormat(frame.pixelFormat);
+        // Thermal throttle: skip analysis on alternate frames when infer is slow.
+        frameTick.value = frameTick.value + 1;
+        const every = inferEveryN.value;
+        if (every > 1 && frameTick.value % every !== 0) {
+          return;
+        }
+
+        // Pixel / tensor helpers are defined *inside* this worklet (not imported
+        // worklets). Nested worklets that closed over module scratch state used
+        // to crash Hermes with "invalid assignment left-hand side" in
+        // valueUnpacker when evaluating `pixelBuffer.ts`.
+        const format = frame.pixelFormat;
+        const layout =
+          format === 'rgb-rgb-8-bit'
+            ? 'rgb'
+            : format === 'rgb-rgba-8-bit'
+              ? 'rgba'
+              : format === 'rgb-bgra-8-bit'
+                ? 'bgra'
+                : null;
         if (layout === null) {
           scheduleOnRN(handleTensor, [], 0, 'unsupported-format', frame.pixelFormat, frame.width, frame.height, 0, 0);
           return;
@@ -293,20 +340,48 @@ export function usePoseSession({
         if (!plane) return;
 
         const tConvertStart = performance.now();
-        const input = packFrameToRgb(
-          new Uint8Array(plane.getPixelBuffer()),
-          {
-            width: frame.width,
-            height: frame.height,
-            bytesPerRow: plane.bytesPerRow,
-            layout,
-          },
-          MODEL_INPUT_SIZE,
-        );
-        if (input === null) return;
-        const tInferStart = performance.now();
+        const source = new Uint8Array(plane.getPixelBuffer());
+        const frameWidth = frame.width;
+        const frameHeight = frame.height;
+        const rowStride = plane.bytesPerRow;
+        const size = MODEL_INPUT_SIZE;
+        const channels = layout === 'rgb' ? 3 : 4;
+        if (frameWidth <= 0 || frameHeight <= 0 || rowStride < frameWidth * channels) {
+          return;
+        }
 
-        const outputs = interpreter.runSync([toModelInput(input, inputDataType)]);
+        const crop = frameWidth < frameHeight ? frameWidth : frameHeight;
+        const originX = Math.floor((frameWidth - crop) / 2);
+        const originY = Math.floor((frameHeight - crop) / 2);
+        const redAt = layout === 'bgra' ? 2 : 0;
+        const blueAt = layout === 'bgra' ? 0 : 2;
+        const input = new Uint8Array(size * size * 3);
+        for (let ty = 0; ty < size; ty++) {
+          const sy = originY + Math.min(crop - 1, Math.floor(((ty + 0.5) * crop) / size));
+          const rowStart = sy * rowStride;
+          for (let tx = 0; tx < size; tx++) {
+            const sx = originX + Math.min(crop - 1, Math.floor(((tx + 0.5) * crop) / size));
+            const pixel = rowStart + sx * channels;
+            const dest = (ty * size + tx) * 3;
+            input[dest] = source[pixel + redAt] as number;
+            input[dest + 1] = source[pixel + 1] as number;
+            input[dest + 2] = source[pixel + blueAt] as number;
+          }
+        }
+
+        const tInferStart = performance.now();
+        let modelBuffer: ArrayBuffer = input.buffer as ArrayBuffer;
+        if (inputDataType === 'int32') {
+          const widened = new Int32Array(input.length);
+          for (let i = 0; i < input.length; i++) widened[i] = input[i]!;
+          modelBuffer = widened.buffer as ArrayBuffer;
+        } else if (inputDataType === 'float32') {
+          const widened = new Float32Array(input.length);
+          for (let i = 0; i < input.length; i++) widened[i] = input[i]!;
+          modelBuffer = widened.buffer as ArrayBuffer;
+        }
+
+        const outputs = interpreter.runSync([modelBuffer]);
         const tInferEnd = performance.now();
         const output = outputs[0];
         if (!output) return;
@@ -335,8 +410,9 @@ export function usePoseSession({
         // inference, and simultaneously build the overlay buffer. MoveNet emits
         // (y, x, score); the overlay wants (x, y, score) in draw order, and the
         // preview is mirrored for the front lens so x is flipped to match.
-        const values: number[] = [];
-        const points: number[] = [];
+        // Fresh arrays for the JS bridge (async marshal) and for Reanimated.
+        const values: number[] = new Array(51);
+        const points: number[] = new Array(51);
 
         /**
          * Keypoints come back in the square centre-crop's coordinate space,
@@ -350,6 +426,8 @@ export function usePoseSession({
         const cropX = (fw - cropSize) / 2;
         const cropY = (fh - cropSize) / 2;
 
+        let vi = 0;
+        let pi = 0;
         for (let i = 0; i < tensor.length; i += 3) {
           const y = tensor[i] as number;
           const x = tensor[i + 1] as number;
@@ -357,39 +435,64 @@ export function usePoseSession({
 
           // Rep maths uses crop space — it only measures angles, which the crop
           // preserves — so `values` stays untouched.
-          values.push(y, x, score);
+          // Worklets reject `arr[i++] = …` as an assignment LHS.
+          values[vi] = y;
+          values[vi + 1] = x;
+          values[vi + 2] = score;
+          vi += 3;
 
           // The preview is mirrored for the front lens, so flip x to match.
-          points.push(1 - (cropX + x * cropSize) / fw, (cropY + y * cropSize) / fh, score);
+          points[pi] = 1 - (cropX + x * cropSize) / fw;
+          points[pi + 1] = (cropY + y * cropSize) / fh;
+          points[pi + 2] = score;
+          pi += 3;
         }
 
         posePoints.value = points;
         poseFrame.value = { width: fw, height: fh };
         poseVisible.value = true;
 
-        // `scheduleOnRN` marshals the decoded pose back to the React thread.
-        // Only plain values may cross, which is why `handleTensor` takes a
-        // number[] rather than the typed array.
-        scheduleOnRN(
-          handleTensor,
-          values,
-          Date.now(),
-          'ok',
-          frame.pixelFormat,
-          frame.width,
-          frame.height,
-          plane.bytesPerRow,
-          output.byteLength,
-          tInferStart - tConvertStart,
-          tInferEnd - tInferStart,
-        );
+        // Always push to JS while counting (rep timing). While calibrating,
+        // throttle framing updates so the bridge does not compete with UI.
+        const now = Date.now();
+        const countingNow = countingSv.value === 1;
+        if (
+          countingNow ||
+          now - lastJsPushSv.value >= FRAMING_JS_INTERVAL_MS
+        ) {
+          lastJsPushSv.value = now;
+          scheduleOnRN(
+            handleTensor,
+            values,
+            now,
+            'ok',
+            frame.pixelFormat,
+            frame.width,
+            frame.height,
+            plane.bytesPerRow,
+            output.byteLength,
+            tInferStart - tConvertStart,
+            tInferEnd - tInferStart,
+          );
+        }
       } finally {
         // Always dispose, even if inference threw — a leaked frame stalls the
         // whole camera pipeline after a handful of drops.
         frame.dispose();
       }
     },
-    [interpreter, inputDataType, handleTensor, posePoints, poseVisible, poseFrame],
+    [
+      interpreter,
+      inputDataType,
+      handleTensor,
+      posePoints,
+      poseVisible,
+      poseFrame,
+      countingSv,
+      lastJsPushSv,
+      inferEveryN,
+      frameTick,
+    ],
   );
 
   const frameOutput = useFrameOutput({
@@ -402,7 +505,7 @@ export function usePoseSession({
      * confidence. Requesting a standard 640x480 and downsampling gives the
      * model a far sharper 192x192.
      *
-     * This costs nothing extra to convert: `packFrameToRgb` samples exactly
+     * This costs nothing extra to convert: the frame worklet samples exactly
      * MODEL_INPUT_SIZE^2 source pixels regardless of how large the frame is.
      */
     targetResolution: { width: 640, height: 480 },
@@ -462,6 +565,8 @@ export function usePoseSession({
     outputs,
     isActive,
     modelState: model.state,
+    /** Adaptive camera FPS for long sessions (thermal / battery). */
+    cameraFps,
     /** Rep records accumulated so far, for the end-of-session form report. */
     getRepHistory: () => counterRef.current.history,
     resetCounter,

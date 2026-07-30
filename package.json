@@ -80,7 +80,8 @@
     "generate-sounds": "node scripts/generate-sounds.js",
     "postinstall": "node scripts/generate-sounds.js && (test -f assets/models/movenet.tflite || bash scripts/fetch-model.sh || echo '[repchamp] WARNING: pose model not fetched — run: npm run fetch-model (required before building the app)')",
     "eas-build-pre-install": "bash scripts/fetch-model.sh",
-    "trace-reps": "bash scripts/trace-reps.sh"
+    "trace-reps": "bash scripts/trace-reps.sh",
+    "android:debug": "bash scripts/android-debug.sh"
   },
   "private": true,
   "expo": {

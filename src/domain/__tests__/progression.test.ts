@@ -2,8 +2,10 @@ import {
   XP_PER_LEVEL,
   calculateStreak,
   dayKey,
+  lastNDayKeys,
   leagueFromWeeklyXp,
   levelFromXp,
+  weekdayLetter,
   xpForSession,
 } from '../progression';
 
@@ -94,5 +96,21 @@ describe('calculateStreak', () => {
 describe('dayKey', () => {
   it('formats as YYYY-MM-DD with zero padding', () => {
     expect(dayKey(new Date(2026, 0, 5))).toBe('2026-01-05');
+  });
+});
+
+describe('weekdayLetter', () => {
+  it('returns the correct letter for an ISO day (noon-safe)', () => {
+    // 2026-07-30 is a Thursday.
+    expect(weekdayLetter('2026-07-30')).toBe('T');
+    expect(weekdayLetter('2026-07-26')).toBe('S'); // Sunday
+    expect(weekdayLetter('2026-07-27')).toBe('M');
+  });
+});
+
+describe('lastNDayKeys', () => {
+  it('returns n days ending on the given date, oldest first', () => {
+    const keys = lastNDayKeys(3, new Date(2026, 6, 30));
+    expect(keys).toEqual(['2026-07-28', '2026-07-29', '2026-07-30']);
   });
 });

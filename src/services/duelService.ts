@@ -19,6 +19,7 @@
 
 import firestore from '@react-native-firebase/firestore';
 
+import { clampDuelReps, clampFormScore } from '@/domain/fairPlay';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import {
   type Duel,
@@ -162,10 +163,14 @@ export async function pushLiveState(
   slice: { reps: number; formScore: number },
 ): Promise<void> {
   if (!isFirebaseConfigured()) return;
-  await duelDoc(duelId).update({
-    [`${seat}.reps`]: slice.reps,
-    [`${seat}.formScore`]: Math.round(slice.formScore),
-  });
+  try {
+    await duelDoc(duelId).update({
+      [`${seat}.reps`]: clampDuelReps(slice.reps),
+      [`${seat}.formScore`]: clampFormScore(slice.formScore),
+    });
+  } catch {
+    // Offline / App Check / transient — drop this tick; the next push retries.
+  }
 }
 
 /**
@@ -185,40 +190,44 @@ export async function finishDuel(
   if (!isFirebaseConfigured()) return;
 
   const ref = duelDoc(duelId);
-  await firestore().runTransaction(async (tx) => {
-    const snap = await tx.get(ref);
-    if (!snap.exists()) return;
+  try {
+    await firestore().runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) return;
 
-    const duel = snap.data() as Duel;
-    const updated: Duel = {
-      ...duel,
-      [seat]: {
-        ...(duel[seat] as DuelPlayer),
-        reps: outcome.reps,
-        formScore: Math.round(outcome.formScore),
-        done: true,
-        forfeited: outcome.forfeited ?? false,
-      },
-    };
+      const duel = snap.data() as Duel;
+      const updated: Duel = {
+        ...duel,
+        [seat]: {
+          ...(duel[seat] as DuelPlayer),
+          reps: clampDuelReps(outcome.reps),
+          formScore: clampFormScore(outcome.formScore),
+          done: true,
+          forfeited: outcome.forfeited ?? false,
+        },
+      };
 
-    const bothDone = updated.host.done && !!updated.guest?.done;
-    const patch: Record<string, unknown> = {
-      [`${seat}.reps`]: outcome.reps,
-      [`${seat}.formScore`]: Math.round(outcome.formScore),
-      [`${seat}.done`]: true,
-      [`${seat}.forfeited`]: outcome.forfeited ?? false,
-    };
+      const bothDone = updated.host.done && !!updated.guest?.done;
+      const patch: Record<string, unknown> = {
+        [`${seat}.reps`]: clampDuelReps(outcome.reps),
+        [`${seat}.formScore`]: clampFormScore(outcome.formScore),
+        [`${seat}.done`]: true,
+        [`${seat}.forfeited`]: outcome.forfeited ?? false,
+      };
 
-    if (bothDone) {
-      patch.status = 'finished';
-      // A together set is cooperative — resolving a winner would invent a loser
-      // out of the partner who managed fewer reps, which is the opposite of what
-      // the mode is for.
-      patch.winnerUid = updated.cooperative ? null : resolveWinner(updated);
-    }
+      if (bothDone) {
+        patch.status = 'finished';
+        // A together set is cooperative — resolving a winner would invent a loser
+        // out of the partner who managed fewer reps, which is the opposite of what
+        // the mode is for.
+        patch.winnerUid = updated.cooperative ? null : resolveWinner(updated);
+      }
 
-    tx.update(ref, patch);
-  });
+      tx.update(ref, patch);
+    });
+  } catch {
+    // Offline finish — local result still stands; cloud can catch up on retry.
+  }
 }
 
 /**

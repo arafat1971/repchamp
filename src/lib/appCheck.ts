@@ -31,35 +31,46 @@ import '@react-native-firebase/app-check';
 import { firebase, isFirebaseConfigured } from '@/lib/firebase';
 import { captureError } from '@/lib/crash';
 
-let started = false;
+let ready = false;
+let inFlight: Promise<void> | null = null;
 
 /**
  * Activate App Check. Idempotent and best-effort: a failure to initialise must
  * never take down app start (the request would just go un-attested), so it's
  * caught and reported rather than thrown.
+ *
+ * Only marks ready after a successful init so a transient failure can retry on
+ * the next call (e.g. after Play Integrity warms up).
  */
 export async function initAppCheck(): Promise<void> {
-  if (started || !isFirebaseConfigured()) return;
-  started = true;
+  if (ready || !isFirebaseConfigured()) return;
+  if (inFlight) return inFlight;
 
-  try {
-    const appCheck = firebase.app().appCheck();
-    // The RN Firebase provider picks Play Integrity on Android and
-    // DeviceCheck/App Attest on iOS. `isTokenAutoRefreshEnabled` keeps a fresh
-    // token ready so live requests never block on minting one.
-    const provider = appCheck.newReactNativeFirebaseAppCheckProvider();
-    provider.configure({
-      android: { provider: 'playIntegrity' },
-      apple: { provider: 'appAttestWithDeviceCheckFallback' },
-    });
-    await appCheck.initializeAppCheck({
-      provider,
-      isTokenAutoRefreshEnabled: true,
-    });
-  } catch (error) {
-    // Attestation unavailable (emulator, misconfig) — degrade to un-attested
-    // requests rather than crashing. With enforcement off this is invisible;
-    // with it on, those requests fail closed, which is the safe direction.
-    captureError(error);
-  }
+  inFlight = (async () => {
+    try {
+      const appCheck = firebase.app().appCheck();
+      // The RN Firebase provider picks Play Integrity on Android and
+      // DeviceCheck/App Attest on iOS. `isTokenAutoRefreshEnabled` keeps a fresh
+      // token ready so live requests never block on minting one.
+      const provider = appCheck.newReactNativeFirebaseAppCheckProvider();
+      provider.configure({
+        android: { provider: 'playIntegrity' },
+        apple: { provider: 'appAttestWithDeviceCheckFallback' },
+      });
+      await appCheck.initializeAppCheck({
+        provider,
+        isTokenAutoRefreshEnabled: true,
+      });
+      ready = true;
+    } catch (error) {
+      // Attestation unavailable (emulator, misconfig) — degrade to un-attested
+      // requests rather than crashing. With enforcement off this is invisible;
+      // with it on, those requests fail closed, which is the safe direction.
+      captureError(error);
+    } finally {
+      inFlight = null;
+    }
+  })();
+
+  return inFlight;
 }

@@ -16,6 +16,7 @@ import {
   type ProgrammeProgress,
   type ProgrammeState,
 } from '@/domain/programme';
+import { normalizeUsername, sanitizeDisplayName } from '@/domain/input';
 import { EXERCISES, type ExerciseId } from '@/vision/exercises';
 import { zustandStorage } from '@/lib/storage';
 
@@ -95,16 +96,21 @@ export const useProfileStore = create<ProfileState>()(
     (set) => ({
       ...initialState,
 
-      completeOnboarding: ({ username, weeklyGoal, avatarUri }) =>
-        set({
+      completeOnboarding: ({ username, weeklyGoal, avatarUri }) => {
+        const u = normalizeUsername(username) || 'champion';
+        return set({
           onboarded: true,
-          username,
-          displayName: username || 'Champion',
+          username: u,
+          displayName: sanitizeDisplayName(u),
           weeklyGoal,
           avatarUri,
-        }),
+        });
+      },
 
-      setUsername: (username) => set({ username, displayName: username || 'Champion' }),
+      setUsername: (username) => {
+        const u = normalizeUsername(username) || 'champion';
+        set({ username: u, displayName: sanitizeDisplayName(u) });
+      },
       setAvatar: (avatarUri) => set({ avatarUri }),
       setWeeklyGoal: (weeklyGoal) => set({ weeklyGoal }),
 

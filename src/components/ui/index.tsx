@@ -48,10 +48,15 @@ export function Screen({
   contentStyle?: StyleProp<ViewStyle>;
 }) {
   const insets = useSafeAreaInsets();
-  const padding = { paddingTop: insets.top + 8, paddingBottom: 116 };
+  // Extra bottom clearance so the floating Train FAB never covers the last tiles.
+  const padding = { paddingTop: insets.top + 8, paddingBottom: 148 };
 
   if (!scroll) {
-    return <View style={[styles.screen, padding, style]}>{children}</View>;
+    return (
+      <View style={[styles.screen, styles.screenContent, padding, style, contentStyle]}>
+        {children}
+      </View>
+    );
   }
 
   return (
@@ -158,7 +163,7 @@ export const PressableScale = forwardRef<View, PressableProps & { children: Reac
         // to the caller's handler below.
         onPressIn={(e) => {
           // eslint-disable-next-line react-hooks/immutability
-          scale.value = withTiming(0.96, { duration: 90 });
+          scale.value = withTiming(0.97, { duration: 90 });
           lightImpactHaptic();
           props.onPressIn?.(e);
         }}

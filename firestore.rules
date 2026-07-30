@@ -38,10 +38,19 @@ service cloud.firestore {
           && request.resource.data.totalXp <= 100000000
           && (!('username' in request.resource.data)
               || (request.resource.data.username is string
-                  && request.resource.data.username.size() <= 40))
+                  && request.resource.data.username.size() >= 3
+                  && request.resource.data.username.size() <= 20))
           && (!('displayName' in request.resource.data)
               || (request.resource.data.displayName is string
                   && request.resource.data.displayName.size() <= 40))
+          && (!('avatarUrl' in request.resource.data)
+              || request.resource.data.avatarUrl == null
+              || (request.resource.data.avatarUrl is string
+                  && request.resource.data.avatarUrl.size() <= 500
+                  && (
+                    request.resource.data.avatarUrl.size() == 0
+                    || request.resource.data.avatarUrl.matches('https://.*')
+                  )))
           && (!('lastActiveAt' in request.resource.data)
               || request.resource.data.lastActiveAt is number)
           && (!('createdAt' in request.resource.data)
@@ -89,6 +98,29 @@ service cloud.firestore {
         // other athlete to add you back (no force-inject onto someone else's list).
         allow read, create, update, delete: if isOwner(uid);
       }
+
+      // Owner-managed block list — used to hide peers and refuse invites.
+      match /blocks/{blockedUid} {
+        allow read, create, update, delete: if isOwner(uid);
+      }
+    }
+
+    // User reports — create-only for the reporter; no client list/read (review
+    // happens in console / support). Caps keep spam payloads small.
+    match /reports/{reportId} {
+      allow create: if isAuthed()
+        && request.resource.data.reporterUid == request.auth.uid
+        && request.resource.data.targetUid is string
+        && request.resource.data.targetUid != request.auth.uid
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() <= 40
+        && (!('note' in request.resource.data)
+            || (request.resource.data.note is string
+                && request.resource.data.note.size() <= 400))
+        && (!('context' in request.resource.data)
+            || (request.resource.data.context is string
+                && request.resource.data.context.size() <= 80));
+      allow read, update, delete: if false;
     }
 
     match /duels/{duelId} {
@@ -153,7 +185,8 @@ service cloud.firestore {
                  .hasOnly(['host', 'status', 'winnerUid'])
           )
           && (resource.data.guest == null
-              || request.resource.data.guest == resource.data.guest);
+              || request.resource.data.guest == resource.data.guest)
+          && seatRepsFair(resource.data.host, request.resource.data.host);
       }
 
       function guestSeatWrite() {
@@ -167,7 +200,26 @@ service cloud.firestore {
             || request.resource.data.diff(resource.data).affectedKeys()
                  .hasOnly(['guest', 'status', 'winnerUid'])
           )
-          && request.resource.data.host == resource.data.host;
+          && request.resource.data.host == resource.data.host
+          && seatRepsFair(resource.data.guest, request.resource.data.guest);
+      }
+
+      // Anti-cheat: reps non-decreasing + capped. Live ticks limited to +8;
+      // finishing (`done: true`) may write the final score in one shot so a
+      // missed live sync cannot brick settlement.
+      function seatRepsFair(before, after) {
+        return after.reps is number
+          && after.reps >= 0
+          && after.reps <= 500
+          && after.reps >= before.reps
+          && (
+            after.done == true
+              || after.reps <= before.reps + 8
+          )
+          && (!('formScore' in after)
+              || (after.formScore is number
+                  && after.formScore >= 0
+                  && after.formScore <= 100));
       }
 
       function isLiveUpdate() {
@@ -189,7 +241,13 @@ service cloud.firestore {
         return isAuthed() && request.auth.uid in resource.data.memberUids;
       }
 
-      allow read: if isAuthed();
+      // Get: members always; pending invites readable by code so a partner can join.
+      // List: only docs where the caller is already a member (my-couples query).
+      allow get: if isAuthed() && (
+        request.auth.uid in resource.data.memberUids
+        || resource.data.pending == true
+      );
+      allow list: if isAuthed() && request.auth.uid in resource.data.memberUids;
 
       function memberZeroed(m) {
         return m.totalReps == 0
@@ -301,7 +359,7 @@ service cloud.firestore {
         return request.resource.data.uid == uid
           && request.resource.data.weeklyXp is number
           && request.resource.data.weeklyXp >= 0
-          && request.resource.data.weeklyXp <= 100000
+          && request.resource.data.weeklyXp <= 50000
           && request.resource.data.totalXp is number
           && request.resource.data.totalXp >= 0
           && request.resource.data.totalXp <= 100000000

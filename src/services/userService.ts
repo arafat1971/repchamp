@@ -15,6 +15,9 @@ import firestore from '@react-native-firebase/firestore';
 import storage from '@react-native-firebase/storage';
 
 import { isFirebaseConfigured } from '@/lib/firebase';
+import { normalizeUsername, sanitizeDisplayName } from '@/domain/input';
+import { clampWeeklyXp } from '@/domain/fairPlay';
+import { isCloudSafeAvatarUrl } from '@/domain/safety';
 import type { ExerciseId } from '@/vision/exercises';
 
 /** The durable, cloud-synced projection of a user. Gameplay history stays local. */
@@ -43,9 +46,13 @@ function usersCol() {
 /** Read a profile once. Returns null if unconfigured or not yet created. */
 export async function fetchProfile(uid: string): Promise<CloudProfile | null> {
   if (!isFirebaseConfigured()) return null;
-  const snap = await usersCol().doc(uid).get();
-  if (!snap.exists()) return null;
-  return snap.data() as CloudProfile;
+  try {
+    const snap = await usersCol().doc(uid).get();
+    if (!snap.exists()) return null;
+    return snap.data() as CloudProfile;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -84,20 +91,30 @@ export async function upsertProfile(
   profile: Omit<CloudProfile, 'updatedAt' | 'createdAt' | 'lastActiveAt'>,
 ): Promise<void> {
   if (!isFirebaseConfigured()) return;
-  const ref = usersCol().doc(profile.uid);
-  const existing = await ref.get();
-  const now = Date.now();
-  await ref.set(
-    {
-      ...profile,
-      updatedAt: firestore.FieldValue.serverTimestamp(),
-      lastActiveAt: now,
-      ...(existing.exists() ? {} : { createdAt: now }),
-      // Never leave a harvestable token on the public profile after sync.
-      expoPushToken: firestore.FieldValue.delete(),
-    },
-    { merge: true },
-  );
+  try {
+    const username = normalizeUsername(profile.username) || 'champion';
+    const displayName = sanitizeDisplayName(profile.displayName, username);
+    const avatarUrl = isCloudSafeAvatarUrl(profile.avatarUrl) ? profile.avatarUrl : null;
+    const ref = usersCol().doc(profile.uid);
+    const existing = await ref.get();
+    const now = Date.now();
+    await ref.set(
+      {
+        ...profile,
+        username,
+        displayName,
+        avatarUrl,
+        updatedAt: firestore.FieldValue.serverTimestamp(),
+        lastActiveAt: now,
+        ...(existing.exists() ? {} : { createdAt: now }),
+        // Never leave a harvestable token on the public profile after sync.
+        expoPushToken: firestore.FieldValue.delete(),
+      },
+      { merge: true },
+    );
+  } catch {
+    // Offline / network — caller keeps local state and retries later.
+  }
 }
 
 /**
@@ -106,11 +123,15 @@ export async function upsertProfile(
  */
 export async function touchPresence(uid: string): Promise<void> {
   if (!isFirebaseConfigured()) return;
-  const ref = usersCol().doc(uid);
-  const snap = await ref.get();
-  // Never create a half-empty profile — wait until upsertProfile has run once.
-  if (!snap.exists()) return;
-  await ref.set({ lastActiveAt: Date.now() }, { merge: true });
+  try {
+    const ref = usersCol().doc(uid);
+    const snap = await ref.get();
+    // Never create a half-empty profile — wait until upsertProfile has run once.
+    if (!snap.exists()) return;
+    await ref.set({ lastActiveAt: Date.now() }, { merge: true });
+  } catch {
+    // Offline — presence is best-effort.
+  }
 }
 
 /**
@@ -128,18 +149,25 @@ export async function publishScore(input: {
   league: string;
 }): Promise<void> {
   if (!isFirebaseConfigured()) return;
-  await firestore()
-    .collection('leaderboard')
-    .doc(input.uid)
-    .set(
-      {
-        ...input,
-        updatedAt: firestore.FieldValue.serverTimestamp(),
-        // `weekKey` lets a scheduled function/rule reset stale weekly rows.
-        weekKey: currentWeekKey(),
-      },
-      { merge: true },
-    );
+  try {
+    await firestore()
+      .collection('leaderboard')
+      .doc(input.uid)
+      .set(
+        {
+          ...input,
+          displayName: sanitizeDisplayName(input.displayName),
+          weeklyXp: clampWeeklyXp(input.weeklyXp),
+          totalXp: Math.max(0, Math.floor(input.totalXp)),
+          updatedAt: firestore.FieldValue.serverTimestamp(),
+          // `weekKey` lets a scheduled function/rule reset stale weekly rows.
+          weekKey: currentWeekKey(),
+        },
+        { merge: true },
+      );
+  } catch {
+    // Offline — local XP still counts; next sync retries.
+  }
 }
 
 /**
@@ -149,19 +177,37 @@ export async function publishScore(input: {
  */
 export async function removeScore(uid: string): Promise<void> {
   if (!isFirebaseConfigured()) return;
-  await firestore().collection('leaderboard').doc(uid).delete();
+  try {
+    await firestore().collection('leaderboard').doc(uid).delete();
+  } catch {
+    // Offline — privacy flip retries on next sync.
+  }
 }
 
 /**
  * Upload a local avatar image (file:// or content:// uri) to Storage and return
- * the public download URL. Returns the original uri unchanged when unconfigured
- * so the local avatar keeps working.
+ * the HTTPS download URL. Returns the original uri unchanged when unconfigured
+ * so the local avatar keeps working offline.
+ *
+ * Declares JPEG content-type so Storage rules accept the write. Callers should
+ * crop/compress before upload (ImagePicker quality ~0.8).
  */
 export async function uploadAvatar(uid: string, localUri: string): Promise<string> {
   if (!isFirebaseConfigured()) return localUri;
+  if (!localUri || localUri.startsWith('https://')) return localUri;
   const ref = storage().ref(`avatars/${uid}.jpg`);
-  await ref.putFile(localUri);
+  await ref.putFile(localUri, { contentType: 'image/jpeg' });
   return ref.getDownloadURL();
+}
+
+/** Delete the stored avatar object (best-effort) so a moderated/removed photo clears. */
+export async function deleteAvatar(uid: string): Promise<void> {
+  if (!isFirebaseConfigured()) return;
+  try {
+    await storage().ref(`avatars/${uid}.jpg`).delete();
+  } catch {
+    // Missing object is fine.
+  }
 }
 
 /** ISO week key like `2026-W30`, matching the weekly XP rollup elsewhere. */

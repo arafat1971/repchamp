@@ -16,13 +16,13 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { CoupleQR } from '@/components/CoupleQR';
-import { inviteLink } from '@/domain/couple';
-import { lastNDayKeys } from '@/domain/progression';
+import { coupleBondPresentation, inviteLink } from '@/domain/couple';
+import { dayKey, lastNDayKeys, weekdayLetter } from '@/domain/progression';
 import { ModalHeader } from '@/components/ModalHeader';
 import { Card, Divider, Eyebrow, PressableScale, Screen } from '@/components/ui';
 import { track } from '@/lib/analytics';
 import { captureError } from '@/lib/crash';
-import { cancelStreakReminder, scheduleStreakReminder } from '@/lib/notifications';
+import { cancelStreakReminder } from '@/lib/notifications';
 import { createCouple, joinCoupleByCode, leaveCouple, nudgePartner } from '@/services/coupleService';
 import { useAuthStore } from '@/state/authStore';
 import { useCouple } from '@/state/useCouple';
@@ -52,18 +52,12 @@ export default function CoupleInviteScreen() {
     useCouple();
 
   /**
-   * Keep the local streak reminder in step with the bond: armed while a paired
-   * streak still needs today's session, dropped the moment it is safe or the
-   * couple breaks up. Local-only — see `lib/notifications.ts` for why reaching a
-   * backgrounded partner needs a Cloud Function.
+   * Streak reminders are owned by `useNotificationSync` (root). On unpair we
+   * still cancel immediately so a leftover evening nag doesn't fire.
    */
   useEffect(() => {
-    if (paired && partner && atRisk) {
-      void scheduleStreakReminder(partner.displayName);
-    } else {
-      void cancelStreakReminder();
-    }
-  }, [paired, partner, atRisk]);
+    if (!paired) void cancelStreakReminder();
+  }, [paired]);
 
   const [creating, setCreating] = useState(false);
   const [joining, setJoining] = useState(false);
@@ -200,10 +194,19 @@ export default function CoupleInviteScreen() {
   };
 
   // Activity calendar data
+  const today = dayKey();
   const week = lastNDayKeys(7);
   const myDays = new Set(me?.trainedDays ?? []);
   const partnerDays = new Set(partner?.trainedDays ?? []);
-  const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  const bond = coupleBondPresentation({
+    me,
+    partner,
+    streak,
+    combined,
+    atRisk,
+    today,
+    levelName: level.name,
+  });
 
   const myInitial = displayName ? displayName.trim().charAt(0).toUpperCase() : 'A';
   const partnerInitial = partner?.displayName
@@ -268,8 +271,17 @@ export default function CoupleInviteScreen() {
                 Paired with {partner.displayName}
               </Text>
               <View style={styles.statusMetaRow}>
-                <View style={styles.statusDot} />
-                <Text style={styles.statusMeta}>Connected · training together</Text>
+                <View
+                  style={[
+                    styles.statusDot,
+                    bond.tone === 'risk' && { backgroundColor: palette.amber500 },
+                    bond.tone === 'locked' && { backgroundColor: palette.green500 },
+                    bond.tone === 'nudge' && { backgroundColor: palette.amber500 },
+                  ]}
+                />
+                <Text style={styles.statusMeta} numberOfLines={1}>
+                  {bond.headline}
+                </Text>
               </View>
             </View>
             <View style={styles.statusTag}>
@@ -358,13 +370,17 @@ export default function CoupleInviteScreen() {
                 </View>
               </View>
 
-              {/* Streak at-risk warning */}
-              {atRisk ? (
-                <Animated.View entering={FadeInDown.duration(400).delay(400)} style={styles.riskBanner}>
-                  <Text style={{ fontSize: 14 }}>⚠️</Text>
-                  <Text style={styles.riskText}>
-                    Streak at risk! One of you hasn&apos;t trained today.
-                  </Text>
+              {/* Smart status banner — hook copy for fresh / nudge / risk */}
+              {bond.tone === 'risk' || bond.tone === 'fresh' || bond.tone === 'nudge' ? (
+                <Animated.View
+                  entering={FadeInDown.duration(400).delay(400)}
+                  style={[
+                    styles.riskBanner,
+                    bond.tone === 'fresh' && styles.hookBannerFresh,
+                    bond.tone === 'nudge' && styles.hookBannerNudge,
+                  ]}
+                >
+                  <Text style={styles.riskText}>{bond.headline}</Text>
                 </Animated.View>
               ) : null}
             </LinearGradient>
@@ -373,11 +389,11 @@ export default function CoupleInviteScreen() {
           {/* ── 7-Day Activity Calendar ── */}
           <Animated.View entering={FadeInUp.duration(400).delay(200)} style={styles.calendarCard}>
             <View style={styles.calendarHeader}>
-              <Text style={styles.calendarTitle}>This Week</Text>
+              <Text style={styles.calendarTitle}>Last 7 days</Text>
               <Text style={styles.calendarHint}>Both train = full glow</Text>
             </View>
             <View style={styles.calendarRow}>
-              {week.map((day, i) => {
+              {week.map((day) => {
                 const both = myDays.has(day) && partnerDays.has(day);
                 const meOnly = myDays.has(day) && !partnerDays.has(day);
                 const partnerOnly = !myDays.has(day) && partnerDays.has(day);
@@ -385,10 +401,10 @@ export default function CoupleInviteScreen() {
                 return (
                   <Animated.View
                     key={day}
-                    entering={FadeInUp.duration(300).delay(250 + i * 60)}
+                    entering={FadeInUp.duration(300).delay(250)}
                     style={styles.calendarDayCol}
                   >
-                    <Text style={styles.calendarDayLabel}>{dayLabels[i]}</Text>
+                    <Text style={styles.calendarDayLabel}>{weekdayLetter(day)}</Text>
                     <View
                       style={[
                         styles.calendarDot,
@@ -800,6 +816,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     width: '100%',
+  },
+  hookBannerFresh: {
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  hookBannerNudge: {
+    backgroundColor: 'rgba(245,158,11,0.28)',
   },
   riskText: font('bold', 12, { color: '#fef2f2' }),
 

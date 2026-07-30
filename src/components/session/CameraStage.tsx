@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import type { ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { Camera } from 'react-native-vision-camera';
 import type { CameraDevice, CameraOutput } from 'react-native-vision-camera';
 
@@ -8,12 +8,16 @@ import { text } from '@/theme/typography';
 import { palette } from '@/theme/tokens';
 
 /**
- * Frames per second requested from the camera.
+ * Frames per second requested from the camera (analysis stream).
  *
- * Higher is better for both the overlay's smoothness and rep-timing precision:
- * at 30fps a rep boundary can be up to 33ms off, at 50fps under 20ms.
+ * This is intentionally below display refresh: the skeleton overlay interpolates
+ * toward each inference result on every vsync so the UI still feels like a
+ * stable 60 FPS even when the model runs at ~20–30 Hz.
+ *
+ * Android low/mid devices struggle at 50fps with TFLite + Skia on the same
+ * pipeline (ANRs / thermal). Cap Android at 30; iOS keeps 50 where silicon allows.
  */
-export const TARGET_FPS = 50;
+export const TARGET_FPS = Platform.OS === 'android' ? 30 : 50;
 
 /** Dark camera backdrop, tinted per exercise, matching the prototype's `.cam`. */
 const BACKDROP: Record<string, readonly [string, string, string]> = {
@@ -24,8 +28,6 @@ const BACKDROP: Record<string, readonly [string, string, string]> = {
   shoulder: [palette.camGreenTop, palette.camGreenMid, palette.camGreenBottom],
   stretch: [palette.camPurpleTop, palette.camPurpleMid, palette.camPurpleBottom],
 };
-
-
 
 /**
  * Shared camera surface for every phase of a session.
@@ -42,19 +44,23 @@ export function CameraStage({
   cameraReady,
   height: _height,
   cameraRef,
+  fps,
   children,
 }: {
   exercise: string;
   outputs: CameraOutput[];
-  /** Resolved front camera, or undefined on hardware without one. */
+  /** Resolved camera device, or undefined on hardware without one. */
   device: CameraDevice | undefined;
   isActive: boolean;
   cameraReady: boolean;
   height: number;
   cameraRef?: React.RefObject<any>;
+  /** Override TARGET_FPS (adaptive thermal throttle). */
+  fps?: number;
   children?: ReactNode;
 }) {
   const colors = BACKDROP[exercise] ?? BACKDROP.push!;
+  const requestFps = fps ?? TARGET_FPS;
 
   return (
     <View style={StyleSheet.absoluteFill}>
@@ -71,10 +77,8 @@ export function CameraStage({
           isActive={isActive}
           device={device}
           outputs={outputs}
-          // Ask for a high frame rate so the skeleton overlay tracks smoothly.
-          // The camera falls back to its nearest supported rate if 50 is not
-          // available on this device.
-          constraints={[{ fps: TARGET_FPS }]}
+          // Ask for requestFps; the camera falls back to its nearest supported rate.
+          constraints={[{ fps: requestFps }]}
           style={StyleSheet.absoluteFill}
         />
       ) : null}

@@ -210,6 +210,186 @@ export function memberBehindToday(couple: Couple, today: string): CoupleMember |
   return couple.members.find((m) => !m.trainedDays.includes(today)) ?? null;
 }
 
+/* ------------------------------------------------------------------ *
+ * Home bond presentation — smart, hooked copy for the Couple strip
+ * ------------------------------------------------------------------ */
+
+/** Visual / urgency tone for the home Couple Bond strip. */
+export type CoupleBondTone = 'fresh' | 'nudge' | 'waiting' | 'locked' | 'risk' | 'steady';
+
+/**
+ * Glanceable status for a paired couple on Home.
+ *
+ * One job: turn the shared streak rule into a clear hook — empty bonds invite
+ * the first set, half-days nudge the missing partner, at-risk streaks warn
+ * without drama, and locked days congratulate without noise.
+ */
+export interface CoupleBondPresentation {
+  /** Small label above the status line (tier or mode name). */
+  eyebrow: string;
+  /** The hook — one short line the athlete should act on (or feel). */
+  headline: string;
+  /** Soft CTA under the week row; null when no action is needed. */
+  cta: string | null;
+  tone: CoupleBondTone;
+  /**
+   * What tapping the strip should do.
+   * - `train` — start / open a together set
+   * - `nudge` — open bond controls to poke the partner
+   * - `open` — open the couple detail (default / celebrate)
+   */
+  action: 'train' | 'nudge' | 'open';
+  /** e.g. "58 / 100 reps" toward the next milestone. */
+  milestoneLabel: string | null;
+  /** 0..1 progress toward the next combined-rep milestone. */
+  milestoneProgress: number;
+}
+
+/**
+ * Derive the Couple Bond strip's copy from live pair state.
+ *
+ * Pure so Home and tests share one source of truth. `viewerUid` decides whose
+ * "your move" vs "waiting on them" framing to use.
+ */
+export function coupleBondPresentation(input: {
+  me: CoupleMember | null;
+  partner: CoupleMember | null;
+  streak: number;
+  combined: number;
+  atRisk: boolean;
+  today: string;
+  levelName: string;
+}): CoupleBondPresentation {
+  const partnerName = (input.partner?.displayName ?? 'Partner').trim() || 'Partner';
+  const firstName = partnerName.split(/\s+/)[0] ?? partnerName;
+  const iTrained = !!input.me?.trainedDays.includes(input.today);
+  const theyTrained = !!input.partner?.trainedDays.includes(input.today);
+  const milestone = nextMilestone(input.combined);
+  const prev =
+    milestone == null
+      ? COMBINED_MILESTONES[COMBINED_MILESTONES.length - 1]!
+      : (COMBINED_MILESTONES.filter((m) => m < milestone).pop() ?? 0);
+  const milestoneProgress =
+    milestone == null
+      ? 1
+      : Math.min(1, Math.max(0, (input.combined - prev) / (milestone - prev)));
+  const milestoneLabel =
+    milestone == null
+      ? null
+      : `${input.combined.toLocaleString()} / ${milestone.toLocaleString()} reps`;
+
+  // Brand-new bond — zeros should invite, not look broken.
+  if (input.combined === 0 && input.streak === 0) {
+    return {
+      eyebrow: input.levelName,
+      headline: 'First shared set locks your bond',
+      cta: 'Train together',
+      tone: 'fresh',
+      action: 'train',
+      milestoneLabel,
+      milestoneProgress: 0,
+    };
+  }
+
+  if (input.atRisk && input.streak > 0) {
+    if (iTrained && !theyTrained) {
+      return {
+        eyebrow: 'Streak at risk',
+        headline: `${firstName} still needs a set — ${input.streak}-day streak ends tonight`,
+        cta: `Nudge ${firstName}`,
+        tone: 'risk',
+        action: 'nudge',
+        milestoneLabel,
+        milestoneProgress,
+      };
+    }
+    if (!iTrained && theyTrained) {
+      return {
+        eyebrow: 'Streak at risk',
+        headline: `${firstName} trained — your set protects the streak`,
+        cta: 'Train now',
+        tone: 'risk',
+        action: 'train',
+        milestoneLabel,
+        milestoneProgress,
+      };
+    }
+    return {
+      eyebrow: 'Streak at risk',
+      headline: `${input.streak}-day streak needs both of you today`,
+      cta: 'Train together',
+      tone: 'risk',
+      action: 'train',
+      milestoneLabel,
+      milestoneProgress,
+    };
+  }
+
+  if (iTrained && theyTrained) {
+    return {
+      eyebrow: input.levelName,
+      headline:
+        input.streak > 0
+          ? `Day locked · ${input.streak}-day shared streak`
+          : 'Both trained today — bond on',
+      cta: null,
+      tone: 'locked',
+      action: 'open',
+      milestoneLabel,
+      milestoneProgress,
+    };
+  }
+
+  if (iTrained && !theyTrained) {
+    return {
+      eyebrow: input.levelName,
+      headline: `Waiting on ${firstName} to lock today`,
+      cta: `Nudge ${firstName}`,
+      tone: 'waiting',
+      action: 'nudge',
+      milestoneLabel,
+      milestoneProgress,
+    };
+  }
+
+  if (!iTrained && theyTrained) {
+    return {
+      eyebrow: input.levelName,
+      headline: `${firstName} already trained — your move`,
+      cta: 'Train now',
+      tone: 'nudge',
+      action: 'train',
+      milestoneLabel,
+      milestoneProgress,
+    };
+  }
+
+  // Neither trained today, streak safe (or zero).
+  if (input.streak > 0) {
+    return {
+      eyebrow: input.levelName,
+      headline: `${input.streak}-day shared streak · keep it alive`,
+      cta: 'Train together',
+      tone: 'steady',
+      action: 'train',
+      milestoneLabel,
+      milestoneProgress,
+    };
+  }
+
+  return {
+    eyebrow: input.levelName,
+    headline: milestone
+      ? `${milestone - input.combined} reps to your next milestone`
+      : 'Show up together — streak starts today',
+    cta: 'Train together',
+    tone: 'steady',
+    action: 'train',
+    milestoneLabel,
+    milestoneProgress,
+  };
+}
+
 /**
  * Combined-rep milestones. These are the shareable moments ("we've done 1,000
  * push-ups together"), so they are spaced to stay reachable rather than

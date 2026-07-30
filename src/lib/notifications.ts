@@ -1,87 +1,71 @@
 /**
- * Notifications — the couple-streak reminder, partner nudges, and Expo push
- * token registration.
+ * Notifications — carefully paced local reminders + Expo push for social events.
  *
- * Two transports, by design:
- *  - **Local** (`expo-notifications`): the daily streak reminder this device
- *    schedules for its own owner, and the in-app nudge shown when the partner is
- *    already looking at the app. These work with no server.
- *  - **Remote (Expo Push)**: `registerForPushNudges` stores this device's *Expo*
- *    push token on `users/{uid}/private/push` (owner-only). When a partner nudges,
- *    the *sender's* app POSTs to Expo's push service (`coupleService.nudgePartner`)
- *    using the token the partner published on the couple member slice, which
- *    delivers even when the recipient's app is closed. This deliberately uses
- *    Expo Push rather than a Cloud Function so it needs no Blaze plan — the only
- *    server is Expo's, which is free. (Expo still routes Android delivery through
- *    FCM under the hood, so an FCM key must be uploaded to the Expo project once —
- *    see FIREBASE_SETUP.md.)
+ * ## Cadence policy (avoid notification fatigue)
  *
- * Nothing here throws on a device that refuses permission or lacks a project id —
- * every entry point resolves to a no-op so a declined prompt or an unconfigured
- * build can never break a session.
+ * | Kind                    | Frequency              | When it fires                          |
+ * |-------------------------|------------------------|----------------------------------------|
+ * | Workout reminder        | ≤1 / day               | Evening, only if not trained today     |
+ * | Couple streak reminder  | ≤1 / day               | Evening, only if shared streak at risk |
+ * | Weekly summary          | 1 / week (Sunday 18:00)| Always (low-frequency payoff)          |
+ * | Challenge invitation    | Event-driven           | When a friend challenges you (push)    |
+ * | Couple nudge            | Event-driven           | Partner taps Nudge (push + in-app)     |
+ * | Rival passed you        | ≤1 / week              | Soft alert if a rival overtakes weekly |
+ *
+ * Workout and streak reminders never stack on the same day — streak-at-risk
+ * wins (more urgent). Turning "Daily reminders" off cancels the workout slot;
+ * streak-at-risk still schedules while paired (protecting the bond).
+ *
+ * Two transports: local (`expo-notifications`) for schedules, Expo Push for
+ * remote social events. Never throws — refused permission is a quiet no-op.
  */
 
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
+import { storage } from '@/lib/storage';
 import { syncMyCouplePushToken } from '@/services/coupleService';
 import { saveExpoPushToken } from '@/services/userService';
 
-/** Android 8+ (minSdk 26 here) refuses notifications without a channel. */
-const CHANNEL_ID = 'couple';
+/** Habit / streak reminders — quieter. */
+const CHANNEL_REMINDERS = 'reminders';
+/** Challenge invites, nudges, rival alerts — higher priority. */
+const CHANNEL_SOCIAL = 'social';
 
-/** Legacy single-reminder id — cancelled on re-schedule so old installs clean up. */
-const STREAK_REMINDER_ID = 'couple-streak-reminder';
-
-/**
- * Three daily streak reminders — morning, midday, evening — so a busy day gets
- * more than one chance to land before the streak resets at midnight. Each has a
- * fixed id so re-scheduling replaces rather than stacks.
- */
-const STREAK_REMINDER_SLOTS = [
-  {
-    id: 'couple-streak-reminder-am',
-    hour: 9,
-    title: 'Start the day strong',
-    body: (name: string) => `Get today's set in before ${name} beats you to it.`,
-  },
-  {
-    id: 'couple-streak-reminder-noon',
-    hour: 14,
-    title: 'Halfway through the day',
-    body: (name: string) => `You and ${name} still need today's reps to keep the streak.`,
-  },
-  {
-    id: 'couple-streak-reminder-pm',
-    hour: 19,
-    title: 'Your streak is on the line',
-    body: (name: string) => `Last call — you and ${name} haven't both trained today.`,
-  },
+/** Legacy ids cancelled on every sync so older installs stop multi-nagging. */
+const LEGACY_IDS = [
+  'couple-streak-reminder',
+  'couple-streak-reminder-am',
+  'couple-streak-reminder-noon',
+  'couple-streak-reminder-pm',
+  'daily-train-am',
+  'daily-train-noon',
+  'daily-train-pm',
 ] as const;
 
-let configured = false;
+const WORKOUT_REMINDER_ID = 'workout-reminder-daily';
+const STREAK_REMINDER_ID = 'couple-streak-reminder-eve';
+const WEEKLY_RECAP_ID = 'weekly-recap';
+const RIVAL_PASSED_ID = 'rival-passed-weekly';
 
-/** The EAS project id an Expo push token is scoped to, or undefined if unset. */
+const RIVAL_PASSED_KEY = 'repchamp.notif.rivalPassedWeek';
+
+let configured = false;
+let suppressCoupleNudgeInForeground = false;
+
 function easProjectId(): string | undefined {
   const id =
     Constants.expoConfig?.extra?.eas?.projectId ??
-    // Older manifest shape, kept as a fallback.
     (Constants as { easConfig?: { projectId?: string } }).easConfig?.projectId;
-  // The template ships an all-zeros placeholder; treat it as "not configured".
   if (!id || /^0+(-0+)*$/.test(String(id).replace(/-/g, '0'))) return undefined;
   return String(id);
 }
 
-/**
- * Register this device to receive push nudges: request permission, read the Expo
- * push token, and store it on `users/{uid}` so a partner's app can target it.
- *
- * Returns an unsubscribe, or a no-op when there is no EAS project id (Expo push
- * tokens are project-scoped, so `getExpoPushTokenAsync` needs one) or permission
- * is denied. Never throws — a device that says no simply won't receive remote
- * nudges; the local reminder and in-app nudge still work.
- */
+function channelIdFor(kind: 'reminders' | 'social'): string {
+  return kind === 'social' ? CHANNEL_SOCIAL : CHANNEL_REMINDERS;
+}
+
 export function registerForPushNudges(uid: string): () => void {
   const projectId = easProjectId();
   if (!projectId) return () => {};
@@ -96,13 +80,10 @@ export function registerForPushNudges(uid: string): () => void {
       const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
       if (token && !cancelled) {
         await saveExpoPushToken(uid, token);
-        // Also publish onto the couple member slice (if paired) so the partner
-        // can nudge without reading a world-readable profile field.
         await syncMyCouplePushToken(uid, token);
       }
     } catch {
-      // No Play Services / APNs, or a refused prompt — remote nudges just won't
-      // arrive.
+      // No Play Services / APNs — remote pushes just won't arrive.
     }
   })();
 
@@ -111,19 +92,6 @@ export function registerForPushNudges(uid: string): () => void {
   };
 }
 
-/**
- * While the app is foregrounded, swallow the *remote* couple-nudge push.
- *
- * The nudge is already shown in-app through the Firestore subscription
- * (`useCouple`), so letting the incoming Expo push also surface would double it.
- * The notification handler below decides per-notification whether to show it;
- * this flag flips off display for couple nudges specifically while the app is
- * open. Background/closed delivery is untouched — the OS renders the push
- * directly and this code never runs.
- *
- * Returns a no-op unsubscribe (kept for call-site symmetry with the FCM version
- * it replaced).
- */
 export function installForegroundNudgeSuppressor(): () => void {
   suppressCoupleNudgeInForeground = true;
   return () => {
@@ -131,17 +99,6 @@ export function installForegroundNudgeSuppressor(): () => void {
   };
 }
 
-/** True while the app is foregrounded and the in-app nudge owns presentation. */
-let suppressCoupleNudgeInForeground = false;
-
-/**
- * Decide how a notification presents while the app is foregrounded.
- *
- * Most notifications show. The exception is a *couple nudge* arriving over the
- * push service while the app is open: the in-app nudge (`useCouple`) already
- * showed it, so this drops the duplicate. Nudges are tagged `type:
- * 'couple-nudge'` in their `data` by the sender.
- */
 function configureHandler(): void {
   if (configured) return;
   configured = true;
@@ -153,24 +110,31 @@ function configureHandler(): void {
       return {
         shouldShowBanner: !isForegroundDuplicate,
         shouldShowList: !isForegroundDuplicate,
-        shouldPlaySound: false,
+        shouldPlaySound: type === 'challenge' || type === 'couple-nudge',
         shouldSetBadge: false,
       };
     },
   });
 }
 
-/**
- * Ask for permission once, returning whether we may post notifications.
- * Never throws: a device or user that says no simply gets `false`.
- */
 export async function ensureNotificationPermission(): Promise<boolean> {
   try {
     configureHandler();
 
     if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
-        name: 'Couple reminders',
+      await Notifications.setNotificationChannelAsync(CHANNEL_REMINDERS, {
+        name: 'Training reminders',
+        importance: Notifications.AndroidImportance.DEFAULT,
+        description: 'At most one gentle reminder per day',
+      });
+      await Notifications.setNotificationChannelAsync(CHANNEL_SOCIAL, {
+        name: 'Challenges & friends',
+        importance: Notifications.AndroidImportance.HIGH,
+        description: 'Duel invites, partner nudges, and rival alerts',
+      });
+      // Keep legacy channel so old pushes still deliver.
+      await Notifications.setNotificationChannelAsync('couple', {
+        name: 'Couple',
         importance: Notifications.AndroidImportance.DEFAULT,
       });
     }
@@ -186,127 +150,126 @@ export async function ensureNotificationPermission(): Promise<boolean> {
   }
 }
 
+async function cancelIds(ids: readonly string[]): Promise<void> {
+  await Promise.all(
+    ids.map((id) => Notifications.cancelScheduledNotificationAsync(id).catch(() => {})),
+  );
+}
+
+export interface ReminderContext {
+  /** Settings → Daily reminders. */
+  dailyReminderEnabled: boolean;
+  /** True once this athlete logged a session today. */
+  trainedToday: boolean;
+  /** Couple shared streak dies tonight unless both train. */
+  coupleAtRisk: boolean;
+  partnerName?: string | null;
+}
+
 /**
- * Schedule the daily "your streak needs you" reminders — three a day (morning,
- * midday, evening) so a single missed banner doesn't cost the streak.
- *
- * Each slot uses a fixed identifier so scheduling again replaces rather than
- * stacks — otherwise every app launch would add more copies of each reminder.
+ * Single entry point for local schedules. Call on launch, after a session, and
+ * when couple risk / settings change. Idempotent via fixed identifiers.
  */
+export async function syncLocalReminders(ctx: ReminderContext): Promise<void> {
+  if (!(await ensureNotificationPermission())) return;
+
+  try {
+    await cancelIds(LEGACY_IDS);
+
+    // Weekly summary — always one quiet ping (not gated by daily toggle).
+    await scheduleWeeklyRecap();
+
+    if (ctx.trainedToday) {
+      await cancelIds([WORKOUT_REMINDER_ID, STREAK_REMINDER_ID]);
+      return;
+    }
+
+    if (ctx.coupleAtRisk) {
+      // Streak protection beats a generic workout nag — never both.
+      await cancelIds([WORKOUT_REMINDER_ID]);
+      await scheduleStreakReminder(ctx.partnerName ?? 'your partner');
+      return;
+    }
+
+    await cancelIds([STREAK_REMINDER_ID]);
+
+    if (ctx.dailyReminderEnabled) {
+      await scheduleDailyTrainingReminder();
+    } else {
+      await cancelIds([WORKOUT_REMINDER_ID]);
+    }
+  } catch {
+    // Best-effort.
+  }
+}
+
+/** @deprecated Prefer syncLocalReminders — kept for couple-invite call sites. */
 export async function scheduleStreakReminder(partnerName: string): Promise<void> {
   if (!(await ensureNotificationPermission())) return;
   try {
-    // Clear the legacy single reminder from older installs so it can't linger.
-    await Notifications.cancelScheduledNotificationAsync(STREAK_REMINDER_ID).catch(() => {});
-    for (const slot of STREAK_REMINDER_SLOTS) {
-      await Notifications.cancelScheduledNotificationAsync(slot.id).catch(() => {});
-      await Notifications.scheduleNotificationAsync({
-        identifier: slot.id,
-        content: {
-          title: slot.title,
-          body: slot.body(partnerName),
-          ...(Platform.OS === 'android' ? { channelId: CHANNEL_ID } : {}),
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DAILY,
-          hour: slot.hour,
-          minute: 0,
-        },
-      });
-    }
+    await cancelIds([STREAK_REMINDER_ID, ...LEGACY_IDS.filter((id) => id.includes('streak'))]);
+    await Notifications.scheduleNotificationAsync({
+      identifier: STREAK_REMINDER_ID,
+      content: {
+        title: 'Shared streak needs you',
+        body: `You and ${partnerName} both need a set today to keep it alive.`,
+        data: { type: 'streak-reminder' },
+        ...(Platform.OS === 'android' ? { channelId: channelIdFor('reminders') } : {}),
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour: 20,
+        minute: 0,
+      },
+    });
   } catch {
-    // A refused or unavailable scheduler must never break the calling screen.
+    // Best-effort.
   }
 }
 
-/**
- * Solo daily training reminders — three a day for every athlete, independent of
- * whether they've paired. Distinct ids from the couple streak reminder so the
- * two never collide. Toggled by the "Daily reminders" setting.
- */
-const DAILY_TRAINING_SLOTS = [
-  {
-    id: 'daily-train-am',
-    hour: 9,
-    title: 'Morning reps?',
-    body: 'A quick set now sets the tone for the whole day.',
-  },
-  {
-    id: 'daily-train-noon',
-    hour: 13,
-    title: 'Midday movement',
-    body: 'Two minutes of reps beats the afternoon slump.',
-  },
-  {
-    id: 'daily-train-pm',
-    hour: 19,
-    title: "Don't break the chain",
-    body: 'Log a set tonight to keep your streak alive.',
-  },
-] as const;
-
-/**
- * Schedule (or refresh) the three solo daily training reminders. Fixed ids mean
- * re-running replaces rather than stacks. Safe to call on every app launch.
- */
+/** @deprecated Prefer syncLocalReminders. */
 export async function scheduleDailyTrainingReminder(): Promise<void> {
   if (!(await ensureNotificationPermission())) return;
   try {
-    for (const slot of DAILY_TRAINING_SLOTS) {
-      await Notifications.cancelScheduledNotificationAsync(slot.id).catch(() => {});
-      await Notifications.scheduleNotificationAsync({
-        identifier: slot.id,
-        content: {
-          title: slot.title,
-          body: slot.body,
-          data: { type: 'daily-train' },
-          ...(Platform.OS === 'android' ? { channelId: CHANNEL_ID } : {}),
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DAILY,
-          hour: slot.hour,
-          minute: 0,
-        },
-      });
-    }
+    await cancelIds([WORKOUT_REMINDER_ID, ...LEGACY_IDS.filter((id) => id.startsWith('daily-'))]);
+    await Notifications.scheduleNotificationAsync({
+      identifier: WORKOUT_REMINDER_ID,
+      content: {
+        title: 'Time for a quick set',
+        body: 'Two minutes of reps keeps your streak and form sharp.',
+        data: { type: 'workout-reminder' },
+        ...(Platform.OS === 'android' ? { channelId: channelIdFor('reminders') } : {}),
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour: 19,
+        minute: 0,
+      },
+    });
   } catch {
-    // Best-effort; a refused scheduler must never break app start or Settings.
+    // Best-effort.
   }
 }
 
-/** Drop all solo daily training reminders — the athlete turned them off. */
 export async function cancelDailyTrainingReminder(): Promise<void> {
   try {
-    for (const slot of DAILY_TRAINING_SLOTS) {
-      await Notifications.cancelScheduledNotificationAsync(slot.id).catch(() => {});
-    }
+    await cancelIds([WORKOUT_REMINDER_ID, ...LEGACY_IDS.filter((id) => id.startsWith('daily-'))]);
   } catch {
-    // Nothing scheduled; nothing to do.
+    // Nothing scheduled.
   }
 }
 
-/** Identifier for the weekly recap nudge, so re-scheduling replaces it. */
-const WEEKLY_RECAP_ID = 'weekly-recap';
-
-/**
- * Schedule the weekly "your week is ready" nudge — Sunday evening by default.
- *
- * Fired once at app start (idempotent via the fixed id), it draws the athlete
- * back to the recap: a low-frequency, emotional-payoff notification, distinct
- * from the daily streak nag. Local-only; needs no server.
- */
 export async function scheduleWeeklyRecap(weekday = 1, hour = 18): Promise<void> {
-  // expo-notifications weekday: 1 = Sunday … 7 = Saturday.
   if (!(await ensureNotificationPermission())) return;
   try {
     await Notifications.cancelScheduledNotificationAsync(WEEKLY_RECAP_ID).catch(() => {});
     await Notifications.scheduleNotificationAsync({
       identifier: WEEKLY_RECAP_ID,
       content: {
-        title: 'Your week in reps 💪',
-        body: 'See what you got done — and what you and your partner did together.',
+        title: 'Your week in reps',
+        body: 'See what you got done — and celebrate the wins.',
         data: { type: 'weekly-recap' },
-        ...(Platform.OS === 'android' ? { channelId: CHANNEL_ID } : {}),
+        ...(Platform.OS === 'android' ? { channelId: channelIdFor('reminders') } : {}),
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
@@ -316,28 +279,21 @@ export async function scheduleWeeklyRecap(weekday = 1, hour = 18): Promise<void>
       },
     });
   } catch {
-    // Best-effort; a refused scheduler must never break app start.
+    // Best-effort.
   }
 }
 
-/** Drop all daily reminders — the streak is safe, or the couple has unpaired. */
 export async function cancelStreakReminder(): Promise<void> {
   try {
-    await Notifications.cancelScheduledNotificationAsync(STREAK_REMINDER_ID).catch(() => {});
-    for (const slot of STREAK_REMINDER_SLOTS) {
-      await Notifications.cancelScheduledNotificationAsync(slot.id).catch(() => {});
-    }
+    await cancelIds([
+      STREAK_REMINDER_ID,
+      ...LEGACY_IDS.filter((id) => id.includes('streak')),
+    ]);
   } catch {
-    // Nothing scheduled; nothing to do.
+    // Nothing scheduled.
   }
 }
 
-/**
- * Surface a nudge from the partner right now.
- *
- * Only reaches this device while the app is running — see the module header for
- * why a backgrounded delivery needs a Cloud Function.
- */
 export async function presentNudge(fromName: string): Promise<void> {
   if (!(await ensureNotificationPermission())) return;
   try {
@@ -345,9 +301,73 @@ export async function presentNudge(fromName: string): Promise<void> {
       content: {
         title: `${fromName} is training`,
         body: 'Jump in and keep your streak alive.',
-        ...(Platform.OS === 'android' ? { channelId: CHANNEL_ID } : {}),
+        data: { type: 'couple-nudge' },
+        ...(Platform.OS === 'android' ? { channelId: channelIdFor('social') } : {}),
       },
-      trigger: null, // immediately
+      trigger: null,
+    });
+  } catch {
+    // Best-effort.
+  }
+}
+
+/**
+ * Local banner when a challenge invite lands while the app can present it.
+ * Deduped by duel id so polling does not spam.
+ */
+export async function presentChallengeInvite(input: {
+  duelId: string;
+  fromName: string;
+  kind?: string;
+}): Promise<void> {
+  if (!(await ensureNotificationPermission())) return;
+  const id = `challenge-${input.duelId}`;
+  try {
+    await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
+    const verb =
+      input.kind === 'train'
+        ? 'wants to train together'
+        : input.kind === 'compete'
+          ? 'challenged you this week'
+          : 'challenged you to a duel';
+    await Notifications.scheduleNotificationAsync({
+      identifier: id,
+      content: {
+        title: 'Challenge invite',
+        body: `${input.fromName} ${verb}.`,
+        data: { type: 'challenge', duelId: input.duelId },
+        ...(Platform.OS === 'android' ? { channelId: channelIdFor('social') } : {}),
+      },
+      trigger: null,
+    });
+  } catch {
+    // Best-effort.
+  }
+}
+
+/**
+ * Soft "a rival passed you" — at most once per ISO week.
+ * Call when weekly XP comparison finds an overtake; no-ops if already notified.
+ */
+export async function presentRivalPassed(input: {
+  rivalName: string;
+  weekKey: string;
+}): Promise<void> {
+  if (!(await ensureNotificationPermission())) return;
+  try {
+    const prev = storage.getString(RIVAL_PASSED_KEY);
+    if (prev === input.weekKey) return;
+    storage.set(RIVAL_PASSED_KEY, input.weekKey);
+    await Notifications.cancelScheduledNotificationAsync(RIVAL_PASSED_ID).catch(() => {});
+    await Notifications.scheduleNotificationAsync({
+      identifier: RIVAL_PASSED_ID,
+      content: {
+        title: 'Rival alert',
+        body: `${input.rivalName} just passed your weekly score. Rematch?`,
+        data: { type: 'rival-passed' },
+        ...(Platform.OS === 'android' ? { channelId: channelIdFor('social') } : {}),
+      },
+      trigger: null,
     });
   } catch {
     // Best-effort.

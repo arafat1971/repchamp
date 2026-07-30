@@ -26,6 +26,12 @@ import { ACTIVE_WINDOW_MS } from '@/domain/presence';
 import { buildLeaderboard } from '@/domain/leaderboard';
 import { currentWeekKey } from '@/services/userService';
 
+jest.mock('@/services/safetyService', () => ({
+  assertClientRateLimit: jest.fn(),
+  isBlockedEither: jest.fn(async () => false),
+  fetchBlockedIds: jest.fn(async () => new Set()),
+}));
+
 const mockState = { configured: true };
 
 /**
@@ -263,8 +269,8 @@ describe('addFriendByUsername', () => {
   });
 
   it('refuses to friend yourself', async () => {
-    mockStore.users.set('me', { username: 'me', displayName: 'Me' });
-    await expect(addFriendByUsername('me', 'me')).rejects.toThrow(/that's you/i);
+    mockStore.users.set('me', { username: 'myself', displayName: 'Me' });
+    await expect(addFriendByUsername('me', 'myself')).rejects.toThrow(/that's you/i);
   });
 });
 

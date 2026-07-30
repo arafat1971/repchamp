@@ -169,4 +169,14 @@ describe('packFrameToRgb', () => {
     )!;
     expect(out.length).toBe(192 * 192 * 3); // 110,592
   });
+
+  it('allocates a fresh output buffer each call', () => {
+    const { buffer, bytesPerRow } = makeFrame(4, 4, 'rgb');
+    const a = packFrameToRgb(buffer, { width: 4, height: 4, bytesPerRow, layout: 'rgb' }, 4);
+    const b = packFrameToRgb(buffer, { width: 4, height: 4, bytesPerRow, layout: 'rgb' }, 4);
+    expect(a).not.toBeNull();
+    expect(b).not.toBeNull();
+    expect(a).not.toBe(b);
+    expect(a!.length).toBe(b!.length);
+  });
 });

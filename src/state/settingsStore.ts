@@ -12,7 +12,7 @@ export interface SettingsState {
   voiceCoach: boolean;
   /** Allow duel-invite notifications. */
   duelInvites: boolean;
-  /** Daily "come train" reminders, three times a day. */
+  /** Daily "come train" reminder — at most one evening ping if you haven't trained. */
   dailyReminder: boolean;
   /** Hide from the global leaderboard. */
   privateProfile: boolean;

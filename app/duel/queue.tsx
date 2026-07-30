@@ -1,8 +1,10 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AppState, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
+  FadeIn,
+  FadeInDown,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -11,73 +13,75 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { ModalHeader } from '@/components/ModalHeader';
-import { Avatar, PressableScale, Screen } from '@/components/ui';
+import { Avatar, PressableScale, PrimaryButton, Screen } from '@/components/ui';
 import { successHaptic } from '@/lib/feedback';
 import { type QueueTicket } from '@/domain/matchmaking';
+import { OPPONENTS } from '@/domain/opponent';
+import { usePhantomSeed } from '@/domain/seedPhantoms';
 import { enqueue, leaveQueue, tryPair, watchTicket } from '@/services/matchmakingService';
 import { useSelfPlayer } from '@/state/useSelfPlayer';
-import { font, text } from '@/theme/typography';
+import { font } from '@/theme/typography';
 import { palette, radius, shadow } from '@/theme/tokens';
-import type { ExerciseId } from '@/vision/exercises';
+import { parseDuelExercise } from '@/domain/duelExercises';
+import { EXERCISES, type ExerciseId } from '@/vision/exercises';
 
 /** How often we re-attempt pairing while sitting in the queue. */
 const PAIR_RETRY_MS = 2500;
 
-/** After this many seconds with no match, offer the instant paced-rival duel. */
-const WAIT_HINT_SEC = 10;
+/** Seconds searching for a real athlete before auto-starting an AI rival. */
+const WAIT_HINT_SEC = 8;
+
+/** Offer a manual AI skip a few seconds before auto-fallback. */
+const AI_SKIP_FROM_SEC = 5;
 
 /**
- * Open-matchmaking queue screen — "find me any opponent".
+ * Open-matchmaking queue — real athletes first, paced AI if nobody pairs.
  *
- * On mount we `enqueue` this athlete, then poll `tryPair` on an interval: each
- * attempt either claims a waiting stranger (minting a live duel) or leaves us
- * queued for a later entrant to claim us. In parallel we `watchTicket` our own
- * ticket, so whether *we* paired or someone paired *us*, the ticket flips to
- * `matched` with a shared `duelId` and both clients route into the same live
- * session (`/session?duel=<id>`) — reusing the whole live-duel path unchanged.
- *
- * Leaving the screen (cancel or unmount) removes our ticket, so an abandoned
- * search never leaves a stale `waiting` row for someone to match into a ghost.
- *
- * Live matchmaking requires Firebase. Unconfigured, `enqueue`/`tryPair` no-op and
- * `watchTicket` yields null, so we surface the same "backend not set up" state as
- * the waiting room and offer the bot duel — never a dead end.
+ * Prefers a live opponent in the open queue. If nobody pairs within a short
+ * window, falls back to an AI rival so Quick Match always starts a playable set.
  */
 export default function QueueScreen() {
   const router = useRouter();
   const self = useSelfPlayer();
+  const seed = usePhantomSeed();
   const params = useLocalSearchParams<{ exercise?: string; duration?: string }>();
-  const exercise: ExerciseId = params.exercise === 'squat' ? 'squat' : 'push';
+  const exercise: ExerciseId = parseDuelExercise(params.exercise);
   const duration = params.duration ? Number(params.duration) : 20;
+  const exerciseLabel = EXERCISES[exercise].label;
 
   const [status, setStatus] = useState<'searching' | 'unavailable'>('searching');
   const launchedRef = useRef(false);
   const [elapsed, setElapsed] = useState(0);
 
-  // Radar pulse — two rings expand and fade on a stagger to signal live searching.
+  const phase = useMemo(() => {
+    if (elapsed >= WAIT_HINT_SEC) return 'ai' as const;
+    if (elapsed >= AI_SKIP_FROM_SEC) return 'expand' as const;
+    return 'live' as const;
+  }, [elapsed]);
+
+  const progress = Math.min(1, elapsed / WAIT_HINT_SEC);
+
+  // Radar pulse — two rings expand and fade on a stagger.
   const ring1 = useSharedValue(0);
   const ring2 = useSharedValue(0);
   useEffect(() => {
     const loop = withRepeat(
-      withTiming(1, { duration: 1800, easing: Easing.out(Easing.ease) }),
+      withTiming(1, { duration: 2000, easing: Easing.out(Easing.ease) }),
       -1,
       false,
     );
     ring1.value = loop;
-    ring2.value = withDelay(900, loop);
+    ring2.value = withDelay(1000, loop);
   }, [ring1, ring2]);
   const ring1Style = useAnimatedStyle(() => ({
-    transform: [{ scale: 1 + ring1.value * 0.9 }],
-    opacity: 0.5 * (1 - ring1.value),
+    transform: [{ scale: 1 + ring1.value * 0.85 }],
+    opacity: 0.45 * (1 - ring1.value),
   }));
   const ring2Style = useAnimatedStyle(() => ({
-    transform: [{ scale: 1 + ring2.value * 0.9 }],
-    opacity: 0.5 * (1 - ring2.value),
+    transform: [{ scale: 1 + ring2.value * 0.85 }],
+    opacity: 0.45 * (1 - ring2.value),
   }));
 
-  /** Route both athletes into the shared live duel, exactly once. The session
-   *  reads the authoritative exercise from the duel doc via its `duel` param, so
-   *  passing our chosen exercise here is just the initial HUD hint. */
   const launch = (duelId: string) => {
     if (launchedRef.current) return;
     launchedRef.current = true;
@@ -85,20 +89,32 @@ export default function QueueScreen() {
     router.replace({ pathname: '/session', params: { exercise, mode: 'versus', duel: duelId } });
   };
 
-  // Enter the queue and keep trying to pair until matched.
+  // Enter the queue once we have a signed-in athlete. Depend on uid so a late
+  // auth hydrate doesn't leave the screen stuck on "unavailable" forever.
   useEffect(() => {
     if (!self) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setStatus('unavailable');
       return;
     }
+    setStatus('searching');
+    setElapsed(0);
+
     let cancelled = false;
     let pairTimer: ReturnType<typeof setInterval> | undefined;
     let tick: ReturnType<typeof setInterval> | undefined;
 
-    void (async () => {
+    const clearHunt = () => {
+      if (pairTimer) {
+        clearInterval(pairTimer);
+        pairTimer = undefined;
+      }
+    };
+
+    const hunt = async () => {
+      clearHunt();
       await enqueue({ ...self, exercise, duration });
-      if (cancelled) return;
+      if (cancelled || launchedRef.current) return;
 
       const attempt = async () => {
         if (cancelled || launchedRef.current) return;
@@ -106,22 +122,34 @@ export default function QueueScreen() {
         if (!cancelled && duelId) launch(duelId);
       };
 
-      // Try immediately, then on an interval until paired.
       void attempt();
       pairTimer = setInterval(() => void attempt(), PAIR_RETRY_MS);
-      tick = setInterval(() => setElapsed((s) => s + 1), 1000);
-    })();
+    };
+
+    void hunt();
+    tick = setInterval(() => setElapsed((s) => s + 1), 1000);
+
+    const sub = AppState.addEventListener('change', (state) => {
+      if (launchedRef.current || cancelled) return;
+      if (state === 'background') {
+        clearHunt();
+        void leaveQueue(self.uid);
+      } else if (state === 'active') {
+        // Re-join after a background leave so we don't sit in a ghost search.
+        void hunt();
+      }
+    });
 
     return () => {
       cancelled = true;
-      if (pairTimer) clearInterval(pairTimer);
+      sub.remove();
+      clearHunt();
       if (tick) clearInterval(tick);
+      if (!launchedRef.current) void leaveQueue(self.uid);
     };
-    // self identity is fixed for this screen's lifetime.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [self?.uid, exercise, duration]);
 
-  // Watch our own ticket — if someone else paired us first, follow their duel.
   useEffect(() => {
     if (!self) return;
     const unsub = watchTicket(self.uid, (ticket: QueueTicket | null) => {
@@ -131,28 +159,41 @@ export default function QueueScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [self?.uid]);
 
-  // Leave the queue when the screen goes away without a match.
-  useEffect(() => {
-    return () => {
-      if (self && !launchedRef.current) void leaveQueue(self.uid);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [self?.uid]);
-
-  // Also leave the queue if the app is backgrounded — the user may not return,
-  // and a stale `waiting` ticket would pair an unsuspecting stranger into a ghost.
-  useEffect(() => {
-    if (!self) return;
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'background' && !launchedRef.current) void leaveQueue(self.uid);
-    });
-    return () => sub.remove();
-  }, [self?.uid]);
-
   const botFallback = () => {
-    if (self && !launchedRef.current) void leaveQueue(self.uid);
-    router.replace({ pathname: '/session', params: { exercise, mode: 'versus' } });
+    if (launchedRef.current) return;
+    launchedRef.current = true;
+    if (self) void leaveQueue(self.uid);
+    const pool = [
+      ...OPPONENTS.filter((o) => o.online),
+      ...(seed.isSeeding ? seed.phantomOnline.map((p) => ({ id: p.id })) : []),
+    ];
+    const pick = pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)]! : OPPONENTS[0]!;
+    successHaptic();
+    router.replace({
+      pathname: '/session',
+      params: { exercise, mode: 'versus', opponent: pick.id },
+    });
   };
+
+  useEffect(() => {
+    if (status !== 'searching' || elapsed < WAIT_HINT_SEC) return;
+    botFallback();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [elapsed, status]);
+
+  const statusTitle =
+    phase === 'ai'
+      ? 'Matching an AI rival…'
+      : phase === 'expand'
+        ? 'Still searching…'
+        : 'Finding a live opponent';
+
+  const statusSub =
+    phase === 'ai'
+      ? 'Same rules · same XP · starting now'
+      : phase === 'expand'
+        ? 'No live athlete yet — AI ready in a moment'
+        : `Live queue · ${exerciseLabel} · ${duration}s`;
 
   /* ------------------------------------------------------------------ */
 
@@ -160,23 +201,25 @@ export default function QueueScreen() {
     return (
       <Screen>
         <ModalHeader title="Quick match" />
-        <View style={styles.center}>
-          <Avatar
-            initial={(self?.displayName ?? 'Y').charAt(0).toUpperCase()}
-            uri={self?.avatarUrl ?? undefined}
-            size={80}
-          />
-          <Text style={[text.h2, { textAlign: 'center', marginTop: 12 }]}>
-            Open matchmaking goes online once the backend is set up
+        <Animated.View entering={FadeIn.duration(280)} style={styles.center}>
+          <View style={styles.emptyIcon}>
+            <Text style={styles.emptyIconMark}>VS</Text>
+          </View>
+          <Text style={styles.emptyTitle}>Matchmaking offline</Text>
+          <Text style={styles.emptyBody}>
+            Live pairing needs the cloud. You can still start a paced AI duel —
+            same rules, same XP.
           </Text>
-          <Text style={[text.captionMd, styles.hint]}>
-            Until then you can still settle it against a paced rival — same rules,
-            same XP.
-          </Text>
-          <PressableScale onPress={botFallback} style={styles.primaryBtn} accessibilityRole="button">
-            <Text style={styles.primaryLabel}>Duel a rival instead</Text>
+          <PrimaryButton label="Duel an AI rival" onPress={botFallback} style={{ marginTop: 8 }} />
+          <PressableScale
+            onPress={() => router.back()}
+            style={styles.textCancel}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
+            <Text style={styles.textCancelLabel}>Go back</Text>
           </PressableScale>
-        </View>
+        </Animated.View>
       </Screen>
     );
   }
@@ -185,140 +228,266 @@ export default function QueueScreen() {
     <Screen>
       <ModalHeader title="Quick match" />
 
-      <View style={styles.stage}>
+      <Animated.View entering={FadeInDown.duration(320)} style={styles.stage}>
+        {/* Live / AI mode chip */}
+        <View style={styles.chipRow}>
+          <View style={[styles.chip, phase === 'ai' ? styles.chipAi : styles.chipLive]}>
+            <View style={[styles.chipDot, phase === 'ai' && styles.chipDotAi]} />
+            <Text style={[styles.chipText, phase === 'ai' && styles.chipTextAi]}>
+              {phase === 'ai' ? 'AI rival' : 'Live queue'}
+            </Text>
+          </View>
+          <Text style={styles.chipMeta}>
+            {exerciseLabel} · {duration}s
+          </Text>
+        </View>
+
+        {/* VS radar */}
         <View style={styles.radar}>
           <Animated.View style={[styles.radarRing, ring1Style]} />
           <Animated.View style={[styles.radarRing, ring2Style]} />
-          <View style={styles.pulse}>
-            <ActivityIndicator color={palette.green600} size="large" />
+          <View style={styles.vsRow}>
+            <Avatar
+              initial={(self?.displayName ?? 'Y').charAt(0).toUpperCase()}
+              uri={self?.avatarUrl ?? undefined}
+              size={52}
+            />
+            <View style={styles.vsBadge}>
+              <Text style={styles.vsBadgeText}>VS</Text>
+            </View>
+            <View style={styles.opponentSlot}>
+              <Text style={styles.opponentSlotMark}>?</Text>
+            </View>
           </View>
         </View>
-        <Text style={styles.searching}>Finding you an opponent…</Text>
-        <Text style={styles.timer}>{elapsed}s elapsed</Text>
+
+        <Text style={styles.searching}>{statusTitle}</Text>
+        <Text style={styles.timer}>{statusSub}</Text>
+
+        {/* Progress toward AI fallback — honest, not a fake “match %”. */}
+        <View style={styles.progressBlock}>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` }]} />
+          </View>
+          <View style={styles.progressMeta}>
+            <Text style={styles.progressLabel}>
+              {phase === 'ai' ? 'Starting AI duel' : 'Searching athletes'}
+            </Text>
+            <Text style={styles.progressTime}>{elapsed}s</Text>
+          </View>
+        </View>
 
         <View style={styles.selfRow}>
-          <Avatar
-            initial={(self?.displayName ?? 'Y').charAt(0).toUpperCase()}
-            uri={self?.avatarUrl ?? undefined}
-            size={44}
-          />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.selfName} numberOfLines={1}>
-              {self?.displayName ?? 'You'}
-            </Text>
-            <Text style={styles.selfMeta}>Level {self?.level ?? 1} · ready</Text>
+          <View style={styles.readyPill}>
+            <View style={styles.readyDot} />
+            <Text style={styles.readyText}>You · ready</Text>
           </View>
-          <View style={styles.readyDot} />
+          <Text style={styles.selfName} numberOfLines={1}>
+            {self?.displayName ?? 'You'} · Lv.{self?.level ?? 1}
+          </Text>
         </View>
-      </View>
+      </Animated.View>
 
-      <Text style={[text.captionMd, styles.hint]}>
-        {elapsed < WAIT_HINT_SEC
-          ? `We’ll drop you into a ${exercise === 'squat' ? 'squat' : 'push-up'} duel (${duration}s) the moment someone else is searching.`
-          : "No one's searching right now — jump into a paced rival duel instead and settle it for the same XP."}
-      </Text>
+      <View style={styles.footer}>
+        {phase === 'expand' ? (
+          <Animated.View entering={FadeInDown.duration(240)}>
+            <PrimaryButton label="Skip to AI rival" onPress={botFallback} />
+            <Text style={styles.footerHint}>Or wait a few more seconds for a live athlete</Text>
+          </Animated.View>
+        ) : phase === 'ai' ? (
+          <Text style={styles.footerHint}>Locking in your opponent…</Text>
+        ) : (
+          <Text style={styles.footerHint}>
+            Real athletes first. If nobody’s free, we match you with AI.
+          </Text>
+        )}
 
-      {/* Never a dead end: once the wait runs long, offer an instant paced-rival
-          duel so Quick Match always lands in a real, playable set. */}
-      {elapsed >= WAIT_HINT_SEC ? (
         <PressableScale
-          onPress={botFallback}
-          style={styles.primaryBtn}
+          onPress={() => router.back()}
+          style={styles.textCancel}
           accessibilityRole="button"
-          accessibilityLabel="Duel a paced rival now"
+          accessibilityLabel="Cancel search"
         >
-          <Text style={styles.primaryLabel}>Duel a rival now</Text>
+          <Text style={styles.textCancelLabel}>Cancel</Text>
         </PressableScale>
-      ) : null}
-
-      <PressableScale
-        onPress={() => router.back()}
-        style={styles.cancel}
-        accessibilityRole="button"
-        accessibilityLabel="Cancel search"
-      >
-        <View style={styles.cancelDot} />
-        <Text style={styles.cancelLabel}>Cancel search</Text>
-      </PressableScale>
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
-  stage: {
-    borderRadius: radius['5xl'],
-    paddingVertical: 36,
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 28,
-    marginTop: 6,
+    gap: 12,
+  },
+  emptyIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 24,
+    backgroundColor: palette.green50,
+    borderWidth: 1,
+    borderColor: palette.green200,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  emptyIconMark: font('extrabold', 18, { color: palette.green700 }),
+  emptyTitle: { ...font('extrabold', 22, { color: palette.ink }), textAlign: 'center' },
+  emptyBody: {
+    ...font('semibold', 14, { color: palette.grey600 }),
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  stage: {
+    borderRadius: radius['4xl'],
+    paddingTop: 18,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    marginTop: 4,
     alignItems: 'center',
     backgroundColor: palette.white,
     borderWidth: 1,
     borderColor: palette.border,
     ...shadow.card,
   },
+  chipRow: {
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
+    backgroundColor: palette.green50,
+    borderWidth: 1,
+    borderColor: palette.green200,
+  },
+  chipLive: {},
+  chipAi: {
+    backgroundColor: '#f5f3ff',
+    borderColor: palette.purple200,
+  },
+  chipDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: palette.green500,
+  },
+  chipDotAi: { backgroundColor: palette.purple500 },
+  chipText: font('extrabold', 11, { color: palette.green700 }),
+  chipTextAi: { color: palette.purple600 },
+  chipMeta: font('bold', 11, { color: palette.grey600 }),
   radar: {
-    width: 128,
-    height: 128,
+    width: 200,
+    height: 120,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 6,
   },
   radarRing: {
     position: 'absolute',
-    width: 128,
-    height: 128,
-    borderRadius: 64,
-    backgroundColor: palette.green400,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: palette.green300,
   },
-  pulse: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: palette.green50,
+  vsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    zIndex: 1,
+  },
+  vsBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: palette.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vsBadgeText: font('extrabold', 11, { color: palette.white }),
+  opponentSlot: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     borderWidth: 2,
-    borderColor: palette.green200,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  searching: { ...font('extrabold', 17, { color: palette.ink }), marginTop: 24 },
-  timer: { ...font('semibold', 13, { color: palette.slate500 }), marginTop: 6 },
-  selfRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 26,
-    alignSelf: 'stretch',
+    borderStyle: 'dashed',
+    borderColor: palette.borderStrong,
     backgroundColor: palette.green50,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: radius.xl,
-  },
-  selfName: font('extrabold', 14, { color: palette.ink }),
-  selfMeta: { ...font('semibold', 11.5, { color: palette.slate500 }), marginTop: 1 },
-  readyDot: { width: 9, height: 9, borderRadius: 4.5, backgroundColor: palette.green500 },
-  hint: { textAlign: 'center', marginTop: 18, paddingHorizontal: 10 },
-  primaryBtn: {
-    marginTop: 26,
-    backgroundColor: palette.green500,
-    paddingVertical: 15,
-    paddingHorizontal: 28,
-    borderRadius: radius.xl,
-  },
-  primaryLabel: font('extrabold', 15, { color: palette.white }),
-  cancel: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 9,
-    alignSelf: 'stretch',
-    marginTop: 24,
-    height: 54,
-    borderRadius: radius.pill,
-    backgroundColor: palette.white,
-    borderWidth: 1.5,
-    borderColor: palette.red100,
-    ...shadow.card,
   },
-  cancelDot: { width: 8, height: 8, borderRadius: 2, backgroundColor: palette.red500 },
-  cancelLabel: font('extrabold', 15, { color: palette.red500 }),
+  opponentSlotMark: font('extrabold', 18, { color: palette.grey450 }),
+  searching: {
+    ...font('extrabold', 18, { color: palette.ink }),
+    marginTop: 10,
+    textAlign: 'center',
+  },
+  timer: {
+    ...font('semibold', 13, { color: palette.grey600 }),
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  progressBlock: { alignSelf: 'stretch', marginTop: 18, gap: 8 },
+  progressTrack: {
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: palette.border,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: palette.green500,
+  },
+  progressMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  progressLabel: font('bold', 11, { color: palette.grey600 }),
+  progressTime: font('extrabold', 11, { color: palette.ink }),
+  selfRow: {
+    alignSelf: 'stretch',
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: radius.xl,
+    backgroundColor: palette.green50,
+    borderWidth: 1,
+    borderColor: palette.green100,
+  },
+  readyPill: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  readyDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: palette.green500 },
+  readyText: font('bold', 11, { color: palette.green700 }),
+  selfName: { ...font('extrabold', 12, { color: palette.ink }), flexShrink: 1 },
+  footer: { marginTop: 20, gap: 6 },
+  footerHint: {
+    ...font('semibold', 12.5, { color: palette.grey600 }),
+    textAlign: 'center',
+    lineHeight: 18,
+    paddingHorizontal: 8,
+    marginTop: 4,
+  },
+  textCancel: {
+    alignSelf: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    marginTop: 4,
+  },
+  textCancelLabel: font('bold', 14, { color: palette.grey600 }),
 });

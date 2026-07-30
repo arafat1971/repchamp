@@ -21,8 +21,8 @@ export const FREE_EXERCISES: readonly ExerciseId[] = ['push', 'squat'];
 /** A Pro-only capability, referenced by gates so each has a stable name. */
 export type ProFeature =
   | 'exercise-library' // every movement beyond push-ups + squats
-  | 'form-history' // the saved form-report trend over time
-  | 'advanced-stats' // depth/tempo/alignment analytics
+  | 'form-history' // post-set form report (depth / tempo / alignment)
+  | 'advanced-stats' // same gate as form-history — detailed form analytics
   | 'custom-programmes'; // adaptive multi-week plans
 
 /**

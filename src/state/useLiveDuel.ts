@@ -14,13 +14,14 @@
  * configured — so even a stray `duelId` degrades to the bot rather than throwing.
  */
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import {
   DUEL_SYNC_INTERVAL_MS,
   type Duel,
   type DuelSeat,
 } from '@/domain/duel';
+import { clampDuelRepJump } from '@/domain/fairPlay';
 import {
   finishDuel,
   pushLiveState,
@@ -44,18 +45,23 @@ const INERT: LiveDuel = { active: false, push: () => {}, finish: () => {} };
  * Wire a live duel identified by `duelId`, or return an inert controller when
  * there is none. Subscribes to the opponent's seat and mirrors it into
  * `setOpponentReps` for the duration of the mount.
+ *
+ * The returned object identity is stable across renders (memoised) so session
+ * effects that depend on it do not restart the duel clock every tick — that
+ * reset was a mid-set crash/ANR class bug on live matches.
  */
 export function useLiveDuel(duelId: string | null | undefined): LiveDuel {
   const uid = useAuthStore((s) => s.user?.uid ?? null);
   const seatRef = useRef<DuelSeat | null>(null);
-  const lastPushRef = useRef<number>(0);
+  const lastPushAtRef = useRef<number>(0);
+  /** Last reps value we intended for the cloud seat (fair-jump baseline). */
+  const lastSentRepsRef = useRef(0);
   const finishedRef = useRef(false);
 
-  // Subscribe to the duel doc: resolve our seat once, and mirror the opponent's
-  // live reps into the session store so the HUD renders the real rival.
   useEffect(() => {
     if (!duelId || !uid) return;
     finishedRef.current = false;
+    lastSentRepsRef.current = 0;
 
     const unsub = watchDuel(duelId, (duel: Duel | null) => {
       if (!duel) return;
@@ -64,11 +70,14 @@ export function useLiveDuel(duelId: string | null | undefined): LiveDuel {
       seatRef.current = seat;
       if (!seat) return;
 
+      const mine = seat === 'host' ? duel.host : duel.guest;
+      if (mine && typeof mine.reps === 'number') {
+        lastSentRepsRef.current = Math.max(lastSentRepsRef.current, mine.reps);
+      }
+
       const other = seat === 'host' ? duel.guest : duel.host;
       if (other) {
         useSessionStore.getState().setOpponentReps(other.reps);
-        // Surface the real rival's name so the result screen labels the score
-        // with them instead of the default bot opponent.
         if (other.displayName) useSessionStore.getState().setOpponentName(other.displayName);
       }
     });
@@ -79,13 +88,13 @@ export function useLiveDuel(duelId: string | null | undefined): LiveDuel {
   const push = useCallback(
     (reps: number, formScore: number) => {
       const seat = seatRef.current;
-      if (!duelId || !seat) return;
-      // Throttle to the sync budget from duel.ts; the clock ticks faster than we
-      // want to write, and a dropped intermediate value is harmless.
-      const now = elapsedTicks();
-      if (now - lastPushRef.current < DUEL_SYNC_INTERVAL_MS) return;
-      lastPushRef.current = now;
-      void pushLiveState(duelId, seat, { reps, formScore });
+      if (!duelId || !seat || finishedRef.current) return;
+      const now = Date.now();
+      if (now - lastPushAtRef.current < DUEL_SYNC_INTERVAL_MS) return;
+      lastPushAtRef.current = now;
+      const fairReps = clampDuelRepJump(lastSentRepsRef.current, reps);
+      lastSentRepsRef.current = fairReps;
+      void pushLiveState(duelId, seat, { reps: fairReps, formScore });
     },
     [duelId],
   );
@@ -100,17 +109,8 @@ export function useLiveDuel(duelId: string | null | undefined): LiveDuel {
     [duelId],
   );
 
-  if (!duelId || !uid) return INERT;
-  return { active: true, push, finish };
-}
-
-/**
- * A monotonic millisecond counter for throttling.
- *
- * `Date.now()` is fine here — this is throttle bookkeeping, not the duel clock
- * (which is elapsed-time based and lives in the session screen). Extracted so
- * the intent is explicit and a future switch to `performance.now()` is one edit.
- */
-function elapsedTicks(): number {
-  return Date.now();
+  return useMemo(() => {
+    if (!duelId || !uid) return INERT;
+    return { active: true, push, finish };
+  }, [duelId, uid, push, finish]);
 }

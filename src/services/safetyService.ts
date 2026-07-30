@@ -1,0 +1,151 @@
+/**
+ * Safety service — blocks and reports over Firestore.
+ *
+ * Blocks live under `users/{uid}/blocks/{blockedUid}` (owner-only), matching
+ * the friends pattern. Reports go to a create-only `reports/{id}` collection
+ * so peers cannot browse the queue; review happens in the Firebase console /
+ * support email.
+ */
+
+import firestore from '@react-native-firebase/firestore';
+
+import {
+  RATE_LIMITS,
+  REPORT_NOTE_MAX,
+  type ReportReasonId,
+  canPassRateLimit,
+  recordRateLimitEvent,
+} from '@/domain/safety';
+import { isFirebaseConfigured } from '@/lib/firebase';
+import { storage } from '@/lib/storage';
+
+function blocksCol(uid: string) {
+  return firestore().collection('users').doc(uid).collection('blocks');
+}
+
+function rateKey(kind: string, uid: string, extra = ''): string {
+  return `rate:${kind}:${uid}${extra ? `:${extra}` : ''}`;
+}
+
+function readTimestamps(key: string): number[] {
+  try {
+    const raw = storage.getString(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((n) => typeof n === 'number') : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeTimestamps(key: string, stamps: number[]): void {
+  storage.set(key, JSON.stringify(stamps));
+}
+
+/** Throw if this athlete is over the client rate limit for `kind`. */
+export function assertClientRateLimit(
+  kind: keyof typeof RATE_LIMITS,
+  uid: string,
+  extra = '',
+): void {
+  const cfg = RATE_LIMITS[kind];
+  const key = rateKey(kind, uid, extra);
+  const stamps = readTimestamps(key);
+  if (!canPassRateLimit(stamps, cfg.max, cfg.windowMs)) {
+    throw new Error('Slow down — try again later.');
+  }
+  writeTimestamps(key, recordRateLimitEvent(stamps, cfg.windowMs));
+}
+
+export interface BlockedUser {
+  uid: string;
+  displayName: string;
+  blockedAt: number;
+}
+
+/** Block a peer. Also removes them from your friends list when present. */
+export async function blockUser(
+  myUid: string,
+  targetUid: string,
+  displayName = 'Athlete',
+): Promise<void> {
+  if (!isFirebaseConfigured()) return;
+  if (!myUid || !targetUid || myUid === targetUid) {
+    throw new Error('Invalid block target.');
+  }
+
+  const batch = firestore().batch();
+  batch.set(blocksCol(myUid).doc(targetUid), {
+    displayName,
+    blockedAt: Date.now(),
+  });
+  batch.delete(
+    firestore().collection('users').doc(myUid).collection('friends').doc(targetUid),
+  );
+  await batch.commit();
+}
+
+export async function unblockUser(myUid: string, targetUid: string): Promise<void> {
+  if (!isFirebaseConfigured()) return;
+  await blocksCol(myUid).doc(targetUid).delete();
+}
+
+export async function fetchBlockedUsers(myUid: string): Promise<BlockedUser[]> {
+  if (!isFirebaseConfigured()) return [];
+  const snap = await blocksCol(myUid).get();
+  return snap.docs.map((d) => {
+    const data = d.data() as { displayName?: string; blockedAt?: number };
+    return {
+      uid: d.id,
+      displayName: data.displayName ?? 'Athlete',
+      blockedAt: data.blockedAt ?? 0,
+    };
+  });
+}
+
+export async function fetchBlockedIds(myUid: string): Promise<Set<string>> {
+  const list = await fetchBlockedUsers(myUid);
+  return new Set(list.map((b) => b.uid));
+}
+
+/** True if either athlete has blocked the other. */
+export async function isBlockedEither(a: string, b: string): Promise<boolean> {
+  if (!isFirebaseConfigured() || !a || !b || a === b) return false;
+  const [ab, ba] = await Promise.all([
+    blocksCol(a).doc(b).get(),
+    blocksCol(b).doc(a).get(),
+  ]);
+  return ab.exists() || ba.exists();
+}
+
+export interface CreateReportInput {
+  reporterUid: string;
+  targetUid: string;
+  reason: ReportReasonId;
+  note?: string;
+  context?: string;
+}
+
+/** File a report. Rate-limited; create-only on the server. */
+export async function createReport(input: CreateReportInput): Promise<void> {
+  if (!isFirebaseConfigured()) {
+    throw new Error('Reporting needs a cloud connection.');
+  }
+  if (!input.reporterUid || !input.targetUid || input.reporterUid === input.targetUid) {
+    throw new Error('Invalid report target.');
+  }
+
+  assertClientRateLimit('report', input.reporterUid);
+  assertClientRateLimit('reportSameTarget', input.reporterUid, input.targetUid);
+
+  const note = (input.note ?? '').trim().slice(0, REPORT_NOTE_MAX);
+  await firestore().collection('reports').add({
+    reporterUid: input.reporterUid,
+    targetUid: input.targetUid,
+    reason: input.reason,
+    note,
+    context: (input.context ?? '').slice(0, 80),
+    createdAt: firestore.FieldValue.serverTimestamp(),
+    clientAt: Date.now(),
+  });
+}

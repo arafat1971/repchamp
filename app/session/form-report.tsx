@@ -1,9 +1,11 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { ProgressRing } from '@/components/session/ProgressRing';
 import { Card, IconButton, PrimaryButton, Screen, SectionLabel } from '@/components/ui';
+import { canUse } from '@/domain/pro';
+import { useIsPro } from '@/state/proStore';
 import { useSessionStore } from '@/state/sessionStore';
 import { font, text } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
@@ -12,6 +14,11 @@ export default function FormReportScreen() {
   const router = useRouter();
   const report = useSessionStore((s) => s.formReport);
   const reps = useSessionStore((s) => s.reps);
+  const isPro = useIsPro();
+
+  if (!canUse(isPro, 'advanced-stats')) {
+    return <Redirect href={{ pathname: '/modal/paywall', params: { source: 'form-report' } }} />;
+  }
 
   if (!report) {
     return (

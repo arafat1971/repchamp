@@ -1,7 +1,7 @@
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { AppState, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
 import { useCameraPermission } from 'react-native-vision-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,6 +16,9 @@ import { ProgressRing, RingPercent } from '@/components/session/ProgressRing';
 import { DuelHud } from '@/components/session/DuelHud';
 import { TogetherHud } from '@/components/session/TogetherHud';
 import { PressableScale } from '@/components/ui';
+import {
+  EXERCISE_SAFETY_CHIP,
+} from '@/domain/exerciseSafety';
 import { OpponentPacer, getOpponent } from '@/domain/opponent';
 import { shouldPromptUpgrade } from '@/domain/paywallGate';
 import type { SessionMode } from '@/domain/progression';
@@ -103,6 +106,8 @@ export default function SessionScreen() {
    * running a fake, camera-less session.
    */
   const cameraBlocked = permissionStatus === 'denied' || permissionStatus === 'restricted';
+  /** Permission dialog still outstanding — freeze calibration; never fake-ramp. */
+  const permissionUnresolved = !hasPermission && !cameraBlocked;
   /**
    * Subscribed field by field rather than `useSessionStore()` wholesale. The
    * whole-store subscription re-rendered this screen — and the HUD and overlay
@@ -166,6 +171,15 @@ export default function SessionScreen() {
    * is stranded on the calibration screen with no way forward.
    */
   const [calibrationStalled, setCalibrationStalled] = useState(false);
+  /** Pause camera + inference when backgrounded — saves battery and avoids camera reclaim crashes. */
+  const [appActive, setAppActive] = useState(AppState.currentState === 'active');
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      setAppActive(state === 'active');
+    });
+    return () => sub.remove();
+  }, []);
 
   const duration = mode === 'solo' && target ? defaultDuration('solo') : defaultDuration(mode);
 
@@ -207,10 +221,12 @@ export default function SessionScreen() {
       depth,
       tracking,
       completedRep,
+      formCue,
     }: {
       depth: number;
       tracking: boolean;
       completedRep: RepRecord | null;
+      formCue: 'deeper' | null;
     }) => {
       if (completedRep) {
         repFeedback();
@@ -235,7 +251,7 @@ export default function SessionScreen() {
             });
         }
       }
-      useSessionStore.getState().applyPose({ depth, tracking, completedRep });
+      useSessionStore.getState().applyPose({ depth, tracking, completedRep, formCue });
     },
     [exercise],
   );
@@ -295,6 +311,7 @@ export default function SessionScreen() {
     poseVisible,
     poseFrame,
     recorder,
+    cameraFps,
   } = usePoseSession({
     exercise,
     // Video recording disabled pending a VisionCamera v5 fix: the recorder
@@ -302,8 +319,9 @@ export default function SessionScreen() {
     // outputs bound (confirmed via an isolated record-only probe). Tracked as a
     // known issue; re-enable once the library records correctly.
     record: false,
-    isActive: phase !== 'finished',
-    counting: phase === 'active',
+    isActive: phase !== 'finished' && appActive && !showTutorial,
+    counting: phase === 'active' && appActive,
+    competitive: mode === 'versus' || mode === 'solo',
     onPose: handlePose,
     onFraming: handleFraming,
   });
@@ -320,28 +338,31 @@ export default function SessionScreen() {
    * Calibration — advances on real framing confidence, not a timer.
    * ---------------------------------------------------------------- */
   useEffect(() => {
-    if (phase !== 'calibrating') {
+    if (phase !== 'calibrating' || showTutorial || permissionUnresolved || cameraBlocked) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setCalibrationStalled(false);
       return;
     }
     const stallTimer = setTimeout(() => setCalibrationStalled(true), 12_000);
     return () => clearTimeout(stallTimer);
-  }, [phase]);
+  }, [phase, showTutorial, permissionUnresolved, cameraBlocked]);
 
   useEffect(() => {
     if (phase !== 'calibrating') return;
     // Blocked camera: the Settings gate owns the screen — freeze calibration so
     // nothing advances toward a countdown behind it.
     if (cameraBlocked) return;
+    // First-run tutorial overlays the camera — don't advance underneath it.
+    if (showTutorial) return;
+    // Waiting on the OS permission sheet or the model — never fake-ramp.
+    if (permissionUnresolved || modelState === 'loading') return;
     // Pose model failed: freeze calibration too. Timed ramp used to let a
     // session complete with 0 tracked reps and still award XP — that is gone.
     if (modelState === 'error') return;
     // Without a camera (simulator, no front-facing hardware) the athlete would
-    // be stuck forever, so fall back to a timed ramp. This deliberately does
-    // NOT cover a *blocked* camera or a missing model: those show a gate instead
-    // of handing out reps for a session no pose tracker ever watched.
-    if (!cameraReady && !cameraBlocked) {
+    // be stuck forever, so fall back to a timed ramp. Only when permission is
+    // granted and there is genuinely no device.
+    if (!cameraReady && hasPermission && device == null) {
       const id = setInterval(() => {
         const next = useSessionStore.getState().calibration + 4;
         useSessionStore.getState().setCalibration(next);
@@ -353,6 +374,7 @@ export default function SessionScreen() {
       }, 45);
       return () => clearInterval(id);
     }
+    if (!cameraReady) return;
 
     const percent = Math.min(100, Math.round((framing / CALIBRATION_LOCK) * 100));
     useSessionStore.getState().setCalibration(percent);
@@ -363,13 +385,25 @@ export default function SessionScreen() {
       return () => clearTimeout(id);
     }
     return undefined;
-  }, [phase, framing, cameraReady, cameraBlocked, modelState]);
+  }, [
+    phase,
+    framing,
+    cameraReady,
+    cameraBlocked,
+    modelState,
+    showTutorial,
+    permissionUnresolved,
+    hasPermission,
+    device,
+  ]);
 
   /* ---------------------------------------------------------------- *
    * Countdown
    * ---------------------------------------------------------------- */
   useEffect(() => {
     if (phase !== 'countdown') return;
+    // Don't run the 3-2-1 under the tutorial overlay.
+    if (showTutorial) return;
 
     const id = setInterval(() => {
       const current = useSessionStore.getState().countdown;
@@ -378,7 +412,7 @@ export default function SessionScreen() {
       useSessionStore.getState().tickCountdown();
     }, 650);
     return () => clearInterval(id);
-  }, [phase]);
+  }, [phase, showTutorial]);
 
   /* ---------------------------------------------------------------- *
    * Duel clock + opponent
@@ -404,17 +438,20 @@ export default function SessionScreen() {
 
     // Wall-clock remaining so backgrounding the app can't freeze the timer and
     // unfairly extend a timed duel (setInterval is throttled off-screen).
+    // Form score only when we actually push — avoids JS-thread ANR on low-end.
+    let lastFormPush = 0;
     const id = setInterval(() => {
       const elapsed = (Date.now() - startedAtRef.current) / 1000;
       const pacer = pacerRef.current;
       if (pacer) useSessionStore.getState().setOpponentReps(pacer.repsAt(elapsed));
-      // Live duel: stream our own reps + rolling form up. The opponent's reps
-      // arrive through the duel-doc subscription in useLiveDuel, which writes
-      // them to the store.
       if (live.active) {
-        const s = useSessionStore.getState();
-        const form = buildFormReport(definition, s.repRecords).score;
-        live.push(s.reps, form);
+        const now = Date.now();
+        if (now - lastFormPush >= 320) {
+          lastFormPush = now;
+          const s = useSessionStore.getState();
+          const form = buildFormReport(definition, s.repRecords).score;
+          live.push(s.reps, form);
+        }
       }
       const remaining = Math.max(0, Math.ceil(duration - elapsed));
       const state = useSessionStore.getState();
@@ -428,8 +465,10 @@ export default function SessionScreen() {
     }, 250);
 
     return () => clearInterval(id);
-    // `startRecording` is intentionally not a dependency: the set starts once.
-  }, [phase, mode, duration, startRecording, live, definition, exercise]);
+    // Depend on live.active (boolean), not the live object — identity is stable
+    // after useMemo, but this keeps the intent explicit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, mode, duration, startRecording, live.active, definition, exercise]);
 
   /* ---------------------------------------------------------------- *
    * Hand off to the result screen
@@ -537,6 +576,7 @@ export default function SessionScreen() {
         cameraReady={cameraReady}
         height={height}
         cameraRef={cameraRef}
+        fps={cameraFps}
       >
         {/* Brand mark, pinned to the top-right over the live camera. Per the
             iOS HIG it (1) sits inside the safe area at the standard 16pt margin,
@@ -598,7 +638,7 @@ export default function SessionScreen() {
                 Stand back so your whole body is in frame
               </Text>
 
-              {calibrationStalled ? (
+              {calibrationStalled && cameraReady && modelState === 'loaded' ? (
                 <PressableScale
                   onPress={() => useSessionStore.getState().beginCountdown()}
                   accessibilityRole="button"
@@ -625,6 +665,7 @@ export default function SessionScreen() {
             >
               {countdown > 0 ? countdown : 'GO!'}
             </Animated.Text>
+            <Text style={styles.safetyChip}>{EXERCISE_SAFETY_CHIP}</Text>
           </View>
         ) : null}
 
@@ -799,6 +840,12 @@ const styles = StyleSheet.create({
     lineHeight: 156,
     textShadowColor: 'rgba(0,0,0,0.6)',
     textShadowRadius: 40,
+  },
+  safetyChip: {
+    ...font('bold', 12, { color: 'rgba(255,255,255,0.75)' }),
+    textAlign: 'center',
+    marginTop: 16,
+    paddingHorizontal: 28,
   },
   modelBanner: {
     position: 'absolute',

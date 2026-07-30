@@ -4,6 +4,7 @@ import {
   calculateCoupleStreak,
   combinedReps,
   coupleBadges,
+  coupleBondPresentation,
   coupleLevel,
   couplePoints,
   inviteDeepLink,
@@ -278,5 +279,87 @@ describe('coupleBadges', () => {
     // 2000 pts reaches level 4 → power-couple earned.
     const earned = coupleBadges(2_000, 0).find((b) => b.id === 'power-couple')?.earned;
     expect(earned).toBe(true);
+  });
+});
+
+describe('coupleBondPresentation', () => {
+  const today = '2026-07-30';
+
+  it('invites the first set when the bond is empty', () => {
+    const p = coupleBondPresentation({
+      me: member('a'),
+      partner: member('b', [], 0),
+      streak: 0,
+      combined: 0,
+      atRisk: false,
+      today,
+      levelName: 'New Duo',
+    });
+    expect(p.tone).toBe('fresh');
+    expect(p.cta).toBe('Train together');
+    expect(p.action).toBe('train');
+    expect(p.headline.toLowerCase()).toContain('first');
+  });
+
+  it('nudges when the partner already trained', () => {
+    const p = coupleBondPresentation({
+      me: member('a'),
+      partner: member('b', [today]),
+      streak: 3,
+      combined: 120,
+      atRisk: true,
+      today,
+      levelName: 'Training Partners',
+    });
+    expect(p.tone).toBe('risk');
+    expect(p.cta).toBe('Train now');
+    expect(p.action).toBe('train');
+    expect(p.headline).toMatch(/your (set|move)/i);
+  });
+
+  it('waits on the partner after you train', () => {
+    const p = coupleBondPresentation({
+      me: member('a', [today]),
+      partner: member('knbkhk'),
+      streak: 0,
+      combined: 40,
+      atRisk: false,
+      today,
+      levelName: 'New Duo',
+    });
+    expect(p.tone).toBe('waiting');
+    expect(p.headline).toContain('knbkhk');
+    expect(p.cta).toContain('Nudge');
+    expect(p.action).toBe('nudge');
+  });
+
+  it('celebrates when both locked the day', () => {
+    const p = coupleBondPresentation({
+      me: member('a', [today]),
+      partner: member('b', [today]),
+      streak: 5,
+      combined: 400,
+      atRisk: false,
+      today,
+      levelName: 'In Step',
+    });
+    expect(p.tone).toBe('locked');
+    expect(p.cta).toBeNull();
+    expect(p.action).toBe('open');
+    expect(p.headline).toMatch(/locked/i);
+  });
+
+  it('tracks progress toward the next milestone', () => {
+    const p = coupleBondPresentation({
+      me: member('a'),
+      partner: member('b'),
+      streak: 1,
+      combined: 50,
+      atRisk: false,
+      today,
+      levelName: 'New Duo',
+    });
+    expect(p.milestoneLabel).toBe('50 / 100 reps');
+    expect(p.milestoneProgress).toBeCloseTo(0.5);
   });
 });

@@ -1,6 +1,6 @@
 import { BlurMask, Canvas, Circle, Group, Path, Skia } from '@shopify/react-native-skia';
 import { useMemo } from 'react';
-import { StyleSheet, useWindowDimensions } from 'react-native';
+import { Platform, StyleSheet, useWindowDimensions } from 'react-native';
 import {
   useDerivedValue,
   useFrameCallback,
@@ -15,6 +15,34 @@ export const POSE_BUFFER_LENGTH = 17 * 3;
 
 /** Joints below this confidence are not drawn, rather than drawn wrong. */
 const DRAW_THRESHOLD = 0.3;
+
+/** Crisp skeleton stroke width. */
+const BONE_STROKE_WIDTH = 5;
+
+/** Small professional joint marker — keeps the overlay looking like a thin stick figure. */
+const JOINT_RADIUS = 3;
+
+/**
+ * How far past the wrist / ankle to extend the limb line toward fingers / toes.
+ * MoveNet stops at wrist and ankle; extending along the limb direction makes
+ * the silhouette reach the hands and feet without inventing noisy keypoints.
+ */
+const HAND_EXTEND = 0.38;
+const FOOT_EXTEND = 0.42;
+
+/** Proximal → distal pairs used to grow hands and feet. */
+const LIMB_TIPS: readonly (readonly [number, number, number])[] = [
+  [KEYPOINT_INDEX.leftElbow, KEYPOINT_INDEX.leftWrist, HAND_EXTEND],
+  [KEYPOINT_INDEX.rightElbow, KEYPOINT_INDEX.rightWrist, HAND_EXTEND],
+  [KEYPOINT_INDEX.leftKnee, KEYPOINT_INDEX.leftAnkle, FOOT_EXTEND],
+  [KEYPOINT_INDEX.rightKnee, KEYPOINT_INDEX.rightAnkle, FOOT_EXTEND],
+];
+
+/** Android skips all BlurMask passes — big win on Mali/Adreno mid-range SoCs. */
+const LIGHT_OVERLAY = Platform.OS === 'android';
+
+/** Fixed pose buffer length — avoids allocating a new Array every display frame. */
+const SMOOTH_LEN = POSE_BUFFER_LENGTH;
 
 export interface PoseFrameSize {
   width: number;
@@ -55,41 +83,42 @@ export function PoseOverlay({ pose, frame, color, visible }: PoseOverlayProps) {
   /**
    * Display-rate interpolation of the keypoints.
    *
-   * Inference lands roughly every 40ms, but the screen refreshes every 8-16ms.
-   * Drawing raw inference output makes the skeleton visibly step between poses.
-   * This eases the drawn position toward the newest pose on every display frame,
-   * so the limbs glide continuously no matter how often the model reports.
+   * Inference lands roughly every 33–50ms, but the screen refreshes every
+   * 8–16ms (up to 60/120 Hz). Drawing raw inference output makes the skeleton
+   * step; easing toward the newest pose every display frame keeps the UI at a
+   * smooth 60 FPS feel even when the camera/model run slower.
    *
-   * Runs in a frame callback on the UI thread, so it costs nothing on the JS
-   * thread that is already busy with the rep counter.
+   * Double-buffers a fixed-length array so we do not allocate on every vsync.
    */
   const smoothed = useSharedValue<number[]>([]);
+  const smoothA = useSharedValue<number[]>(new Array(SMOOTH_LEN).fill(0));
+  const smoothB = useSharedValue<number[]>(new Array(SMOOTH_LEN).fill(0));
+  const smoothFlip = useSharedValue(0);
 
   useFrameCallback(() => {
     'worklet';
+    if (!visible.value) return;
     const target = pose.value;
-    if (target.length === 0) return;
+    if (target.length < SMOOTH_LEN) return;
 
     const current = smoothed.value;
-    // First pose, or a topology change — snap rather than glide in from nowhere.
-    if (current.length !== target.length) {
-      smoothed.value = target;
+    if (current.length !== SMOOTH_LEN) {
+      smoothed.value = target.slice();
       return;
     }
 
-    // 0.35 tracks quickly enough to feel responsive while removing the step.
     const alpha = 0.35;
-    const next = new Array<number>(target.length);
-    for (let i = 0; i < target.length; i += 3) {
+    const write = smoothFlip.value === 0 ? smoothA.value : smoothB.value;
+    for (let i = 0; i < SMOOTH_LEN; i += 3) {
       const cx = current[i] as number;
       const cy = current[i + 1] as number;
-      next[i] = cx + ((target[i] as number) - cx) * alpha;
-      next[i + 1] = cy + ((target[i + 1] as number) - cy) * alpha;
-      // Confidence is a gate, not a position — smoothing it would make joints
-      // fade in and out instead of appearing crisply.
-      next[i + 2] = target[i + 2] as number;
+      write[i] = cx + ((target[i] as number) - cx) * alpha;
+      write[i + 1] = cy + ((target[i + 1] as number) - cy) * alpha;
+      write[i + 2] = target[i + 2] as number;
     }
-    smoothed.value = next;
+    // Reassign so derived Skia paths see an update; flip buffers next frame.
+    smoothed.value = write;
+    smoothFlip.value = 1 - smoothFlip.value;
   }, true);
 
   const skeleton = useDerivedValue(() => {
@@ -110,6 +139,11 @@ export function PoseOverlay({ pose, frame, color, visible }: PoseOverlayProps) {
     const offsetX = (screenW - drawnW) / 2;
     const offsetY = (screenH - drawnH) / 2;
 
+    const toScreen = (nx: number, ny: number) => ({
+      x: offsetX + nx * drawnW,
+      y: offsetY + ny * drawnH,
+    });
+
     for (const [a, b] of bones) {
       const as = p[a * 3 + 2] as number;
       const bs = p[b * 3 + 2] as number;
@@ -117,54 +151,109 @@ export function PoseOverlay({ pose, frame, color, visible }: PoseOverlayProps) {
       // reads as broken tracking, which is worse than an absent limb.
       if (as < DRAW_THRESHOLD || bs < DRAW_THRESHOLD) continue;
 
-      path.moveTo(
-        offsetX + (p[a * 3] as number) * drawnW,
-        offsetY + (p[a * 3 + 1] as number) * drawnH,
-      );
-      path.lineTo(
-        offsetX + (p[b * 3] as number) * drawnW,
-        offsetY + (p[b * 3 + 1] as number) * drawnH,
-      );
+      const from = toScreen(p[a * 3] as number, p[a * 3 + 1] as number);
+      const to = toScreen(p[b * 3] as number, p[b * 3 + 1] as number);
+      path.moveTo(from.x, from.y);
+      path.lineTo(to.x, to.y);
     }
+
+    // Grow arms/legs past wrist and ankle so the figure reaches hands and feet.
+    for (const [proximal, distal, extend] of LIMB_TIPS) {
+      const ps = p[proximal * 3 + 2] as number;
+      const ds = p[distal * 3 + 2] as number;
+      if (ps < DRAW_THRESHOLD || ds < DRAW_THRESHOLD) continue;
+
+      const px = p[proximal * 3] as number;
+      const py = p[proximal * 3 + 1] as number;
+      const dx = p[distal * 3] as number;
+      const dy = p[distal * 3 + 1] as number;
+      const tip = toScreen(dx + (dx - px) * extend, dy + (dy - py) * extend);
+      const wristOrAnkle = toScreen(dx, dy);
+      path.moveTo(wristOrAnkle.x, wristOrAnkle.y);
+      path.lineTo(tip.x, tip.y);
+    }
+
     return path;
   }, [smoothed, frame, screenW, screenH, bones]);
+
+  /**
+   * Tiny tip markers at the extrapolated finger / toe ends — same size as
+   * other joints so the silhouette stays clean.
+   */
+  const tipPoints = useDerivedValue(() => {
+    const tips: { x: number; y: number }[] = [];
+    const p = smoothed.value;
+    const f = frame.value;
+    if (p.length < POSE_BUFFER_LENGTH || f.width === 0 || f.height === 0) return tips;
+
+    const scale = Math.max(screenW / f.width, screenH / f.height);
+    const drawnW = f.width * scale;
+    const drawnH = f.height * scale;
+    const offsetX = (screenW - drawnW) / 2;
+    const offsetY = (screenH - drawnH) / 2;
+
+    for (const [proximal, distal, extend] of LIMB_TIPS) {
+      const ps = p[proximal * 3 + 2] as number;
+      const ds = p[distal * 3 + 2] as number;
+      if (ps < DRAW_THRESHOLD || ds < DRAW_THRESHOLD) continue;
+      const px = p[proximal * 3] as number;
+      const py = p[proximal * 3 + 1] as number;
+      const dx = p[distal * 3] as number;
+      const dy = p[distal * 3 + 1] as number;
+      tips.push({
+        x: offsetX + (dx + (dx - px) * extend) * drawnW,
+        y: offsetY + (dy + (dy - py) * extend) * drawnH,
+      });
+    }
+    return tips;
+  }, [smoothed, frame, screenW, screenH]);
 
   const opacity = useDerivedValue(() => (visible.value ? 1 : 0), [visible]);
 
   return (
     <Canvas style={StyleSheet.absoluteFill} pointerEvents="none">
       <Group opacity={opacity}>
-        {/* Outer halo — wide and heavily blurred. */}
-        <Path
-          path={skeleton}
-          style="stroke"
-          strokeWidth={18}
-          strokeCap="round"
-          strokeJoin="round"
-          color={color}
-          opacity={0.35}
-        >
-          <BlurMask blur={18} style="normal" />
-        </Path>
+        {!LIGHT_OVERLAY ? (
+          <>
+            <Path
+              path={skeleton}
+              style="stroke"
+              strokeWidth={BONE_STROKE_WIDTH + 8}
+              strokeCap="round"
+              strokeJoin="round"
+              color={color}
+              opacity={0.28}
+            >
+              <BlurMask blur={12} style="normal" />
+            </Path>
+            <Path
+              path={skeleton}
+              style="stroke"
+              strokeWidth={BONE_STROKE_WIDTH + 2}
+              strokeCap="round"
+              strokeJoin="round"
+              color={color}
+              opacity={0.75}
+            >
+              <BlurMask blur={4} style="normal" />
+            </Path>
+          </>
+        ) : (
+          <Path
+            path={skeleton}
+            style="stroke"
+            strokeWidth={BONE_STROKE_WIDTH + 1.5}
+            strokeCap="round"
+            strokeJoin="round"
+            color={color}
+            opacity={0.55}
+          />
+        )}
 
-        {/* Inner glow — tighter and brighter, gives the line body. */}
         <Path
           path={skeleton}
           style="stroke"
-          strokeWidth={8}
-          strokeCap="round"
-          strokeJoin="round"
-          color={color}
-          opacity={0.85}
-        >
-          <BlurMask blur={6} style="normal" />
-        </Path>
-
-        {/* Core — crisp, near-white so the limb reads clearly against the glow. */}
-        <Path
-          path={skeleton}
-          style="stroke"
-          strokeWidth={3}
+          strokeWidth={BONE_STROKE_WIDTH}
           strokeCap="round"
           strokeJoin="round"
           color="#eaffef"
@@ -177,6 +266,8 @@ export function PoseOverlay({ pose, frame, color, visible }: PoseOverlayProps) {
           screenW={screenW}
           screenH={screenH}
         />
+
+        <TipDots tips={tipPoints} color={color} />
       </Group>
     </Canvas>
   );
@@ -213,10 +304,7 @@ function Joints({
 }
 
 /**
- * One joint marker.
- *
- * Each reads the shared buffer independently so a low-confidence joint can
- * collapse to zero radius without disturbing the others.
+ * One joint marker — small filled dot, same size everywhere for a clean look.
  */
 function Joint({
   index,
@@ -250,16 +338,58 @@ function Joint({
   }, [pose, frame, screenW, screenH]);
 
   const r = useDerivedValue(
-    () => ((pose.value[index * 3 + 2] ?? 0) >= DRAW_THRESHOLD ? 5.5 : 0),
+    () => ((pose.value[index * 3 + 2] ?? 0) >= DRAW_THRESHOLD ? JOINT_RADIUS : 0),
     [pose],
   );
 
   return (
-    <>
-      <Circle cx={cx} cy={cy} r={r} color={color} opacity={0.7}>
-        <BlurMask blur={10} style="normal" />
-      </Circle>
-      <Circle cx={cx} cy={cy} r={r} color="#ffffff" />
-    </>
+    <Circle
+      cx={cx}
+      cy={cy}
+      r={r}
+      color={LIGHT_OVERLAY ? color : '#ffffff'}
+      opacity={LIGHT_OVERLAY ? 0.95 : 1}
+    />
+  );
+}
+
+/** Small tip dots at extrapolated finger / toe ends. */
+function TipDots({
+  tips,
+  color,
+}: {
+  tips: SharedValue<{ x: number; y: number }[]>;
+  color: string;
+}) {
+  return (
+    <Group>
+      {Array.from({ length: 4 }, (_, i) => (
+        <TipDot key={i} index={i} tips={tips} color={color} />
+      ))}
+    </Group>
+  );
+}
+
+function TipDot({
+  index,
+  tips,
+  color,
+}: {
+  index: number;
+  tips: SharedValue<{ x: number; y: number }[]>;
+  color: string;
+}) {
+  const cx = useDerivedValue(() => tips.value[index]?.x ?? -100, [tips]);
+  const cy = useDerivedValue(() => tips.value[index]?.y ?? -100, [tips]);
+  const r = useDerivedValue(() => (tips.value[index] ? JOINT_RADIUS : 0), [tips]);
+
+  return (
+    <Circle
+      cx={cx}
+      cy={cy}
+      r={r}
+      color={LIGHT_OVERLAY ? color : '#ffffff'}
+      opacity={LIGHT_OVERLAY ? 0.95 : 1}
+    />
   );
 }

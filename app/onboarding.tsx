@@ -37,7 +37,16 @@ import { Card, PressableScale, PrimaryButton, ProgressBar } from '@/components/u
 import { captureError } from '@/lib/crash';
 import { OPPONENTS } from '@/domain/opponent';
 import { track } from '@/lib/analytics';
-import { fetchOffering, isPurchasesConfigured, purchase } from '@/services/purchases';
+import { fetchOffering, isPurchasesConfigured, purchase, sortPackagesForPaywall } from '@/services/purchases';
+import {
+  hasFreeTrial,
+  planTitle,
+  renewDisclosure,
+  subscribeCtaLabel,
+  trialLengthDays,
+  trialPeriodLabel,
+  trialRibbon,
+} from '@/domain/subscriptionCopy';
 import { useProStore } from '@/state/proStore';
 import { showDialog } from '@/state/useDialog';
 import {
@@ -52,6 +61,7 @@ import {
   type PlannedDay,
 } from '@/domain/onboardingPlan';
 import { isGoogleAuthConfigured, isGoogleCancel, signInWithGoogle } from '@/services/auth';
+import { isValidUsername, usernameError as usernameValidationError } from '@/domain/input';
 import { useProfileStore } from '@/state/profileStore';
 import { font, text } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
@@ -122,7 +132,7 @@ export default function OnboardingScreen() {
 
   const [step, setStep] = useState(0);
   const [username, setUsername] = useState('');
-  const [usernameError, setUsernameError] = useState(false);
+  const [usernameError, setUsernameError] = useState<string | null>(null);
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [goal, setGoal] = useState<string | null>(null);
   const [level, setLevel] = useState<FitnessLevel | null>(null);
@@ -266,12 +276,13 @@ export default function OnboardingScreen() {
             value={username}
             error={usernameError}
             onChange={(v) => {
-              setUsername(v.replace(/[^a-zA-Z0-9]/g, ''));
-              setUsernameError(false);
+              setUsername(v.replace(/[^a-zA-Z0-9_]/g, ''));
+              setUsernameError(null);
             }}
             onNext={() => {
-              if (!username) {
-                setUsernameError(true);
+              const err = usernameValidationError(username);
+              if (err || !isValidUsername(username)) {
+                setUsernameError(err ?? 'Pick a username.');
                 return;
               }
               next();
@@ -374,7 +385,11 @@ function Welcome({ onNext, onTryNow }: { onNext: () => void; onTryNow: () => voi
       // A cancel is a deliberate user action, not an error worth surfacing.
       if (!isGoogleCancel(error)) {
         captureError(error);
-        setAuthError("Couldn't sign in with Google. Please try again.");
+        const message =
+          error instanceof Error && error.message
+            ? error.message
+            : "Couldn't sign in with Google. Please try again.";
+        setAuthError(message);
       }
     } finally {
       setBusy(false);
@@ -437,19 +452,21 @@ function Welcome({ onNext, onTryNow }: { onNext: () => void; onTryNow: () => voi
         </Text>
       </View>
 
-      {/* Google is offered only when it can actually complete — an unconfigured
-          project would throw on tap. Everyone gets the anonymous path below,
-          which is the app's real entry point. */}
+      {/* Get started = full onboarding. Google is optional. Try now skips setup. */}
       <View style={{ gap: 11, marginTop: 16 }}>
+        <PrimaryButton
+          label="Get started"
+          onPress={onNext}
+          disabled={busy}
+        />
         {googleReady ? (
           <SocialButton
-            label={busy ? 'Signing in…' : 'Sign up with Google'}
+            label={busy ? 'Signing in…' : 'Continue with Google'}
             glyph="G"
             glyphColor="#4285F4"
             onPress={onGoogle}
           />
         ) : null}
-        <PrimaryButton label="Create my account" onPress={onNext} />
       </View>
 
       {authError ? (
@@ -458,9 +475,13 @@ function Welcome({ onNext, onTryNow }: { onNext: () => void; onTryNow: () => voi
         </Text>
       ) : null}
 
-      {/* Fast path for the impatient — a counted rep in seconds, no setup. The
-          single highest-leverage escape hatch for activation. */}
-      <Pressable onPress={onTryNow} accessibilityRole="button" style={styles.tryNow}>
+      {/* Fast path for the impatient — a counted rep in seconds, no setup. */}
+      <Pressable
+        onPress={onTryNow}
+        accessibilityRole="button"
+        disabled={busy}
+        style={styles.tryNow}
+      >
         <Text style={font('extrabold', 14, { color: palette.green600 })}>
           Try a set now — no signup →
         </Text>
@@ -668,11 +689,11 @@ function Username({
   onNext,
 }: {
   value: string;
-  error: boolean;
+  error: string | null;
   onChange: (v: string) => void;
   onNext: () => void;
 }) {
-  const valid = value.length >= 3;
+  const valid = isValidUsername(value);
   const borderColor = error ? palette.red500 : valid ? palette.green500 : palette.border;
 
   return (
@@ -699,16 +720,16 @@ function Username({
       </View>
 
       <Text style={[text.captionMd, { marginTop: 12 }]}>
-        Letters and numbers only. No spaces or special characters.
+        3–20 characters. Letters, numbers, and underscores only.
       </Text>
       {error ? (
         <Text style={font('extrabold', 13, { color: palette.red500, marginTop: 10 })}>
-          Username cannot be empty.
+          {error}
         </Text>
       ) : null}
 
       <View style={{ flex: 1 }} />
-      <PrimaryButton label="Continue" onPress={onNext} disabled={value.length === 0} />
+      <PrimaryButton label="Continue" onPress={onNext} disabled={!isValidUsername(value)} />
     </View>
   );
 }
@@ -1715,26 +1736,76 @@ function Paywall({
   onSelect: (p: 'year' | 'month') => void;
   onNext: () => void;
 }) {
+  const [packages, setPackages] = useState<PurchasesPackage[] | null>(null);
+  const billingReady = isPurchasesConfigured();
+
+  useEffect(() => {
+    if (!billingReady) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPackages([]);
+      return;
+    }
+    let cancelled = false;
+    fetchOffering()
+      .then((offering) => {
+        if (cancelled) return;
+        setPackages(sortPackagesForPaywall(offering?.availablePackages ?? []));
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          captureError(error);
+          setPackages([]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [billingReady]);
+
+  const annual = packages?.find((p) => p.packageType === 'ANNUAL') ?? null;
+  const monthly = packages?.find((p) => p.packageType === 'MONTHLY') ?? null;
+  const selected = plan === 'year' ? annual : monthly;
+  const trialDays = selected ? trialLengthDays(selected) : null;
+  const trialLabel = selected ? trialPeriodLabel(selected) : null;
+  const reminderDay =
+    trialDays != null && trialDays > 1 ? Math.max(1, trialDays - 1) : null;
+
   const timeline = [
     {
       icon: '🔓',
       color: palette.green600,
       title: 'Today',
-      body: 'Unlock all RepChamp features like unlimited duels, advanced stats, and more.',
+      body: 'Unlock the full exercise library, programmes, and form reports.',
     },
-    {
-      icon: '🔔',
-      color: palette.green500,
-      title: 'In 2 Days — Reminder',
-      body: "We'll remind you before your trial ends if you've allowed notifications.",
-    },
+    ...(reminderDay != null
+      ? [
+          {
+            icon: '🔔',
+            color: palette.green500,
+            title: `In ${reminderDay} day${reminderDay === 1 ? '' : 's'} — Reminder`,
+            body: "We'll remind you before your trial ends if you've allowed notifications.",
+          },
+        ]
+      : []),
     {
       icon: '👑',
       color: palette.amber500,
-      title: 'In 3 Days — Billing Starts',
-      body: 'You can cancel any time before then.',
+      title:
+        trialDays != null
+          ? `In ${trialDays} day${trialDays === 1 ? '' : 's'} — Billing starts`
+          : 'Billing',
+      body:
+        trialDays != null
+          ? 'You can cancel any time before then.'
+          : 'Cancel anytime in Google Play or App Store settings.',
     },
   ];
+
+  const eyebrow = selected ? trialRibbon(selected) : null;
+  const headline =
+    trialLabel != null
+      ? `${trialLabel.charAt(0).toUpperCase()}${trialLabel.slice(1)} free,\nbecause week one is the hard part`
+      : 'Go Pro when you’re ready';
 
   return (
     <ScrollView
@@ -1742,20 +1813,18 @@ function Paywall({
       contentContainerStyle={[styles.stepPadded, { paddingBottom: 40 }]}
       showsVerticalScrollIndicator={false}
     >
-      {/* Trophy anchors the offer in the reward rather than the price — the
-          first thing the eye lands on is what they're buying, not the cost. */}
       <Animated.View entering={FadeInUp.duration(420)} style={{ alignItems: 'center' }}>
         <Floating distance={7}>
           <Image source={TROPHY_GOLD} style={styles.paywallTrophy} contentFit="contain" />
         </Floating>
-        <View style={[styles.valueEyebrow, { backgroundColor: palette.amber50, marginTop: 6 }]}>
-          <Text style={styles.valueEyebrowText}>3 DAYS FREE</Text>
-        </View>
-        <Text style={[text.h1, { fontSize: 27, textAlign: 'center' }]}>
-          Three days free,{'\n'}because week one is the hard part
-        </Text>
+        {eyebrow ? (
+          <View style={[styles.valueEyebrow, { backgroundColor: palette.amber50, marginTop: 6 }]}>
+            <Text style={styles.valueEyebrowText}>{eyebrow}</Text>
+          </View>
+        ) : null}
+        <Text style={[text.h1, { fontSize: 27, textAlign: 'center' }]}>{headline}</Text>
         <Text style={[text.body, styles.centeredCopy]}>
-          Every exercise, every programme, unlocked. Cancel before day three and you pay nothing.
+          Every Pro exercise and programme, unlocked. Cancel anytime.
         </Text>
       </Animated.View>
 
@@ -1783,28 +1852,48 @@ function Paywall({
         ))}
       </View>
 
-      <PlanOption
-        selected={plan === 'year'}
-        onPress={() => onSelect('year')}
-        title="Yearly"
-        subtitle="billed annually"
-        price="34,99 €/yr"
-        ribbon="3 DAYS FREE"
-      />
-      <PlanOption
-        selected={plan === 'month'}
-        onPress={() => onSelect('month')}
-        title="Monthly"
-        subtitle="billed monthly"
-        price="8,99 €/mo"
-      />
+      {packages === null ? (
+        <ActivityIndicator color={palette.green500} style={{ marginVertical: 20 }} />
+      ) : !billingReady || (!annual && !monthly) ? (
+        <Text style={[text.captionMd, { textAlign: 'center', marginTop: 16 }]}>
+          You can keep training free — Pro unlocks later from Profile when billing is connected.
+        </Text>
+      ) : (
+        <>
+          {annual ? (
+            <PlanOption
+              selected={plan === 'year'}
+              onPress={() => onSelect('year')}
+              title={planTitle(annual)}
+              subtitle="billed annually"
+              price={annual.product.priceString}
+              ribbon={trialRibbon(annual) ?? undefined}
+            />
+          ) : null}
+          {monthly ? (
+            <PlanOption
+              selected={plan === 'month'}
+              onPress={() => onSelect('month')}
+              title={planTitle(monthly)}
+              subtitle="billed monthly"
+              price={monthly.product.priceString}
+              ribbon={trialRibbon(monthly) ?? undefined}
+            />
+          ) : null}
+        </>
+      )}
 
-      <Text style={styles.noPayment}>✓ No Payment Due Now</Text>
-      <PrimaryButton label="Start Free Trial" onPress={onNext} />
+      {selected && hasFreeTrial(selected) ? (
+        <Text style={styles.noPayment}>✓ No Payment Due Now</Text>
+      ) : null}
+      <PrimaryButton
+        label={selected ? subscribeCtaLabel(selected) : 'Continue'}
+        onPress={onNext}
+      />
       <Text style={[text.captionMd, { textAlign: 'center', marginTop: 12 }]}>
-        {plan === 'year'
-          ? '3 days free, then 34,99 €/year. Cancel anytime.'
-          : '8,99 €/month. Cancel anytime.'}
+        {selected
+          ? renewDisclosure(selected)
+          : 'Push-ups, squats, duels and couple mode stay free.'}
       </Text>
     </ScrollView>
   );
@@ -1881,7 +1970,7 @@ function Offer({ onDone }: { onDone: () => void }) {
     fetchOffering()
       .then((offering) => {
         if (cancelled) return;
-        const pkgs = offering?.availablePackages ?? [];
+        const pkgs = sortPackagesForPaywall(offering?.availablePackages ?? []);
         setAnnual(pkgs.find((p) => p.packageType === 'ANNUAL') ?? pkgs[0] ?? null);
       })
       .catch((error: unknown) => {
@@ -1903,6 +1992,9 @@ function Offer({ onDone }: { onDone: () => void }) {
     if (result.cancelled) return;
     if (result.ok && result.isPro) {
       setPro(true);
+      if (hasFreeTrial(annual)) {
+        track('trial_started', { plan: annual.packageType });
+      }
       track('subscribed', { plan: annual.packageType });
       onDone();
       return;
@@ -1989,10 +2081,13 @@ function Offer({ onDone }: { onDone: () => void }) {
       {showOffer ? (
         <>
           <PrimaryButton
-            label={busy ? 'Starting…' : 'Start free trial'}
+            label={busy ? 'Starting…' : annual ? subscribeCtaLabel(annual) : 'Continue'}
             onPress={() => void onStart()}
             disabled={busy}
           />
+          <Text style={[text.captionMd, { textAlign: 'center', marginTop: 10 }]}>
+            {annual ? renewDisclosure(annual) : null}
+          </Text>
           <Pressable onPress={onDone} accessibilityRole="button" style={styles.skip}>
             <Text style={font('extrabold', 14, { color: palette.grey600 })}>Maybe later</Text>
           </Pressable>

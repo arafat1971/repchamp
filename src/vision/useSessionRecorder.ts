@@ -142,6 +142,10 @@ export function useSessionRecorder({
       if (mountedRef.current) setState('recording');
     } catch (e) {
       startingRef.current = false;
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
       // A failed recording must never take the session down — the athlete is
       // mid-set and reps matter more than the clip.
       recorderRef.current = null;

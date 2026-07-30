@@ -1,3 +1,9 @@
+/**
+ * RepCounter — hysteresis depth counter with occlusion grace, duration gates,
+ * refractory (anti-bounce), and optional full-depth requirement for competitive
+ * modes.
+ */
+
 import type { ExerciseDefinition } from './exercises';
 import { OneEuroFilter, clamp } from './geometry';
 import type { Pose } from './keypoints';
@@ -36,20 +42,34 @@ export interface RepCounterState {
 export interface RepCounterUpdate extends RepCounterState {
   /** Set on the single frame where a rep completed, otherwise null. */
   completedRep: RepRecord | null;
+  /**
+   * Soft cue when a competitive session rejects a shallow finish — the athlete
+   * completed the up/down cycle but never reached full depth.
+   */
+  formCue: 'deeper' | null;
+}
+
+export interface RepCounterOptions {
+  /**
+   * When true (versus / challenges), only full-depth reps increment the count.
+   * Partials still trigger `formCue: 'deeper'` so coaching stays useful.
+   */
+  requireFullDepth?: boolean;
+  /**
+   * Minimum gap after a counted rep before another descent can start.
+   * Defaults to ~60% of `minRepDurationMs` — kills bounce doubles on fast sets.
+   */
+  refractoryMs?: number;
 }
 
 /** Below this mean confidence we stop counting rather than guess. */
 const TRACKING_VISIBILITY_FLOOR = 0.35;
 /**
  * How long confidence must stay low before the athlete is told they are out of
- * frame.
- *
- * Measured on-device, keypoint confidence reliably collapses at the bottom of
- * every push-up — the body is foreshortened and close to the floor there — then
- * recovers at the top. Without this grace period the HUD flashes "step back
- * into frame" once per rep, while the counter is in fact tracking fine.
+ * frame. Long enough to survive the foreshortened bottom of a push-up without
+ * flashing "step back"; short enough that a real walk-away is noticed.
  */
-const TRACKING_GRACE_MS = 700;
+const TRACKING_GRACE_MS = 900;
 /** A "rep" longer than this is someone resting mid-position, not a slow rep. */
 const MAX_REP_DURATION_MS = 12_000;
 
@@ -73,6 +93,8 @@ export class RepCounter {
   private visibility = 0;
   /** Timestamp of the first frame in the current run of unusable frames. */
   private unusableSince: number | null = null;
+  /** Earliest timestamp another descent may begin (anti-bounce). */
+  private refractoryUntil = 0;
 
   /** Accumulators for the rep currently in progress. */
   private repStartedAt: number | null = null;
@@ -81,9 +103,17 @@ export class RepCounter {
   private alignmentSamples = 0;
 
   private readonly records: RepRecord[] = [];
+  private readonly requireFullDepth: boolean;
+  private readonly refractoryMs: number;
 
-  constructor(private readonly exercise: ExerciseDefinition) {
+  constructor(
+    private readonly exercise: ExerciseDefinition,
+    options: RepCounterOptions = {},
+  ) {
     this.filter = new OneEuroFilter();
+    this.requireFullDepth = options.requireFullDepth ?? false;
+    this.refractoryMs =
+      options.refractoryMs ?? Math.round(exercise.minRepDurationMs * 0.6);
   }
 
   get state(): RepCounterState {
@@ -124,7 +154,7 @@ export class RepCounter {
           this.resetRepAccumulators();
         }
       }
-      return { ...this.state, completedRep: null };
+      return { ...this.state, completedRep: null, formCue: null };
     }
 
     this.unusableSince = null;
@@ -132,6 +162,10 @@ export class RepCounter {
     this.depth = clamp(this.filter.filter(analysis.depth as number, pose.timestamp), 0, 1);
 
     if (this.phase === 'up') {
+      // Refractory: ignore early descents right after a counted rep (bounce).
+      if (pose.timestamp < this.refractoryUntil) {
+        return { ...this.state, completedRep: null, formCue: null };
+      }
       if (this.depth >= this.exercise.downThreshold) {
         this.phase = 'down';
         this.repStartedAt = pose.timestamp;
@@ -139,7 +173,7 @@ export class RepCounter {
         this.alignmentSum = analysis.alignment;
         this.alignmentSamples = 1;
       }
-      return { ...this.state, completedRep: null };
+      return { ...this.state, completedRep: null, formCue: null };
     }
 
     // phase === 'down'
@@ -148,7 +182,7 @@ export class RepCounter {
     this.alignmentSamples += 1;
 
     if (this.depth > this.exercise.upThreshold) {
-      return { ...this.state, completedRep: null };
+      return { ...this.state, completedRep: null, formCue: null };
     }
 
     // Returned to the top — decide whether this counts.
@@ -158,22 +192,31 @@ export class RepCounter {
 
     if (durationMs < this.exercise.minRepDurationMs || durationMs > MAX_REP_DURATION_MS) {
       this.resetRepAccumulators();
-      return { ...this.state, completedRep: null };
+      return { ...this.state, completedRep: null, formCue: null };
+    }
+
+    const fullDepth = this.peakDepth >= this.exercise.fullDepthThreshold;
+
+    // Competitive modes: shallow finish → coaching cue, no count.
+    if (this.requireFullDepth && !fullDepth) {
+      this.resetRepAccumulators();
+      return { ...this.state, completedRep: null, formCue: 'deeper' };
     }
 
     this.reps += 1;
     const record: RepRecord = {
       index: this.reps,
       peakDepth: this.peakDepth,
-      fullDepth: this.peakDepth >= this.exercise.fullDepthThreshold,
+      fullDepth,
       durationMs,
       alignment: this.alignmentSamples > 0 ? this.alignmentSum / this.alignmentSamples : 0,
       completedAt: pose.timestamp,
     };
     this.records.push(record);
+    this.refractoryUntil = pose.timestamp + this.refractoryMs;
     this.resetRepAccumulators();
 
-    return { ...this.state, completedRep: record };
+    return { ...this.state, completedRep: record, formCue: null };
   }
 
   private resetRepAccumulators(): void {
@@ -191,6 +234,7 @@ export class RepCounter {
     this.tracking = false;
     this.visibility = 0;
     this.unusableSince = null;
+    this.refractoryUntil = 0;
     this.records.length = 0;
     this.resetRepAccumulators();
   }

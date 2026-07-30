@@ -79,6 +79,16 @@ export default function LegalScreen() {
           </Para>
         </Section>
 
+        <Section title="Safety & reporting">
+          <Para>
+            Usernames and profile photos are user-generated. You can report or
+            block another athlete from their profile. Reports are reviewed by our
+            team — email {SUPPORT_EMAIL} for urgent issues. Blocked users are
+            hidden from your friends list and discovery; manage them in Settings →
+            Blocked users.
+          </Para>
+        </Section>
+
         <Section title="Contact">
           <Para>
             Questions about your data? Email {SUPPORT_EMAIL} and we&apos;ll respond.
@@ -92,9 +102,10 @@ export default function LegalScreen() {
           <Para>
             RepChamp is a fitness tool, not medical advice. Rep counts and form
             cues are estimates from on-device pose detection and can be wrong.
-            Train within your ability, warm up, and consult a professional before
-            starting a new exercise programme. You are responsible for your own
-            safety.
+            Train within your ability, warm up, and stop if you feel pain or
+            dizziness. Consult a professional before starting a new exercise
+            programme if you have an injury or medical condition. You are
+            responsible for your own safety.
           </Para>
         </Section>
 

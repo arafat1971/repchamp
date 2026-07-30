@@ -1,5 +1,7 @@
 # Firebase setup — RepChamp
 
+Security overview (API keys, rules, HTTPS, input validation): see [`SECURITY.md`](./SECURITY.md).
+
 The app ships with a **Firebase backend layer already wired in** (Auth, Firestore,
 Storage). Until you provision a real project it runs in **local-only mode**: bot
 opponents, hardcoded leaderboard, on-device data — exactly as before. Drop in real
@@ -46,9 +48,19 @@ The switch is automatic: `src/lib/firebase.ts → isFirebaseConfigured()` return
   Play App Signing certificate:
 
 ```bash
-# Debug keystore (local `npm run android` / Expo Go-adjacent builds)
+# Expo / Gradle debug keystore used by `android/app` builds (THIS is what
+# `npm run android:debug` signs with — not ~/.android/debug.keystore):
+keytool -list -v -alias androiddebugkey \
+  -keystore android/app/debug.keystore -storepass android -keypass android
+# SHA-1: 5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25
+
+# Machine default debug keystore (only if you sign with it explicitly):
 keytool -list -v -alias androiddebugkey \
   -keystore ~/.android/debug.keystore -storepass android -keypass android
+# SHA-1: 23:D8:82:C0:F0:1D:11:D6:6D:B9:DD:8E:45:2C:D8:5F:C0:60:B8:32
+
+# Or via Firebase CLI (already logged in):
+# firebase apps:android:sha:create 1:613733102264:android:43d966cc4ccecfeb5ffa4d <SHA>
 
 # EAS / Play credentials (production + preview builds)
 eas credentials -p android
@@ -57,7 +69,12 @@ eas credentials -p android
 
   Firebase Console → Project settings → Your apps → Android (`gg.repchamp.app`) →
   **Add fingerprint** for each SHA-1 and SHA-256 you use. Download a fresh
-  `google-services.json` after adding fingerprints if Firebase prompts you to.
+  `google-services.json` after adding fingerprints:
+
+  ```bash
+  firebase apps:sdkconfig ANDROID 1:613733102264:android:43d966cc4ccecfeb5ffa4d \
+    -o /tmp/google-services.json && cp /tmp/google-services.json ./google-services.json
+  ```
 
 ### 4. Deploy rules & indexes
 ```bash

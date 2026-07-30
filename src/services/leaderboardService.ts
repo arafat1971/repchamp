@@ -15,9 +15,11 @@
 
 import firestore from '@react-native-firebase/firestore';
 
+import { isValidUsername, normalizeUsername } from '@/domain/input';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { buildLeaderboard, type LeaderboardRow } from '@/domain/leaderboard';
 import { ACTIVE_WINDOW_MS, isRecentlyActive } from '@/domain/presence';
+import { assertClientRateLimit, fetchBlockedIds, isBlockedEither } from '@/services/safetyService';
 import { currentWeekKey } from '@/services/userService';
 
 const AVATAR_TINTS = ['#fde68a', '#ddd6fe', '#bfdbfe', '#fecdd3', '#bbf7d0', '#bae6fd'];
@@ -147,15 +149,26 @@ export async function addFriendByUsername(
 ): Promise<boolean> {
   if (!isFirebaseConfigured()) return false;
 
+  const name = normalizeUsername(username);
+  if (!isValidUsername(name)) {
+    throw new Error('Enter a valid username (3–20 letters, numbers, or underscores).');
+  }
+
+  assertClientRateLimit('friendAdd', myUid);
+
   const match = await firestore()
     .collection('users')
-    .where('username', '==', username.trim().toLowerCase())
+    .where('username', '==', name)
     .limit(1)
     .get();
 
-  if (match.empty) throw new Error(`No athlete found with username "${username}"`);
+  if (match.empty) throw new Error(`No athlete found with username "${name}"`);
   const friendDoc = match.docs[0]!;
   if (friendDoc.id === myUid) throw new Error("That's you!");
+
+  if (await isBlockedEither(myUid, friendDoc.id)) {
+    throw new Error('You can’t add this athlete.');
+  }
 
   const theirs = friendDoc.data() as Partial<Friend> & { displayName?: string };
 
@@ -265,14 +278,17 @@ export async function fetchRecentAthletes(
 ): Promise<RecentAthlete[]> {
   if (!isFirebaseConfigured()) return [];
   try {
-    const snap = await firestore()
-      .collection('users')
-      .orderBy('createdAt', 'desc')
-      .limit(limit + 4)
-      .get();
+    const [snap, blocked] = await Promise.all([
+      firestore()
+        .collection('users')
+        .orderBy('createdAt', 'desc')
+        .limit(limit + 8)
+        .get(),
+      fetchBlockedIds(excludeUid),
+    ]);
 
     return snap.docs
-      .filter((d) => d.id !== excludeUid)
+      .filter((d) => d.id !== excludeUid && !blocked.has(d.id))
       .slice(0, limit)
       .map((d) => {
         const data = d.data() as {

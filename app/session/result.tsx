@@ -11,10 +11,12 @@ import { Confetti } from '@/components/session/Confetti';
 import { ResultShareCard } from '@/components/session/ResultShareCard';
 import { PressableScale } from '@/components/ui';
 import { getOpponent } from '@/domain/opponent';
+import { canUse } from '@/domain/pro';
 import { track } from '@/lib/analytics';
 import { captureError } from '@/lib/crash';
 import { playLoseSound, playWinSound } from '@/lib/feedback';
 import { useProfileStore, selectStreak } from '@/state/profileStore';
+import { useIsPro } from '@/state/proStore';
 import { useAuthStore } from '@/state/authStore';
 import { useSessionStore } from '@/state/sessionStore';
 import { getExercise } from '@/vision/exercises';
@@ -29,6 +31,7 @@ export default function ResultScreen() {
   const displayName = useProfileStore((s) => s.displayName);
   const avatarUri = useProfileStore((s) => s.avatarUri);
   const streak = useProfileStore(selectStreak);
+  const isPro = useIsPro();
 
   // The off-screen card captured to a PNG when the athlete shares.
   const shareCardRef = useRef<View>(null);
@@ -216,12 +219,20 @@ export default function ResultScreen() {
       <Animated.View entering={FadeInUp.duration(500).delay(500)} style={[styles.actions, { paddingBottom: insets.bottom + 12 }]}>
         <View style={styles.secondaryRow}>
           <PressableScale
-            onPress={() => router.push('/session/form-report')}
+            onPress={() => {
+              if (!canUse(isPro, 'advanced-stats')) {
+                router.push({ pathname: '/modal/paywall', params: { source: 'form-report' } });
+                return;
+              }
+              router.push('/session/form-report');
+            }}
             accessibilityRole="button"
             accessibilityLabel="View form report"
             style={styles.secondaryButtonLight}
           >
-            <Text style={styles.secondaryLabelLight}>Form Report</Text>
+            <Text style={styles.secondaryLabelLight}>
+              {canUse(isPro, 'advanced-stats') ? 'Form Report' : 'Form Report · Pro'}
+            </Text>
           </PressableScale>
 
           <PressableScale

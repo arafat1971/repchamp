@@ -3,12 +3,11 @@
  * core.
  *
  * A small in-memory Firestore fake backs the `couples` collection (keyed by pair
- * code == doc id) and the `users` collection the nudge path reads a push token
- * from. It supports the surface the service builds: `runTransaction` with
- * get/set, merge-writes, `onSnapshot`, an `array-contains` query, and `delete`.
- * `makePairCode` is seeded through the couple domain, so a deterministic code is
- * forced by stubbing `Math.random`. `global.fetch` is mocked so the Expo push
- * leg of `nudgePartner` is asserted without a network.
+ * code == doc id). It supports the surface the service builds: `runTransaction`
+ * with get/set, merge-writes, `onSnapshot`, an `array-contains` query, and
+ * `delete`. `makePairCode` is seeded through the couple domain, so a
+ * deterministic code is forced by stubbing `Math.random`. `global.fetch` is
+ * mocked so the Expo push leg of `nudgePartner` is asserted without a network.
  *
  * Jest hoists jest.mock() above imports, so every shared name a factory touches
  * is `mock`-prefixed (the only out-of-scope access the hoist guard allows).
@@ -24,6 +23,7 @@ import {
   leaveCouple,
   nudgePartner,
   recordCoupleSession,
+  syncCouplePushToken,
   watchCouple,
   watchMyCouple,
 } from '../coupleService';
@@ -93,6 +93,14 @@ function mockQuery(col: string, filters: [string, string, unknown][], limit: num
     },
     limit(n: number) {
       return mockQuery(col, filters, n);
+    },
+    async get() {
+      let docs = matches();
+      if (limit != null) docs = docs.slice(0, limit);
+      return {
+        empty: docs.length === 0,
+        docs: docs.map(([id]) => mockSnapshot(col, id)),
+      };
     },
     onSnapshot(onNext: (snap: unknown) => void) {
       let docs = matches();
@@ -319,9 +327,9 @@ describe('nudgePartner', () => {
     expect(c.nudge?.fromUid).toBe('ada');
   });
 
-  it('pushes to the partner when they have a valid Expo token', async () => {
+  it('pushes to the partner when they published a valid Expo token on the couple', async () => {
     const code = await pairedCode();
-    mockStore.users.set('bea', { expoPushToken: 'ExponentPushToken[bea]' });
+    await syncCouplePushToken(code, 'bea', 'ExponentPushToken[bea]');
     await nudgePartner(code, 'ada', 'Ada');
     const fetchMock = (global as unknown as { fetch: jest.Mock }).fetch;
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -333,16 +341,16 @@ describe('nudgePartner', () => {
     expect(body.data).toEqual({ type: 'couple-nudge', coupleId: code });
   });
 
-  it('skips the push when the partner has no valid token', async () => {
+  it('skips the push when the partner has no valid token on the couple', async () => {
     const code = await pairedCode();
-    mockStore.users.set('bea', { expoPushToken: 'not-a-real-token' });
+    await syncCouplePushToken(code, 'bea', 'not-a-real-token');
     await nudgePartner(code, 'ada', 'Ada');
     expect((global as unknown as { fetch: jest.Mock }).fetch).not.toHaveBeenCalled();
   });
 
   it('still writes the in-app nudge even if the push throws', async () => {
     const code = await pairedCode();
-    mockStore.users.set('bea', { expoPushToken: 'ExponentPushToken[bea]' });
+    await syncCouplePushToken(code, 'bea', 'ExponentPushToken[bea]');
     (global as unknown as { fetch: jest.Mock }).fetch = jest
       .fn()
       .mockRejectedValue(new Error('offline'));

@@ -24,6 +24,7 @@ import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
+import { syncMyCouplePushToken } from '@/services/coupleService';
 import { saveExpoPushToken } from '@/services/userService';
 
 /** Android 8+ (minSdk 26 here) refuses notifications without a channel. */
@@ -92,7 +93,12 @@ export function registerForPushNudges(uid: string): () => void {
       if (!granted || cancelled) return;
 
       const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
-      if (token && !cancelled) await saveExpoPushToken(uid, token);
+      if (token && !cancelled) {
+        await saveExpoPushToken(uid, token);
+        // Also publish onto the couple member slice (if paired) so the partner
+        // can nudge without reading a world-readable profile field.
+        await syncMyCouplePushToken(uid, token);
+      }
     } catch {
       // No Play Services / APNs, or a refused prompt — remote nudges just won't
       // arrive.

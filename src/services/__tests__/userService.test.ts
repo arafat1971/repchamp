@@ -22,6 +22,7 @@ import {
   publishScore,
   removeScore,
   saveExpoPushToken,
+  touchPresence,
   uploadAvatar,
   upsertProfile,
   type CloudProfile,
@@ -48,6 +49,11 @@ function mockCol(name: string) {
 function mockDocRef(col: string, id: string) {
   return {
     id,
+    collection(sub: string) {
+      return {
+        doc: (subId: string) => mockDocRef(`${col}/${id}/${sub}`, subId),
+      };
+    },
     async set(data: Record<string, unknown>, opts?: { merge?: boolean }) {
       const store = mockCol(col);
       if (opts?.merge) store.set(id, { ...(store.get(id) ?? {}), ...data });
@@ -106,6 +112,9 @@ beforeEach(() => {
   mockState.configured = true;
   mockStore.users.clear();
   mockStore.leaderboard.clear();
+  for (const key of Object.keys(mockStore)) {
+    if (key !== 'users' && key !== 'leaderboard') delete mockStore[key];
+  }
   mockStorage.lastPutFile = null;
 });
 
@@ -145,14 +154,17 @@ describe('upsertProfile', () => {
     expect(d.displayName).toBe('Hana');
     expect(d.totalXp).toBe(1200);
     expect(d.updatedAt).toBe('<ts>');
+    expect(typeof d.createdAt).toBe('number');
+    expect(typeof d.lastActiveAt).toBe('number');
   });
 
   it('merges — a field another device wrote survives the upsert', async () => {
-    mockStore.users.set('u1', { expoPushToken: 'ExponentPushToken[keep]' });
+    mockStore.users.set('u1', { league: 'gold', createdAt: 99 });
     await upsertProfile(PROFILE);
     const d = mockStore.users.get('u1')!;
-    expect(d.expoPushToken).toBe('ExponentPushToken[keep]');
+    expect(d.league).toBe('gold');
     expect(d.displayName).toBe('Hana');
+    expect(d.createdAt).toBe(99);
   });
 
   it('is a no-op when unconfigured', async () => {
@@ -162,13 +174,28 @@ describe('upsertProfile', () => {
   });
 });
 
+describe('touchPresence', () => {
+  it('merge-writes lastActiveAt on an existing profile', async () => {
+    mockStore.users.set('u1', { displayName: 'Hana', uid: 'u1' });
+    await touchPresence('u1');
+    const d = mockStore.users.get('u1')!;
+    expect(d.displayName).toBe('Hana');
+    expect(typeof d.lastActiveAt).toBe('number');
+  });
+
+  it('does not create a profile from a heartbeat alone', async () => {
+    await touchPresence('ghost');
+    expect(mockStore.users.has('ghost')).toBe(false);
+  });
+});
+
 describe('saveExpoPushToken / fetchExpoPushToken', () => {
-  it('merge-writes the token without clobbering the profile', async () => {
+  it('writes the token to an owner-only private doc, not the public profile', async () => {
     mockStore.users.set('u1', { displayName: 'Hana' });
     await saveExpoPushToken('u1', 'ExponentPushToken[abc]');
-    const d = mockStore.users.get('u1')!;
+    expect(mockStore.users.get('u1')).toEqual({ displayName: 'Hana' });
+    const d = mockCol('users/u1/private').get('push')!;
     expect(d.expoPushToken).toBe('ExponentPushToken[abc]');
-    expect(d.displayName).toBe('Hana');
     expect(d.pushUpdatedAt).toBe('<ts>');
   });
 

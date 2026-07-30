@@ -20,6 +20,7 @@ import { OpponentPacer, getOpponent } from '@/domain/opponent';
 import { shouldPromptUpgrade } from '@/domain/paywallGate';
 import type { SessionMode } from '@/domain/progression';
 import { isPurchasesConfigured } from '@/services/purchases';
+import { useAuthStore } from '@/state/authStore';
 import { useEffectivePro, useProStore } from '@/state/proStore';
 import {
   lockHaptic,
@@ -31,6 +32,7 @@ import {
   successHaptic,
 } from '@/lib/feedback';
 import { track } from '@/lib/analytics';
+import { touchPresence } from '@/services/userService';
 import { defaultDuration, useSessionStore } from '@/state/sessionStore';
 import { useCouple } from '@/state/useCouple';
 import { useLiveDuel } from '@/state/useLiveDuel';
@@ -83,6 +85,11 @@ export default function SessionScreen() {
    */
   const duelId = params.duel ?? null;
   const live = useLiveDuel(duelId);
+  const uid = useAuthStore((s) => s.user?.uid);
+
+  useEffect(() => {
+    if (uid) void touchPresence(uid);
+  }, [uid]);
 
   const definition = getExercise(exercise);
   const opponent = useMemo(() => getOpponent(opponentId), [opponentId]);

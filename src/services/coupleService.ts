@@ -22,7 +22,6 @@ import {
   type Couple,
   type CoupleMember,
 } from '@/domain/couple';
-import { fetchExpoPushToken } from '@/services/userService';
 
 const COUPLES = 'couples';
 
@@ -48,6 +47,42 @@ function makeMember(input: CoupleMemberInput): CoupleMember {
     trainedDays: [],
     totalReps: 0,
   };
+}
+
+/**
+ * Write this athlete's Expo push token onto their own couple-member slice so the
+ * partner can nudge without reading a world-readable profile field.
+ */
+export async function syncCouplePushToken(
+  coupleId: string,
+  uid: string,
+  token: string,
+): Promise<void> {
+  if (!isFirebaseConfigured() || !token.startsWith('ExponentPushToken')) return;
+
+  const ref = coupleDoc(coupleId);
+  await firestore().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return;
+    const couple = snap.data() as Couple;
+    if (!couple.memberUids.includes(uid)) return;
+    const members = couple.members.map((m) =>
+      m.uid === uid ? { ...m, expoPushToken: token } : m,
+    );
+    tx.set(ref, { members }, { merge: true });
+  });
+}
+
+/** Look up this athlete's couple (if any) and publish their push token onto it. */
+export async function syncMyCouplePushToken(uid: string, token: string): Promise<void> {
+  if (!isFirebaseConfigured() || !token.startsWith('ExponentPushToken')) return;
+  const snap = await couplesCol()
+    .where('memberUids', 'array-contains', uid)
+    .limit(1)
+    .get();
+  const doc = snap.docs?.[0];
+  if (!doc) return;
+  await syncCouplePushToken(doc.id, uid, token);
 }
 
 /**
@@ -242,7 +277,9 @@ export async function nudgePartner(
     const partner = couple.members.find((m) => m.uid !== fromUid);
     if (!partner) return;
 
-    const token = await fetchExpoPushToken(partner.uid);
+    // Prefer the token the partner wrote onto the couple doc (partner-readable).
+    // Fall back to their private doc only works when reading yourself — skip.
+    const token = partner.expoPushToken ?? null;
     // Only real Expo tokens are worth a POST; anything else Expo would reject.
     if (!token || !token.startsWith('ExponentPushToken')) return;
 

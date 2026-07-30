@@ -69,7 +69,7 @@ export default function AddFriendScreen() {
         setAdded((prev) => ({ ...prev, [`@${name.toLowerCase()}`]: true }));
         showDialog({
           title: 'Friend added',
-          message: `You and @${name.toLowerCase()} are now connected.`,
+          message: `@${name.toLowerCase()} is on your list. They can add you back by your username.`,
           tone: 'success',
           actions: [{ label: 'Got it', variant: 'primary' }],
         });

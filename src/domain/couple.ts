@@ -23,6 +23,11 @@ export interface CoupleMember {
   trainedDays: string[];
   /** All-time reps this member has contributed to the couple. */
   totalReps: number;
+  /**
+   * Optional Expo push token — written only by this member onto the couple doc
+   * so the partner can nudge without reading a world-readable profile field.
+   */
+  expoPushToken?: string | null;
 }
 
 export interface Couple {

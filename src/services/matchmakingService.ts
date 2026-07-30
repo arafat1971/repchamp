@@ -165,3 +165,21 @@ export async function leaveQueue(uid: string): Promise<void> {
     // A racing pairing may have matched us first; harmless to leave it.
   }
 }
+
+/**
+ * How many athletes are sitting in open matchmaking right now (excluding self).
+ * Caps the scan so Home's activity pill stays cheap.
+ */
+export async function countWaitingTickets(excludeUid?: string, limit = 20): Promise<number> {
+  if (!isFirebaseConfigured()) return 0;
+  try {
+    const snap = await firestore()
+      .collection(QUEUE)
+      .where('status', '==', 'waiting')
+      .limit(limit)
+      .get();
+    return snap.docs.filter((d) => d.id !== excludeUid).length;
+  } catch {
+    return 0;
+  }
+}

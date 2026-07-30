@@ -30,7 +30,8 @@ import {
 } from '@/domain/couple';
 import { dayKey } from '@/domain/progression';
 import { presentNudge } from '@/lib/notifications';
-import { watchMyCouple } from '@/services/coupleService';
+import { syncCouplePushToken, watchMyCouple } from '@/services/coupleService';
+import { fetchExpoPushToken } from '@/services/userService';
 import { useAuthStore } from '@/state/authStore';
 import { useProfileStore } from '@/state/profileStore';
 
@@ -138,6 +139,21 @@ export function useCouple(): CoupleView {
     });
     return unsubscribe;
   }, [uid]);
+
+  // When a bond appears (or this device already had a private token before pairing),
+  // publish the token onto our member slice so the partner can nudge remotely.
+  useEffect(() => {
+    if (!uid || !couple?.id) return;
+    let cancelled = false;
+    void (async () => {
+      const token = await fetchExpoPushToken(uid);
+      if (!token || cancelled) return;
+      await syncCouplePushToken(couple.id, uid, token);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [uid, couple?.id]);
 
   return useMemo(() => {
     if (!couple || !uid) return { ...EMPTY, loading };

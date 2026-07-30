@@ -1,18 +1,25 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View , TextInput } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { StyleSheet, Text, View, TextInput } from 'react-native';
 
 import { Avatar, Card, Divider, Eyebrow, PressableScale, Screen } from '@/components/ui';
+import { StaggerIn } from '@/components/motion';
 import { captureError } from '@/lib/crash';
 import { OPPONENTS, type Opponent } from '@/domain/opponent';
 import { usePhantomSeed } from '@/domain/seedPhantoms';
-import { fetchFriends, type Friend } from '@/services/leaderboardService';
+import {
+  addFriendByUsername,
+  fetchActiveFriends,
+  fetchRecentAthletes,
+  type ActiveFriend,
+  type RecentAthlete,
+} from '@/services/leaderboardService';
 import { useAuthStore } from '@/state/authStore';
+import { showDialog } from '@/state/useDialog';
 import { useProfileStore } from '@/state/profileStore';
 import { font, text } from '@/theme/typography';
 import { palette, radius } from '@/theme/tokens';
-
-import { StaggerIn } from '@/components/motion';
+import type { InviteKind } from '@/domain/presence';
 
 /** Avatar tints, keyed by opponent id, matching the design. */
 const TINTS: Record<string, { background: string; color: string }> = {
@@ -37,35 +44,58 @@ function AiTag({ style }: { style?: object }) {
   );
 }
 
+function inviteParams(f: ActiveFriend, kind: InviteKind) {
+  return {
+    pathname: '/duel/new' as const,
+    params: {
+      role: 'host',
+      target: f.uid,
+      name: f.displayName,
+      level: String(f.level),
+      kind,
+    },
+  };
+}
+
 export default function FriendsScreen() {
   const router = useRouter();
   const sessions = useProfileStore((s) => s.sessions);
   const uid = useAuthStore((s) => s.user?.uid);
   const [search, setSearch] = useState('');
-  // Clearly-labelled AI training partners, shown only while the community is small.
   const seed = usePhantomSeed();
 
-  // Real friends from the cloud graph, appended below the bot rivals. Empty
-  // until Firebase is provisioned, so the screen is unchanged before then.
-  const [cloudFriends, setCloudFriends] = useState<Friend[]>([]);
-  useEffect(() => {
+  const [cloudFriends, setCloudFriends] = useState<ActiveFriend[]>([]);
+  const [recent, setRecent] = useState<RecentAthlete[]>([]);
+  const [addingUid, setAddingUid] = useState<string | null>(null);
+
+  const refresh = useCallback(() => {
     if (!uid) return;
-    let cancelled = false;
-    fetchFriends(uid)
-      .then((list) => {
-        if (!cancelled) setCloudFriends(list);
-      })
-      // Degrades quietly by design: the bot rivals still render, so a failed
-      // cloud fetch costs nothing visible. Logged rather than surfaced.
+    void fetchActiveFriends(uid)
+      .then(setCloudFriends)
       .catch(captureError);
-    return () => {
-      cancelled = true;
-    };
+    void fetchRecentAthletes(uid)
+      .then(setRecent)
+      .catch(captureError);
   }, [uid]);
 
-  const online = OPPONENTS.filter((o) => o.online);
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const onlineFriends = cloudFriends.filter((f) => f.online);
+  const onlineBots = OPPONENTS.filter((o) => o.online);
   const filteredOpponents = OPPONENTS.filter((o) =>
     o.name.toLowerCase().includes(search.toLowerCase()),
+  );
+  const filteredCloud = cloudFriends.filter((f) =>
+    f.displayName.toLowerCase().includes(search.toLowerCase()),
+  );
+  const friendUids = new Set(cloudFriends.map((f) => f.uid));
+  const newAthletes = recent.filter(
+    (a) =>
+      !friendUids.has(a.uid) &&
+      (a.displayName.toLowerCase().includes(search.toLowerCase()) ||
+        (a.username ?? '').includes(search.toLowerCase())),
   );
 
   const duel = (opponent: Opponent) =>
@@ -74,13 +104,44 @@ export default function FriendsScreen() {
       params: { exercise: 'push', mode: 'versus', opponent: opponent.id },
     });
 
-  /** Head-to-head record against one rival, from real session history. */
   const record = (id: string) => {
     const duels = sessions.filter((s) => s.mode === 'versus' && s.opponentId === id);
     return {
       wins: duels.filter((s) => s.won).length,
       losses: duels.filter((s) => !s.won).length,
     };
+  };
+
+  const addRecent = async (athlete: RecentAthlete) => {
+    if (!uid || !athlete.username) {
+      showDialog({
+        title: 'Missing username',
+        message: 'This athlete hasn’t set a username yet — ask them to share it.',
+        tone: 'info',
+        actions: [{ label: 'Got it', variant: 'primary' }],
+      });
+      return;
+    }
+    setAddingUid(athlete.uid);
+    try {
+      await addFriendByUsername(uid, athlete.username);
+      showDialog({
+        title: 'Friend added',
+        message: `@${athlete.username} is on your list. They can add you back by your username.`,
+        tone: 'success',
+        actions: [{ label: 'Got it', variant: 'primary' }],
+      });
+      refresh();
+    } catch (err) {
+      showDialog({
+        title: 'Could not add',
+        message: err instanceof Error ? err.message : 'Please try again.',
+        tone: 'danger',
+        actions: [{ label: 'Got it', variant: 'primary' }],
+      });
+    } finally {
+      setAddingUid(null);
+    }
   };
 
   return (
@@ -103,7 +164,7 @@ export default function FriendsScreen() {
       </StaggerIn>
 
       <StaggerIn index={1}>
-        <Eyebrow style={{ marginBottom: 12, marginTop: 16 }}>ONLINE NOW</Eyebrow>
+        <Eyebrow style={{ marginBottom: 12, marginTop: 16 }}>ACTIVE NOW</Eyebrow>
         <View style={styles.onlineRow}>
           <PressableScale
             onPress={() => router.push('/modal/add-friend')}
@@ -117,7 +178,27 @@ export default function FriendsScreen() {
             <Text style={styles.onlineName}>Add</Text>
           </PressableScale>
 
-          {online.map((o) => (
+          {onlineFriends.map((f) => (
+            <PressableScale
+              key={f.uid}
+              onPress={() => router.push(inviteParams(f, 'duel'))}
+              accessibilityRole="button"
+              accessibilityLabel={`Invite ${f.displayName}`}
+              style={styles.onlineItem}
+            >
+              <Avatar
+                initial={(f.displayName || 'A').charAt(0).toUpperCase()}
+                uri={f.avatarUrl}
+                size={58}
+                online
+              />
+              <Text style={[styles.onlineName, { color: palette.ink }]} numberOfLines={1}>
+                {f.displayName.split(' ')[0]}
+              </Text>
+            </PressableScale>
+          ))}
+
+          {onlineBots.map((o) => (
             <PressableScale
               key={o.id}
               onPress={() => duel(o)}
@@ -165,8 +246,49 @@ export default function FriendsScreen() {
         </View>
       </StaggerIn>
 
-      {seed.isSeeding && seed.phantomFriends.length > 0 ? (
+      {newAthletes.length > 0 ? (
         <StaggerIn index={2}>
+          <Eyebrow style={{ marginBottom: 12, marginTop: 8 }}>NEW ON REPCHAMP</Eyebrow>
+          <Card style={{ padding: 8 }}>
+            {newAthletes.slice(0, 8).map((a, index) => (
+              <View key={a.uid}>
+                {index > 0 ? <Divider style={{ marginHorizontal: 10 }} /> : null}
+                <View style={styles.friendRow}>
+                  <View style={styles.friendInfo}>
+                    <Avatar
+                      initial={(a.displayName || 'A').charAt(0).toUpperCase()}
+                      uri={a.avatarUrl}
+                      size={44}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={text.cardTitle} numberOfLines={1}>
+                        {a.displayName}
+                      </Text>
+                      <Text style={font('semibold', 11, { color: palette.grey600 })}>
+                        {a.username ? `@${a.username}` : 'Just joined'}
+                      </Text>
+                    </View>
+                  </View>
+                  <PressableScale
+                    onPress={() => void addRecent(a)}
+                    disabled={addingUid === a.uid}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Add ${a.displayName}`}
+                    style={styles.duelButton}
+                  >
+                    <Text style={font('extrabold', 12, { color: palette.white })}>
+                      {addingUid === a.uid ? '…' : 'Add'}
+                    </Text>
+                  </PressableScale>
+                </View>
+              </View>
+            ))}
+          </Card>
+        </StaggerIn>
+      ) : null}
+
+      {seed.isSeeding && seed.phantomFriends.length > 0 ? (
+        <StaggerIn index={3}>
           <Eyebrow style={{ marginBottom: 12, marginTop: 16 }}>SUGGESTED FRIENDS</Eyebrow>
           <Card style={{ padding: 8 }}>
             {seed.phantomFriends.map((p, index) => (
@@ -186,9 +308,11 @@ export default function FriendsScreen() {
                         <Text style={text.cardTitle}>{p.name}</Text>
                         <AiTag />
                       </View>
-                      <Text style={font('semibold', 11, {
-                        color: p.online ? palette.green500 : palette.grey600,
-                      })}>
+                      <Text
+                        style={font('semibold', 11, {
+                          color: p.online ? palette.green500 : palette.grey600,
+                        })}
+                      >
                         {p.online ? '● Online' : 'Offline'} · Lv.{p.level}
                       </Text>
                     </View>
@@ -214,108 +338,119 @@ export default function FriendsScreen() {
         </StaggerIn>
       ) : null}
 
-      <StaggerIn index={3}>
-        <Eyebrow style={{ marginBottom: 12, marginTop: 16 }}>ALL FRIENDS</Eyebrow>
+      <StaggerIn index={4}>
+        <Eyebrow style={{ marginBottom: 12, marginTop: 16 }}>AI PARTNERS</Eyebrow>
         <Card style={{ padding: 8 }}>
           {filteredOpponents.map((o, index) => {
             const { wins, losses } = record(o.id);
 
-          return (
-            <View key={o.id}>
-              {index > 0 ? <Divider style={{ marginHorizontal: 10 }} /> : null}
-              <View style={styles.friendRow}>
-                <PressableScale
-                  onPress={() => router.push({ pathname: '/modal/friend', params: { id: o.id } })}
-                  accessibilityRole="button"
-                  accessibilityLabel={`View ${o.name}'s profile`}
-                  style={styles.friendInfo}
-                >
-                  <Avatar
-                    initial={o.initial}
-                    size={44}
-                    background={tint(o.id).background}
-                    color={tint(o.id).color}
-                  />
-                  <View>
-                    <View style={styles.nameRow}>
-                      <Text style={text.cardTitle}>{o.name}</Text>
-                      <AiTag />
-                    </View>
-                    <Text
-                      style={font('semibold', 11, {
-                        color: o.online ? palette.green500 : palette.grey600,
-                      })}
-                    >
-                      {o.online ? '● Online' : 'Offline'} · Lv.{o.level}
-                      {wins + losses > 0 ? ` · ${wins}–${losses}` : ''}
-                    </Text>
-                  </View>
-                </PressableScale>
-
-                <PressableScale
-                  onPress={() => duel(o)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Duel ${o.name}`}
-                  style={styles.duelButton}
-                >
-                  <Text style={font('extrabold', 12, { color: palette.white })}>Duel</Text>
-                </PressableScale>
-              </View>
-            </View>
-          );
-        })}
-      </Card>
-    </StaggerIn>
-
-      {cloudFriends.length > 0 ? (
-        <>
-          <Eyebrow style={{ marginTop: 24, marginBottom: 12 }}>ON REPCHAMP</Eyebrow>
-          <Card style={{ padding: 8 }}>
-            {cloudFriends.map((f, index) => (
-              <View key={f.uid}>
+            return (
+              <View key={o.id}>
                 {index > 0 ? <Divider style={{ marginHorizontal: 10 }} /> : null}
                 <View style={styles.friendRow}>
+                  <PressableScale
+                    onPress={() => router.push({ pathname: '/modal/friend', params: { id: o.id } })}
+                    accessibilityRole="button"
+                    accessibilityLabel={`View ${o.name}'s profile`}
+                    style={styles.friendInfo}
+                  >
+                    <Avatar
+                      initial={o.initial}
+                      size={44}
+                      background={tint(o.id).background}
+                      color={tint(o.id).color}
+                    />
+                    <View>
+                      <View style={styles.nameRow}>
+                        <Text style={text.cardTitle}>{o.name}</Text>
+                        <AiTag />
+                      </View>
+                      <Text
+                        style={font('semibold', 11, {
+                          color: o.online ? palette.green500 : palette.grey600,
+                        })}
+                      >
+                        {o.online ? '● Online' : 'Offline'} · Lv.{o.level}
+                        {wins + losses > 0 ? ` · ${wins}–${losses}` : ''}
+                      </Text>
+                    </View>
+                  </PressableScale>
+
+                  <PressableScale
+                    onPress={() => duel(o)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Duel ${o.name}`}
+                    style={styles.duelButton}
+                  >
+                    <Text style={font('extrabold', 12, { color: palette.white })}>Duel</Text>
+                  </PressableScale>
+                </View>
+              </View>
+            );
+          })}
+        </Card>
+      </StaggerIn>
+
+      {filteredCloud.length > 0 ? (
+        <StaggerIn index={5}>
+          <Eyebrow style={{ marginTop: 24, marginBottom: 12 }}>ON REPCHAMP</Eyebrow>
+          <Card style={{ padding: 8 }}>
+            {filteredCloud.map((f, index) => (
+              <View key={f.uid}>
+                {index > 0 ? <Divider style={{ marginHorizontal: 10 }} /> : null}
+                <View style={styles.cloudRow}>
                   <View style={styles.friendInfo}>
                     <Avatar
                       initial={(f.displayName || 'A').charAt(0).toUpperCase()}
                       uri={f.avatarUrl}
                       size={44}
+                      online={f.online}
                     />
-                    <View>
+                    <View style={{ flex: 1 }}>
                       <Text style={text.cardTitle} numberOfLines={1}>
                         {f.displayName}
                       </Text>
-                      <Text style={font('semibold', 11, { color: palette.grey600 })}>
-                        Lv.{f.level}
+                      <Text
+                        style={font('semibold', 11, {
+                          color: f.online ? palette.green500 : palette.grey600,
+                        })}
+                      >
+                        {f.online ? '● Active' : 'Offline'} · Lv.{f.level}
                       </Text>
                     </View>
                   </View>
 
-                  {/* A real RepChamp friend gets a live challenge — this opens the
-                      waiting room, which creates the duel and awaits their join. */}
-                  <PressableScale
-                    onPress={() =>
-                      router.push({
-                        pathname: '/duel/new',
-                        params: {
-                          role: 'host',
-                          target: f.uid,
-                          name: f.displayName,
-                          level: String(f.level),
-                        },
-                      })
-                    }
-                    accessibilityRole="button"
-                    accessibilityLabel={`Challenge ${f.displayName} to a live duel`}
-                    style={styles.duelButton}
-                  >
-                    <Text style={font('extrabold', 12, { color: palette.white })}>Challenge</Text>
-                  </PressableScale>
+                  <View style={styles.actionRow}>
+                    <PressableScale
+                      onPress={() => router.push(inviteParams(f, 'duel'))}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Duel ${f.displayName}`}
+                      style={styles.actionPill}
+                    >
+                      <Text style={font('extrabold', 11, { color: palette.white })}>Duel</Text>
+                    </PressableScale>
+                    <PressableScale
+                      onPress={() => router.push(inviteParams(f, 'train'))}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Train with ${f.displayName}`}
+                      style={[styles.actionPill, styles.actionPillSoft]}
+                    >
+                      <Text style={font('extrabold', 11, { color: palette.green700 })}>Train</Text>
+                    </PressableScale>
+                    <PressableScale
+                      onPress={() => router.push(inviteParams(f, 'compete'))}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Compete with ${f.displayName}`}
+                      style={[styles.actionPill, styles.actionPillSoft]}
+                    >
+                      <Text style={font('extrabold', 11, { color: palette.green700 })}>Compete</Text>
+                    </PressableScale>
+                  </View>
                 </View>
               </View>
             ))}
           </Card>
-        </>
+        </StaggerIn>
       ) : null}
     </Screen>
   );
@@ -359,8 +494,8 @@ const styles = StyleSheet.create({
     ...font('semibold', 13, { color: palette.ink }),
     padding: 0,
   },
-  onlineRow: { flexDirection: 'row', gap: 16, marginBottom: 26 },
-  onlineItem: { alignItems: 'center', gap: 6 },
+  onlineRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginBottom: 26 },
+  onlineItem: { alignItems: 'center', gap: 6, width: 64 },
   addCircle: {
     width: 58,
     height: 58,
@@ -380,12 +515,27 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     paddingHorizontal: 10,
   },
+  cloudRow: {
+    paddingVertical: 11,
+    paddingHorizontal: 10,
+    gap: 10,
+  },
   friendInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
   duelButton: {
     backgroundColor: palette.green500,
     paddingVertical: 9,
     paddingHorizontal: 16,
     borderRadius: radius.lg,
+  },
+  actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  actionPill: {
+    backgroundColor: palette.green500,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: radius.lg,
+  },
+  actionPillSoft: {
+    backgroundColor: palette.green50,
   },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   aiTag: {

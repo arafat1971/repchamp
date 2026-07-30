@@ -8,6 +8,7 @@ import { Avatar, Card, Eyebrow, PressableScale, Screen, Skeleton, SkeletonCircle
 import { StaggerIn } from '@/components/motion';
 import { getExercise, type ExerciseId } from '@/vision/exercises';
 import { getOpponent } from '@/domain/opponent';
+import { invitePresentation } from '@/domain/presence';
 import { usePhantomSeed } from '@/domain/seedPhantoms';
 import { fetchIncomingDuels, cancelDuel, type IncomingDuel } from '@/services/duelService';
 import { captureError } from '@/lib/crash';
@@ -78,16 +79,19 @@ export default function NotificationsScreen() {
       ) : null}
 
       <StaggerIn index={1}>
+        <Eyebrow style={{ marginBottom: 10 }}>INVITES</Eyebrow>
         {loading ? (
           <InviteSkeleton />
         ) : incoming.length > 0 ? (
           <View style={{ gap: 12 }}>
             {incoming.map((invite) => {
               const ex = getExercise(invite.exercise as ExerciseId);
+              const copy = invitePresentation(invite.kind, invite.cooperative);
               return (
                 <InviteCard
                   key={invite.id}
                   name={invite.hostName}
+                  verb={copy.verb}
                   avatar={
                     <Avatar
                       initial={(invite.hostName || 'A').charAt(0).toUpperCase()}
@@ -95,7 +99,12 @@ export default function NotificationsScreen() {
                       size={44}
                     />
                   }
-                  chips={[`${ex.hudLabel} duel`, `${invite.duration}s`, `Lv.${invite.hostLevel}`]}
+                  chips={[
+                    copy.chip,
+                    `${ex.hudLabel}`,
+                    `${invite.duration}s`,
+                    `Lv.${invite.hostLevel}`,
+                  ]}
                   onAccept={() => accept(invite)}
                   onDismiss={() => dismiss(invite)}
                 />
@@ -108,6 +117,7 @@ export default function NotificationsScreen() {
               <InviteCard
                 key={phantom.id}
                 name={phantom.name}
+                verb="Challenged you to a duel"
                 avatar={
                   <Avatar
                     initial={phantom.initial}
@@ -117,7 +127,7 @@ export default function NotificationsScreen() {
                     color={phantom.tintColor}
                   />
                 }
-                chips={['Push-up duel', '20s', `Lv.${phantom.level}`]}
+                chips={['Duel', 'Push-up', '20s', `Lv.${phantom.level}`]}
                 onAccept={() =>
                   router.replace({
                     pathname: '/session',
@@ -131,6 +141,7 @@ export default function NotificationsScreen() {
         ) : (
           <InviteCard
             name={challenger.name}
+            verb="Challenged you to a duel"
             avatar={
               <Avatar
                 initial={challenger.initial}
@@ -139,7 +150,7 @@ export default function NotificationsScreen() {
                 color={palette.green700}
               />
             }
-            chips={['Push-up duel', '20s']}
+            chips={['Duel', 'Push-up', '20s']}
             onAccept={() =>
               router.replace({
                 pathname: '/session',
@@ -190,12 +201,14 @@ export default function NotificationsScreen() {
  */
 function InviteCard({
   name,
+  verb,
   avatar,
   chips,
   onAccept,
   onDismiss,
 }: {
   name: string;
+  verb: string;
   avatar: ReactNode;
   chips: string[];
   onAccept: () => void;
@@ -214,9 +227,7 @@ function InviteCard({
               <Text style={styles.newPillText}>NEW</Text>
             </View>
           </View>
-          <Text style={font('semibold', 12, { color: palette.slate500 })}>
-            Challenged you to a duel
-          </Text>
+          <Text style={font('semibold', 12, { color: palette.slate500 })}>{verb}</Text>
         </View>
       </View>
 

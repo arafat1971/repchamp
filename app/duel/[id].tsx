@@ -45,10 +45,15 @@ export default function DuelWaitingScreen() {
     target?: string;
     exercise?: string;
     duration?: string;
+    kind?: string;
   }>();
   const role = params.role === 'guest' ? 'guest' : 'host';
   const exercise: ExerciseId = params.exercise === 'squat' ? 'squat' : 'push';
   const duration = params.duration ? Number(params.duration) : 20;
+  const inviteKind =
+    params.kind === 'train' || params.kind === 'compete' || params.kind === 'duel'
+      ? params.kind
+      : 'duel';
 
   const [duelId, setDuelId] = useState<string | null>(params.id ?? null);
   const [status, setStatus] = useState<'starting' | 'waiting' | 'unavailable'>('starting');
@@ -92,6 +97,8 @@ export default function DuelWaitingScreen() {
             exercise,
             duration,
             targetUid: params.target ?? null,
+            kind: inviteKind,
+            cooperative: inviteKind === 'train',
           });
           if (cancelled) return;
           if (!id) return setStatus('unavailable');

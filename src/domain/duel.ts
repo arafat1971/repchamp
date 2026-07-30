@@ -16,6 +16,7 @@
  */
 
 import type { Opponent } from '@/domain/opponent';
+import type { InviteKind } from '@/domain/presence';
 
 /** How often a client is allowed to push its live state up, in ms (~3 Hz). */
 export const DUEL_SYNC_INTERVAL_MS = 320;
@@ -67,6 +68,11 @@ export interface Duel {
    * session renders the combined total instead of a tug-of-war.
    */
   cooperative?: boolean;
+  /**
+   * Inbox flavor: competitive duel, train-together, or weekly competition.
+   * Defaults to `duel` when absent (older docs).
+   */
+  kind?: InviteKind;
 }
 
 /** A fresh player slice at the start of a duel. */

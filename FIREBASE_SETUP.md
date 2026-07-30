@@ -80,8 +80,9 @@ For **iOS**, `eas credentials` walks you through the APNs key (or upload a `.p8`
 from Apple Developer → Keys).
 
 The client captures its Expo push token on sign-in (`registerForPushNudges` in
-`src/lib/notifications.ts`) and stores it on `users/{uid}.expoPushToken`; the
-*sender's* app reads the partner's token and posts to Expo (`nudgePartner`).
+`src/lib/notifications.ts`) and stores it on `users/{uid}/private/push` (owner-only).
+When paired, the same token is also written onto that athlete's couple-member
+slice so the partner can nudge without reading a world-readable profile field.
 
 ### 6. Rebuild the dev client (config changed)
 `eas init` writes the real `extra.eas.projectId`, which is baked in at build time:
@@ -99,8 +100,9 @@ couple nudges push across devices via Expo — all on the free plan.
 2. Background the app on device B.
 3. On device A, open **Couple mode → 👋 Nudge**.
 4. Device B should get a push within a second or two. If not, check in order:
-   - Device B has a token: its `users/{uid}.expoPushToken` in Firestore should
-     start with `ExponentPushToken[...]` (empty = permission denied or no EAS id).
+   - Device B has a token on their couple member (`members[].expoPushToken`)
+     starting with `ExponentPushToken[...]` (empty = permission denied, no EAS
+     id, or token not yet synced after pairing).
    - Android delivery: the FCM service-account JSON is uploaded in the Expo
      dashboard (step 5) — without it Expo accepts the push but can't deliver it.
    - Paste device B's token into <https://expo.dev/notifications> and send a test;
@@ -115,7 +117,10 @@ users/{uid}
   uid, username (lowercased, for friend lookup), displayName,
   avatarUrl, weeklyGoal, totalXp, personalBests{push,squat,shoulder,stretch}, updatedAt
 
-users/{uid}/friends/{friendUid}
+users/{uid}/private/push   # owner-only
+  expoPushToken, pushUpdatedAt
+
+users/{uid}/friends/{friendUid}   # owner-managed only
   displayName, avatarUrl, level, addedAt
 
 leaderboard/{uid}        # flat, query-cheap
@@ -123,7 +128,7 @@ leaderboard/{uid}        # flat, query-cheap
 
 couples/{coupleId}       # doc id IS the 6-char pair code
   id, memberUids[2], pending,
-  members[] { uid, displayName, avatarUrl, trainedDays[], totalReps },
+  members[] { uid, displayName, avatarUrl, trainedDays[], totalReps, expoPushToken? },
   nudge { fromUid, at }, createdAt, pairedAt
 ```
 
@@ -193,13 +198,13 @@ same seats a duel uses — only the scoring differs (combined total, no winner, 
 - ✅ **Local streak reminder** (`src/lib/notifications.ts`): a daily
   streak-at-risk reminder this device schedules for its own owner. No server.
 - ✅ **Cross-device push (Expo Push, free)**: on a nudge, the *sender's* app reads
-  the recipient's `expoPushToken` off `users/{uid}` and POSTs to Expo's push
-  service (`nudgePartner` in `src/services/coupleService.ts`), which delivers even
-  when the recipient's app is **closed**. When the recipient's app is foregrounded
-  the push is suppressed (`installForegroundNudgeSuppressor` + the notification
-  handler tag) so the in-app nudge doesn't double. **No Cloud Function, no Blaze
-  plan** — the only server is Expo's, which is free. Requires the EAS project +
-  FCM-key-to-Expo setup in step 5.
+  the recipient's `expoPushToken` off the couple member object and POSTs to Expo's
+  push service (`nudgePartner` in `src/services/coupleService.ts`), which delivers
+  even when the recipient's app is **closed**. When the recipient's app is
+  foregrounded the push is suppressed (`installForegroundNudgeSuppressor` + the
+  notification handler tag) so the in-app nudge doesn't double. **No Cloud
+  Function, no Blaze plan** — the only server is Expo's, which is free. Requires
+  the EAS project + FCM-key-to-Expo setup in step 5.
 
 There is intentionally **no Cloud Function** in this repo. The sender is a trusted
 enough actor to push to their own partner, and Expo holds the FCM credential (via

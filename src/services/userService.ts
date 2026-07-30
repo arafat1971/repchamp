@@ -28,6 +28,10 @@ export interface CloudProfile {
   personalBests: Record<ExerciseId, number>;
   /** Server timestamp of last write — used to resolve local-vs-cloud on sync. */
   updatedAt: number;
+  /** Millisecond stamp of first profile create — powers "New on RepChamp". */
+  createdAt?: number;
+  /** Millisecond heartbeat — powers Friends "Active now" and the Home pill. */
+  lastActiveAt?: number;
 }
 
 const USERS = 'users';
@@ -45,46 +49,65 @@ export async function fetchProfile(uid: string): Promise<CloudProfile | null> {
 }
 
 /**
- * Store this device's Expo push token on the user's profile, so a partner's app
- * can look up where to send a nudge.
+ * Store this device's Expo push token in an owner-only private doc — never on
+ * the world-readable profile — so strangers cannot harvest tokens for spam.
  *
- * Merge-written and idempotent — a token that hasn't changed simply re-writes
- * the same value. No-ops when unconfigured. It lives on `users/{uid}` (already
- * owner-readable by friends for username lookup) rather than the couple doc,
- * because the *sender* needs to read the *recipient's* token to push — see the
- * `expoPushToken` read allowance in the couples flow.
+ * Couple nudges read the partner's token from the couple member object instead
+ * (see `syncCouplePushToken` / `nudgePartner`).
  */
 export async function saveExpoPushToken(uid: string, token: string): Promise<void> {
   if (!isFirebaseConfigured()) return;
   await usersCol()
     .doc(uid)
-    .set(
-      { expoPushToken: token, pushUpdatedAt: firestore.FieldValue.serverTimestamp() },
-      { merge: true },
-    );
+    .collection('private')
+    .doc('push')
+    .set({
+      expoPushToken: token,
+      pushUpdatedAt: firestore.FieldValue.serverTimestamp(),
+    });
 }
 
-/** Read a user's Expo push token — the sender needs the recipient's to nudge. */
+/** Read this athlete's own private push token (owner-only). */
 export async function fetchExpoPushToken(uid: string): Promise<string | null> {
   if (!isFirebaseConfigured()) return null;
-  const snap = await usersCol().doc(uid).get();
+  const snap = await usersCol().doc(uid).collection('private').doc('push').get();
   return snap.exists() ? ((snap.get('expoPushToken') as string | undefined) ?? null) : null;
 }
 
 /**
  * Upsert the durable profile slice. Merge so we never clobber fields another
  * device wrote (e.g. a higher personal best) that this device doesn't track.
+ * Stamps `createdAt` once on first write and refreshes `lastActiveAt`.
  */
 export async function upsertProfile(
-  profile: Omit<CloudProfile, 'updatedAt'>,
+  profile: Omit<CloudProfile, 'updatedAt' | 'createdAt' | 'lastActiveAt'>,
 ): Promise<void> {
   if (!isFirebaseConfigured()) return;
-  await usersCol()
-    .doc(profile.uid)
-    .set(
-      { ...profile, updatedAt: firestore.FieldValue.serverTimestamp() },
-      { merge: true },
-    );
+  const ref = usersCol().doc(profile.uid);
+  const existing = await ref.get();
+  const now = Date.now();
+  await ref.set(
+    {
+      ...profile,
+      updatedAt: firestore.FieldValue.serverTimestamp(),
+      lastActiveAt: now,
+      ...(existing.exists() ? {} : { createdAt: now }),
+    },
+    { merge: true },
+  );
+}
+
+/**
+ * Lightweight presence heartbeat. Merge-writes only `lastActiveAt` so friends
+ * can see this athlete as online without a full profile sync.
+ */
+export async function touchPresence(uid: string): Promise<void> {
+  if (!isFirebaseConfigured()) return;
+  const ref = usersCol().doc(uid);
+  const snap = await ref.get();
+  // Never create a half-empty profile — wait until upsertProfile has run once.
+  if (!snap.exists()) return;
+  await ref.set({ lastActiveAt: Date.now() }, { merge: true });
 }
 
 /**

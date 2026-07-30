@@ -17,9 +17,12 @@
 
 import {
   addFriendByUsername,
+  fetchActiveFriends,
   fetchFriends,
   fetchLeaderboard,
+  fetchRecentAthletes,
 } from '../leaderboardService';
+import { ACTIVE_WINDOW_MS } from '@/domain/presence';
 import { buildLeaderboard } from '@/domain/leaderboard';
 import { currentWeekKey } from '@/services/userService';
 
@@ -113,6 +116,8 @@ jest.mock('@react-native-firebase/firestore', () => {
       }),
       where: (field: string, _op: string, value: unknown) =>
         mockQuery(name, [[field, value]], null, null),
+      orderBy: (field: string, dir = 'asc') =>
+        mockQuery(name, [], { field, dir }, null),
     }),
     batch: () => {
       const ops: Array<() => Promise<void>> = [];
@@ -228,7 +233,7 @@ describe('addFriendByUsername', () => {
     expect(await addFriendByUsername('me', 'pat')).toBe(false);
   });
 
-  it('resolves the username and writes reciprocal friend edges', async () => {
+  it('resolves the username and writes only your own friend edge', async () => {
     mockStore.users.set('friend-uid', {
       username: 'pat',
       displayName: 'Pat',
@@ -247,11 +252,8 @@ describe('addFriendByUsername', () => {
     expect(mine.displayName).toBe('Pat');
     expect(mine.level).toBe(7);
     expect(mine.addedAt).toBe('<ts>');
-    // Reciprocal: Pat also sees Me.
-    const theirs = mockCol('friends/friend-uid').get('me')!;
-    expect(theirs.displayName).toBe('Me');
-    expect(theirs.avatarUrl).toBe('https://cdn/me.jpg');
-    expect(theirs.level).toBe(3);
+    // Owner-only: we do not force-inject onto Pat's list.
+    expect(mockCol('friends/friend-uid').has('me')).toBe(false);
   });
 
   it('throws a friendly error when the username is unknown', async () => {
@@ -263,5 +265,75 @@ describe('addFriendByUsername', () => {
   it('refuses to friend yourself', async () => {
     mockStore.users.set('me', { username: 'me', displayName: 'Me' });
     await expect(addFriendByUsername('me', 'me')).rejects.toThrow(/that's you/i);
+  });
+});
+
+describe('fetchActiveFriends', () => {
+  const now = 1_700_000_000_000;
+
+  it('marks friends online only when lastActiveAt is inside the window', async () => {
+    mockCol('friends/me').set('pat', {
+      displayName: 'Pat',
+      avatarUrl: null,
+      level: 4,
+    });
+    mockCol('friends/me').set('sam', {
+      displayName: 'Sam',
+      avatarUrl: null,
+      level: 2,
+    });
+    mockStore.users.set('pat', {
+      displayName: 'Pat',
+      username: 'pat',
+      lastActiveAt: now - 60_000,
+      level: 4,
+    });
+    mockStore.users.set('sam', {
+      displayName: 'Sam',
+      username: 'sam',
+      lastActiveAt: now - ACTIVE_WINDOW_MS - 1,
+      level: 2,
+    });
+
+    const list = await fetchActiveFriends('me', ACTIVE_WINDOW_MS, now);
+    expect(list).toHaveLength(2);
+    expect(list.find((f) => f.uid === 'pat')?.online).toBe(true);
+    expect(list.find((f) => f.uid === 'sam')?.online).toBe(false);
+  });
+
+  it('returns empty when unconfigured', async () => {
+    mockState.configured = false;
+    expect(await fetchActiveFriends('me')).toEqual([]);
+  });
+});
+
+describe('fetchRecentAthletes', () => {
+  it('returns newest profiles excluding self', async () => {
+    mockStore.users.set('me', {
+      displayName: 'Me',
+      username: 'me',
+      createdAt: 300,
+    });
+    mockStore.users.set('a', {
+      displayName: 'Ada',
+      username: 'ada',
+      createdAt: 200,
+      level: 1,
+    });
+    mockStore.users.set('b', {
+      displayName: 'Bea',
+      username: 'bea',
+      createdAt: 100,
+      level: 2,
+    });
+
+    const list = await fetchRecentAthletes('me', 10);
+    expect(list.map((a) => a.uid)).toEqual(['a', 'b']);
+    expect(list[0]?.username).toBe('ada');
+  });
+
+  it('returns empty when unconfigured', async () => {
+    mockState.configured = false;
+    expect(await fetchRecentAthletes('me')).toEqual([]);
   });
 });

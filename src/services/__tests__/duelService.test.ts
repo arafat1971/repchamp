@@ -197,6 +197,31 @@ describe('createDuel', () => {
     expect(d.guest).toBeNull();
     expect(d.host.reps).toBe(0);
     expect(d.host.done).toBe(false);
+    expect(d.kind).toBe('duel');
+  });
+
+  it('persists train / compete invite kinds', async () => {
+    const trainId = await createDuel({
+      ...HOST,
+      exercise: 'push',
+      duration: 30,
+      kind: 'train',
+      targetUid: 'g',
+    });
+    const train = mockStore.get(trainId!) as unknown as Duel;
+    expect(train.kind).toBe('train');
+    expect(train.cooperative).toBe(true);
+
+    const competeId = await createDuel({
+      ...HOST,
+      exercise: 'squat',
+      duration: 45,
+      kind: 'compete',
+      targetUid: 'g',
+    });
+    const compete = mockStore.get(competeId!) as unknown as Duel;
+    expect(compete.kind).toBe('compete');
+    expect(compete.cooperative).toBe(false);
   });
 
   it('is a no-op returning null when Firebase is unconfigured', async () => {
@@ -418,6 +443,8 @@ describe('fetchIncomingDuels', () => {
       hostName: 'Hana',
       hostAvatarUrl: null,
       hostLevel: 3,
+      kind: 'duel',
+      cooperative: false,
     });
   });
 

@@ -23,6 +23,7 @@ import {
 } from '@/state/profileStore';
 import { useCouple } from '@/state/useCouple';
 import { useIncomingDuelCount } from '@/state/useIncomingDuelCount';
+import { useLiveActivityCount } from '@/state/useLiveActivityCount';
 import type { ExerciseId } from '@/vision/exercises';
 import { font } from '@/theme/typography';
 import { gradients, palette, shadow } from '@/theme/tokens';
@@ -65,7 +66,8 @@ export default function HomeScreen() {
   // Honest "who's here now" label: AI training partners while the community is
   // fresh, real athletes once it grows. Never a hardcoded vanity number.
   const seed = usePhantomSeed();
-  const activity = liveActivity(0, seed.phantomOnline.length, seed.isSeeding);
+  const realActive = useLiveActivityCount();
+  const activity = liveActivity(realActive, seed.phantomOnline.length, seed.isSeeding);
 
   const today = dayKey();
   const trainedToday = profile.sessions.some((s) => s.day === today);

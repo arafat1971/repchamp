@@ -29,6 +29,7 @@ import {
   resolveWinner,
   seatOf,
 } from '@/domain/duel';
+import { parseInviteKind, type InviteKind } from '@/domain/presence';
 
 const DUELS = 'duels';
 
@@ -56,6 +57,8 @@ export interface DuelHostInput {
   targetUid?: string | null;
   /** Open a couple's cooperative *together* set instead of a competitive duel. */
   cooperative?: boolean;
+  /** Inbox flavor — duel / train together / weekly compete. */
+  kind?: InviteKind;
 }
 
 /**
@@ -76,6 +79,9 @@ export async function createDuel(input: DuelHostInput): Promise<string | null> {
     level: input.level,
   });
 
+  const kind = input.kind ?? (input.cooperative ? 'train' : 'duel');
+  const cooperative = input.cooperative ?? kind === 'train';
+
   const duel: Duel = {
     id: ref.id,
     exercise: input.exercise,
@@ -87,7 +93,8 @@ export async function createDuel(input: DuelHostInput): Promise<string | null> {
     host,
     guest: null,
     winnerUid: null,
-    cooperative: input.cooperative ?? false,
+    cooperative,
+    kind,
   };
 
   await ref.set({ ...duel, createdAt: firestore.FieldValue.serverTimestamp() });
@@ -282,6 +289,8 @@ export interface IncomingDuel {
   hostName: string;
   hostAvatarUrl: string | null;
   hostLevel: number;
+  kind: InviteKind;
+  cooperative: boolean;
 }
 
 /**
@@ -315,6 +324,8 @@ export async function fetchIncomingDuels(uid: string, limit = 10): Promise<Incom
           hostName: d.host?.displayName ?? 'Athlete',
           hostAvatarUrl: d.host?.avatarUrl ?? null,
           hostLevel: d.host?.level ?? 1,
+          kind: parseInviteKind(d.kind ?? (d.cooperative ? 'train' : 'duel')),
+          cooperative: !!d.cooperative,
         } satisfies IncomingDuel;
       })
       .filter((d): d is IncomingDuel => d !== null);

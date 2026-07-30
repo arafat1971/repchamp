@@ -28,6 +28,7 @@ import {
 } from '@/lib/notifications';
 import { useAuthStore } from '@/state/authStore';
 import { useProStore } from '@/state/proStore';
+import { usePresenceHeartbeat } from '@/state/usePresenceHeartbeat';
 import { useSettingsStore } from '@/state/settingsStore';
 import { fontFamily } from '@/theme/typography';
 import { palette } from '@/theme/tokens';
@@ -95,6 +96,7 @@ export default function RootLayout() {
   // reach it even when closed. No-ops until Firebase is provisioned.
   const uid = useAuthStore((s) => s.user?.uid);
   const initializePro = useProStore((s) => s.initialize);
+  usePresenceHeartbeat(uid);
   useEffect(() => {
     if (!uid) return;
     // Tie analytics + crash reports to this athlete across sessions.

@@ -17,6 +17,7 @@ import firestore from '@react-native-firebase/firestore';
 
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { buildLeaderboard, type LeaderboardRow } from '@/domain/leaderboard';
+import { ACTIVE_WINDOW_MS, isRecentlyActive } from '@/domain/presence';
 import { currentWeekKey } from '@/services/userService';
 
 const AVATAR_TINTS = ['#fde68a', '#ddd6fe', '#bfdbfe', '#fecdd3', '#bbf7d0', '#bae6fd'];
@@ -136,9 +137,9 @@ export async function fetchFriends(uid: string): Promise<Friend[]> {
 /**
  * Add a friend by their public username.
  *
- * Writes **both** edges in one batch: you → them and them → you, so the graph is
- * reciprocal immediately (no accept step). Resolves to false when unconfigured.
- * Throws a friendly error the UI can surface on a miss / self-add.
+ * Writes **your** edge only (owner-scoped). The other athlete can add you back
+ * by username — Firestore rules forbid force-injecting yourself onto someone
+ * else's list. Resolves to false when unconfigured.
  */
 export async function addFriendByUsername(
   myUid: string,
@@ -157,33 +158,129 @@ export async function addFriendByUsername(
   if (friendDoc.id === myUid) throw new Error("That's you!");
 
   const theirs = friendDoc.data() as Partial<Friend> & { displayName?: string };
-  const mineSnap = await firestore().collection('users').doc(myUid).get();
-  const mine = (mineSnap.data() ?? {}) as Partial<Friend> & { displayName?: string };
 
-  const batch = firestore().batch();
-  const now = firestore.FieldValue.serverTimestamp();
-
-  // My list → them
-  batch.set(
-    firestore().collection('users').doc(myUid).collection('friends').doc(friendDoc.id),
-    {
+  await firestore()
+    .collection('users')
+    .doc(myUid)
+    .collection('friends')
+    .doc(friendDoc.id)
+    .set({
       displayName: theirs.displayName ?? 'Athlete',
       avatarUrl: theirs.avatarUrl ?? null,
       level: theirs.level ?? 1,
-      addedAt: now,
-    },
-  );
-  // Their list → me (reciprocal — rules allow create when doc id == auth uid)
-  batch.set(
-    firestore().collection('users').doc(friendDoc.id).collection('friends').doc(myUid),
-    {
-      displayName: mine.displayName ?? 'Athlete',
-      avatarUrl: mine.avatarUrl ?? null,
-      level: mine.level ?? 1,
-      addedAt: now,
-    },
-  );
+      addedAt: firestore.FieldValue.serverTimestamp(),
+    });
 
-  await batch.commit();
   return true;
+}
+
+export interface ActiveFriend extends Friend {
+  lastActiveAt: number | null;
+  online: boolean;
+  username: string | null;
+}
+
+/**
+ * Friends enriched with live presence from their public profile heartbeat.
+ * Stale / missing stamps count as offline. Empty when unconfigured.
+ */
+export async function fetchActiveFriends(
+  uid: string,
+  withinMs = ACTIVE_WINDOW_MS,
+  now = Date.now(),
+): Promise<ActiveFriend[]> {
+  const friends = await fetchFriends(uid);
+  if (!friends.length || !isFirebaseConfigured()) {
+    return friends.map((f) => ({
+      ...f,
+      lastActiveAt: null,
+      online: false,
+      username: null,
+    }));
+  }
+
+  try {
+    const snaps = await Promise.all(
+      friends.map((f) => firestore().collection('users').doc(f.uid).get()),
+    );
+    return friends.map((f, i) => {
+      const data = snaps[i]?.data() as
+        | {
+            lastActiveAt?: number;
+            username?: string;
+            displayName?: string;
+            avatarUrl?: string | null;
+            level?: number;
+          }
+        | undefined;
+      const lastActiveAt =
+        typeof data?.lastActiveAt === 'number' ? data.lastActiveAt : null;
+      return {
+        uid: f.uid,
+        displayName: data?.displayName ?? f.displayName,
+        avatarUrl: data?.avatarUrl ?? f.avatarUrl,
+        level: data?.level ?? f.level,
+        lastActiveAt,
+        online: isRecentlyActive(lastActiveAt, now, withinMs),
+        username: data?.username ?? null,
+      };
+    });
+  } catch {
+    return friends.map((f) => ({
+      ...f,
+      lastActiveAt: null,
+      online: false,
+      username: null,
+    }));
+  }
+}
+
+export interface RecentAthlete {
+  uid: string;
+  displayName: string;
+  username: string | null;
+  avatarUrl: string | null;
+  level: number;
+  createdAt: number | null;
+}
+
+/**
+ * Newest public profiles — "New on RepChamp". Excludes `excludeUid`. Empty when
+ * unconfigured or on query error.
+ */
+export async function fetchRecentAthletes(
+  excludeUid: string,
+  limit = 12,
+): Promise<RecentAthlete[]> {
+  if (!isFirebaseConfigured()) return [];
+  try {
+    const snap = await firestore()
+      .collection('users')
+      .orderBy('createdAt', 'desc')
+      .limit(limit + 4)
+      .get();
+
+    return snap.docs
+      .filter((d) => d.id !== excludeUid)
+      .slice(0, limit)
+      .map((d) => {
+        const data = d.data() as {
+          displayName?: string;
+          username?: string;
+          avatarUrl?: string | null;
+          level?: number;
+          createdAt?: number;
+        };
+        return {
+          uid: d.id,
+          displayName: data.displayName ?? 'Athlete',
+          username: data.username ?? null,
+          avatarUrl: data.avatarUrl ?? null,
+          level: data.level ?? 1,
+          createdAt: typeof data.createdAt === 'number' ? data.createdAt : null,
+        };
+      });
+  } catch {
+    return [];
+  }
 }

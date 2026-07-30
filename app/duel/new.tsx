@@ -79,6 +79,7 @@ export default function DuelNewScreen() {
     name?: string;
     level?: string;
     queue?: string;
+    kind?: string;
   }>();
 
   const [exercise, setExercise] = useState<ExerciseId>('push');
@@ -87,6 +88,10 @@ export default function DuelNewScreen() {
   const selectedExercise = EXERCISES.find((e) => e.id === exercise)!;
   const selectedDuration = DURATIONS.find((d) => d.value === duration)!;
   const isTargeted = !!params.name;
+  const inviteKind =
+    params.kind === 'train' || params.kind === 'compete' || params.kind === 'duel'
+      ? params.kind
+      : 'duel';
 
   const start = () => {
     if (params.queue === '1') {
@@ -102,6 +107,7 @@ export default function DuelNewScreen() {
           role: params.role ?? 'host',
           exercise,
           duration: String(duration),
+          kind: inviteKind,
           ...(params.target ? { target: params.target } : {}),
           ...(params.name ? { name: params.name } : {}),
           ...(params.level ? { level: params.level } : {}),
@@ -112,7 +118,15 @@ export default function DuelNewScreen() {
 
   return (
     <Screen>
-      <ModalHeader title="Set Up Duel" />
+      <ModalHeader
+        title={
+          inviteKind === 'train'
+            ? 'Train Together'
+            : inviteKind === 'compete'
+              ? 'Weekly Compete'
+              : 'Set Up Duel'
+        }
+      />
 
       {/* ── Hero Preview Card ── */}
       <Animated.View entering={FadeInDown.duration(500)}>
@@ -121,7 +135,15 @@ export default function DuelNewScreen() {
             <View style={styles.heroBadge}>
               <View style={styles.heroBadgeDot} />
               <Text style={styles.heroBadgeText}>
-                {params.queue === '1' ? 'OPEN MATCH' : isTargeted ? 'DIRECT CHALLENGE' : 'DUEL SETUP'}
+                {params.queue === '1'
+                  ? 'OPEN MATCH'
+                  : inviteKind === 'train'
+                    ? 'TRAIN TOGETHER'
+                    : inviteKind === 'compete'
+                      ? 'WEEKLY COMPETE'
+                      : isTargeted
+                        ? 'DIRECT CHALLENGE'
+                        : 'DUEL SETUP'}
               </Text>
             </View>
           </View>

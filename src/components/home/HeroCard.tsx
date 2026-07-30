@@ -1,3 +1,4 @@
+import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -121,10 +122,12 @@ export function HeroCard({ focus, onPress }: { focus: HomeFocus; onPress: () => 
         <Text style={styles.title}>{c.title}</Text>
         <Text style={styles.body}>{c.body}</Text>
         <View style={styles.ctaRow}>
-          <View style={styles.ctaPill}>
+          <BlurView intensity={28} tint="light" style={styles.ctaGlass} experimentalBlurMethod="dimezisBlurView">
             <Text style={styles.ctaText}>{c.cta}</Text>
-            <Text style={styles.ctaArrow}>→</Text>
-          </View>
+            <View style={styles.ctaArrowWrap}>
+              <Text style={styles.ctaArrow}>→</Text>
+            </View>
+          </BlurView>
         </View>
       </LinearGradient>
     </PressableScale>
@@ -135,37 +138,48 @@ const styles = StyleSheet.create({
   card: { borderRadius: radius['4xl'], padding: 22, minHeight: 200, justifyContent: 'space-between' },
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   eyebrow: {
-    ...font('extrabold', 10, { color: 'rgba(255,255,255,0.85)' }),
+    ...font('bold', 10, { color: 'rgba(255,255,255,0.85)' }),
     letterSpacing: 2,
     marginTop: 2,
   },
   emoji: { fontSize: 40 },
   title: {
-    ...font('extrabold', 26, { color: palette.white }),
+    ...font('bold', 26, { color: palette.white }),
     marginTop: 14,
     lineHeight: 30,
   },
   body: {
-    ...font('bold', 13, { color: 'rgba(255,255,255,0.9)' }),
+    ...font('regular', 13, { color: 'rgba(255,255,255,0.9)' }),
     marginTop: 8,
     lineHeight: 19,
   },
   ctaRow: { marginTop: 18 },
-  ctaPill: {
+  ctaGlass: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: palette.white,
-    paddingVertical: 12,
-    paddingHorizontal: 18,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingVertical: 10,
+    paddingLeft: 16,
+    paddingRight: 8,
     borderRadius: 26,
-    shadowColor: '#000',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+    overflow: 'hidden',
+    shadowColor: '#16a34a',
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    elevation: 3,
   },
-  ctaText: font('extrabold', 15, { color: palette.green700 }),
-  ctaArrow: font('extrabold', 16, { color: palette.green600 }),
+  ctaText: font('bold', 14, { color: palette.white }),
+  ctaArrowWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ctaArrow: font('bold', 12, { color: palette.green700 }),
 });

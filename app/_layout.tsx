@@ -1,4 +1,5 @@
 import {
+  PlusJakartaSans_400Regular,
   PlusJakartaSans_500Medium,
   PlusJakartaSans_600SemiBold,
   PlusJakartaSans_700Bold,
@@ -39,6 +40,7 @@ void SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   const router = useRouter();
   const [fontsLoaded, fontError] = useFonts({
+    [fontFamily.regular]: PlusJakartaSans_400Regular,
     [fontFamily.medium]: PlusJakartaSans_500Medium,
     [fontFamily.semibold]: PlusJakartaSans_600SemiBold,
     [fontFamily.bold]: PlusJakartaSans_700Bold,

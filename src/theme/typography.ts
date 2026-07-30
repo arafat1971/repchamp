@@ -7,6 +7,7 @@ import { palette } from './tokens';
  * same file names work on both platforms. Keys match `useFonts` in the root layout.
  */
 export const fontFamily = {
+  regular: 'PlusJakartaSans-Regular',
   medium: 'PlusJakartaSans-Medium',
   semibold: 'PlusJakartaSans-SemiBold',
   bold: 'PlusJakartaSans-Bold',

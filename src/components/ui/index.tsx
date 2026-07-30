@@ -163,13 +163,13 @@ export const PressableScale = forwardRef<View, PressableProps & { children: Reac
         // to the caller's handler below.
         onPressIn={(e) => {
           // eslint-disable-next-line react-hooks/immutability
-          scale.value = withTiming(0.97, { duration: 90 });
+          scale.value = withTiming(0.97, { duration: 150 });
           lightImpactHaptic();
           props.onPressIn?.(e);
         }}
         onPressOut={(e) => {
           // eslint-disable-next-line react-hooks/immutability
-          scale.value = withSpring(1, { damping: 14, stiffness: 260 });
+          scale.value = withTiming(1, { duration: 150 });
           props.onPressOut?.(e);
         }}
         style={[animatedStyle, style as StyleProp<ViewStyle>]}

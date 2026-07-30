@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Confetti } from '@/components/session/Confetti';
 import { ResultShareCard } from '@/components/session/ResultShareCard';
+import { CountUp } from '@/components/motion';
 import { PressableScale } from '@/components/ui';
 import { getOpponent } from '@/domain/opponent';
 import { canUse } from '@/domain/pro';
@@ -146,7 +147,7 @@ export default function ResultScreen() {
 
   return (
     <View style={styles.root}>
-      {session.won ? <Confetti /> : null}
+      <Confetti />
 
       {/* Off-screen shareable card — captured to PNG on share. */}
       <View style={styles.offscreen} pointerEvents="none">
@@ -191,6 +192,29 @@ export default function ResultScreen() {
         <Animated.View entering={FadeInDown.duration(450).delay(100)} style={styles.titleSection}>
           <Text style={styles.screenTitleText}>{title}</Text>
           <Text style={styles.screenSubtitleText}>{subtitle}</Text>
+        </Animated.View>
+
+        <Animated.View entering={FadeInUp.duration(500).delay(180)} style={styles.rewardRow}>
+          <View style={styles.rewardChip}>
+            <Text style={styles.rewardChipText}>+</Text>
+            <CountUp
+              value={session.xpGained}
+              duration={900}
+              delay={220}
+              style={styles.rewardChipText}
+            />
+            <Text style={styles.rewardChipText}> XP</Text>
+          </View>
+          {streak > 0 ? (
+            <View style={styles.rewardChipFire}>
+              <Text style={styles.rewardChipTextDark}>🔥 {streak} day streak</Text>
+            </View>
+          ) : null}
+          {session.won ? (
+            <View style={styles.rewardChipGold}>
+              <Text style={styles.rewardChipTextDark}>🥇 Win secured</Text>
+            </View>
+          ) : null}
         </Animated.View>
 
         {/* The Beautiful 3D Viral Share Card rendered on screen */}
@@ -284,20 +308,54 @@ const styles = StyleSheet.create({
   trophyWrapper: { marginBottom: 12, alignItems: 'center' },
   trophyHeroImg: { width: 88, height: 88 },
 
-  titleSection: { alignItems: 'center', marginBottom: 24 },
+  titleSection: { alignItems: 'center', marginBottom: 16 },
   screenTitleText: {
-    ...font('extrabold', 30, { color: palette.ink }),
+    ...font('bold', 30, { color: palette.ink }),
     textAlign: 'center',
     letterSpacing: -0.6,
     lineHeight: 36,
   },
   screenSubtitleText: {
-    ...font('medium', 15, { color: palette.slate500 }),
+    ...font('regular', 15, { color: palette.slate500 }),
     textAlign: 'center',
     marginTop: 8,
     lineHeight: 21,
     paddingHorizontal: 16,
   },
+  rewardRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 20,
+    paddingHorizontal: 8,
+  },
+  rewardChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: palette.green500,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  rewardChipFire: {
+    backgroundColor: palette.amber50,
+    borderWidth: 1,
+    borderColor: '#fcd34d',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  rewardChipGold: {
+    backgroundColor: '#fff7ed',
+    borderWidth: 1,
+    borderColor: '#f59e0b',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  rewardChipText: font('bold', 13, { color: palette.white }),
+  rewardChipTextDark: font('semibold', 13, { color: palette.ink }),
 
   /* Pinned bottom action bar (Apple-style toolbar) */
   actions: {

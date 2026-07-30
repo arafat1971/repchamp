@@ -1,7 +1,14 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { ModalHeader } from '@/components/ModalHeader';
 import { Avatar, PressableScale, Screen } from '@/components/ui';
@@ -10,11 +17,14 @@ import { type QueueTicket } from '@/domain/matchmaking';
 import { enqueue, leaveQueue, tryPair, watchTicket } from '@/services/matchmakingService';
 import { useSelfPlayer } from '@/state/useSelfPlayer';
 import { font, text } from '@/theme/typography';
-import { gradients, palette, radius } from '@/theme/tokens';
+import { palette, radius, shadow } from '@/theme/tokens';
 import type { ExerciseId } from '@/vision/exercises';
 
 /** How often we re-attempt pairing while sitting in the queue. */
 const PAIR_RETRY_MS = 2500;
+
+/** After this many seconds with no match, offer the instant paced-rival duel. */
+const WAIT_HINT_SEC = 10;
 
 /**
  * Open-matchmaking queue screen — "find me any opponent".
@@ -44,6 +54,27 @@ export default function QueueScreen() {
   const launchedRef = useRef(false);
   const [elapsed, setElapsed] = useState(0);
 
+  // Radar pulse — two rings expand and fade on a stagger to signal live searching.
+  const ring1 = useSharedValue(0);
+  const ring2 = useSharedValue(0);
+  useEffect(() => {
+    const loop = withRepeat(
+      withTiming(1, { duration: 1800, easing: Easing.out(Easing.ease) }),
+      -1,
+      false,
+    );
+    ring1.value = loop;
+    ring2.value = withDelay(900, loop);
+  }, [ring1, ring2]);
+  const ring1Style = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 + ring1.value * 0.9 }],
+    opacity: 0.5 * (1 - ring1.value),
+  }));
+  const ring2Style = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 + ring2.value * 0.9 }],
+    opacity: 0.5 * (1 - ring2.value),
+  }));
+
   /** Route both athletes into the shared live duel, exactly once. The session
    *  reads the authoritative exercise from the duel doc via its `duel` param, so
    *  passing our chosen exercise here is just the initial HUD hint. */
@@ -57,6 +88,7 @@ export default function QueueScreen() {
   // Enter the queue and keep trying to pair until matched.
   useEffect(() => {
     if (!self) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStatus('unavailable');
       return;
     }
@@ -117,8 +149,10 @@ export default function QueueScreen() {
     return () => sub.remove();
   }, [self?.uid]);
 
-  const botFallback = () =>
-    router.replace({ pathname: '/session', params: { exercise: 'push', mode: 'versus' } });
+  const botFallback = () => {
+    if (self && !launchedRef.current) void leaveQueue(self.uid);
+    router.replace({ pathname: '/session', params: { exercise, mode: 'versus' } });
+  };
 
   /* ------------------------------------------------------------------ */
 
@@ -127,7 +161,11 @@ export default function QueueScreen() {
       <Screen>
         <ModalHeader title="Quick match" />
         <View style={styles.center}>
-          <Text style={styles.bigEmoji}>🛰️</Text>
+          <Avatar
+            initial={(self?.displayName ?? 'Y').charAt(0).toUpperCase()}
+            uri={self?.avatarUrl ?? undefined}
+            size={80}
+          />
           <Text style={[text.h2, { textAlign: 'center', marginTop: 12 }]}>
             Open matchmaking goes online once the backend is set up
           </Text>
@@ -147,12 +185,16 @@ export default function QueueScreen() {
     <Screen>
       <ModalHeader title="Quick match" />
 
-      <LinearGradient colors={gradients.ink} style={styles.stage}>
-        <View style={styles.pulse}>
-          <ActivityIndicator color={palette.white} size="large" />
+      <View style={styles.stage}>
+        <View style={styles.radar}>
+          <Animated.View style={[styles.radarRing, ring1Style]} />
+          <Animated.View style={[styles.radarRing, ring2Style]} />
+          <View style={styles.pulse}>
+            <ActivityIndicator color={palette.green600} size="large" />
+          </View>
         </View>
         <Text style={styles.searching}>Finding you an opponent…</Text>
-        <Text style={styles.timer}>{elapsed}s</Text>
+        <Text style={styles.timer}>{elapsed}s elapsed</Text>
 
         <View style={styles.selfRow}>
           <Avatar
@@ -160,17 +202,42 @@ export default function QueueScreen() {
             uri={self?.avatarUrl ?? undefined}
             size={44}
           />
-          <Text style={styles.selfName}>
-            {self?.displayName ?? 'You'} · Lv.{self?.level ?? 1}
-          </Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.selfName} numberOfLines={1}>
+              {self?.displayName ?? 'You'}
+            </Text>
+            <Text style={styles.selfMeta}>Level {self?.level ?? 1} · ready</Text>
+          </View>
+          <View style={styles.readyDot} />
         </View>
-      </LinearGradient>
+      </View>
 
       <Text style={[text.captionMd, styles.hint]}>
-        We’ll drop you into a {exercise === 'squat' ? 'squat' : 'push-up'} duel ({duration}s) the moment someone else is searching.
+        {elapsed < WAIT_HINT_SEC
+          ? `We’ll drop you into a ${exercise === 'squat' ? 'squat' : 'push-up'} duel (${duration}s) the moment someone else is searching.`
+          : "No one's searching right now — jump into a paced rival duel instead and settle it for the same XP."}
       </Text>
 
-      <PressableScale onPress={() => router.back()} style={styles.cancel} accessibilityRole="button">
+      {/* Never a dead end: once the wait runs long, offer an instant paced-rival
+          duel so Quick Match always lands in a real, playable set. */}
+      {elapsed >= WAIT_HINT_SEC ? (
+        <PressableScale
+          onPress={botFallback}
+          style={styles.primaryBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Duel a paced rival now"
+        >
+          <Text style={styles.primaryLabel}>Duel a rival now</Text>
+        </PressableScale>
+      ) : null}
+
+      <PressableScale
+        onPress={() => router.back()}
+        style={styles.cancel}
+        accessibilityRole="button"
+        accessibilityLabel="Cancel search"
+      >
+        <View style={styles.cancelDot} />
         <Text style={styles.cancelLabel}>Cancel search</Text>
       </PressableScale>
     </Screen>
@@ -179,31 +246,56 @@ export default function QueueScreen() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
-  bigEmoji: { fontSize: 56 },
-  stage: { borderRadius: radius['5xl'], padding: 28, marginTop: 6, alignItems: 'center' },
+  stage: {
+    borderRadius: radius['5xl'],
+    paddingVertical: 36,
+    paddingHorizontal: 28,
+    marginTop: 6,
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: palette.border,
+    ...shadow.card,
+  },
+  radar: {
+    width: 128,
+    height: 128,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radarRing: {
+    position: 'absolute',
+    width: 128,
+    height: 128,
+    borderRadius: 64,
+    backgroundColor: palette.green400,
+  },
   pulse: {
     width: 88,
     height: 88,
     borderRadius: 44,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: palette.green50,
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.22)',
+    borderColor: palette.green200,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  searching: { ...font('extrabold', 16, { color: palette.white }), marginTop: 20 },
-  timer: { ...font('semibold', 13, { color: 'rgba(255,255,255,0.7)' }), marginTop: 6 },
+  searching: { ...font('extrabold', 17, { color: palette.ink }), marginTop: 24 },
+  timer: { ...font('semibold', 13, { color: palette.slate500 }), marginTop: 6 },
   selfRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginTop: 24,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    paddingVertical: 10,
+    marginTop: 26,
+    alignSelf: 'stretch',
+    backgroundColor: palette.green50,
+    paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: radius.xl,
   },
-  selfName: font('extrabold', 13, { color: palette.white }),
+  selfName: font('extrabold', 14, { color: palette.ink }),
+  selfMeta: { ...font('semibold', 11.5, { color: palette.slate500 }), marginTop: 1 },
+  readyDot: { width: 9, height: 9, borderRadius: 4.5, backgroundColor: palette.green500 },
   hint: { textAlign: 'center', marginTop: 18, paddingHorizontal: 10 },
   primaryBtn: {
     marginTop: 26,
@@ -213,6 +305,20 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl,
   },
   primaryLabel: font('extrabold', 15, { color: palette.white }),
-  cancel: { alignSelf: 'center', marginTop: 22, padding: 10 },
-  cancelLabel: font('extrabold', 14, { color: palette.grey600 }),
+  cancel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+    alignSelf: 'stretch',
+    marginTop: 24,
+    height: 54,
+    borderRadius: radius.pill,
+    backgroundColor: palette.white,
+    borderWidth: 1.5,
+    borderColor: palette.red100,
+    ...shadow.card,
+  },
+  cancelDot: { width: 8, height: 8, borderRadius: 2, backgroundColor: palette.red500 },
+  cancelLabel: font('extrabold', 15, { color: palette.red500 }),
 });

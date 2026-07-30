@@ -134,9 +134,11 @@ export async function fetchFriends(uid: string): Promise<Friend[]> {
 }
 
 /**
- * Add a friend by their public username. Resolves the username to a uid, then
- * writes a friend edge under the current user. Throws a friendly error the UI
- * can surface. No-op resolves to false when unconfigured.
+ * Add a friend by their public username.
+ *
+ * Writes **both** edges in one batch: you → them and them → you, so the graph is
+ * reciprocal immediately (no accept step). Resolves to false when unconfigured.
+ * Throws a friendly error the UI can surface on a miss / self-add.
  */
 export async function addFriendByUsername(
   myUid: string,
@@ -154,18 +156,34 @@ export async function addFriendByUsername(
   const friendDoc = match.docs[0]!;
   if (friendDoc.id === myUid) throw new Error("That's you!");
 
-  const f = friendDoc.data() as Partial<Friend> & { displayName?: string };
-  await firestore()
-    .collection('users')
-    .doc(myUid)
-    .collection('friends')
-    .doc(friendDoc.id)
-    .set({
-      displayName: f.displayName ?? 'Athlete',
-      avatarUrl: f.avatarUrl ?? null,
-      level: f.level ?? 1,
-      addedAt: firestore.FieldValue.serverTimestamp(),
-    });
+  const theirs = friendDoc.data() as Partial<Friend> & { displayName?: string };
+  const mineSnap = await firestore().collection('users').doc(myUid).get();
+  const mine = (mineSnap.data() ?? {}) as Partial<Friend> & { displayName?: string };
 
+  const batch = firestore().batch();
+  const now = firestore.FieldValue.serverTimestamp();
+
+  // My list → them
+  batch.set(
+    firestore().collection('users').doc(myUid).collection('friends').doc(friendDoc.id),
+    {
+      displayName: theirs.displayName ?? 'Athlete',
+      avatarUrl: theirs.avatarUrl ?? null,
+      level: theirs.level ?? 1,
+      addedAt: now,
+    },
+  );
+  // Their list → me (reciprocal — rules allow create when doc id == auth uid)
+  batch.set(
+    firestore().collection('users').doc(friendDoc.id).collection('friends').doc(myUid),
+    {
+      displayName: mine.displayName ?? 'Athlete',
+      avatarUrl: mine.avatarUrl ?? null,
+      level: mine.level ?? 1,
+      addedAt: now,
+    },
+  );
+
+  await batch.commit();
   return true;
 }

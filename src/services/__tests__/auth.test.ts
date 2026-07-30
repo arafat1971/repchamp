@@ -14,6 +14,19 @@
  * is `mock`-prefixed (the only out-of-scope access the hoist guard allows).
  */
 
+/* ------------------------------------------------------------------ */
+
+import {
+  ensureSignedIn,
+  isGoogleCancel,
+  LOCAL_USER,
+  onAuthChange,
+  signInWithEmail,
+  signInWithGoogle,
+  signOut,
+  signUpWithEmail,
+} from '../auth';
+
 const mockState = { configured: true };
 
 /** A mutable Firebase auth user, with the linkWithCredential the upgrade uses. */
@@ -94,19 +107,6 @@ jest.mock('@react-native-google-signin/google-signin', () => ({
   },
   statusCodes: { SIGN_IN_CANCELLED: 'CANCELLED', IN_PROGRESS: 'IN_PROGRESS' },
 }));
-
-/* ------------------------------------------------------------------ */
-
-import {
-  ensureSignedIn,
-  isGoogleCancel,
-  LOCAL_USER,
-  onAuthChange,
-  signInWithEmail,
-  signInWithGoogle,
-  signOut,
-  signUpWithEmail,
-} from '../auth';
 
 beforeEach(() => {
   mockState.configured = true;

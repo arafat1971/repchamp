@@ -16,6 +16,10 @@ import { PRO_ENTITLEMENT } from '@/domain/pro';
  * and the app runs fine on a build with no billing set up. `isPurchasesConfigured`
  * is the seam the UI branches on when it needs to show "billing not connected".
  *
+ * **Play Store first:** Android uses `revenueCatGoogle`. `revenueCatApple` is
+ * optional until you ship to the App Store — an empty Apple key does not affect
+ * Android builds or Play billing.
+ *
  * Entitlement truth is RevenueCat's `customerInfo.entitlements.active[PRO]` — we
  * never persist a "user is pro" flag locally, because that's exactly what gets
  * out of sync with a lapsed or refunded subscription. The store subscribes to

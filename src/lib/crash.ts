@@ -16,8 +16,15 @@ import * as Sentry from '@sentry/react-native';
 let started = false;
 
 function dsn(): string | undefined {
-  const value = (Constants.expoConfig?.extra as { sentryDsn?: string } | undefined)?.sentryDsn;
-  if (!value || value.trim().length === 0 || value.startsWith('https://placeholder')) {
+  // Prefer an EAS secret / env override so production can set the DSN without
+  // rebuilding from a committed placeholder.
+  const fromEnv =
+    (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_SENTRY_DSN) ||
+    (typeof process !== 'undefined' && process.env?.SENTRY_DSN) ||
+    undefined;
+  const fromExtra = (Constants.expoConfig?.extra as { sentryDsn?: string } | undefined)?.sentryDsn;
+  const value = (fromEnv || fromExtra || '').trim();
+  if (!value || value.startsWith('https://placeholder') || value.includes('placeholder@sentry')) {
     return undefined;
   }
   return value;

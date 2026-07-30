@@ -1,3 +1,4 @@
+import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -43,9 +44,9 @@ const BADGE_LIVE = require('../../assets/badge-live.png');
 
 function greeting(date = new Date()): string {
   const hour = date.getHours();
-  if (hour < 12) return 'Good morning \u2600\uFE0F';
-  if (hour < 18) return 'Good afternoon \uD83C\uDF24\uFE0F';
-  return 'Good evening \uD83C\uDF19';
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
 }
 
 export default function HomeScreen() {
@@ -267,35 +268,28 @@ export default function HomeScreen() {
           style={{ flex: 1 }}
         >
           <Card style={[styles.statCard, { padding: 0 }]}>
-            <LinearGradient
-              colors={['#f0fdf4', '#dcfce7', '#f0fdf4']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.statCardInner}
-            >
+            <View style={styles.statCardInner}>
               <View style={styles.miniHeader}>
                 <Text style={font('bold', 12, { color: palette.grey600 })}>This Week</Text>
-                <View style={[styles.statIconChip, { backgroundColor: '#dcfce7' }]}>
-                  <Text style={{ fontSize: 14 }}>📅</Text>
-                </View>
+                <View style={styles.statAccentDot} />
               </View>
               <View style={styles.weekValue}>
                 <Text style={font('extrabold', 30, { color: palette.green600 })}>{daysTrained}</Text>
                 <Text style={font('bold', 15, { color: palette.grey500 })}> / {goal} days</Text>
               </View>
-              <Text style={font('bold', 11, { color: '#15803d', marginTop: 2 })}>Keep going! 💪🔥</Text>
+              <Text style={font('bold', 11, { color: palette.green700, marginTop: 2 })}>Keep going</Text>
               <View style={styles.weekBars}>
                 {Array.from({ length: goal }, (_, i) => (
                   <View
                     key={i}
                     style={[
                       styles.weekBar,
-                      { backgroundColor: i < daysTrained ? palette.green500 : '#dcfce7' },
+                      { backgroundColor: i < daysTrained ? palette.green500 : palette.green50 },
                     ]}
                   />
                 ))}
               </View>
-            </LinearGradient>
+            </View>
           </Card>
         </PressableScale>
 
@@ -305,30 +299,25 @@ export default function HomeScreen() {
           accessibilityLabel="League standings"
           style={{ flex: 1 }}
         >
-          <Card style={[styles.statCard, { padding: 0, borderColor: '#fef08a' }]}>
-            <LinearGradient
-              colors={['#ffffff', '#fefce8']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.statCardInner}
-            >
+          <Card style={[styles.statCard, { padding: 0 }]}>
+            <View style={styles.statCardInner}>
               <View style={styles.miniHeader}>
                 <Text style={font('bold', 12, { color: palette.grey600 })}>League</Text>
-                <View style={[styles.tierChip, { backgroundColor: '#fef08a' }]}>
-                  <Text style={font('extrabold', 9.5, { color: '#854d0e', letterSpacing: 0.5 })}>TIER 1</Text>
+                <View style={styles.tierChip}>
+                  <Text style={font('extrabold', 9.5, { color: palette.green700, letterSpacing: 0.5 })}>TIER 1</Text>
                 </View>
               </View>
               <View style={styles.leagueRow}>
                 <Image source={MEDAL_BRONZE} style={styles.medalIcon} contentFit="contain" />
                 <Text style={font('extrabold', 18, { color: palette.ink })}>{league.name}</Text>
               </View>
-              <Text style={font('extrabold', 15, { color: '#ca8a04', marginTop: 4 })}>
+              <Text style={font('extrabold', 15, { color: palette.green600, marginTop: 4 })}>
                 230 <Text style={font('bold', 11, { color: palette.grey500 })}>XP</Text>
               </Text>
               <View style={styles.trophyWrapper} pointerEvents="none">
                 <Image source={TROPHY_BRONZE} style={styles.trophyCorner} contentFit="contain" />
               </View>
-            </LinearGradient>
+            </View>
           </Card>
         </PressableScale>
       </StaggerIn>
@@ -392,7 +381,7 @@ export default function HomeScreen() {
           }
         >
           <LinearGradient
-            colors={['#f0fdf4', '#dcfce7', '#fefce8']}
+            colors={['#f0fdf4', '#dcfce7']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.challengeCard}
@@ -401,26 +390,15 @@ export default function HomeScreen() {
               const ch = seed.isSeeding && seed.phantomChallenges.length > 0
                 ? seed.phantomChallenges[0]!
                 : null;
-              const p1Name = ch ? ch.player1.name.split(' ')[0] : 'Arafat';
-              const p2Name = ch ? ch.player2.name.split(' ')[0] : 'Rimon';
-              const s1 = ch ? ch.score1 : 32;
-              const s2 = ch ? ch.score2 : 28;
-              const prog = ch ? `${Math.round(ch.progress * 100)}%` : '53%';
-              const time = ch ? ch.timeLeft : '12:45';
-              const title = ch
-                ? ch.title
-                : pendingDuels > 0
-                  ? '⚡ Challenge waiting'
-                  : '💪 Push-Up Challenge';
-              const sub = pendingDuels > 0
-                ? `${pendingDuels} rival${pendingDuels > 1 ? 's' : ''} waiting on you`
-                : `${p1Name} vs. ${p2Name}`;
 
-              return (
-                <>
-                  <View style={styles.challengeRow}>
-                    <View style={styles.vsAvatars}>
-                      {ch ? (
+              // A seeded AI exhibition match — shown live, but clearly labelled
+              // AI, with a real scoreboard driven by the phantom's progress.
+              if (ch) {
+                const prog = `${Math.round(ch.progress * 100)}%`;
+                return (
+                  <>
+                    <View style={styles.challengeRow}>
+                      <View style={styles.vsAvatars}>
                         <Avatar
                           initial={ch.player1.initial}
                           emoji={ch.player1.emoji}
@@ -428,13 +406,7 @@ export default function HomeScreen() {
                           background={ch.player1.tintBg}
                           color={ch.player1.tintColor}
                         />
-                      ) : (
-                        <View style={[styles.vsAvatar, styles.vsAvatarMe]}>
-                          <Text style={{ fontSize: 20 }}>🏋️‍♂️</Text>
-                        </View>
-                      )}
-                      <Image source={BADGE_VS} style={styles.vsBadge} contentFit="contain" />
-                      {ch ? (
+                        <Image source={BADGE_VS} style={styles.vsBadge} contentFit="contain" />
                         <Avatar
                           initial={ch.player2.initial}
                           emoji={ch.player2.emoji}
@@ -442,119 +414,114 @@ export default function HomeScreen() {
                           background={ch.player2.tintBg}
                           color={ch.player2.tintColor}
                         />
-                      ) : (
-                        <View style={[styles.vsAvatar, styles.vsAvatarThem]}>
-                          <Text style={{ fontSize: 20 }}>🤸‍♀️</Text>
-                        </View>
-                      )}
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={font('extrabold', 14.5, { color: palette.ink })}>
-                        {title}
-                      </Text>
-                      <View style={styles.challengeSubRow}>
-                        <Text style={font('semibold', 12, { color: '#15803d' })}>
-                          {sub}
-                        </Text>
-                        {/* The seeded duel is between labelled AI partners. With
-                            face avatars these read as people, so the badge is
-                            required here — not just on the Arena board. */}
-                        {ch ? (
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={font('extrabold', 14.5, { color: palette.ink })}>{ch.title}</Text>
+                        <View style={styles.challengeSubRow}>
+                          <Text style={font('semibold', 12, { color: '#15803d' })}>
+                            {ch.player1.name.split(' ')[0]} vs. {ch.player2.name.split(' ')[0]}
+                          </Text>
+                          {/* Face avatars read as people, so the AI label is required. */}
                           <View style={styles.aiPill}>
                             <Text style={font('extrabold', 8, { color: palette.green700 })}>AI</Text>
                           </View>
-                        ) : null}
+                        </View>
+                      </View>
+                      <View style={styles.challengeTrailing}>
+                        <Image source={BADGE_LIVE} style={styles.liveBadge} contentFit="contain" />
+                        <Text style={font('bold', 11, { color: palette.slate500, marginTop: 3 })}>{ch.timeLeft} left</Text>
                       </View>
                     </View>
-                    <View style={styles.challengeTrailing}>
-                      <Image source={BADGE_LIVE} style={styles.liveBadge} contentFit="contain" />
-                      <Text style={font('bold', 11, { color: '#b45309', marginTop: 3 })}>⏱ {time} left</Text>
+                    <View style={styles.matchProgressRow}>
+                      <Text style={font('extrabold', 18, { color: '#16a34a', width: 28 })}>{ch.score1}</Text>
+                      <View style={styles.matchProgressBar}>
+                        <LinearGradient
+                          colors={['#22c55e', '#34d26a', '#4ade80']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 0 }}
+                          style={{ width: prog as `${number}%`, height: '100%' }}
+                        />
+                      </View>
+                      <Text style={font('extrabold', 18, { color: palette.slate700, width: 28, textAlign: 'right' })}>{ch.score2}</Text>
+                    </View>
+                  </>
+                );
+              }
+
+              // No fabricated scoreboard: real pending invites, or an honest
+              // invitation to start one. No fake "LIVE" match, ever.
+              const hasPending = pendingDuels > 0;
+              return (
+                <View style={styles.challengeRow}>
+                  <View style={styles.vsAvatars}>
+                    <View style={[styles.vsAvatar, styles.vsAvatarMe]}>
+                      <Text style={{ fontSize: 22 }}>👨</Text>
+                    </View>
+                    <Image source={BADGE_VS} style={styles.vsBadge} contentFit="contain" />
+                    <View style={[styles.vsAvatar, styles.vsAvatarThem]}>
+                      <Text style={{ fontSize: 20 }}>{hasPending ? '🔥' : '👋'}</Text>
                     </View>
                   </View>
-                  <View style={styles.matchProgressRow}>
-                    <Text style={font('extrabold', 18, { color: '#16a34a', width: 28 })}>{s1}</Text>
-                    <View style={styles.matchProgressBar}>
-                      <LinearGradient
-                        colors={['#22c55e', '#34d26a', '#4ade80']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
-                        style={{ width: prog as `${number}%`, height: '100%' }}
-                      />
-                    </View>
-                    <Text style={font('extrabold', 18, { color: '#7c3aed', width: 28, textAlign: 'right' })}>{s2}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={font('extrabold', 14.5, { color: palette.ink })}>
+                      {hasPending ? 'Challenge waiting' : 'Start a challenge'}
+                    </Text>
+                    <Text style={font('semibold', 12, { color: '#15803d' })}>
+                      {hasPending
+                        ? `${pendingDuels} rival${pendingDuels > 1 ? 's' : ''} waiting on you`
+                        : 'Duel a rival and climb the ranks'}
+                    </Text>
                   </View>
-                </>
+                  <Text style={styles.moreChevron}>›</Text>
+                </View>
               );
             })()}
           </LinearGradient>
         </PressableScale>
       </StaggerIn>
 
-      {/* Below the fold — premium action cards. */}
+      {/* Below the fold — clean action rows. */}
       <SectionLabel style={styles.sectionSpacing}>More</SectionLabel>
       <StaggerIn index={5}>
-        {/* Quick Match — vibrant orange/amber card */}
+        {/* Quick Match */}
         <PressableScale
           onPress={() => router.push({ pathname: '/duel/new', params: { queue: '1' } })}
           accessibilityRole="button"
           accessibilityLabel="Quick match with anyone"
         >
-          <LinearGradient
-            colors={['#ea580c', '#f97316', '#fb923c']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.premiumRowCard}
-          >
-            <View style={styles.premiumRowLeft}>
-              <View style={[styles.premiumIconRing, { borderColor: 'rgba(255,255,255,0.35)', backgroundColor: 'rgba(255,255,255,0.15)' }]}>
-                <Image source={IC_LIGHTNING} style={styles.premiumIconImg} contentFit="contain" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={font('extrabold', 15, { color: palette.white })}>
-                  ⚡ Quick Match
-                </Text>
-                <Text style={font('semibold', 11, { color: 'rgba(255,255,255,0.8)' })}>
-                  Find an opponent instantly
-                </Text>
-              </View>
+          <View style={styles.moreCard}>
+            <View style={styles.moreIcon}>
+              <Image source={IC_LIGHTNING} style={styles.moreIconImg} contentFit="contain" />
             </View>
-            <View style={[styles.premiumArrow, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-              <Text style={font('extrabold', 14, { color: palette.white })}>→</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.moreTitle}>Quick Match</Text>
+              <Text style={styles.moreSub}>Find an opponent instantly</Text>
             </View>
-          </LinearGradient>
+            <Text style={styles.moreChevron}>›</Text>
+          </View>
         </PressableScale>
 
         <View style={{ height: 10 }} />
 
-        {/* Daily Challenge — vibrant green card */}
+        {/* Daily Challenge */}
         <PressableScale
           onPress={() => router.push('/modal/daily')}
           accessibilityRole="button"
-          accessibilityLabel="Daily challenge: earn 2x XP"
+          accessibilityLabel="Daily challenge: clear the target for 300 XP"
         >
-          <LinearGradient
-            colors={['#15803d', '#16a34a', '#22c55e']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.premiumRowCard}
-          >
-            <View style={styles.premiumRowLeft}>
-              <View style={[styles.premiumIconRing, { borderColor: 'rgba(255,255,255,0.35)', backgroundColor: 'rgba(255,255,255,0.15)' }]}>
-                <Image source={IC_TARGET} style={styles.premiumIconImg} contentFit="contain" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={font('extrabold', 15, { color: palette.white })}>
-                  🎯 Daily Challenge
-                </Text>
-                <Text style={font('semibold', 11, { color: 'rgba(255,255,255,0.8)' })}>
-                  Earn 2× XP before midnight
-                </Text>
-              </View>
+          <View style={styles.moreCard}>
+            <View style={styles.moreIcon}>
+              <Image source={IC_TARGET} style={styles.moreIconImg} contentFit="contain" />
             </View>
-            <View style={[styles.premiumArrow, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-              <Text style={font('extrabold', 14, { color: palette.white })}>→</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.moreTitle}>Daily Challenge</Text>
+              <Text style={styles.moreSub}>Clear the target before midnight</Text>
             </View>
-          </LinearGradient>
+            <View style={styles.morePill}>
+              <Text style={styles.morePillText}>+300 XP</Text>
+            </View>
+            <Text style={styles.moreChevron}>›</Text>
+          </View>
         </PressableScale>
       </StaggerIn>
     </Screen>
@@ -654,14 +621,14 @@ function CoupleHero({
             </Text>
           </View>
 
-          <View style={styles.coupleCtaLight}>
-            <Text style={font('extrabold', 13.5, { color: palette.green700 })}>
+          <BlurView intensity={40} tint="light" style={styles.coupleCtaLight} experimentalBlurMethod="dimezisBlurView">
+            <Text style={font('extrabold', 13.5, { color: palette.white, textShadowColor: 'rgba(0,0,0,0.15)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 })}>
               {paired ? 'Open couple mode' : 'Start Together'}
             </Text>
             <View style={styles.coupleCtaArrowLight}>
               <Text style={font('extrabold', 12, { color: palette.white })}>→</Text>
             </View>
-          </View>
+          </BlurView>
         </View>
 
         {/* Proof chips: the mechanics, not a restatement of the subtitle. The
@@ -932,25 +899,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 9,
     alignSelf: 'flex-start',
-    backgroundColor: palette.white,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     paddingLeft: 16,
     paddingRight: 7,
     paddingVertical: 7,
     borderRadius: 24,
-    // Lifted off the photo with a deeper, tighter shadow than a card on canvas
-    // needs — over imagery a soft card shadow disappears and the pill reads as
-    // a flat sticker rather than a control.
-    shadowColor: '#04170b',
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
+    overflow: 'hidden',
+    // Nudged down 10px per design — sits a touch lower under the hero copy.
+    transform: [{ translateY: 10 }],
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
   },
   coupleCtaArrowLight: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: palette.green600,
+    backgroundColor: 'rgba(255,255,255,0.25)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -992,15 +960,8 @@ const styles = StyleSheet.create({
   },
   statCardInner: { flex: 1, padding: 15, borderRadius: 18 },
   miniHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  statIconChip: {
-    width: 30,
-    height: 30,
-    borderRadius: 9,
-    backgroundColor: '#eafaef',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tierChip: { backgroundColor: '#fbeed8', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 },
+  tierChip: { backgroundColor: palette.green50, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 },
+  statAccentDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: palette.green500, marginTop: 4 },
   weekValue: { flexDirection: 'row', alignItems: 'baseline', marginTop: 8 },
   weekBars: { flexDirection: 'row', gap: 5, marginTop: 10 },
   weekBar: { flex: 1, height: 6, borderRadius: 4 },
@@ -1131,49 +1092,38 @@ const styles = StyleSheet.create({
   liveBadge: { width: 60, height: 40 },
   fireIcon: { width: 34, height: 34 },
   matchProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14 },
-  matchProgressBar: { flex: 1, height: 9, borderRadius: 6, backgroundColor: '#f0e9fb', overflow: 'hidden' },
+  matchProgressBar: { flex: 1, height: 9, borderRadius: 6, backgroundColor: palette.green50, overflow: 'hidden' },
 
-  // Premium dark row cards
-  premiumRowCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.25)',
-    overflow: 'hidden',
-    shadowColor: '#16a34a',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  premiumRowLeft: {
+  // More — clean action rows
+  moreCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    flex: 1,
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: palette.border,
+    ...shadow.card,
   },
-  premiumIconRing: {
-    width: 44,
-    height: 44,
+  moreIcon: {
+    width: 46,
+    height: 46,
     borderRadius: 14,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: 'rgba(255,255,255,0.5)',
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 0 },
-  },
-  premiumIconImg: { width: 24, height: 24 },
-  premiumArrow: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    backgroundColor: palette.green500,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  moreIconImg: { width: 24, height: 24 },
+  moreTitle: font('extrabold', 15, { color: palette.ink }),
+  moreSub: { ...font('semibold', 12, { color: palette.slate500 }), marginTop: 2 },
+  morePill: {
+    backgroundColor: palette.green50,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  morePillText: font('extrabold', 11, { color: palette.green700 }),
+  moreChevron: { ...font('extrabold', 22, { color: palette.slate400 }), marginLeft: 2 },
 });
 

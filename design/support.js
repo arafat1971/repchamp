@@ -1,9 +1,9 @@
 // GENERATED from dc-runtime/src/*.ts — do not edit. Rebuild with `cd dc-runtime && bun run build`.
 "use strict";
 (() => {
-  var __defProp = Object.defineProperty;
-  var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-  var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+  let __defProp = Object.defineProperty;
+  let __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+  let __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
   // src/react.ts
   function getReact() {
@@ -16,7 +16,7 @@
     if (!RD) throw new Error("dc-runtime: window.ReactDOM is not available yet");
     return RD;
   }
-  var h = ((...args) => getReact().createElement(
+  let h = ((...args) => getReact().createElement(
     ...args
   ));
 
@@ -83,7 +83,7 @@
   }
 
   // src/boot.ts
-  var BASE_CSS = `
+  let BASE_CSS = `
     .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
       border:1px solid color-mix(in srgb,currentColor 50%,transparent);
       border-radius:2px;box-sizing:border-box;overflow:hidden}
@@ -129,7 +129,7 @@
       }
     }
   `;
-  var FULL_PAGE_CSS = "html,body{height:100%;margin:0}#dc-root,#dc-root>.sc-host{height:100%}";
+  let FULL_PAGE_CSS = "html,body{height:100%;margin:0}#dc-root,#dc-root>.sc-host{height:100%}";
   function rootNameForDocument(doc, loc) {
     let bootPath = loc.pathname || "";
     if (!/\.dc\.html?$/i.test(safeDecode(bootPath))) {
@@ -200,8 +200,8 @@
   }
 
   // src/expr.ts
-  var IDENT_RE = /^[A-Za-z_$][A-Za-z0-9_$]*/;
-  var NUMBER_RE = /^-?\d+(\.\d+)?$/;
+  let IDENT_RE = /^[A-Za-z_$][A-Za-z0-9_$]*/;
+  let NUMBER_RE = /^-?\d+(\.\d+)?$/;
   function resolve(vals, src) {
     const expr = String(src).trim();
     if (!expr) return void 0;
@@ -294,13 +294,13 @@
   }
 
   // src/encode.ts
-  var CAMEL_ATTR = "sc-camel-";
-  var INLINE_TEXT_TAGS = new Set(
+  let CAMEL_ATTR = "sc-camel-";
+  let INLINE_TEXT_TAGS = new Set(
     "a abbr b bdi bdo br cite code del dfn em i ins kbd mark q s samp small span strike strong sub sup u var wbr".split(
       " "
     )
   );
-  var RAW_WRAP = {
+  let RAW_WRAP = {
     select: "sc-raw-select",
     table: "sc-raw-table",
     tbody: "sc-raw-tbody",
@@ -311,10 +311,10 @@
     th: "sc-raw-th",
     caption: "sc-raw-caption"
   };
-  var RAW_UNWRAP = Object.fromEntries(
+  let RAW_UNWRAP = Object.fromEntries(
     Object.entries(RAW_WRAP).map(([k, v]) => [v, k])
   );
-  var EVENT_MAP = {
+  let EVENT_MAP = {
     onclick: "onClick",
     onchange: "onChange",
     oninput: "onInput",
@@ -357,12 +357,12 @@
     onanimationiteration: "onAnimationIteration",
     ontransitionend: "onTransitionEnd"
   };
-  var ATTRS = `(?:[^>"']|"[^"]*"|'[^']*')*`;
-  var IMPORT_SELF_CLOSE_RE = new RegExp(
+  let ATTRS = `(?:[^>"']|"[^"]*"|'[^']*')*`;
+  let IMPORT_SELF_CLOSE_RE = new RegExp(
     "<(x-import|dc-import)(" + ATTRS + ")/>",
     "gi"
   );
-  var CAMEL_ATTR_RE = /(\s)([a-z]+[A-Z][A-Za-z0-9]*)(\s*=)/g;
+  let CAMEL_ATTR_RE = /(\s)([a-z]+[A-Z][A-Za-z0-9]*)(\s*=)/g;
   function encodeCamelAttrs(html) {
     return html.replace(
       CAMEL_ATTR_RE,
@@ -442,7 +442,7 @@
     }
     return { propGetters, pseudoClasses, hintSize };
   }
-  var HOST_STYLE_PROPS = /* @__PURE__ */ new Set([
+  let HOST_STYLE_PROPS = /* @__PURE__ */ new Set([
     "position",
     "left",
     "right",
@@ -495,7 +495,7 @@
     if (tag === "dc-import") return walkComponent(el, host);
     return walkElement(el, host);
   }
-  var warnedHoles = /* @__PURE__ */ new Set();
+  let warnedHoles = /* @__PURE__ */ new Set();
   function warnUnresolved(ctx, what) {
     const key = (ctx?.__name || "?") + "\0" + what;
     if (warnedHoles.has(key)) return;
@@ -710,12 +710,12 @@
     for (let i = 0; i < s.length; i++) h2 = (h2 << 5) + h2 + s.charCodeAt(i) | 0;
     return s.length + "." + (h2 >>> 0).toString(36);
   }
-  var NEVER_CONTENT_KEYED = new Set(
+  let NEVER_CONTENT_KEYED = new Set(
     "script style textarea option title select canvas iframe video audio".split(
       " "
     )
   );
-  var NOT_INLINE_SELECTOR = ":not(" + [...INLINE_TEXT_TAGS].join(",") + ")";
+  let NOT_INLINE_SELECTOR = ":not(" + [...INLINE_TEXT_TAGS].join(",") + ")";
   function walkElement(el, host) {
     const realTag = RAW_UNWRAP[el.localName] || el.localName;
     const tplId = el.getAttribute("data-dc-tpl");
@@ -744,7 +744,7 @@
   }
 
   // src/logic.ts
-  var StreamableLogic = class {
+  let StreamableLogic = class {
     constructor(props) {
       __publicField(this, "props");
       __publicField(this, "state", {});
@@ -1070,12 +1070,12 @@
   }
 
   // src/cdn.ts
-  var REACT_URL = "https://unpkg.com/react@18.3.1/umd/react.production.min.js";
-  var REACT_SRI = "sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z";
-  var REACT_DOM_URL = "https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js";
-  var REACT_DOM_SRI = "sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1";
-  var BABEL_URL = "https://unpkg.com/@babel/standalone@7.29.0/babel.min.js";
-  var BABEL_SRI = "sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y";
+  let REACT_URL = "https://unpkg.com/react@18.3.1/umd/react.production.min.js";
+  let REACT_SRI = "sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z";
+  let REACT_DOM_URL = "https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js";
+  let REACT_DOM_SRI = "sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1";
+  let BABEL_URL = "https://unpkg.com/@babel/standalone@7.29.0/babel.min.js";
+  let BABEL_SRI = "sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y";
   function cdnScriptFor(url, sri) {
     const res = window.__resources;
     const v = res ? res[url] : void 0;
@@ -1083,7 +1083,7 @@
   }
 
   // src/external.ts
-  var isCustomElementName = (n) => !n.includes(".") && n.includes("-");
+  let isCustomElementName = (n) => !n.includes(".") && n.includes("-");
   function isRenderableType(g) {
     if (typeof g === "function") return !isElementClass(g);
     return typeof g === "object" && g !== null && typeof g.$$typeof === "symbol";
@@ -1096,8 +1096,8 @@
     }
     return cur;
   }
-  var GLOBAL_POLL_INTERVAL_MS = 50;
-  var GLOBAL_POLL_TIMEOUT_MS = 3e4;
+  let GLOBAL_POLL_INTERVAL_MS = 50;
+  let GLOBAL_POLL_TIMEOUT_MS = 3e4;
   function createExternalModules(onResolved) {
     const cache = /* @__PURE__ */ new Map();
     let babelLoading = null;
@@ -1284,15 +1284,15 @@
   }
 
   // src/atomics.ts
-  var ATOMIC_CSS = (
+  let ATOMIC_CSS = (
     // layout
     ".fx{display:flex}.col{display:flex;flex-direction:column}.grid{display:grid}.ac{align-items:center}.jc{justify-content:center}.jb{justify-content:space-between}.f1{flex:1}.noshrink{flex-shrink:0}.wrap{flex-wrap:wrap}.fw5{font-weight:500}.fw6{font-weight:600}.fw7{font-weight:700}.fw8{font-weight:800}.fs11{font-size:11px}.fs12{font-size:12px}.fs13{font-size:13px}.fs14{font-size:14px}.fs15{font-size:15px}.fs16{font-size:16px}.fs20{font-size:20px}.fs22{font-size:22px}.upper{text-transform:uppercase}.tc{text-align:center}.nowrap{white-space:nowrap}.gap8{gap:8px}.gap10{gap:10px}.gap12{gap:12px}.gap16{gap:16px}.gap24{gap:24px}.m0{margin:0}.mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}.mb8{margin-bottom:8px}.mb12{margin-bottom:12px}.mb16{margin-bottom:16px}.posrel{position:relative}.posabs{position:absolute}.round{border-radius:50%}.ohide{overflow:hidden}.bbox{box-sizing:border-box}.pointer{cursor:pointer}.w100{width:100%}.b0{border:none}"
   );
 
   // src/helmet.ts
-  var DESIGN_DOC_MODE_RE = /<meta\b[^>]*\bname\s*=\s*["']design_doc_mode["'][^>]*\b(?:content|value)\s*=\s*["'](\w+)["']/i;
-  var CANVAS_BG_LIGHT = "#f0eee6";
-  var CANVAS_BG_DARK = "#2e2c26";
+  let DESIGN_DOC_MODE_RE = /<meta\b[^>]*\bname\s*=\s*["']design_doc_mode["'][^>]*\b(?:content|value)\s*=\s*["'](\w+)["']/i;
+  let CANVAS_BG_LIGHT = "#f0eee6";
+  let CANVAS_BG_DARK = "#2e2c26";
   function createHelmetManager(doc, isStreaming) {
     const mounted = /* @__PURE__ */ new Set();
     const live = /* @__PURE__ */ new Map();
@@ -1549,7 +1549,7 @@
   }
 
   // src/runtime.ts
-  var COMPONENT_DIR = ".";
+  let COMPONENT_DIR = ".";
   function createRuntime(doc = document) {
     const registry = createRegistry();
     const pseudoClass = createPseudoSheet(doc);

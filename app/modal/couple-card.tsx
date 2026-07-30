@@ -1,4 +1,4 @@
-import { LinearGradient } from 'expo-linear-gradient';
+import { Image } from 'expo-image';
 import * as Sharing from 'expo-sharing';
 import { useRef } from 'react';
 import { Share, StyleSheet, Text, View } from 'react-native';
@@ -11,7 +11,7 @@ import { Avatar, Card, PressableScale, Screen } from '@/components/ui';
 import { inviteLink, lastMilestoneReached } from '@/domain/couple';
 import { useCouple } from '@/state/useCouple';
 import { font, text } from '@/theme/typography';
-import { gradients, palette, radius, shadow } from '@/theme/tokens';
+import { palette, radius } from '@/theme/tokens';
 
 /**
  * The couple's shareable moment — combined reps, shared streak, both names.
@@ -37,7 +37,7 @@ export default function CoupleCardScreen() {
       (streak > 0 ? ` — ${streak} day streak 🔥` : '')
     : `${names} have done ${combined} reps together on RepChamp` +
       (streak > 0 ? ` — ${streak} day streak 🔥` : '');
-  const link = code ? inviteLink(code) : 'https://repchamp.gg';
+  const link = code ? inviteLink(code) : 'https://repchamp.web.app';
 
   /** Text-only share — the fallback when an image can't be produced or shared. */
   const shareText = () => {
@@ -82,36 +82,57 @@ export default function CoupleCardScreen() {
       {/* `collapsable={false}` keeps this a real native view so view-shot can
           snapshot it; the ref targets the capture at exactly the card. */}
       <View ref={cardRef} collapsable={false} style={styles.captureWrap}>
-        <LinearGradient colors={gradients.brandStrong} style={[styles.card, shadow.brand]}>
-          <Text style={styles.brand}>REPCHAMP</Text>
-
-        <View style={styles.avatars}>
-          <Avatar
-            uri={me.avatarUrl}
-            initial={me.displayName.charAt(0).toUpperCase() || '?'}
-            size={62}
-          />
-          <Text style={styles.amp}>+</Text>
-          <Avatar
-            uri={partner.avatarUrl}
-            initial={partner.displayName.charAt(0).toUpperCase() || '?'}
-            size={62}
-          />
-        </View>
-
-        <Text style={styles.names}>
-          {me.displayName} & {partner.displayName}
-        </Text>
-
-        <Text style={styles.big}>{combined}</Text>
-        <Text style={styles.bigLabel}>REPS TOGETHER</Text>
-
-        {streak > 0 ? (
-          <View style={styles.streakPill}>
-            <Text style={styles.streakText}>🔥 {streak} DAY STREAK</Text>
+        <View style={styles.card}>
+          {/* Header — brand mark left, single-accent "together" tag right. */}
+          <View style={styles.header}>
+            <View style={styles.brandGroup}>
+              <Image
+                source={require('../../assets/logo.png')}
+                style={styles.logo}
+                contentFit="contain"
+              />
+              <Text style={styles.brandTitle}>REPCHAMP</Text>
+            </View>
+            <View style={styles.tag}>
+              <View style={styles.tagDot} />
+              <Text style={styles.tagText}>TOGETHER</Text>
+            </View>
           </View>
-        ) : null}
-        </LinearGradient>
+
+          <View style={styles.avatars}>
+            <View style={styles.avatarRing}>
+              <Avatar
+                uri={me.avatarUrl}
+                initial={me.displayName.charAt(0).toUpperCase() || '?'}
+                size={60}
+              />
+            </View>
+            <View style={styles.plusBadge}>
+              <Text style={styles.plus}>+</Text>
+            </View>
+            <View style={styles.avatarRing}>
+              <Avatar
+                uri={partner.avatarUrl}
+                initial={partner.displayName.charAt(0).toUpperCase() || '?'}
+                size={60}
+              />
+            </View>
+          </View>
+
+          <Text style={styles.names}>
+            {me.displayName} & {partner.displayName}
+          </Text>
+
+          <Text style={styles.big}>{combined}</Text>
+          <Text style={styles.bigLabel}>REPS TOGETHER</Text>
+
+          {streak > 0 ? (
+            <View style={styles.streakPill}>
+              <View style={styles.streakDot} />
+              <Text style={styles.streakText}>{streak} DAY STREAK</Text>
+            </View>
+          ) : null}
+        </View>
       </View>
 
       <PressableScale
@@ -132,44 +153,80 @@ export default function CoupleCardScreen() {
 
 const styles = StyleSheet.create({
   muted: { padding: 16 },
-  // A solid backdrop so the captured PNG has no transparent corners behind the
-  // card's rounded edges — some share targets render transparency as black.
-  captureWrap: { backgroundColor: palette.canvas, borderRadius: radius['4xl'] },
+  // Transparent so the rounded card's corners stay clean in the captured PNG
+  // (no white square poking past the radius). Matches the result share card.
+  captureWrap: { backgroundColor: 'transparent', alignSelf: 'center' },
   card: {
-    borderRadius: radius['4xl'],
-    padding: 26,
+    width: 340,
+    borderRadius: 32,
+    paddingVertical: 28,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: palette.border,
+    // Clip children (avatars, tag) to the card's rounded corners.
+    overflow: 'hidden',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginBottom: 22,
+  },
+  brandGroup: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  logo: { width: 24, height: 24, borderRadius: 7, overflow: 'hidden' },
+  brandTitle: font('extrabold', 14, { color: palette.ink, letterSpacing: 2 }),
+  tag: {
+    flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    backgroundColor: palette.green50,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
   },
-  brand: {
-    ...font('extrabold', 10, { color: 'rgba(255,255,255,0.7)' }),
-    letterSpacing: 3,
-    marginBottom: 6,
+  tagDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: palette.green500 },
+  tagText: { ...font('extrabold', 9.5, { color: palette.green700 }), letterSpacing: 1 },
+  avatars: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  avatarRing: { borderRadius: 40, borderWidth: 2.5, borderColor: palette.green500, padding: 2 },
+  plusBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: palette.green50,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  avatars: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  amp: font('extrabold', 22, { color: 'rgba(255,255,255,0.8)' }),
+  plus: font('extrabold', 20, { color: palette.green600 }),
   names: {
-    ...font('extrabold', 17, { color: palette.white }),
-    marginTop: 10,
+    ...font('extrabold', 17, { color: palette.ink }),
+    marginTop: 14,
     textAlign: 'center',
   },
   big: {
-    ...font('extrabold', 78, { color: palette.white }),
-    lineHeight: 84,
-    marginTop: 6,
+    ...font('extrabold', 72, { color: palette.ink }),
+    lineHeight: 78,
+    marginTop: 10,
   },
   bigLabel: {
-    ...font('extrabold', 10, { color: 'rgba(255,255,255,0.8)' }),
+    ...font('extrabold', 10, { color: palette.slate500 }),
     letterSpacing: 2.4,
+    marginTop: 2,
   },
   streakPill: {
-    marginTop: 14,
-    backgroundColor: 'rgba(0,0,0,0.22)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    marginTop: 16,
+    backgroundColor: palette.green50,
     paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
+    paddingHorizontal: 14,
+    borderRadius: radius.pill,
   },
-  streakText: { ...font('extrabold', 12, { color: palette.white }), letterSpacing: 1.2 },
+  streakDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: palette.green500 },
+  streakText: { ...font('extrabold', 12, { color: palette.green700 }), letterSpacing: 1 },
   share: {
     marginTop: 22,
     height: 56,

@@ -6,6 +6,7 @@ import {
   coupleBadges,
   coupleLevel,
   couplePoints,
+  inviteDeepLink,
   inviteLink,
   parseInviteCode,
   isInSync,
@@ -61,7 +62,7 @@ describe('pair code', () => {
 
 describe('invite links', () => {
   it('builds a shareable web link carrying the code', () => {
-    expect(inviteLink('ABC234')).toBe('https://repchamp.gg/couple/join?code=ABC234');
+    expect(inviteLink('ABC234')).toBe('https://repchamp.web.app/couple/join?code=ABC234');
   });
 
   it('round-trips: a built link parses back to the code', () => {
@@ -72,13 +73,22 @@ describe('invite links', () => {
     expect(parseInviteCode('repchamp://couple/join?code=abc234')).toBe('ABC234');
   });
 
+  it('builds a custom-scheme deep link for the QR that a camera can open', () => {
+    expect(inviteDeepLink('ABC234')).toBe('repchamp://couple/join?code=ABC234');
+  });
+
+  it('round-trips: the QR deep link parses back to the code', () => {
+    expect(parseInviteCode(inviteDeepLink('ABC234'))).toBe('ABC234');
+  });
+
   it('normalises a lightly-mangled code in the link', () => {
-    expect(parseInviteCode('https://repchamp.gg/couple/join?code=abc-234&x=1')).toBe('ABC234');
+    expect(parseInviteCode('https://repchamp.web.app/couple/join?code=abc-234&x=1')).toBe('ABC234');
+    expect(parseInviteCode('https://repchamp.gg/couple/join?code=ABC234')).toBe('ABC234');
   });
 
   it('returns null when there is no usable code', () => {
-    expect(parseInviteCode('https://repchamp.gg/couple/join')).toBeNull();
-    expect(parseInviteCode('https://repchamp.gg/couple/join?code=ABC')).toBeNull();
+    expect(parseInviteCode('https://repchamp.web.app/couple/join')).toBeNull();
+    expect(parseInviteCode('https://repchamp.web.app/couple/join?code=ABC')).toBeNull();
   });
 });
 

@@ -1,4 +1,3 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { Image } from 'expo-image';
@@ -20,7 +19,7 @@ import { useAuthStore } from '@/state/authStore';
 import { useSessionStore } from '@/state/sessionStore';
 import { getExercise } from '@/vision/exercises';
 import { font } from '@/theme/typography';
-import { palette, radius } from '@/theme/tokens';
+import { palette, radius, shadow } from '@/theme/tokens';
 
 export default function ResultScreen() {
   const router = useRouter();
@@ -69,29 +68,31 @@ export default function ResultScreen() {
   const definition = getExercise(exercise);
   const opponentLabel = (opponentName || opponent?.name || 'Opponent').toUpperCase();
   const userName = displayName ? displayName.split(' ')[0] : 'Athlete';
-  const formScore = session.formReport?.score ?? 96;
+  const formScore = session.formReport?.score ?? 0;
   const fullDepthReps = session.formReport?.fullDepthReps ?? session.reps;
   const peakDepth = session.formReport
     ? Math.min(100, Math.round((fullDepthReps / Math.max(1, session.reps)) * 30 + 70))
-    : 100;
+    : 0;
 
   const title =
     mode === 'practice'
-      ? `Unstoppable, ${userName}! 💪`
+      ? `Unstoppable, ${userName}`
       : mode === 'solo'
         ? session.won
-          ? `Target Cleared, ${userName}! 🎯`
-          : `Great Hustle, ${userName}! 🔥`
+          ? `Target cleared, ${userName}`
+          : `Great hustle, ${userName}`
         : session.won
-          ? `Victory, ${userName}! 🏆`
-          : `Battle Finished, ${userName}! ⚔️`;
+          ? `Victory, ${userName}`
+          : `Battle finished, ${userName}`;
 
   const subtitle =
     mode === 'practice'
       ? 'Every rep counts. You built real momentum today!'
       : mode === 'solo'
         ? session.won
-          ? "AI verified 100% valid depth. Your streak is on fire!"
+          ? session.formReport
+            ? `${fullDepthReps} of ${session.reps} reps at full depth. Your streak is on fire!`
+            : 'Target cleared! Your streak is on fire!'
           : 'Solid effort! Push a little harder on the next set.'
         : session.won
           ? `You defeated ${opponentLabel} with AI-tracked precision!`
@@ -141,12 +142,7 @@ export default function ResultScreen() {
   };
 
   return (
-    <LinearGradient
-      colors={['#f8fafc', '#edf2f7', '#e2e8f0']}
-      start={{ x: 0.2, y: 0 }}
-      end={{ x: 0.8, y: 1 }}
-      style={styles.root}
-    >
+    <View style={styles.root}>
       {session.won ? <Confetti /> : null}
 
       {/* Off-screen shareable card — captured to PNG on share. */}
@@ -163,26 +159,31 @@ export default function ResultScreen() {
           formScore={formScore}
           fullDepthReps={fullDepthReps}
           peakDepthPct={peakDepth}
-          trackingStatus="100% AI POSE TRACKED"
-          mode={mode}
-          opponentName={opponentLabel}
-          opponentReps={session.opponentReps}
-          won={session.won}
-        />
-      </View>
+            trackingStatus="AI POSE TRACKED"
+            mode={mode}
+            opponentName={opponentLabel}
+            opponentReps={session.opponentReps}
+            won={session.won}
+          />
+        </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 140 }]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: Math.max(insets.top, 44) + 8, paddingBottom: insets.bottom + 208 },
+        ]}
       >
-        {/* Top Header Badge & Animated Trophy */}
-        <Animated.View entering={ZoomIn.duration(500)} style={styles.trophyWrapper}>
-          <Image
-            source={require('../../assets/trophy-gold.png')}
-            style={styles.trophyHeroImg}
-            contentFit="contain"
-          />
-        </Animated.View>
+        {/* Trophy — reserved for genuine wins. */}
+        {session.won ? (
+          <Animated.View entering={ZoomIn.duration(500)} style={styles.trophyWrapper}>
+            <Image
+              source={require('../../assets/trophy-gold.png')}
+              style={styles.trophyHeroImg}
+              contentFit="contain"
+            />
+          </Animated.View>
+        ) : null}
 
         <Animated.View entering={FadeInDown.duration(450).delay(100)} style={styles.titleSection}>
           <Text style={styles.screenTitleText}>{title}</Text>
@@ -202,7 +203,7 @@ export default function ResultScreen() {
             formScore={formScore}
             fullDepthReps={fullDepthReps}
             peakDepthPct={peakDepth}
-            trackingStatus="100% AI POSE TRACKED"
+            trackingStatus="AI POSE TRACKED"
             mode={mode}
             opponentName={opponentLabel}
             opponentReps={session.opponentReps}
@@ -211,8 +212,8 @@ export default function ResultScreen() {
         </Animated.View>
       </ScrollView>
 
-      {/* Floating Action Buttons */}
-      <Animated.View entering={FadeInUp.duration(500).delay(500)} style={[styles.actions, { bottom: insets.bottom + 16 }]}>
+      {/* Pinned bottom action bar */}
+      <Animated.View entering={FadeInUp.duration(500).delay(500)} style={[styles.actions, { paddingBottom: insets.bottom + 12 }]}>
         <View style={styles.secondaryRow}>
           <PressableScale
             onPress={() => router.push('/session/form-report')}
@@ -220,7 +221,7 @@ export default function ResultScreen() {
             accessibilityLabel="View form report"
             style={styles.secondaryButtonLight}
           >
-            <Text style={styles.secondaryLabelLight}>📊 Form Report</Text>
+            <Text style={styles.secondaryLabelLight}>Form Report</Text>
           </PressableScale>
 
           <PressableScale
@@ -229,7 +230,7 @@ export default function ResultScreen() {
             accessibilityLabel="Share workout achievement"
             style={styles.secondaryButtonLight}
           >
-            <Text style={styles.secondaryLabelLight}>🚀 Share Card</Text>
+            <Text style={styles.secondaryLabelLight}>Share Card</Text>
           </PressableScale>
         </View>
 
@@ -237,16 +238,9 @@ export default function ResultScreen() {
           onPress={rematch}
           accessibilityRole="button"
           accessibilityLabel="Play Again"
-          style={styles.playAgainButton3D}
+          style={styles.playAgainButton}
         >
-          <LinearGradient
-            colors={['#22c55e', '#15803d']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 0, y: 1 }}
-            style={styles.playAgainGradient}
-          >
-            <Text style={font('extrabold', 17, { color: palette.white })}>PLAY AGAIN 🎮</Text>
-          </LinearGradient>
+          <Text style={font('extrabold', 17, { color: palette.white, letterSpacing: 0.3 })}>Play Again</Text>
         </PressableScale>
 
         <PressableScale
@@ -255,70 +249,80 @@ export default function ResultScreen() {
           accessibilityLabel="Back to Train"
           style={styles.doneLinkButton}
         >
-          <Text style={font('bold', 15, { color: '#64748b' })}>Back to Train</Text>
+          <Text style={font('bold', 15, { color: palette.slate500 })}>Back to Train</Text>
         </PressableScale>
       </Animated.View>
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
+  root: { flex: 1, backgroundColor: palette.canvas },
   offscreen: { position: 'absolute', left: -9999, top: 0 },
   scrollContent: { paddingHorizontal: 20, alignItems: 'center' },
   shareCardOnScreen: {
     width: '100%',
     alignItems: 'center',
-    marginVertical: 10,
+    marginTop: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.1,
     shadowRadius: 24,
     elevation: 8,
   },
-  trophyWrapper: { marginTop: 10, marginBottom: 8, alignItems: 'center' },
-  trophyHeroImg: { width: 90, height: 90 },
+  trophyWrapper: { marginBottom: 12, alignItems: 'center' },
+  trophyHeroImg: { width: 88, height: 88 },
 
-  titleSection: { alignItems: 'center', marginBottom: 20 },
-  screenTitleText: font('extrabold', 28, { color: '#0f172a', textAlign: 'center', letterSpacing: -0.5 }),
-  screenSubtitleText: font('semibold', 13, { color: '#64748b', textAlign: 'center', marginTop: 4, paddingHorizontal: 12 }),
+  titleSection: { alignItems: 'center', marginBottom: 24 },
+  screenTitleText: {
+    ...font('extrabold', 30, { color: palette.ink }),
+    textAlign: 'center',
+    letterSpacing: -0.6,
+    lineHeight: 36,
+  },
+  screenSubtitleText: {
+    ...font('medium', 15, { color: palette.slate500 }),
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 21,
+    paddingHorizontal: 16,
+  },
 
-  /* ACTIONS */
-  actions: { position: 'absolute', left: 20, right: 20, gap: 10 },
-  secondaryRow: { flexDirection: 'row', gap: 10 },
+  /* Pinned bottom action bar (Apple-style toolbar) */
+  actions: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    gap: 12,
+    backgroundColor: palette.canvas,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: palette.border,
+  },
+  secondaryRow: { flexDirection: 'row', gap: 12 },
   secondaryButtonLight: {
     flex: 1,
-    height: 48,
+    height: 50,
     borderRadius: radius.xl,
-    backgroundColor: '#ffffff',
+    backgroundColor: palette.white,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: palette.border,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    ...shadow.card,
   },
-  secondaryLabelLight: font('extrabold', 13, { color: '#0f172a' }),
+  secondaryLabelLight: font('extrabold', 14, { color: palette.ink }),
 
-  playAgainButton3D: {
+  playAgainButton: {
     width: '100%',
     height: 54,
-    borderRadius: radius['2xl'],
-    shadowColor: '#22c55e',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 4,
-    overflow: 'hidden',
-  },
-  playAgainGradient: {
-    width: '100%',
-    height: '100%',
+    borderRadius: radius.pill,
+    backgroundColor: palette.green500,
     alignItems: 'center',
     justifyContent: 'center',
+    ...shadow.brand,
   },
   doneLinkButton: {
     alignItems: 'center',

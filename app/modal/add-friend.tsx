@@ -1,26 +1,24 @@
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Alert, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 
 import { ModalHeader } from '@/components/ModalHeader';
 import { Avatar, Card, Divider, Eyebrow, PressableScale, Screen } from '@/components/ui';
 import { addFriendByUsername } from '@/services/leaderboardService';
 import { usePhantomSeed } from '@/domain/seedPhantoms';
 import { useAuthStore } from '@/state/authStore';
+import { showDialog } from '@/state/useDialog';
 import { useProfileStore } from '@/state/profileStore';
+import { friendInviteLink } from '@/lib/urls';
 import { font, text } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
-
-const SUGGESTIONS = [
-  { id: 'lena', name: 'Lena', initial: 'L', reason: '2 mutual friends', background: '#fecdd3', color: '#be123c' },
-  { id: 'kojo', name: 'Kojo', initial: 'K', reason: 'In your league', background: '#bbf7d0', color: '#15803d' },
-  { id: 'dani', name: 'Dani', initial: 'D', reason: 'From your contacts', background: '#e9d5ff', color: '#7c3aed' },
-] as const;
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 
 export default function AddFriendScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ u?: string }>();
   const username = useProfileStore((s) => s.username) || 'champion';
   const uid = useAuthStore((s) => s.user?.uid);
   const cloudConfigured = useAuthStore((s) => s.configured);
@@ -30,7 +28,13 @@ export default function AddFriendScreen() {
   const [copied, setCopied] = useState(false);
   const [searching, setSearching] = useState(false);
 
-  const inviteLink = `https://repchamp.gg/@${username}`;
+  // Deep link `repchamp://modal/add-friend?u=name` prefills the search box.
+  useEffect(() => {
+    const fromLink = typeof params.u === 'string' ? params.u.trim().replace(/^@/, '') : '';
+    if (fromLink) setQuery(fromLink);
+  }, [params.u]);
+
+  const inviteLink = friendInviteLink(username);
 
   /** Jump into the waiting room as the guest for a pasted duel code. */
   const joinDuelByCode = () => {
@@ -63,16 +67,29 @@ export default function AddFriendScreen() {
       const ok = await addFriendByUsername(uid, name);
       if (ok) {
         setAdded((prev) => ({ ...prev, [`@${name.toLowerCase()}`]: true }));
-        Alert.alert('Friend added', `You and @${name.toLowerCase()} are now connected.`);
+        showDialog({
+          title: 'Friend added',
+          message: `You and @${name.toLowerCase()} are now connected.`,
+          tone: 'success',
+          actions: [{ label: 'Got it', variant: 'primary' }],
+        });
         setQuery('');
       } else {
-        Alert.alert(
-          'Not available yet',
-          'Adding friends by username switches on once the app is connected to the cloud. Share your invite link below instead.',
-        );
+        showDialog({
+          title: 'Not available yet',
+          message:
+            'Adding friends by username switches on once the app is connected to the cloud. Share your invite link below instead.',
+          tone: 'info',
+          actions: [{ label: 'Got it', variant: 'primary' }],
+        });
       }
     } catch (err) {
-      Alert.alert('Could not add', err instanceof Error ? err.message : 'Please try again.');
+      showDialog({
+        title: 'Could not add',
+        message: err instanceof Error ? err.message : 'Please try again.',
+        tone: 'danger',
+        actions: [{ label: 'Try again', variant: 'primary' }],
+      });
     } finally {
       setSearching(false);
     }
@@ -85,23 +102,37 @@ export default function AddFriendScreen() {
         id: p.id,
         name: p.name,
         initial: p.initial,
-        emoji: p.emoji, isAI: p.isAI,
-        reason: 'Recommended athlete',
+        emoji: p.emoji,
+        isAI: true as const,
+        reason: 'AI training partner',
         background: p.tintBg,
         color: p.tintColor,
       }))
-    : SUGGESTIONS;
+    : [];
 
   const visible = suggestionsList.filter((s) =>
     s.name.toLowerCase().includes(query.trim().toLowerCase()),
   );
+
+  /** Suggested AI partners start a paced duel — they are not cloud friends. */
+  const addSuggestion = (person: (typeof suggestionsList)[number]) => {
+    if (added[person.id]) return;
+    setAdded((prev) => ({ ...prev, [person.id]: true }));
+    router.push({
+      pathname: '/session',
+      params: { exercise: 'push', mode: 'versus', opponent: person.id },
+    });
+  };
 
   return (
     <Screen>
       <ModalHeader title="Add Friends" />
 
       <Card style={styles.search}>
-        <Text style={{ fontSize: 16 }}>🔍</Text>
+        <View style={styles.searchIcon}>
+          <View style={styles.searchGlass} />
+          <View style={styles.searchHandle} />
+        </View>
         <TextInput
           value={query}
           onChangeText={setQuery}
@@ -130,7 +161,16 @@ export default function AddFriendScreen() {
       </Card>
 
       <Card style={styles.search}>
-        <Text style={{ fontSize: 16 }}>⚔️</Text>
+        <Svg width={17} height={17} viewBox="0 0 24 24" style={{ marginLeft: 1 }}>
+          <Path
+            d="M9 17H7A5 5 0 0 1 7 7h2M15 7h2a5 5 0 1 1 0 10h-2M8 12h8"
+            stroke={palette.grey450}
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          />
+        </Svg>
         <TextInput
           value={duelCode}
           onChangeText={setDuelCode}
@@ -156,7 +196,7 @@ export default function AddFriendScreen() {
       </Card>
 
       <LinearGradient colors={gradients.brand} style={[styles.inviteCard, shadow.brand]}>
-        <Text style={font('extrabold', 17, { color: palette.white })}>Invite a rival 💪</Text>
+        <Text style={font('extrabold', 17, { color: palette.white })}>Invite a rival</Text>
         <Text style={styles.inviteCopy}>
           Share your link — when they join, you both get 100 XP.
         </Text>
@@ -189,7 +229,11 @@ export default function AddFriendScreen() {
 
       <Eyebrow style={{ marginTop: 24, marginBottom: 10 }}>SUGGESTED FOR YOU</Eyebrow>
       <Card style={{ padding: 8 }}>
-        {visible.length === 0 ? (
+        {suggestionsList.length === 0 ? (
+          <Text style={[text.caption, { padding: 16, textAlign: 'center' }]}>
+            Search a username above, or share your invite link to add real friends.
+          </Text>
+        ) : visible.length === 0 ? (
           <Text style={[text.caption, { padding: 16, textAlign: 'center' }]}>
             No matches for “{query}”.
           </Text>
@@ -200,7 +244,7 @@ export default function AddFriendScreen() {
               <View style={styles.row}>
                 <Avatar
                   initial={person.initial}
-                  emoji={(person as any).emoji}
+                  emoji={person.emoji}
                   size={44}
                   background={person.background}
                   color={person.color}
@@ -212,9 +256,9 @@ export default function AddFriendScreen() {
                   </Text>
                 </View>
                 <PressableScale
-                  onPress={() => setAdded((prev) => ({ ...prev, [person.id]: true }))}
+                  onPress={() => addSuggestion(person)}
                   accessibilityRole="button"
-                  accessibilityLabel={`Add ${person.name}`}
+                  accessibilityLabel={`Duel ${person.name}`}
                   style={[styles.addButton, added[person.id] && styles.addedButton]}
                 >
                   <Text
@@ -222,7 +266,7 @@ export default function AddFriendScreen() {
                       color: added[person.id] ? palette.green600 : palette.white,
                     })}
                   >
-                    {added[person.id] ? 'Added' : 'Add'}
+                    {added[person.id] ? 'Ready' : 'Duel'}
                   </Text>
                 </PressableScale>
               </View>
@@ -242,6 +286,27 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: radius.xl,
     marginBottom: 20,
+  },
+  searchIcon: { width: 17, height: 17 },
+  searchGlass: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 1.7,
+    borderColor: palette.grey450,
+  },
+  searchHandle: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 6,
+    height: 1.9,
+    borderRadius: 1,
+    backgroundColor: palette.grey450,
+    transform: [{ rotate: '45deg' }],
   },
   searchInput: { flex: 1, ...font('semibold', 14, { color: palette.ink }) },
   searchAdd: {

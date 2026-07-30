@@ -94,11 +94,12 @@ export function normalizePairCode(input: string): string {
  * ------------------------------------------------------------------ */
 
 /**
- * The universal-link host for couple invites. A tapped `https://repchamp.gg/...`
- * link opens the app (once associated domains are configured) or the web; the
- * `repchamp://` scheme is the local fallback the app always understands.
+ * The web host for couple invites. Must match Firebase Hosting (`WEB_BASE` in
+ * `src/lib/urls.ts`). Shared text uses this HTTPS URL so it is tappable in any
+ * messenger; the hosted page redirects into the app via the `repchamp://`
+ * scheme (or the Play Store if the app isn't installed).
  */
-export const INVITE_WEB_BASE = 'https://repchamp.gg';
+export const INVITE_WEB_BASE = 'https://repchamp.web.app';
 
 /**
  * Build the shareable invite link for a pair code.
@@ -110,6 +111,26 @@ export const INVITE_WEB_BASE = 'https://repchamp.gg';
  */
 export function inviteLink(code: string): string {
   return `${INVITE_WEB_BASE}/couple/join?code=${encodeURIComponent(code)}`;
+}
+
+/**
+ * The app's own URL scheme — must match `expo.scheme` in `app.json`.
+ */
+export const APP_SCHEME = 'repchamp';
+
+/**
+ * The deep link that opens the *installed* app straight into pairing.
+ *
+ * This is what the on-screen QR should encode. A native phone camera (iOS
+ * Camera, Google Lens, Android) scanning a custom-scheme URL offers to open the
+ * app directly — no configured associated domain required — whereas the web
+ * `inviteLink` lands on a hosted redirect page that tries the deep link and
+ * falls back to the Play Store. The web link stays the right choice for
+ * *shared text* (it means something to someone without the app yet), so the
+ * two links serve two different surfaces on purpose.
+ */
+export function inviteDeepLink(code: string): string {
+  return `${APP_SCHEME}://couple/join?code=${encodeURIComponent(code)}`;
 }
 
 /**

@@ -256,12 +256,13 @@ export function seatFor(duel: Duel, uid: string): DuelSeat | null {
 }
 
 /**
- * Delete a duel the host abandoned before anyone joined.
+ * Delete a duel the host abandoned before anyone joined — or that the
+ * addressed target declined from their inbox.
  *
  * The waiting room calls this when the host cancels or navigates away while the
- * duel is still `pending`, so stale open duels don't accumulate. Best-effort:
- * swallows errors (the rules already restrict deletion to the host) and no-ops
- * when unconfigured.
+ * duel is still `pending`, so stale open duels don't accumulate. The
+ * notifications "Later" action uses the same path so a declined invite does not
+ * reappear. Best-effort: swallows errors and no-ops when unconfigured.
  */
 export async function cancelDuel(duelId: string): Promise<void> {
   if (!isFirebaseConfigured()) return;

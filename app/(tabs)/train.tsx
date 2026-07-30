@@ -1,14 +1,17 @@
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 
 import { ExerciseLibrary } from '@/components/ExerciseLibrary';
 import { ProgrammeCard } from '@/components/ProgrammeCard';
-import { Card, Chevron, PressableScale, Screen, SectionLabel } from '@/components/ui';
+import { Card, Chevron, PressableScale, ProgressBar, Screen, SectionLabel } from '@/components/ui';
 import { StaggerIn } from '@/components/motion';
 import { createDuel } from '@/services/duelService';
 import { useCouple } from '@/state/useCouple';
+import { showDialog } from '@/state/useDialog';
 import { useProfileStore } from '@/state/profileStore';
 import { useSelfPlayer } from '@/state/useSelfPlayer';
 import { defaultDuration } from '@/state/sessionStore';
@@ -18,6 +21,9 @@ import { gradients, palette, radius, shadow } from '@/theme/tokens';
 
 /** Rep milestones on the roadmap, in order. */
 const MILESTONES = [5, 10, 15, 25, 40] as const;
+
+const IC_PUSHUP = require('../../assets/ic-pushup.png');
+const IC_SQUAT = require('../../assets/ic-squat.png');
 
 export default function TrainScreen() {
   const router = useRouter();
@@ -53,7 +59,12 @@ export default function TrainScreen() {
         cooperative: true,
       });
       if (!duelId) {
-        Alert.alert('Not available yet', 'Connect Firebase to train together.');
+        showDialog({
+          title: 'Not available yet',
+          message: 'Connect Firebase to train together.',
+          tone: 'info',
+          actions: [{ label: 'Got it', variant: 'primary' }],
+        });
         return;
       }
       router.push({
@@ -84,7 +95,7 @@ export default function TrainScreen() {
         <View style={styles.tileRow}>
           <PracticeTile
             title="Push-Ups"
-            emoji="💪"
+            icon={IC_PUSHUP}
             caption="Upper Body"
             pb={personalBests.push}
             colors={gradients.brandStrong}
@@ -93,7 +104,7 @@ export default function TrainScreen() {
           />
           <PracticeTile
             title="Squats"
-            emoji="🦵"
+            icon={IC_SQUAT}
             caption="Lower Body"
             pb={personalBests.squat}
             colors={gradients.squat}
@@ -109,8 +120,8 @@ export default function TrainScreen() {
           style={{ marginTop: 12 }}
         >
           <Card style={styles.aiRow}>
-            <View style={[styles.rowIcon, { backgroundColor: palette.blue150 }]}>
-              <Text style={{ fontSize: 20 }}>🤖</Text>
+            <View style={[styles.rowIcon, { backgroundColor: palette.green50 }]}>
+              <AiGlyph />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={text.cardTitle}>Practice with AI</Text>
@@ -164,7 +175,8 @@ export default function TrainScreen() {
             accessibilityLabel="Together push-up set"
             style={styles.couplePick}
           >
-            <Text style={styles.couplePickText}>💪 Push-Ups</Text>
+            <Image source={IC_PUSHUP} style={styles.couplePickIcon} contentFit="contain" />
+            <Text style={styles.couplePickText}>Push-Ups</Text>
           </PressableScale>
           <PressableScale
             onPress={() => void trainTogether('squat')}
@@ -172,7 +184,8 @@ export default function TrainScreen() {
             accessibilityLabel="Together squat set"
             style={styles.couplePick}
           >
-            <Text style={styles.couplePickText}>🦵 Squats</Text>
+            <Image source={IC_SQUAT} style={styles.couplePickIcon} contentFit="contain" />
+            <Text style={styles.couplePickText}>Squats</Text>
           </PressableScale>
         </View>
       ) : null}
@@ -186,9 +199,15 @@ export default function TrainScreen() {
             <Text style={text.caption}>
               {best === 0
                 ? 'Finish a set to log your first max'
-                : `Next milestone: ${nextMilestone} reps`}
+                : best >= nextMilestone
+                  ? 'Top milestone cleared — keep pushing'
+                  : `${nextMilestone - best} reps to your next milestone`}
             </Text>
           </View>
+        </View>
+
+        <View style={{ marginBottom: 16 }}>
+          <ProgressBar percent={Math.min(100, Math.round((best / nextMilestone) * 100))} height={8} />
         </View>
 
         <View style={styles.roadmap}>
@@ -251,7 +270,7 @@ export default function TrainScreen() {
 
 function PracticeTile({
   title,
-  emoji,
+  icon,
   caption,
   pb = 0,
   colors,
@@ -259,7 +278,7 @@ function PracticeTile({
   onPress,
 }: {
   title: string;
-  emoji: string;
+  icon: ImageSourcePropType;
   caption: string;
   pb?: number;
   colors: readonly [string, string];
@@ -284,7 +303,9 @@ function PracticeTile({
         </View>
 
         <View style={{ alignItems: 'flex-end', marginTop: 4 }}>
-          <Text style={{ fontSize: 38 }}>{emoji}</Text>
+          <View style={styles.tileIconChip}>
+            <Image source={icon} style={styles.tileIcon} contentFit="contain" />
+          </View>
         </View>
 
         <View style={styles.practiceFooter}>
@@ -297,6 +318,23 @@ function PracticeTile({
         </View>
       </LinearGradient>
     </PressableScale>
+  );
+}
+
+/** Clean sparkle mark for the AI coaching row — replaces the casual robot emoji. */
+function AiGlyph() {
+  const s = {
+    stroke: palette.green600,
+    strokeWidth: 2,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    fill: 'none' as const,
+  };
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24">
+      <Path d="M12 3l1.9 4.6 4.6 1.9-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z" {...s} />
+      <Path d="M18.5 15l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" {...s} />
+    </Svg>
   );
 }
 
@@ -319,6 +357,15 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 8,
   },
+  tileIconChip: {
+    width: 54,
+    height: 54,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tileIcon: { width: 32, height: 32 },
   practiceFooter: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -366,9 +413,12 @@ const styles = StyleSheet.create({
     backgroundColor: palette.white,
     borderWidth: 1,
     borderColor: palette.border,
+    flexDirection: 'row',
+    gap: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  couplePickIcon: { width: 20, height: 20 },
   couplePickText: font('extrabold', 14, { color: palette.ink }),
   roadmapCard: { padding: 18 },
   roadmapHeader: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 16 },

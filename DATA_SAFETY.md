@@ -19,7 +19,7 @@ leave the device. Declare accordingly.
 ## 3. Do you provide a way for users to request that their data is deleted?
 **Yes.** In-app: Settings → Your Data → **Delete my account** (erases profile, leaderboard,
 matchmaking, shared couple record, and avatar). Also provide the support email
-`privacy@repchamp.gg` for requests.
+`support@peachtraders.xyz` for requests.
 
 ---
 

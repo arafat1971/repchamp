@@ -117,6 +117,16 @@ export async function publishScore(input: {
 }
 
 /**
+ * Remove the athlete's leaderboard row entirely — used when they turn on a
+ * private profile. Deleting (rather than flagging) is what actually keeps them
+ * out of every ranked query, since the board reads the raw collection.
+ */
+export async function removeScore(uid: string): Promise<void> {
+  if (!isFirebaseConfigured()) return;
+  await firestore().collection('leaderboard').doc(uid).delete();
+}
+
+/**
  * Upload a local avatar image (file:// or content:// uri) to Storage and return
  * the public download URL. Returns the original uri unchanged when unconfigured
  * so the local avatar keeps working.

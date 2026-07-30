@@ -1,66 +1,65 @@
-# RevenueCat — real subscriptions
+# RevenueCat — real subscriptions (Play Store first)
 
 Billing is wired end to end in code (`react-native-purchases` + `src/services/purchases.ts`
 + `src/state/proStore.ts` + the real `app/modal/paywall.tsx`). It **no-ops until you
-add real API keys**, so the app runs fine today; the paywall shows an honest "billing
-isn't set up yet" note.
+add real API keys and store products**, so the app runs fine today; the paywall shows
+an honest "billing not set up yet" / empty-plans note until Play + RevenueCat are live.
+
+**You are shipping Android first.** Only Google Play products + `revenueCatGoogle` are
+required. Leave `revenueCatApple` empty until you ship to the App Store — it does not
+block Play billing.
 
 Everything below needs your developer accounts — I can't create store products or sign
-into App Store Connect / Play Console / RevenueCat for you.
+into Play Console / RevenueCat for you.
 
 ## What's already built
 
 - **Entitlement layer** — `src/domain/pro.ts` defines free vs. Pro (couple mode +
-  push-ups + squats free; everything else Pro), unit-tested.
+  push-ups + squats free; full library + programmes Pro), unit-tested.
 - **Live entitlement** — `proStore` follows RevenueCat's customer info; never caches a
-  local "is pro" flag (which is how apps serve Pro to lapsed subscribers).
+  local "is pro" flag.
 - **Real paywall** — fetches the current offering, shows localised store prices,
-  purchases, and offers **Restore** (Apple requires it).
-- **Gates** — Pro exercises (mobility drills) route to the paywall; Profile shows an
-  Upgrade CTA / PRO badge.
+  purchases, and Restore.
+- **Gates** — Pro exercises / programmes route to the paywall when billing is configured.
 - **Analytics** — `paywall_viewed`, `trial_started`, `subscribed` already fire.
+- **Android key** — `app.json → extra.revenueCatGoogle` is already set.
 
-## Your setup (≈30–45 min, one time)
+## Your setup (≈20–30 min, Play only)
 
-### 1. Create the products in the stores
-- **App Store Connect** → your app → Subscriptions → create a group `RepChamp Pro`
-  with: `rc_pro_annual` ($39.99/yr, add a 7-day free trial intro offer) and
-  `rc_pro_monthly` ($7.99/mo). Optionally `rc_pro_lifetime` ($79.99 non-consumable).
-- **Google Play Console** → Monetize → Subscriptions → create matching products with the
-  same ids and prices.
+### 1. Create the products in Google Play Console
+Monetize → Subscriptions → create products, e.g.:
+- `rc_pro_annual` (yearly, optional 7-day free trial)
+- `rc_pro_monthly` (monthly)
 
-### 2. RevenueCat dashboard (<https://app.revenuecat.com>, free tier is fine)
-1. Create a project, add your iOS + Android apps (bundle/package `gg.repchamp.app`).
+Use the same product IDs you will import into RevenueCat.
+
+### 2. RevenueCat dashboard (<https://app.revenuecat.com>)
+1. Create a project, add your **Android** app (package `gg.repchamp.app`).
 2. **Entitlements** → create one with identifier **`pro`** (must match
    `PRO_ENTITLEMENT` in `src/domain/pro.ts`).
-3. **Products** → import the store products from step 1; attach each to the `pro`
-   entitlement.
+3. **Products** → import the Play products; attach each to the `pro` entitlement.
 4. **Offerings** → create the default (`current`) offering; add Annual + Monthly
-   (+ Lifetime) packages pointing at those products.
-5. **API keys** → copy the **Apple** key (`appl_…`) and **Google** key (`goog_…`).
+   packages pointing at those products.
+5. Confirm the **Google** public SDK key (`goog_…`) matches `app.json → extra.revenueCatGoogle`.
 
-### 3. Put the keys in the app
-Replace the placeholders in `app.json → extra`:
-```json
-"revenueCatApple": "appl_YOUR_KEY",
-"revenueCatGoogle": "goog_YOUR_KEY"
-```
-Then rebuild (native module was added):
+### 3. Rebuild & test
 ```bash
 npx expo prebuild --clean
-npm run android   # or: npm run ios
+npm run android
 ```
+- Add a **licence tester** in Play Console → test purchase (no real charge).
+- The paywall should show real prices; buying flips `isPro` live; Restore recovers it
+  on a fresh install.
 
-### 4. Test
-- Android: add a **licence tester** in Play Console → test purchase (no real charge).
-- iOS: use a **Sandbox** Apple ID → purchases don't charge.
-- The paywall should show real prices; buying flips `isPro` live (Profile shows PRO,
-  the exercise-library gate opens); Restore recovers it on a fresh install.
+### 4. Later — App Store (optional)
+When you ship iOS: create App Store subscriptions with the same product IDs, add the
+iOS app in RevenueCat, and set `revenueCatApple` to the `appl_…` key. No other code
+change is required.
 
 ## Notes
 
 - **Keep couple mode free** — it's the viral loop. The gate in `pro.ts` already does
   this; don't move it behind Pro.
-- Prices/copy on the paywall come from the store, so change them in App Store Connect /
-  Play Console, not in code.
+- Prices/copy on the paywall come from the store — change them in Play Console, not
+  in code.
 - RevenueCat validates receipts server-side, so no receipt backend is needed on your end.

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo , useEffect } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, {
   Easing,
@@ -8,7 +8,6 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import { useEffect } from 'react';
 
 import { palette } from '@/theme/tokens';
 
@@ -72,9 +71,12 @@ export function Confetti() {
     () =>
       Array.from({ length: PIECE_COUNT }, (_, i) => ({
         key: i,
+        // eslint-disable-next-line react-hooks/purity
         left: Math.random() * 100,
         color: COLORS[i % COLORS.length] as string,
+        // eslint-disable-next-line react-hooks/purity
         delay: Math.random() * 2000,
+        // eslint-disable-next-line react-hooks/purity
         duration: 2000 + Math.random() * 1600,
       })),
     [],

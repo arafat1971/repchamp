@@ -1,6 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
+import Svg, { Rect } from 'react-native-svg';
 
 import { track } from '@/lib/analytics';
 import { ModalHeader } from '@/components/ModalHeader';
@@ -56,12 +57,16 @@ export default function WeeklyRecapScreen() {
       <ModalHeader title="Weekly Recap" />
 
       <LinearGradient colors={gradients.brandDeep} style={[styles.hero, shadow.brand]}>
-        <Text style={styles.heroWatermark}>📈</Text>
+        <Svg width={140} height={140} viewBox="0 0 100 100" style={styles.heroWatermark}>
+          <Rect x={8} y={58} width={18} height={32} rx={5} fill={palette.white} opacity={0.16} />
+          <Rect x={32} y={40} width={18} height={50} rx={5} fill={palette.white} opacity={0.16} />
+          <Rect x={56} y={18} width={18} height={72} rx={5} fill={palette.white} opacity={0.16} />
+        </Svg>
         <View style={styles.heroChip}>
           <Text style={font('extrabold', 10, { color: palette.white })}>{formatRange()}</Text>
         </View>
         <Text style={font('extrabold', 27, { color: palette.white, marginTop: 14 })}>
-          {totalReps > 0 ? 'Your week in reps 💪' : 'A fresh week awaits'}
+          {totalReps > 0 ? 'Your week in reps' : 'A fresh week awaits'}
         </Text>
         <Text style={styles.heroCopy}>
           {totalReps > 0
@@ -72,12 +77,12 @@ export default function WeeklyRecapScreen() {
 
       <View style={styles.grid}>
         <View style={styles.gridRow}>
-          <StatTile emoji="🔁" value={totalReps} label="total reps" />
-          <StatTile emoji="⚔️" value={`${duelsWon} / ${duels.length}`} label="duels won" />
+          <StatTile value={totalReps} label="total reps" color={palette.green500} />
+          <StatTile value={`${duelsWon} / ${duels.length}`} label="duels won" color={palette.green500} />
         </View>
         <View style={styles.gridRow}>
-          <StatTile emoji="⭐" value={xp.toLocaleString()} label="XP earned" />
-          <StatTile emoji="⏱️" value={`${minutes}`} label="minutes trained" />
+          <StatTile value={xp.toLocaleString()} label="XP earned" color={palette.green500} />
+          <StatTile value={`${minutes}`} label="minutes trained" color={palette.green500} />
         </View>
       </View>
 
@@ -136,7 +141,7 @@ export default function WeeklyRecapScreen() {
           <Text style={styles.coupleEyebrow}>WITH {couple.partner?.displayName?.toUpperCase()}</Text>
           <View style={styles.coupleStats}>
             <View>
-              <Text style={styles.coupleValue}>🔥 {couple.streak}</Text>
+              <Text style={styles.coupleValue}>{couple.streak}</Text>
               <Text style={styles.coupleLabel}>SHARED STREAK</Text>
             </View>
             <View>
@@ -173,7 +178,7 @@ export default function WeeklyRecapScreen() {
 
 const styles = StyleSheet.create({
   hero: { borderRadius: radius['6xl'], padding: 24, overflow: 'hidden', marginBottom: 16 },
-  heroWatermark: { position: 'absolute', right: -16, top: -14, fontSize: 120, opacity: 0.16 },
+  heroWatermark: { position: 'absolute', right: -10, top: -6 },
   coupleRecap: { borderRadius: radius['4xl'], padding: 20, marginTop: 16, gap: 16 },
   coupleEyebrow: {
     ...font('extrabold', 10, { color: 'rgba(255,255,255,0.85)' }),

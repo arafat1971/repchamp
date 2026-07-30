@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, {
   FadeInDown,
   FadeInUp,
@@ -26,6 +26,7 @@ import { cancelStreakReminder, scheduleStreakReminder } from '@/lib/notification
 import { createCouple, joinCoupleByCode, leaveCouple, nudgePartner } from '@/services/coupleService';
 import { useAuthStore } from '@/state/authStore';
 import { useCouple } from '@/state/useCouple';
+import { showDialog } from '@/state/useDialog';
 import { selectPairingBonusActive, useProfileStore } from '@/state/profileStore';
 import { font, text } from '@/theme/typography';
 import { palette, radius, shadow } from '@/theme/tokens';
@@ -70,24 +71,6 @@ export default function CoupleInviteScreen() {
   const [entered, setEntered] = useState('');
   const [copied, setCopied] = useState(false);
 
-  // Animated pulse for streak fire
-  const fireScale = useSharedValue(1);
-  useEffect(() => {
-    if (streak > 0) {
-      fireScale.value = withRepeat(
-        withSequence(
-          withTiming(1.18, { duration: 600 }),
-          withTiming(1, { duration: 600 }),
-        ),
-        -1,
-        true,
-      );
-    }
-  }, [streak, fireScale]);
-  const fireStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: fireScale.value }],
-  }));
-
   // Animated pulse for waiting QR
   const qrPulse = useSharedValue(1);
   useEffect(() => {
@@ -126,10 +109,13 @@ export default function CoupleInviteScreen() {
 
   /** Shown whenever an action needs an account the local-only build has not got. */
   const requireAccount = () => {
-    Alert.alert(
-      'Not available yet',
-      'Couple mode needs a signed-in account. Connect Firebase (see FIREBASE_SETUP.md) to pair with your partner.',
-    );
+    showDialog({
+      title: 'Not available yet',
+      message:
+        'Couple mode needs a signed-in account. Connect Firebase to pair with your partner.',
+      tone: 'info',
+      actions: [{ label: 'Got it', variant: 'primary' }],
+    });
   };
 
   const startInvite = async () => {
@@ -141,15 +127,22 @@ export default function CoupleInviteScreen() {
       if (created) {
         track('couple_invite_created');
       } else {
-        Alert.alert('Not available yet', 'Connect Firebase to pair with a partner.');
+        showDialog({
+          title: 'Not available yet',
+          message: 'Connect Firebase to pair with a partner.',
+          tone: 'info',
+          actions: [{ label: 'Got it', variant: 'primary' }],
+        });
       }
     } catch (error) {
       // Surface the real reason rather than a dead end — a pairing failure the
       // athlete can't act on is worse than none.
-      Alert.alert(
-        'Could not create a code',
-        error instanceof Error ? error.message : 'Please try again.',
-      );
+      showDialog({
+        title: 'Could not create a code',
+        message: error instanceof Error ? error.message : 'Please try again.',
+        tone: 'danger',
+        actions: [{ label: 'Try again', variant: 'primary' }],
+      });
     } finally {
       setCreating(false);
     }
@@ -163,10 +156,12 @@ export default function CoupleInviteScreen() {
       track('couple_paired', { via: 'code' });
       setEntered('');
     } catch (error) {
-      Alert.alert(
-        'Could not pair',
-        error instanceof Error ? error.message : 'Please check the code and try again.',
-      );
+      showDialog({
+        title: 'Could not pair',
+        message: error instanceof Error ? error.message : 'Please check the code and try again.',
+        tone: 'danger',
+        actions: [{ label: 'Try again', variant: 'primary' }],
+      });
     } finally {
       setJoining(false);
     }
@@ -174,26 +169,34 @@ export default function CoupleInviteScreen() {
 
   const unpair = () => {
     if (!couple) return;
-    Alert.alert('Break the bond?', 'Your shared streak and combined total will be lost.', [
-      { text: 'Keep it', style: 'cancel' },
-      {
-        text: 'Unpair',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await leaveCouple(couple.id);
-          } catch (error) {
-            // A failed unpair leaves the bond intact — say so, rather than
-            // letting the athlete believe they've left.
-            captureError(error);
-            Alert.alert(
-              'Could not unpair',
-              "We couldn't break the bond just now. Check your connection and try again.",
-            );
-          }
+    showDialog({
+      title: 'Break the bond?',
+      message: 'Your shared streak and combined total will be lost. This can’t be undone.',
+      tone: 'danger',
+      actions: [
+        { label: 'Keep it', variant: 'cancel' },
+        {
+          label: 'Unpair',
+          variant: 'destructive',
+          onPress: async () => {
+            try {
+              await leaveCouple(couple.id);
+            } catch (error) {
+              // A failed unpair leaves the bond intact — say so, rather than
+              // letting the athlete believe they've left.
+              captureError(error);
+              showDialog({
+                title: 'Could not unpair',
+                message:
+                  "We couldn't break the bond just now. Check your connection and try again.",
+                tone: 'danger',
+                actions: [{ label: 'Try again', variant: 'primary' }],
+              });
+            }
+          },
         },
-      },
-    ]);
+      ],
+    });
   };
 
   // Activity calendar data
@@ -238,6 +241,42 @@ export default function CoupleInviteScreen() {
             </Animated.View>
           ) : null}
 
+          {/* ── Pairing status (highlighted) ── */}
+          <Animated.View entering={FadeInDown.duration(400)} style={styles.statusRow}>
+            <View style={styles.statusAvatars}>
+              {avatarUri ? (
+                <Image source={{ uri: avatarUri }} style={styles.statusAvatar} contentFit="cover" />
+              ) : (
+                <View style={[styles.statusAvatar, styles.statusAvatarFallback]}>
+                  <Text style={styles.statusAvatarInitial}>{myInitial}</Text>
+                </View>
+              )}
+              {partner.avatarUrl ? (
+                <Image
+                  source={{ uri: partner.avatarUrl }}
+                  style={[styles.statusAvatar, styles.statusAvatarOverlap]}
+                  contentFit="cover"
+                />
+              ) : (
+                <View style={[styles.statusAvatar, styles.statusAvatarOverlap, styles.statusAvatarFallback]}>
+                  <Text style={styles.statusAvatarInitial}>{partnerInitial}</Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.statusTextCol}>
+              <Text style={styles.statusName} numberOfLines={1}>
+                Paired with {partner.displayName}
+              </Text>
+              <View style={styles.statusMetaRow}>
+                <View style={styles.statusDot} />
+                <Text style={styles.statusMeta}>Connected · training together</Text>
+              </View>
+            </View>
+            <View style={styles.statusTag}>
+              <Text style={styles.statusTagText}>PAIRED</Text>
+            </View>
+          </Animated.View>
+
           {/* ── Hero Bond Card ── */}
           <Animated.View entering={FadeInDown.duration(500).delay(100)}>
             <LinearGradient
@@ -265,7 +304,7 @@ export default function CoupleInviteScreen() {
                   {partner.avatarUrl ? (
                     <Image source={{ uri: partner.avatarUrl }} style={styles.avatarImg} contentFit="cover" />
                   ) : (
-                    <View style={[styles.avatarPlaceholder, { backgroundColor: '#7c3aed' }]}>
+                    <View style={[styles.avatarPlaceholder, { backgroundColor: '#065f46' }]}>
                       <Text style={styles.avatarInitial}>{partnerInitial}</Text>
                     </View>
                   )}
@@ -279,24 +318,19 @@ export default function CoupleInviteScreen() {
                 <Text style={styles.partnerName} numberOfLines={1}>{partner.displayName}</Text>
               </View>
 
-              {/* Big animated stats */}
+              {/* Bond stats — clean numeric row, no emoji noise. */}
               <View style={styles.bigStatsRow}>
                 <View style={styles.bigStatCol}>
-                  <View style={styles.bigStatIconRow}>
-                    <Animated.Text style={[{ fontSize: 22 }, fireStyle]}>🔥</Animated.Text>
-                  </View>
                   <Text style={styles.bigStatNumber}>{streak}</Text>
                   <Text style={styles.bigStatLabel}>DAY STREAK</Text>
                 </View>
                 <View style={styles.bigStatDivider} />
                 <View style={styles.bigStatCol}>
-                  <Text style={{ fontSize: 22 }}>💪</Text>
                   <Text style={styles.bigStatNumber}>{combined}</Text>
                   <Text style={styles.bigStatLabel}>REPS TOGETHER</Text>
                 </View>
                 <View style={styles.bigStatDivider} />
                 <View style={styles.bigStatCol}>
-                  <Text style={{ fontSize: 22 }}>🏆</Text>
                   <Text style={styles.bigStatNumber}>Lv.{level.level}</Text>
                   <Text style={styles.bigStatLabel}>{level.name.toUpperCase()}</Text>
                 </View>
@@ -329,7 +363,7 @@ export default function CoupleInviteScreen() {
                 <Animated.View entering={FadeInDown.duration(400).delay(400)} style={styles.riskBanner}>
                   <Text style={{ fontSize: 14 }}>⚠️</Text>
                   <Text style={styles.riskText}>
-                    Streak at risk! One of you hasn't trained today.
+                    Streak at risk! One of you hasn&apos;t trained today.
                   </Text>
                 </Animated.View>
               ) : null}
@@ -339,8 +373,8 @@ export default function CoupleInviteScreen() {
           {/* ── 7-Day Activity Calendar ── */}
           <Animated.View entering={FadeInUp.duration(400).delay(200)} style={styles.calendarCard}>
             <View style={styles.calendarHeader}>
-              <Text style={styles.calendarTitle}>📅 This Week</Text>
-              <Text style={styles.calendarHint}>Both train = full glow ✨</Text>
+              <Text style={styles.calendarTitle}>This Week</Text>
+              <Text style={styles.calendarHint}>Both train = full glow</Text>
             </View>
             <View style={styles.calendarRow}>
               {week.map((day, i) => {
@@ -380,7 +414,7 @@ export default function CoupleInviteScreen() {
                 <Text style={styles.legendText}>You</Text>
               </View>
               <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: '#c4b5fd' }]} />
+                <View style={[styles.legendDot, { backgroundColor: '#cbd5e1' }]} />
                 <Text style={styles.legendText}>{partner.displayName.split(' ')[0]}</Text>
               </View>
               <View style={styles.legendItem}>
@@ -392,7 +426,7 @@ export default function CoupleInviteScreen() {
 
           {/* ── Badge Shelf ── */}
           <Animated.View entering={FadeInUp.duration(400).delay(300)}>
-            <Text style={styles.sectionTitle}>🏅 Couple Badges</Text>
+            <Text style={styles.sectionTitle}>Couple Badges</Text>
             <View style={styles.badgeShelf}>
               {badges.map((b, i) => (
                 <Animated.View
@@ -425,16 +459,21 @@ export default function CoupleInviteScreen() {
                 try {
                   await nudgePartner(couple.id, uid, displayName || 'Your partner');
                   track('couple_nudge_sent');
-                  Alert.alert(
-                    'Nudge sent',
-                    `${partner.displayName} will get a push to come train.`,
-                  );
+                  showDialog({
+                    title: 'Nudge sent',
+                    message: `${partner.displayName} will get a push to come train.`,
+                    tone: 'success',
+                    actions: [{ label: 'Got it', variant: 'primary' }],
+                  });
                 } catch (error) {
                   captureError(error);
-                  Alert.alert(
-                    'Nudge failed',
-                    "We couldn't send that nudge. Check your connection and try again.",
-                  );
+                  showDialog({
+                    title: 'Nudge failed',
+                    message:
+                      "We couldn't send that nudge. Check your connection and try again.",
+                    tone: 'danger',
+                    actions: [{ label: 'Try again', variant: 'primary' }],
+                  });
                 } finally {
                   setNudging(false);
                 }
@@ -443,7 +482,7 @@ export default function CoupleInviteScreen() {
               accessibilityLabel={`Nudge ${partner.displayName} to train`}
               style={styles.actionOutline}
             >
-              <Text style={styles.actionOutlineLabel}>{nudging ? '👋 Sending…' : '👋 Nudge'}</Text>
+              <Text style={styles.actionOutlineLabel}>{nudging ? 'Sending…' : 'Nudge'}</Text>
             </PressableScale>
             <PressableScale
               onPress={() => router.push('/modal/couple-card')}
@@ -454,15 +493,31 @@ export default function CoupleInviteScreen() {
                 colors={['#22c55e', '#15803d']}
                 style={styles.actionPrimaryGrad}
               >
-                <Text style={font('extrabold', 14, { color: palette.white })}>📸 Our Card</Text>
+                <Text style={font('extrabold', 14, { color: palette.white })}>Our Card</Text>
               </LinearGradient>
             </PressableScale>
           </Animated.View>
 
           <Divider style={{ marginVertical: 22 }} />
 
-          <PressableScale onPress={unpair} accessibilityRole="button" style={styles.unpair}>
-            <Text style={font('extrabold', 14, { color: palette.red500 })}>Unpair</Text>
+          {/* ── Manage bond (professional danger action) ── */}
+          <Text style={styles.manageLabel}>MANAGE BOND</Text>
+          <PressableScale
+            onPress={unpair}
+            accessibilityRole="button"
+            accessibilityLabel={`Unpair from ${partner.displayName}`}
+            style={styles.unpairCard}
+          >
+            <View style={styles.unpairIcon}>
+              <View style={styles.unpairIconBar} />
+            </View>
+            <View style={styles.unpairTextCol}>
+              <Text style={styles.unpairTitle}>Unpair from {partner.displayName}</Text>
+              <Text style={styles.unpairSub}>
+                Ends your shared streak and combined total. This can&apos;t be undone.
+              </Text>
+            </View>
+            <Text style={styles.unpairChevron}>›</Text>
           </PressableScale>
         </>
       ) : null}
@@ -488,14 +543,14 @@ export default function CoupleInviteScreen() {
 
           <Animated.View entering={FadeInUp.duration(400).delay(200)} style={styles.actions}>
             <PressableScale onPress={copyCode} accessibilityRole="button" style={styles.actionOutline}>
-              <Text style={styles.actionOutlineLabel}>{copied ? '✓ Copied' : '📋 Copy code'}</Text>
+              <Text style={styles.actionOutlineLabel}>{copied ? 'Copied' : 'Copy code'}</Text>
             </PressableScale>
             <PressableScale onPress={shareCode} accessibilityRole="button">
               <LinearGradient
                 colors={['#22c55e', '#15803d']}
                 style={styles.actionPrimaryGrad}
               >
-                <Text style={font('extrabold', 14, { color: palette.white })}>🚀 Share invite</Text>
+                <Text style={font('extrabold', 14, { color: palette.white })}>Share invite</Text>
               </LinearGradient>
             </PressableScale>
           </Animated.View>
@@ -518,14 +573,14 @@ export default function CoupleInviteScreen() {
                   {avatarUri ? (
                     <Image source={{ uri: avatarUri }} style={styles.pitchAvatarImg} contentFit="cover" />
                   ) : (
-                    <Text style={styles.pitchAvatarEmoji}>🙋</Text>
+                    <Text style={styles.pitchAvatarInitial}>{myInitial}</Text>
                   )}
                 </View>
                 <View style={styles.pitchHeartBubble}>
-                  <Text style={{ fontSize: 20 }}>🤝</Text>
+                  <Text style={styles.pitchPlus}>+</Text>
                 </View>
                 <View style={styles.pitchAvatarPartner}>
-                  <Text style={styles.pitchAvatarEmoji}>❓</Text>
+                  <Text style={styles.pitchAvatarInitial}>?</Text>
                 </View>
               </View>
 
@@ -538,15 +593,15 @@ export default function CoupleInviteScreen() {
               {/* Feature pills */}
               <View style={styles.featurePills}>
                 <View style={styles.featurePill}>
-                  <Text style={{ fontSize: 12 }}>🔥</Text>
+                  <View style={styles.featurePillDot} />
                   <Text style={styles.featurePillText}>Shared streak</Text>
                 </View>
                 <View style={styles.featurePill}>
-                  <Text style={{ fontSize: 12 }}>💪</Text>
+                  <View style={styles.featurePillDot} />
                   <Text style={styles.featurePillText}>Combined reps</Text>
                 </View>
                 <View style={styles.featurePill}>
-                  <Text style={{ fontSize: 12 }}>🏆</Text>
+                  <View style={styles.featurePillDot} />
                   <Text style={styles.featurePillText}>Couple badges</Text>
                 </View>
               </View>
@@ -565,7 +620,7 @@ export default function CoupleInviteScreen() {
                 style={[styles.ctaButton, shadow.brand]}
               >
                 <Text style={font('extrabold', 16, { color: palette.white })}>
-                  {creating ? '✨ Creating…' : '💌 Invite My Partner'}
+                  {creating ? 'Creating…' : 'Invite My Partner'}
                 </Text>
               </LinearGradient>
             </PressableScale>
@@ -582,7 +637,7 @@ export default function CoupleInviteScreen() {
               accessibilityLabel="Scan your partner's QR code"
               style={styles.scanButton}
             >
-              <Text style={font('extrabold', 15, { color: palette.white })}>📷 Scan QR code</Text>
+              <Text style={font('extrabold', 15, { color: palette.white })}>Scan QR code</Text>
             </PressableScale>
 
             <View style={styles.joinRow}>
@@ -654,7 +709,7 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: 'rgba(255,255,255,0.9)',
     overflow: 'hidden',
-    backgroundColor: '#7c3aed',
+    backgroundColor: '#065f46',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
@@ -713,8 +768,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   bigStatCol: { flex: 1, alignItems: 'center', gap: 4 },
-  bigStatIconRow: { marginBottom: 2 },
-  bigStatNumber: font('extrabold', 22, { color: palette.white }),
+  bigStatNumber: font('extrabold', 26, { color: palette.white }),
   bigStatLabel: {
     ...font('bold', 8, { color: 'rgba(255,255,255,0.7)' }),
     letterSpacing: 1,
@@ -787,7 +841,7 @@ const styles = StyleSheet.create({
   },
   calendarDotBoth: { backgroundColor: '#22c55e' },
   calendarDotMe: { backgroundColor: '#86efac' },
-  calendarDotPartner: { backgroundColor: '#c4b5fd' },
+  calendarDotPartner: { backgroundColor: '#cbd5e1' },
   calendarDotNone: { backgroundColor: '#f1f5f9' },
   calendarLegend: {
     flexDirection: 'row',
@@ -872,7 +926,81 @@ const styles = StyleSheet.create({
   },
   hint: { marginTop: 14, textAlign: 'center' },
   bold: font('extrabold', 13, { color: palette.ink }),
-  unpair: { alignSelf: 'center', paddingVertical: 10, paddingHorizontal: 20 },
+
+  /* ── Pairing status header ── */
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: radius['3xl'],
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 14,
+    ...shadow.card,
+  },
+  statusAvatars: { flexDirection: 'row', alignItems: 'center' },
+  statusAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 2,
+    borderColor: palette.white,
+    overflow: 'hidden',
+    backgroundColor: palette.green50,
+  },
+  statusAvatarOverlap: { marginLeft: -12 },
+  statusAvatarFallback: { alignItems: 'center', justifyContent: 'center' },
+  statusAvatarInitial: font('extrabold', 15, { color: palette.green600 }),
+  statusTextCol: { flex: 1 },
+  statusName: font('extrabold', 15, { color: palette.ink }),
+  statusMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  statusDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: palette.green500 },
+  statusMeta: font('medium', 12, { color: palette.slate500 }),
+  statusTag: {
+    backgroundColor: palette.green50,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
+  },
+  statusTagText: font('extrabold', 10, { color: palette.green700, letterSpacing: 1 }),
+
+  /* ── Manage bond / unpair ── */
+  manageLabel: {
+    ...font('extrabold', 10, { color: palette.slate400, letterSpacing: 1.5 }),
+    marginBottom: 10,
+  },
+  unpairCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: palette.red100,
+    borderRadius: radius['2xl'],
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  unpairIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: palette.red100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unpairIconBar: {
+    width: 16,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: palette.red500,
+  },
+  unpairTextCol: { flex: 1 },
+  unpairTitle: font('extrabold', 14, { color: palette.red500 }),
+  unpairSub: { ...font('medium', 11.5, { color: palette.slate500 }), marginTop: 2, lineHeight: 16 },
+  unpairChevron: font('extrabold', 22, { color: palette.red400 }),
 
   /* ── WAITING STATE ── */
   waitingHero: { marginBottom: 4 },
@@ -936,7 +1064,8 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   pitchAvatarImg: { width: '100%', height: '100%' },
-  pitchAvatarEmoji: { fontSize: 26 },
+  pitchAvatarInitial: font('extrabold', 24, { color: palette.white }),
+  pitchPlus: font('extrabold', 22, { color: palette.green600 }),
   pitchHeartBubble: {
     zIndex: 10,
     backgroundColor: 'rgba(255,255,255,0.9)',
@@ -963,6 +1092,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
+  featurePillDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: 'rgba(255,255,255,0.85)' },
   featurePillText: font('bold', 10, { color: palette.white }),
   ctaButton: {
     height: 58,

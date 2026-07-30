@@ -13,6 +13,16 @@
  * is `mock`-prefixed (the only out-of-scope access the hoist guard allows).
  */
 
+/* ------------------------------------------------------------------ */
+
+import {
+  addFriendByUsername,
+  fetchFriends,
+  fetchLeaderboard,
+} from '../leaderboardService';
+import { buildLeaderboard } from '@/domain/leaderboard';
+import { currentWeekKey } from '@/services/userService';
+
 const mockState = { configured: true };
 
 /**
@@ -40,7 +50,7 @@ function mockSnapshot(col: string, id: string) {
 
 function mockQuery(
   col: string,
-  filters: Array<[string, unknown]>,
+  filters: [string, unknown][],
   order: { field: string; dir: string } | null,
   limit: number | null,
 ) {
@@ -104,6 +114,17 @@ jest.mock('@react-native-firebase/firestore', () => {
       where: (field: string, _op: string, value: unknown) =>
         mockQuery(name, [[field, value]], null, null),
     }),
+    batch: () => {
+      const ops: Array<() => Promise<void>> = [];
+      return {
+        set(ref: { set: (data: Record<string, unknown>) => Promise<void> }, data: Record<string, unknown>) {
+          ops.push(() => ref.set(data));
+        },
+        async commit() {
+          for (const op of ops) await op();
+        },
+      };
+    },
   });
   (fn as unknown as { FieldValue: unknown }).FieldValue = {
     serverTimestamp: () => '<ts>',
@@ -117,16 +138,6 @@ jest.mock('@react-native-firebase/storage', () => ({
   __esModule: true,
   default: () => ({ ref: () => ({}) }),
 }));
-
-/* ------------------------------------------------------------------ */
-
-import {
-  addFriendByUsername,
-  fetchFriends,
-  fetchLeaderboard,
-} from '../leaderboardService';
-import { buildLeaderboard } from '@/domain/leaderboard';
-import { currentWeekKey } from '@/services/userService';
 
 beforeEach(() => {
   mockState.configured = true;
@@ -217,19 +228,30 @@ describe('addFriendByUsername', () => {
     expect(await addFriendByUsername('me', 'pat')).toBe(false);
   });
 
-  it('resolves the username and writes a friend edge', async () => {
+  it('resolves the username and writes reciprocal friend edges', async () => {
     mockStore.users.set('friend-uid', {
       username: 'pat',
       displayName: 'Pat',
       avatarUrl: null,
       level: 7,
     });
+    mockStore.users.set('me', {
+      username: 'me',
+      displayName: 'Me',
+      avatarUrl: 'https://cdn/me.jpg',
+      level: 3,
+    });
     const ok = await addFriendByUsername('me', 'Pat'); // case-insensitive
     expect(ok).toBe(true);
-    const edge = mockCol('friends/me').get('friend-uid')!;
-    expect(edge.displayName).toBe('Pat');
-    expect(edge.level).toBe(7);
-    expect(edge.addedAt).toBe('<ts>');
+    const mine = mockCol('friends/me').get('friend-uid')!;
+    expect(mine.displayName).toBe('Pat');
+    expect(mine.level).toBe(7);
+    expect(mine.addedAt).toBe('<ts>');
+    // Reciprocal: Pat also sees Me.
+    const theirs = mockCol('friends/friend-uid').get('me')!;
+    expect(theirs.displayName).toBe('Me');
+    expect(theirs.avatarUrl).toBe('https://cdn/me.jpg');
+    expect(theirs.level).toBe(3);
   });
 
   it('throws a friendly error when the username is unknown', async () => {

@@ -128,6 +128,23 @@ describe('RepCounter — push-ups', () => {
     expect(updates.every((u) => u.tracking === false)).toBe(true);
   });
 
+  it('abandons an in-progress down phase after a real tracking loss', () => {
+    const counter = new RepCounter(pushUp);
+    // Enter the down phase at full depth.
+    counter.push(pushUpPose(170, 0));
+    counter.push(pushUpPose(70, 400));
+    expect(counter.state.phase).toBe('down');
+
+    // Stay occluded past the grace window.
+    for (let t = 433; t <= 1300; t += 33) counter.push(pushUpPose(70, t, 0.05));
+    expect(counter.state.tracking).toBe(false);
+    expect(counter.state.phase).toBe('up');
+
+    // Returning to the top must NOT close a phantom rep.
+    counter.push(pushUpPose(170, 1333));
+    expect(counter.state.reps).toBe(0);
+  });
+
   it('records duration and alignment for each completed rep', () => {
     const counter = new RepCounter(pushUp);
     feed(counter, pushUpSet(1, { durationMs: 1500 }));

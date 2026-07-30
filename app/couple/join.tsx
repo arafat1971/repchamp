@@ -49,6 +49,15 @@ export default function CoupleJoinScreen() {
     })();
   }, [code, uid, displayName, avatarUri, router]);
 
+  // Auth can be slow — don't spin forever with no escape.
+  useEffect(() => {
+    if (uid || error) return;
+    const id = setTimeout(() => {
+      setError('Still signing you in. Pair by hand instead, or try the link again.');
+    }, 8_000);
+    return () => clearTimeout(id);
+  }, [uid, error]);
+
   // A link with no usable code is nonsense — send them to pair by hand.
   if (!code) return <Redirect href="/modal/couple-invite" />;
 
@@ -74,6 +83,14 @@ export default function CoupleJoinScreen() {
             <ActivityIndicator color={palette.green500} size="large" />
             <Text style={styles.title}>Pairing you up…</Text>
             <Text style={[text.caption, styles.body]}>Joining with code {code}</Text>
+            <PressableScale
+              onPress={() => router.replace('/modal/couple-invite')}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel and pair by hand"
+              style={styles.cancel}
+            >
+              <Text style={font('bold', 13, { color: palette.slate500 })}>Cancel</Text>
+            </PressableScale>
           </>
         )}
       </View>
@@ -94,4 +111,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  cancel: { marginTop: 20, paddingVertical: 10, paddingHorizontal: 16 },
 });

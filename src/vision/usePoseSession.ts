@@ -205,6 +205,7 @@ export function usePoseSession({
 
   const counterRef = useRef<RepCounter>(new RepCounter(definition));
   const countingRef = useRef(counting);
+  // eslint-disable-next-line react-hooks/refs
   countingRef.current = counting;
 
   // Rebuild the counter whenever the exercise changes so thresholds and rep
@@ -388,7 +389,7 @@ export function usePoseSession({
         frame.dispose();
       }
     },
-    [interpreter, handleTensor, posePoints, poseVisible, poseFrame],
+    [interpreter, inputDataType, handleTensor, posePoints, poseVisible, poseFrame],
   );
 
   const frameOutput = useFrameOutput({

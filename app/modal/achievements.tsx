@@ -87,7 +87,7 @@ function AchievementRow({ achievement }: { achievement: Achievement }) {
         {!achievement.earned ? (
           <View style={styles.track}>
             <LinearGradient
-              colors={['#f59e0b', '#fbbf24']}
+              colors={gradients.brand}
               style={[styles.fill, { width: `${percent}%` }]}
             />
           </View>

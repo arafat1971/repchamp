@@ -116,6 +116,9 @@ export default function SessionScreen() {
   const startSession = useSessionStore((s) => s.start);
   const cameraStageRef = useRef<View>(null);
   const cameraRef = useRef<any>(null);
+  // One action shot is grabbed mid-set (camera + pose line live) for the share
+  // card; this latches so we capture exactly once per session.
+  const snapshotCapturedRef = useRef(false);
 
   // The pre-set camera tutorial shows once, then never again. Seeding local
   // state from the persisted flag means dismissing it hides it instantly this
@@ -171,9 +174,13 @@ export default function SessionScreen() {
 
   useEffect(() => {
     startSession({ exercise, mode, duration, target, opponentId: mode === 'versus' ? opponentId : null });
-    // A live duel drives the opponent from the remote seat, so no bot pacer.
+    // Fresh session — allow a new action shot to be captured.
+    snapshotCapturedRef.current = false;
+    // A live duel (duelId set) drives the opponent from the remote seat — no bot.
+    // Key off the route param, NOT live.active: auth can resolve after mount and
+    // flip live.active, which must never re-run startSession and wipe mid-set reps.
     pacerRef.current =
-      mode === 'versus' && !live.active
+      mode === 'versus' && !duelId
         ? new OpponentPacer(opponent, duration, Date.now() % 100000)
         : null;
 
@@ -183,7 +190,7 @@ export default function SessionScreen() {
     // that screen out. `start()` resets state at the beginning of every
     // session, and the result screen's "Done" resets it on the way out.
     return stopSpeaking;
-  }, [exercise, mode, duration, target, opponentId, opponent, startSession, live.active]);
+  }, [exercise, mode, duration, target, opponentId, opponent, startSession, duelId]);
 
   /* ---------------------------------------------------------------- *
    * Pose pipeline
@@ -201,23 +208,29 @@ export default function SessionScreen() {
       if (completedRep) {
         repFeedback();
         myLastRepAt.current = Date.now();
-        if (cameraRef.current && typeof cameraRef.current.takePhoto === 'function') {
-          Promise.resolve()
-            .then(() => cameraRef.current.takePhoto())
-            .then((photo: { path: string }) => {
-              if (photo && photo.path) {
-                const uri = photo.path.startsWith('file://') ? photo.path : `file://${photo.path}`;
-                useSessionStore.getState().setCapturedSnapshotUri(uri);
-              }
-            })
+        if (completedRep.index === 1) {
+          track('first_rep_counted', { exercise });
+        }
+        // Grab one action shot for the share card while the set is live: the
+        // camera preview and the pose-line overlay are both on screen now, but
+        // both are gone the instant the set ends and the camera releases. We
+        // snapshot the stage view (camera + skeleton) rather than the raw camera
+        // still, so the captured image already carries the pose line. Latched to
+        // fire once, after a couple of reps so the athlete is well framed.
+        if (!snapshotCapturedRef.current && completedRep.index >= 1 && cameraStageRef.current) {
+          snapshotCapturedRef.current = true;
+          captureRef(cameraStageRef, { format: 'jpg', quality: 0.85 })
+            .then((uri) => useSessionStore.getState().setCapturedSnapshotUri(uri))
             .catch(() => {
-              // Silently ignore if camera photo capture is not enabled or fails
+              // Capture can fail (e.g. the OS denies a view snapshot); allow a
+              // later rep to try again rather than giving up on the shot.
+              snapshotCapturedRef.current = false;
             });
         }
       }
       useSessionStore.getState().applyPose({ depth, tracking, completedRep });
     },
-    [],
+    [exercise],
   );
 
   /**
@@ -239,6 +252,7 @@ export default function SessionScreen() {
    */
   useEffect(() => {
     if (mode !== 'together' || phase !== 'active') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setInSync(false);
       return;
     }
@@ -300,6 +314,7 @@ export default function SessionScreen() {
    * ---------------------------------------------------------------- */
   useEffect(() => {
     if (phase !== 'calibrating') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCalibrationStalled(false);
       return;
     }
@@ -312,10 +327,13 @@ export default function SessionScreen() {
     // Blocked camera: the Settings gate owns the screen — freeze calibration so
     // nothing advances toward a countdown behind it.
     if (cameraBlocked) return;
+    // Pose model failed: freeze calibration too. Timed ramp used to let a
+    // session complete with 0 tracked reps and still award XP — that is gone.
+    if (modelState === 'error') return;
     // Without a camera (simulator, no front-facing hardware) the athlete would
     // be stuck forever, so fall back to a timed ramp. This deliberately does
-    // NOT cover a *blocked* camera: there we show the Settings gate instead of
-    // handing out reps for a session no camera ever watched.
+    // NOT cover a *blocked* camera or a missing model: those show a gate instead
+    // of handing out reps for a session no pose tracker ever watched.
     if (!cameraReady && !cameraBlocked) {
       const id = setInterval(() => {
         const next = useSessionStore.getState().calibration + 4;
@@ -338,7 +356,7 @@ export default function SessionScreen() {
       return () => clearTimeout(id);
     }
     return undefined;
-  }, [phase, framing, cameraReady, cameraBlocked]);
+  }, [phase, framing, cameraReady, cameraBlocked, modelState]);
 
   /* ---------------------------------------------------------------- *
    * Countdown
@@ -363,6 +381,9 @@ export default function SessionScreen() {
 
     startedAtRef.current = Date.now();
     track('session_started', { exercise, mode });
+    if (mode === 'together') {
+      track('couple_together_started', { exercise });
+    }
     // Filming starts with the set, not with calibration — nobody wants the
     // shuffling-into-position footage in their share card.
     void startRecording();
@@ -374,6 +395,8 @@ export default function SessionScreen() {
           : 'Go! Let us move.',
     );
 
+    // Wall-clock remaining so backgrounding the app can't freeze the timer and
+    // unfairly extend a timed duel (setInterval is throttled off-screen).
     const id = setInterval(() => {
       const elapsed = (Date.now() - startedAtRef.current) / 1000;
       const pacer = pacerRef.current;
@@ -386,12 +409,20 @@ export default function SessionScreen() {
         const form = buildFormReport(definition, s.repRecords).score;
         live.push(s.reps, form);
       }
-      useSessionStore.getState().tickClock();
-    }, 1000);
+      const remaining = Math.max(0, Math.ceil(duration - elapsed));
+      const state = useSessionStore.getState();
+      if (remaining <= 0) {
+        if (state.phase === 'active') useSessionStore.getState().finish();
+        return;
+      }
+      if (remaining !== state.timeLeft) {
+        useSessionStore.setState({ timeLeft: remaining });
+      }
+    }, 250);
 
     return () => clearInterval(id);
     // `startRecording` is intentionally not a dependency: the set starts once.
-  }, [phase, mode, startRecording, live, definition]);
+  }, [phase, mode, duration, startRecording, live, definition, exercise]);
 
   /* ---------------------------------------------------------------- *
    * Hand off to the result screen
@@ -420,9 +451,13 @@ export default function SessionScreen() {
       void recordCoupleSession(couple.id, coupleMe.uid, s.reps, dayKey());
     }
 
-    // Capture real workout photo snapshot for the share card before screen teardown
-    if (cameraStageRef.current) {
-      void captureRef(cameraStageRef, { format: 'png', quality: 0.8 })
+    // Fallback: if no mid-set shot was grabbed (e.g. a very short set with fewer
+    // than two reps), try once more before the camera tears down. The live
+    // capture during reps is preferred — by this point the camera may already be
+    // releasing — but a best-effort frame beats an empty share stage.
+    if (!snapshotCapturedRef.current && cameraStageRef.current) {
+      snapshotCapturedRef.current = true;
+      void captureRef(cameraStageRef, { format: 'jpg', quality: 0.85 })
         .then((uri) => useSessionStore.getState().setCapturedSnapshotUri(uri))
         .catch(() => {});
     }
@@ -437,6 +472,25 @@ export default function SessionScreen() {
       cancelled = true;
     };
   }, [phase, router, stopRecording, live, definition, mode, couple, coupleMe]);
+
+  // Guarantee an action shot for the share card even on a zero-rep set: a short
+  // delay after the set goes live (athlete framed, camera + pose line on screen)
+  // grabs one frame. The rep-completion capture above is preferred and latches
+  // first when reps happen; this is the safety net so the share stage is never
+  // empty when the camera worked.
+  useEffect(() => {
+    if (phase !== 'active' || snapshotCapturedRef.current) return;
+    const t = setTimeout(() => {
+      if (snapshotCapturedRef.current || !cameraStageRef.current) return;
+      snapshotCapturedRef.current = true;
+      captureRef(cameraStageRef, { format: 'jpg', quality: 0.85 })
+        .then((uri) => useSessionStore.getState().setCapturedSnapshotUri(uri))
+        .catch(() => {
+          snapshotCapturedRef.current = false;
+        });
+    }, 1600);
+    return () => clearTimeout(t);
+  }, [phase]);
 
   const giveUp = useCallback(() => {
     stopSpeaking();

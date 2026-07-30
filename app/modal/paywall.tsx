@@ -1,7 +1,8 @@
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import type { PurchasesPackage } from 'react-native-purchases';
 
 import { track } from '@/lib/analytics';
@@ -15,24 +16,29 @@ import {
   restore,
 } from '@/services/purchases';
 import { useProStore } from '@/state/proStore';
+import { showDialog } from '@/state/useDialog';
 import { font, text } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
 
+// Only what Pro genuinely unlocks — the full exercise library and guided
+// programmes (see src/domain/pro.ts). Push-ups, squats, duels and couple mode
+// stay free for everyone, so we never advertise them as paid.
 const BENEFITS = [
-  { emoji: '⚔️', title: 'Unlimited duels', detail: 'Challenge anyone, as often as you like' },
-  { emoji: '📊', title: 'Advanced form stats', detail: 'Per-rep depth and tempo history' },
-  { emoji: '🎯', title: 'Custom targets', detail: 'Set your own rep goals and timers' },
-  { emoji: '🏆', title: 'Priority matchmaking', detail: 'Faster quick matches at your level' },
+  { title: 'Full exercise library', detail: 'Every movement beyond push-ups & squats' },
+  { title: 'Guided programmes', detail: 'Adaptive multi-week training plans' },
+  { title: 'New workouts first', detail: 'Fresh exercises land for members first' },
+  { title: 'Support an indie app', detail: 'Push-ups & squats stay free for everyone' },
 ];
 
 /**
  * Pro upgrade screen — real subscriptions via RevenueCat.
  *
  * Fetches the live offering (localised prices straight from the store),
- * purchases the selected package, and offers Restore (which Apple requires on
- * any paywall). Entitlement truth flows back through `proStore`, never a local
- * flag. When billing isn't configured (placeholder keys) it degrades to an
- * honest "not set up yet" note instead of a fake charge.
+ * purchases the selected package, and offers Restore (required by the stores so
+ * a reinstall can recover Pro). When billing isn't configured (placeholder keys)
+ * it degrades to an honest "not set up yet" note instead of a fake charge.
+ * Android Play billing uses `revenueCatGoogle` only — Apple is optional until
+ * you ship iOS.
  */
 export default function PaywallScreen() {
   const router = useRouter();
@@ -60,6 +66,7 @@ export default function PaywallScreen() {
   // which is the one worth anchoring on.
   useEffect(() => {
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadFailed(false);
 
     fetchOffering()
@@ -105,7 +112,12 @@ export default function PaywallScreen() {
       router.back();
       return;
     }
-    Alert.alert('Purchase failed', result.message ?? 'Please try again.');
+    showDialog({
+      title: 'Purchase failed',
+      message: result.message ?? 'Please try again.',
+      tone: 'danger',
+      actions: [{ label: 'Try again', variant: 'primary' }],
+    });
   };
 
   const onRestore = async () => {
@@ -114,10 +126,20 @@ export default function PaywallScreen() {
     setBusy(false);
     if (result.ok && result.isPro) {
       setPro(true);
-      Alert.alert('Restored', 'Your Pro subscription is active again.');
+      showDialog({
+        title: 'Restored',
+        message: 'Your Pro subscription is active again.',
+        tone: 'success',
+        actions: [{ label: 'Got it', variant: 'primary' }],
+      });
       router.back();
     } else {
-      Alert.alert('Nothing to restore', 'No active subscription was found for this account.');
+      showDialog({
+        title: 'Nothing to restore',
+        message: 'No active subscription was found for this account.',
+        tone: 'info',
+        actions: [{ label: 'Got it', variant: 'primary' }],
+      });
     }
   };
 
@@ -126,8 +148,17 @@ export default function PaywallScreen() {
       <ModalHeader title="RepChamp Pro" subtitle="Unlock the full library and programmes" />
 
       <LinearGradient colors={gradients.brandDeep} style={[styles.hero, shadow.brand]}>
-        <Text style={{ fontSize: 48 }}>✨</Text>
-        <Text style={font('extrabold', 24, { color: palette.white, marginTop: 8 })}>
+        <View style={styles.heroBadge}>
+          <Image
+            source={require('../../assets/logo.png')}
+            style={styles.heroLogo}
+            contentFit="contain"
+          />
+        </View>
+        <View style={styles.heroProTag}>
+          <Text style={styles.heroProTagText}>PRO</Text>
+        </View>
+        <Text style={font('extrabold', 24, { color: palette.white, marginTop: 12 })}>
           Train without limits
         </Text>
         <Text style={styles.heroCopy}>Everything in RepChamp, unlocked.</Text>
@@ -137,7 +168,7 @@ export default function PaywallScreen() {
         {BENEFITS.map((b) => (
           <Card key={b.title} style={styles.benefit}>
             <View style={styles.benefitIcon}>
-              <Text style={{ fontSize: 20 }}>{b.emoji}</Text>
+              <Text style={styles.benefitCheck}>✓</Text>
             </View>
             <View style={{ flex: 1 }}>
               <Text style={text.cardTitle}>{b.title}</Text>
@@ -311,6 +342,25 @@ function savingsBadge(annual: PurchasesPackage, all: PurchasesPackage[]): string
 
 const styles = StyleSheet.create({
   hero: { borderRadius: radius['6xl'], padding: 26, alignItems: 'center' },
+  heroBadge: {
+    width: 72,
+    height: 72,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroLogo: { width: 44, height: 44, borderRadius: 12, overflow: 'hidden' },
+  heroProTag: {
+    marginTop: 12,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+  },
+  heroProTagText: { ...font('extrabold', 11, { color: palette.white }), letterSpacing: 3 },
   heroCopy: {
     ...font('semibold', 13, { color: 'rgba(255,255,255,0.9)' }),
     marginTop: 4,
@@ -318,13 +368,14 @@ const styles = StyleSheet.create({
   },
   benefit: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14 },
   benefitIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.lg,
-    backgroundColor: palette.green50,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: palette.green500,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  benefitCheck: font('extrabold', 18, { color: palette.white }),
   planTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   planBadge: {
     backgroundColor: palette.green50,

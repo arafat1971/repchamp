@@ -5,7 +5,8 @@ import {
   PlusJakartaSans_800ExtraBold,
   useFonts,
 } from '@expo-google-fonts/plus-jakarta-sans';
-import { Stack } from 'expo-router';
+import * as Notifications from 'expo-notifications';
+import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -13,17 +14,21 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { DialogHost } from '@/components/ui/DialogHost';
 import { prepareAudio, releaseAudio } from '@/lib/feedback';
 import { identify, track } from '@/lib/analytics';
 import { initAppCheck } from '@/lib/appCheck';
 import { initCrashReporting, setCrashUser } from '@/lib/crash';
 import {
+  cancelDailyTrainingReminder,
   installForegroundNudgeSuppressor,
   registerForPushNudges,
+  scheduleDailyTrainingReminder,
   scheduleWeeklyRecap,
 } from '@/lib/notifications';
 import { useAuthStore } from '@/state/authStore';
 import { useProStore } from '@/state/proStore';
+import { useSettingsStore } from '@/state/settingsStore';
 import { fontFamily } from '@/theme/typography';
 import { palette } from '@/theme/tokens';
 
@@ -32,6 +37,7 @@ import { palette } from '@/theme/tokens';
 void SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  const router = useRouter();
   const [fontsLoaded, fontError] = useFonts({
     [fontFamily.medium]: PlusJakartaSans_500Medium,
     [fontFamily.semibold]: PlusJakartaSans_600SemiBold,
@@ -49,6 +55,17 @@ export default function RootLayout() {
     return releaseAudio;
   }, []);
 
+  // Tap handlers for local/push notifications — weekly recap opens the recap modal.
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const type = response.notification.request.content.data?.type;
+      if (type === 'weekly-recap') {
+        router.push('/modal/recap');
+      }
+    });
+    return () => sub.remove();
+  }, [router]);
+
   // Establish the (anonymous) account and start cloud sync. A no-op that just
   // marks itself ready when Firebase isn't provisioned yet.
   const initializeAuth = useAuthStore((s) => s.initialize);
@@ -64,6 +81,15 @@ export default function RootLayout() {
     // means re-scheduling on every launch replaces rather than stacks.
     void scheduleWeeklyRecap();
   }, []);
+
+  // Keep the solo daily reminders in step with the setting: (re)arm the three
+  // fixed schedules while enabled, clear them when off. Fixed ids mean launching
+  // repeatedly just refreshes rather than stacks.
+  const dailyReminder = useSettingsStore((s) => s.dailyReminder);
+  useEffect(() => {
+    if (dailyReminder) void scheduleDailyTrainingReminder();
+    else void cancelDailyTrainingReminder();
+  }, [dailyReminder]);
 
   // Once signed in, register this device for push nudges so a partner's poke can
   // reach it even when closed. No-ops until Firebase is provisioned.
@@ -113,6 +139,7 @@ export default function RootLayout() {
             <Stack.Screen name="duel/queue" options={{ animation: 'slide_from_bottom' }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
           </Stack>
+          <DialogHost />
         </SafeAreaProvider>
       </GestureHandlerRootView>
     </ErrorBoundary>

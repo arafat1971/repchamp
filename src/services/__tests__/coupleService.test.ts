@@ -16,6 +16,19 @@
 
 import type { Couple } from '../../domain/couple';
 
+/* ------------------------------------------------------------------ */
+
+import {
+  createCouple,
+  joinCoupleByCode,
+  leaveCouple,
+  nudgePartner,
+  recordCoupleSession,
+  watchCouple,
+  watchMyCouple,
+} from '../coupleService';
+import { PAIR_CODE_LENGTH } from '../../domain/couple';
+
 const mockState = { configured: true };
 
 const mockStore: {
@@ -65,7 +78,7 @@ function mockDocRef(col: string, id: string) {
   };
 }
 
-function mockQuery(col: string, filters: Array<[string, string, unknown]>, limit: number | null) {
+function mockQuery(col: string, filters: [string, string, unknown][], limit: number | null) {
   const matches = () =>
     [...mockCol(col).entries()].filter(([, data]) =>
       filters.every(([f, op, v]) =>
@@ -127,19 +140,6 @@ jest.mock('@react-native-firebase/storage', () => ({
   __esModule: true,
   default: () => ({ ref: () => ({}) }),
 }));
-
-/* ------------------------------------------------------------------ */
-
-import {
-  createCouple,
-  joinCoupleByCode,
-  leaveCouple,
-  nudgePartner,
-  recordCoupleSession,
-  watchCouple,
-  watchMyCouple,
-} from '../coupleService';
-import { PAIR_CODE_LENGTH } from '../../domain/couple';
 
 const ADA = { uid: 'ada', displayName: 'Ada' };
 const BEA = { uid: 'bea', displayName: 'Bea' };

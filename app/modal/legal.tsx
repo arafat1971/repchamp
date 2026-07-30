@@ -2,7 +2,7 @@ import { useLocalSearchParams } from 'expo-router';
 
 import { ModalHeader } from '@/components/ModalHeader';
 import { Card, Eyebrow, PressableScale, Screen } from '@/components/ui';
-import { PRIVACY_URL, TERMS_URL } from '@/lib/urls';
+import { PRIVACY_URL, TERMS_URL, SUPPORT_EMAIL } from '@/lib/urls';
 import { font, text } from '@/theme/typography';
 import { palette } from '@/theme/tokens';
 import { Linking, StyleSheet, Text, View } from 'react-native';
@@ -81,7 +81,7 @@ export default function LegalScreen() {
 
         <Section title="Contact">
           <Para>
-            Questions about your data? Email privacy@repchamp.gg and we'll respond.
+            Questions about your data? Email {SUPPORT_EMAIL} and we&apos;ll respond.
           </Para>
         </Section>
       </Card>
@@ -100,8 +100,8 @@ export default function LegalScreen() {
 
         <Section title="Your account">
           <Para>
-            You're responsible for activity under your account and for keeping
-            your login secure. Don't upload content you don't have the right to,
+            You&apos;re responsible for activity under your account and for keeping
+            your login secure. Don&apos;t upload content you don&apos;t have the right to,
             impersonate others, cheat the leaderboard, or try to disrupt the
             service for other athletes.
           </Para>

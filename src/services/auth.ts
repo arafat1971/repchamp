@@ -48,7 +48,9 @@ export function isGoogleAuthConfigured(): boolean {
   return isFirebaseConfigured() && googleWebClientId() !== null;
 }
 
-/** Stable local identity used before/without a backend. */
+/** Stable local identity used before/without a backend. Exported so authStore
+ *  can assign it when Firebase is unconfigured (otherwise `user` stays null and
+ *  every cloud-gated screen dead-ends). */
 const LOCAL_USER: AuthUser = {
   uid: 'local-device-user',
   isAnonymous: true,

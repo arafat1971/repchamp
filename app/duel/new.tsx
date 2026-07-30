@@ -3,10 +3,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { useAuthStore } from '@/state/authStore';
 import Animated, { FadeInDown, FadeInUp, ZoomIn } from 'react-native-reanimated';
 
 import { ModalHeader } from '@/components/ModalHeader';
 import { PressableScale, Screen } from '@/components/ui';
+import { useProfileStore } from '@/state/profileStore';
 import { font } from '@/theme/typography';
 import { palette, radius, shadow } from '@/theme/tokens';
 import type { ExerciseId } from '@/vision/exercises';
@@ -14,9 +16,39 @@ import type { ExerciseId } from '@/vision/exercises';
 const IC_PUSHUP = require('../../assets/ic-pushup.png');
 const IC_SQUAT = require('../../assets/ic-squat.png');
 
-const EXERCISES: { id: ExerciseId; label: string; emoji: string; desc: string; color: string }[] = [
-  { id: 'push', label: 'Push-Ups', emoji: '💪', desc: 'Upper body power', color: '#22c55e' },
-  { id: 'squat', label: 'Squats', emoji: '🦵', desc: 'Lower body strength', color: '#8b5cf6' },
+const EXERCISES: {
+  id: ExerciseId;
+  label: string;
+  emoji: string;
+  desc: string;
+  color: string;
+  /** Whole-tile wash when selected. */
+  tintBg: string;
+  /** Icon squircle gradient when selected. */
+  soft: readonly [string, string];
+  /** Soft accent ring around the icon squircle when selected. */
+  ring: string;
+}[] = [
+  {
+    id: 'push',
+    label: 'Push-Ups',
+    emoji: '💪',
+    desc: 'Upper body power',
+    color: '#16a34a',
+    tintBg: '#f0fdf4',
+    soft: ['#dcfce7', '#bbf7d0'],
+    ring: 'rgba(34,197,94,0.35)',
+  },
+  {
+    id: 'squat',
+    label: 'Squats',
+    emoji: '🦵',
+    desc: 'Lower body strength',
+    color: '#7c3aed',
+    tintBg: '#faf5ff',
+    soft: ['#f3e8ff', '#e9d5ff'],
+    ring: 'rgba(139,92,246,0.35)',
+  },
 ];
 
 const DURATIONS: { value: number; label: string; desc: string }[] = [
@@ -38,6 +70,9 @@ const DURATIONS: { value: number; label: string; desc: string }[] = [
  */
 export default function DuelNewScreen() {
   const router = useRouter();
+  const user = useAuthStore((s) => s.user);
+  const avatarUri = useProfileStore((s) => s.avatarUri);
+  const displayName = useProfileStore((s) => s.displayName);
   const params = useLocalSearchParams<{
     role?: string;
     target?: string;
@@ -81,15 +116,10 @@ export default function DuelNewScreen() {
 
       {/* ── Hero Preview Card ── */}
       <Animated.View entering={FadeInDown.duration(500)}>
-        <LinearGradient
-          colors={['#0f172a', '#1e293b', '#334155']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.heroCard}
-        >
+        <View style={styles.heroCard}>
           <View style={styles.heroTopRow}>
             <View style={styles.heroBadge}>
-              <Text style={{ fontSize: 11 }}>⚔️</Text>
+              <View style={styles.heroBadgeDot} />
               <Text style={styles.heroBadgeText}>
                 {params.queue === '1' ? 'OPEN MATCH' : isTargeted ? 'DIRECT CHALLENGE' : 'DUEL SETUP'}
               </Text>
@@ -98,8 +128,18 @@ export default function DuelNewScreen() {
 
           <View style={styles.heroVsRow}>
             <View style={styles.heroPlayerCol}>
-              <View style={[styles.heroAvatarRing, { borderColor: '#22c55e' }]}>
-                <Text style={{ fontSize: 22 }}>🙋</Text>
+              <View style={[styles.heroAvatarRing, styles.heroAvatarRingSelf]}>
+                {(avatarUri ?? user?.photoURL) ? (
+                  <Image
+                    source={{ uri: (avatarUri ?? user?.photoURL) as string }}
+                    style={styles.heroAvatarImage}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <Text style={[styles.avatarInitial, { color: palette.green600 }]}>
+                    {(displayName || user?.displayName)?.[0]?.toUpperCase() || 'U'}
+                  </Text>
+                )}
               </View>
               <Text style={styles.heroPlayerName}>You</Text>
             </View>
@@ -109,8 +149,12 @@ export default function DuelNewScreen() {
             </Animated.View>
 
             <View style={styles.heroPlayerCol}>
-              <View style={[styles.heroAvatarRing, { borderColor: '#ef4444' }]}>
-                <Text style={{ fontSize: 22 }}>{isTargeted ? '😤' : '❓'}</Text>
+              <View style={[styles.heroAvatarRing, styles.heroAvatarRingRival]}>
+                {isTargeted ? (
+                  <Text style={styles.avatarInitial}>{params.name ? params.name?.[0]?.toUpperCase() : 'R'}</Text>
+                ) : (
+                  <Text style={styles.avatarInitialWaiting}>?</Text>
+                )}
               </View>
               <Text style={styles.heroPlayerName} numberOfLines={1}>
                 {params.name ?? 'Rival'}
@@ -118,28 +162,25 @@ export default function DuelNewScreen() {
             </View>
           </View>
 
-          {/* Live config display */}
+          {/* Live config summary — editorial spec row: muted caption over a
+              bold value, so the choices read at a glance without emoji noise. */}
           <View style={styles.configPreview}>
             <View style={styles.configItem}>
-              <Image
-                source={exercise === 'squat' ? IC_SQUAT : IC_PUSHUP}
-                style={styles.configIcon}
-                contentFit="contain"
-              />
-              <Text style={styles.configValue}>{selectedExercise.label}</Text>
+              <Text style={styles.configLabel}>EXERCISE</Text>
+              <Text style={styles.configValue} numberOfLines={1}>{selectedExercise.label}</Text>
             </View>
             <View style={styles.configDivider} />
             <View style={styles.configItem}>
-              <Text style={{ fontSize: 16 }}>⏱</Text>
+              <Text style={styles.configLabel}>TIME</Text>
               <Text style={styles.configValue}>{duration}s</Text>
             </View>
             <View style={styles.configDivider} />
             <View style={styles.configItem}>
-              <Text style={{ fontSize: 16 }}>🎯</Text>
-              <Text style={styles.configValue}>{selectedDuration.desc}</Text>
+              <Text style={styles.configLabel}>INTENSITY</Text>
+              <Text style={styles.configValue} numberOfLines={1}>{selectedDuration.desc}</Text>
             </View>
           </View>
-        </LinearGradient>
+        </View>
       </Animated.View>
 
       {/* ── Exercise Picker ── */}
@@ -154,25 +195,43 @@ export default function DuelNewScreen() {
                 onPress={() => setExercise(ex.id)}
                 accessibilityRole="button"
                 accessibilityLabel={ex.label}
+                accessibilityState={{ selected }}
                 style={[
                   styles.exerciseTile,
-                  selected && { borderColor: ex.color, backgroundColor: `${ex.color}08` },
+                  selected && {
+                    backgroundColor: ex.tintBg,
+                    shadowColor: ex.color,
+                    shadowOpacity: 0.28,
+                    shadowRadius: 18,
+                    elevation: 7,
+                  },
                 ]}
               >
-                <View style={[styles.exerciseIconWrap, { backgroundColor: selected ? `${ex.color}15` : '#f8fafc' }]}>
+                <LinearGradient
+                  colors={selected ? ex.soft : ['#f8fafc', '#eef2f6']}
+                  start={{ x: 0.2, y: 0 }}
+                  end={{ x: 0.85, y: 1 }}
+                  style={[
+                    styles.exerciseIconWrap,
+                    selected && { borderColor: ex.ring },
+                  ]}
+                >
                   <Image
                     source={ex.id === 'squat' ? IC_SQUAT : IC_PUSHUP}
                     style={styles.exerciseImg}
                     contentFit="contain"
                   />
-                </View>
+                </LinearGradient>
                 <Text style={[styles.exerciseTitle, selected && { color: ex.color }]}>
                   {ex.label}
                 </Text>
                 <Text style={styles.exerciseDesc}>{ex.desc}</Text>
                 {selected ? (
-                  <Animated.View entering={ZoomIn.duration(250)} style={[styles.selectedDot, { backgroundColor: ex.color }]}>
-                    <Text style={{ fontSize: 10, color: '#fff' }}>✓</Text>
+                  <Animated.View
+                    entering={ZoomIn.duration(250)}
+                    style={[styles.selectedDot, { backgroundColor: ex.color, shadowColor: ex.color }]}
+                  >
+                    <Text style={styles.selectedCheck}>✓</Text>
                   </Animated.View>
                 ) : null}
               </PressableScale>
@@ -193,11 +252,14 @@ export default function DuelNewScreen() {
                 onPress={() => setDuration(d.value)}
                 accessibilityRole="button"
                 accessibilityLabel={`${d.value} seconds`}
+                accessibilityState={{ selected }}
               >
                 {selected ? (
                   <LinearGradient
                     colors={['#22c55e', '#15803d']}
-                    style={styles.durationChip}
+                    start={{ x: 0.2, y: 0 }}
+                    end={{ x: 0.85, y: 1 }}
+                    style={[styles.durationChip, styles.durationChipSelected]}
                   >
                     <Text style={styles.durationValueSelected}>{d.label}</Text>
                     <Text style={styles.durationDescSelected}>{d.desc}</Text>
@@ -223,8 +285,8 @@ export default function DuelNewScreen() {
             end={{ x: 1, y: 1 }}
             style={[styles.startBtn, shadow.brand]}
           >
-            <Text style={font('extrabold', 17, { color: palette.white })}>
-              {params.queue === '1' ? '🔍 Find Opponent' : '⚔️ Send Challenge'}
+            <Text style={font('extrabold', 17, { color: palette.white, letterSpacing: 0.3 })}>
+              {params.queue === '1' ? 'Find Opponent' : 'Send Challenge'}
             </Text>
           </LinearGradient>
         </PressableScale>
@@ -237,22 +299,31 @@ const styles = StyleSheet.create({
   /* ── Hero Card ── */
   heroCard: {
     borderRadius: radius['4xl'],
-    padding: 22,
+    padding: 24,
     marginBottom: 8,
-    gap: 18,
+    gap: 24,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 15,
+    elevation: 4,
   },
   heroTopRow: { alignItems: 'flex-start' },
   heroBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    gap: 7,
+    backgroundColor: palette.green50,
     borderRadius: radius.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 11,
+    paddingVertical: 5,
   },
+  heroBadgeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: palette.green500 },
   heroBadgeText: {
-    ...font('extrabold', 9, { color: 'rgba(255,255,255,0.7)' }),
+    ...font('extrabold', 9, { color: palette.green700 }),
     letterSpacing: 1.5,
   },
   heroVsRow: {
@@ -262,42 +333,67 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   heroPlayerCol: { alignItems: 'center', gap: 8, flex: 1 },
+  heroAvatarImage: { width: "100%", height: "100%", borderRadius: 45 },
+  avatarInitial: font("extrabold", 32, { color: palette.slate500 }),
+  // The unknown rival: a lighter glyph so the "?" reads as a placeholder
+  // waiting to be filled rather than a real initial.
+  avatarInitialWaiting: font("extrabold", 32, { color: palette.slate400 }),
   heroAvatarRing: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    borderWidth: 2.5,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    borderWidth: 3,
+    backgroundColor: '#f8fafc',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  // You — the protagonist: brand ring with a soft green wash behind the
+  // initial. (An outer glow can't show here: the ring clips to a circle with
+  // overflow:hidden, which masks iOS shadows.)
+  heroAvatarRingSelf: {
+    borderColor: palette.green500,
+    backgroundColor: palette.green50,
+  },
+  // Rival — neutral until matched, so it never fights the brand accent.
+  heroAvatarRingRival: {
+    borderColor: '#cbd5e1',
+    backgroundColor: '#f8fafc',
   },
   heroPlayerName: {
-    ...font('extrabold', 12, { color: 'rgba(255,255,255,0.85)' }),
+    ...font('extrabold', 14, { color: palette.slate900 }),
     maxWidth: 100,
     textAlign: 'center',
   },
   vsCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(239,68,68,0.2)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(239,68,68,0.4)',
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: palette.slate900,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  vsText: font('extrabold', 14, { color: '#ef4444' }),
+  vsText: { ...font('extrabold', 13, { color: palette.white }), letterSpacing: 0.5 },
   configPreview: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    alignItems: 'center',
+    backgroundColor: '#f6f8f6',
     borderRadius: radius['2xl'],
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 8,
   },
-  configItem: { flex: 1, alignItems: 'center', gap: 4 },
-  configIcon: { width: 20, height: 20 },
-  configValue: font('extrabold', 11, { color: 'rgba(255,255,255,0.85)' }),
-  configDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.1)' },
+  configItem: { flex: 1, alignItems: 'center', gap: 5, paddingHorizontal: 4 },
+  configLabel: {
+    ...font('extrabold', 9, { color: palette.slate400 }),
+    letterSpacing: 1,
+  },
+  configValue: font('extrabold', 14.5, { color: palette.slate900 }),
+  configDivider: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', marginVertical: 4, backgroundColor: palette.border },
 
   /* ── Section ── */
   sectionLabel: {
@@ -312,40 +408,49 @@ const styles = StyleSheet.create({
   exerciseTile: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 18,
+    paddingVertical: 20,
     paddingHorizontal: 10,
     borderRadius: radius['3xl'],
     backgroundColor: palette.white,
-    borderWidth: 2,
-    borderColor: '#e2e8f0',
-    gap: 8,
+    gap: 10,
     position: 'relative',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
+    // Soft neutral lift at rest; the selected state swaps in an accent glow.
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.07,
+    shadowRadius: 14,
     elevation: 2,
   },
   exerciseIconWrap: {
-    width: 52,
-    height: 52,
+    width: 78,
+    height: 78,
+    // Squircle rather than a full circle — reads more modern/premium.
     borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
+    // Ring stays reserved so the layout doesn't shift on selection; it only
+    // gains colour when the tile is active.
+    borderWidth: 2,
+    borderColor: 'transparent',
   },
-  exerciseImg: { width: 32, height: 32 },
-  exerciseTitle: font('extrabold', 14, { color: palette.ink }),
-  exerciseDesc: font('bold', 10, { color: palette.grey500 }),
+  exerciseImg: { width: 58, height: 50 },
+  exerciseTitle: font('extrabold', 16.5, { color: palette.ink }),
+  exerciseDesc: { ...font('bold', 10.5, { color: palette.grey500 }), marginTop: -2 },
   selectedDot: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    top: 10,
+    right: 10,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 5,
+    elevation: 3,
   },
+  selectedCheck: font('extrabold', 11, { color: '#fff' }),
 
   /* ── Duration Chips ── */
   durationRow: { flexDirection: 'row', gap: 8 },
@@ -353,20 +458,32 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
+    paddingVertical: 15,
     borderRadius: radius['2xl'],
     gap: 2,
     minWidth: 72,
   },
+  // Border-free at rest — a soft neutral lift matches the exercise tiles.
   durationChipDefault: {
     backgroundColor: palette.white,
-    borderWidth: 1.5,
-    borderColor: '#e2e8f0',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  // Selected chip carries a brand-green glow so it clearly leads the row.
+  durationChipSelected: {
+    shadowColor: '#16a34a',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.32,
+    shadowRadius: 14,
+    elevation: 6,
   },
   durationValue: font('extrabold', 16, { color: palette.ink }),
   durationDesc: font('bold', 9, { color: palette.grey500 }),
   durationValueSelected: font('extrabold', 16, { color: palette.white }),
-  durationDescSelected: font('bold', 9, { color: 'rgba(255,255,255,0.8)' }),
+  durationDescSelected: font('bold', 9, { color: 'rgba(255,255,255,0.85)' }),
 
   /* ── Start Button ── */
   startBtn: {

@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View , TextInput } from 'react-native';
 
 import { Avatar, Card, Divider, Eyebrow, PressableScale, Screen } from '@/components/ui';
 import { captureError } from '@/lib/crash';
@@ -12,7 +12,6 @@ import { useProfileStore } from '@/state/profileStore';
 import { font, text } from '@/theme/typography';
 import { palette, radius } from '@/theme/tokens';
 
-import { TextInput } from 'react-native';
 import { StaggerIn } from '@/components/motion';
 
 /** Avatar tints, keyed by opponent id, matching the design. */
@@ -24,6 +23,18 @@ const TINTS: Record<string, { background: string; color: string }> = {
 
 function tint(id: string) {
   return TINTS[id] ?? { background: palette.green50, color: palette.green700 };
+}
+
+/**
+ * A small "AI" badge for bot rivals and seeded partners, so they're never
+ * mistaken for real people. Real cloud friends deliberately never get it.
+ */
+function AiTag({ style }: { style?: object }) {
+  return (
+    <View style={[styles.aiTag, style]}>
+      <Text style={styles.aiTagText}>AI</Text>
+    </View>
+  );
 }
 
 export default function FriendsScreen() {
@@ -77,7 +88,10 @@ export default function FriendsScreen() {
       <StaggerIn index={0}>
         <Text style={[text.h1, { marginTop: 14, marginBottom: 16 }]}>Friends</Text>
         <View style={styles.searchBar}>
-          <Text style={{ fontSize: 16, marginRight: 8 }}>🔍</Text>
+          <View style={styles.searchIcon}>
+            <View style={styles.searchGlass} />
+            <View style={styles.searchHandle} />
+          </View>
           <TextInput
             value={search}
             onChangeText={setSearch}
@@ -119,6 +133,7 @@ export default function FriendsScreen() {
                 online
               />
               <Text style={[styles.onlineName, { color: palette.ink }]}>{o.name}</Text>
+              <AiTag style={{ marginTop: 1, alignSelf: 'center' }} />
             </PressableScale>
           ))}
 
@@ -144,6 +159,7 @@ export default function FriendsScreen() {
                 online
               />
               <Text style={[styles.onlineName, { color: palette.ink }]}>{p.name.split(' ')[0]}</Text>
+              <AiTag style={{ marginTop: 1, alignSelf: 'center' }} />
             </PressableScale>
           ))}
         </View>
@@ -166,7 +182,10 @@ export default function FriendsScreen() {
                       color={p.tintColor}
                     />
                     <View>
-                      <Text style={text.cardTitle}>{p.name}</Text>
+                      <View style={styles.nameRow}>
+                        <Text style={text.cardTitle}>{p.name}</Text>
+                        <AiTag />
+                      </View>
                       <Text style={font('semibold', 11, {
                         color: p.online ? palette.green500 : palette.grey600,
                       })}>
@@ -184,13 +203,9 @@ export default function FriendsScreen() {
                     }
                     accessibilityRole="button"
                     accessibilityLabel={`Duel ${p.name}`}
-                    style={[styles.duelButton, !p.online && styles.nudgeButton]}
+                    style={styles.duelButton}
                   >
-                    <Text style={font('extrabold', 12, {
-                      color: p.online ? palette.white : palette.grey600,
-                    })}>
-                      {p.online ? 'Duel' : 'Nudge'}
-                    </Text>
+                    <Text style={font('extrabold', 12, { color: palette.white })}>Duel</Text>
                   </PressableScale>
                 </View>
               </View>
@@ -222,7 +237,10 @@ export default function FriendsScreen() {
                     color={tint(o.id).color}
                   />
                   <View>
-                    <Text style={text.cardTitle}>{o.name}</Text>
+                    <View style={styles.nameRow}>
+                      <Text style={text.cardTitle}>{o.name}</Text>
+                      <AiTag />
+                    </View>
                     <Text
                       style={font('semibold', 11, {
                         color: o.online ? palette.green500 : palette.grey600,
@@ -238,15 +256,9 @@ export default function FriendsScreen() {
                   onPress={() => duel(o)}
                   accessibilityRole="button"
                   accessibilityLabel={`Duel ${o.name}`}
-                  style={[styles.duelButton, !o.online && styles.nudgeButton]}
+                  style={styles.duelButton}
                 >
-                  <Text
-                    style={font('extrabold', 12, {
-                      color: o.online ? palette.white : palette.grey600,
-                    })}
-                  >
-                    {o.online ? 'Duel' : 'Nudge'}
-                  </Text>
+                  <Text style={font('extrabold', 12, { color: palette.white })}>Duel</Text>
                 </PressableScale>
               </View>
             </View>
@@ -321,6 +333,27 @@ const styles = StyleSheet.create({
     borderColor: palette.border,
     marginBottom: 4,
   },
+  searchIcon: { width: 16, height: 16, marginRight: 10 },
+  searchGlass: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: 11,
+    height: 11,
+    borderRadius: 5.5,
+    borderWidth: 1.6,
+    borderColor: palette.grey450,
+  },
+  searchHandle: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 6,
+    height: 1.8,
+    borderRadius: 1,
+    backgroundColor: palette.grey450,
+    transform: [{ rotate: '45deg' }],
+  },
   searchInput: {
     flex: 1,
     ...font('semibold', 13, { color: palette.ink }),
@@ -354,5 +387,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: radius.lg,
   },
-  nudgeButton: { backgroundColor: '#eef2ee' },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  aiTag: {
+    backgroundColor: palette.green50,
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    alignSelf: 'flex-start',
+  },
+  aiTagText: font('extrabold', 8.5, { color: palette.green700, letterSpacing: 0.3 }),
 });

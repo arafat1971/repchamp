@@ -1,13 +1,18 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Share, StyleSheet, Text, View } from 'react-native';
+import { Share, StyleSheet, Text, View } from 'react-native';
 
 import { ModalHeader } from '@/components/ModalHeader';
 import { Card, Chevron, Divider, Eyebrow, PressableScale, Screen, Toggle } from '@/components/ui';
 import { captureError } from '@/lib/crash';
+import {
+  cancelDailyTrainingReminder,
+  scheduleDailyTrainingReminder,
+} from '@/lib/notifications';
 import { clearAllStorage } from '@/lib/storage';
 import { deleteAccount, exportAccountData } from '@/services/accountService';
 import { useAuthStore } from '@/state/authStore';
+import { showDialog } from '@/state/useDialog';
 import { useProfileStore } from '@/state/profileStore';
 import { useSettingsStore, type SettingsToggle } from '@/state/settingsStore';
 import { font, text } from '@/theme/typography';
@@ -33,6 +38,12 @@ const WORKOUT_TOGGLES: ToggleRow[] = [
 
 const PRIVACY_TOGGLES: ToggleRow[] = [
   { key: 'duelInvites', emoji: '🔔', title: 'Duel invites', subtitle: 'Get notified when challenged' },
+  {
+    key: 'dailyReminder',
+    emoji: '⏰',
+    title: 'Daily reminders',
+    subtitle: 'Come-train nudges, 3 times a day',
+  },
   {
     key: 'privateProfile',
     emoji: '🔒',
@@ -61,14 +72,16 @@ export default function SettingsScreen() {
   const [busy, setBusy] = useState<null | 'export' | 'delete'>(null);
 
   const logOut = () => {
-    Alert.alert(
-      'Log out?',
-      'This clears your profile, session history and XP on this device. It cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
+    showDialog({
+      title: 'Log out?',
+      message:
+        'This clears your profile, session history and XP on this device. It cannot be undone.',
+      tone: 'danger',
+      actions: [
+        { label: 'Cancel', variant: 'cancel' },
         {
-          text: 'Log out',
-          style: 'destructive',
+          label: 'Log out',
+          variant: 'destructive',
           onPress: () => {
             // Sign out of the cloud first (no-op when unconfigured), then wipe
             // the local device so nothing lingers behind.
@@ -79,7 +92,7 @@ export default function SettingsScreen() {
           },
         },
       ],
-    );
+    });
   };
 
   /**
@@ -94,16 +107,24 @@ export default function SettingsScreen() {
     try {
       const data = await exportAccountData(uid ?? '');
       if (!data) {
-        Alert.alert(
-          'Nothing to export yet',
-          'Your data lives only on this device — connect cloud sync to enable a portable export.',
-        );
+        showDialog({
+          title: 'Nothing to export yet',
+          message:
+            'Your data lives only on this device — connect cloud sync to enable a portable export.',
+          tone: 'info',
+          actions: [{ label: 'Got it', variant: 'primary' }],
+        });
         return;
       }
       await Share.share({ message: JSON.stringify(data, null, 2) });
     } catch (error) {
       captureError(error);
-      Alert.alert('Export failed', 'Could not gather your data right now. Please try again.');
+      showDialog({
+        title: 'Export failed',
+        message: 'Could not gather your data right now. Please try again.',
+        tone: 'danger',
+        actions: [{ label: 'Try again', variant: 'primary' }],
+      });
     } finally {
       setBusy(null);
     }
@@ -116,14 +137,16 @@ export default function SettingsScreen() {
    * confirmations, because it cannot be undone.
    */
   const confirmDelete = () => {
-    Alert.alert(
-      'Delete account?',
-      'This permanently erases your profile, XP, leaderboard standing and shared couple data from the cloud and this device. It cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
+    showDialog({
+      title: 'Delete account?',
+      message:
+        'This permanently erases your profile, XP, leaderboard standing and shared couple data from the cloud and this device. It cannot be undone.',
+      tone: 'danger',
+      actions: [
+        { label: 'Cancel', variant: 'cancel' },
         {
-          text: 'Delete everything',
-          style: 'destructive',
+          label: 'Delete everything',
+          variant: 'destructive',
           onPress: () => {
             if (busy) return;
             setBusy('delete');
@@ -145,7 +168,7 @@ export default function SettingsScreen() {
           },
         },
       ],
-    );
+    });
   };
 
   const renderGroup = (rows: ToggleRow[]) => (
@@ -161,7 +184,20 @@ export default function SettingsScreen() {
             </View>
             <Toggle
               value={settings[row.key]}
-              onChange={(next) => settings.set(row.key, next)}
+              onChange={(next) => {
+                settings.set(row.key, next);
+                // The daily-reminder toggle owns real OS schedules, so arm or
+                // clear them the moment it flips.
+                if (row.key === 'dailyReminder') {
+                  if (next) void scheduleDailyTrainingReminder();
+                  else void cancelDailyTrainingReminder();
+                }
+                // Privacy toggle re-syncs immediately so the leaderboard row is
+                // pulled (or restored) right away, not on the next session.
+                if (row.key === 'privateProfile') {
+                  void useAuthStore.getState().pushProfile();
+                }
+              }}
               label={row.title}
             />
           </View>

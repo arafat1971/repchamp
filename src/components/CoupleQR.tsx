@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import QRCode from 'qrcode';
 import Svg, { Rect } from 'react-native-svg';
 
-import { inviteLink } from '@/domain/couple';
+import { inviteDeepLink } from '@/domain/couple';
 import { palette } from '@/theme/tokens';
 
 /**
@@ -15,15 +15,17 @@ import { palette } from '@/theme/tokens';
  * correction is forced to level **H** (~30% recoverable), which is what lets the
  * centre logo punch a hole in the code without breaking scannability.
  *
- * The payload is the invite *link* (`https://repchamp.gg/couple/join?code=…`),
- * so a partner can scan it with any phone camera / Google Lens and be taken
- * straight into pairing — not only with the in-app scanner. The in-app scanner
- * parses the code back out of the link (`parseInviteCode`).
+ * The payload is the app's own deep link (`repchamp://couple/join?code=…`), so a
+ * partner scanning it with *any* phone camera / Google Lens is offered "Open in
+ * RepChamp" and lands straight in pairing — not only via the in-app scanner. The
+ * web `inviteLink` needs universal links configured to do the same, so it is
+ * reserved for the shared text message instead. Either form is understood by the
+ * in-app scanner, which parses the code back out with `parseInviteCode`.
  */
 export function CoupleQR({ code, size = 232 }: { code: string; size?: number }) {
   const { modules, count } = useMemo(() => {
     // `create` throws only on absurd input; an invite link never will.
-    const qr = QRCode.create(inviteLink(code), { errorCorrectionLevel: 'H' });
+    const qr = QRCode.create(inviteDeepLink(code), { errorCorrectionLevel: 'H' });
     return { modules: qr.modules.data, count: qr.modules.size };
   }, [code]);
 

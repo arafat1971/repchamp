@@ -17,12 +17,10 @@ rules_version = '2';
 // client may mutate is bound to their own uid.
 //
 // NOTE on open matchmaking: pairing two strangers is inherently a cross-user
-// write — the seeker claims *another* athlete's ticket and seats them into a
-// duel. That can't be safely authorized by client rules alone, so the pairing in
-// matchmakingService is a pragmatic demo. In production, move `tryPair` into a
-// Cloud Function (trusted context) and lock the client rules below to owner-only
-// ticket writes; the matched flip and the born-active duel would then be minted
-// server-side. See FIREBASE_SETUP.md.
+// write. The client path is race-safe via a transaction, and the rules below
+// require a real duel (host = waiting athlete, guest = seeker) before a ticket
+// can flip to `matched` — closing the trivial fake-duelId spoof. A Cloud
+// Function remains the eventual home for trusted pairing at scale.
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -67,8 +65,14 @@ service cloud.firestore {
       allow delete: if isOwner(uid);
 
       match /friends/{friendUid} {
+        // You can always read and manage your own friend list.
         allow read: if isOwner(uid);
-        allow write: if isOwner(uid);
+        allow update, delete: if isOwner(uid);
+        // Reciprocal add: either you write under your own friends/, or the
+        // athlete being added writes their own edge under *your* friends/
+        // (doc id == their uid) so both sides see each other immediately.
+        allow create: if isOwner(uid)
+          || (request.auth != null && request.auth.uid == friendUid);
       }
     }
 
@@ -128,7 +132,14 @@ service cloud.firestore {
       }
 
       allow update: if request.auth != null && (isJoin() || isLiveUpdate());
-      allow delete: if request.auth != null && resource.data.hostUid == request.auth.uid;
+      // Host may abandon; the addressed target may decline a still-pending invite
+      // so it leaves their inbox without requiring a Cloud Function.
+      allow delete: if request.auth != null && (
+        resource.data.hostUid == request.auth.uid
+        || (resource.data.targetUid == request.auth.uid
+            && resource.data.status == 'pending'
+            && resource.data.guestUid == null)
+      );
     }
 
     match /couples/{coupleId} {
@@ -217,18 +228,26 @@ service cloud.firestore {
       // You manage your own ticket: enter (waiting), re-enter, or leave.
       allow create, update, delete: if isOwner(ticketUid);
 
-      // Pairing concession (demo): a *different* seeker may flip your waiting
-      // ticket to `matched`, and only that — no other field may change, and only
-      // out of the `waiting` state. This is the one cross-user write the queue
-      // needs client-side; production should move pairing to a Cloud Function
-      // and drop this clause. See the file header.
+      // Pairing: a *different* seeker may flip your waiting ticket to `matched`
+      // only when a real duel already exists that seats you as host and them as
+      // guest. That stops a malicious client from stamping a fake duelId without
+      // minting a matching duel. Full trusted pairing still belongs in a Cloud
+      // Function long-term; this closes the trivial spoof on the client path.
       allow update: if request.auth != null
         && request.auth.uid != ticketUid
         && resource.data.status == 'waiting'
         && request.resource.data.status == 'matched'
         && request.resource.data.uid == resource.data.uid
         && request.resource.data.displayName == resource.data.displayName
-        && request.resource.data.level == resource.data.level;
+        && request.resource.data.level == resource.data.level
+        && request.resource.data.duelId is string
+        && exists(/databases/$(database)/documents/duels/$(request.resource.data.duelId))
+        && get(/databases/$(database)/documents/duels/$(request.resource.data.duelId)).data.hostUid
+             == resource.data.uid
+        && get(/databases/$(database)/documents/duels/$(request.resource.data.duelId)).data.guestUid
+             == request.auth.uid
+        && get(/databases/$(database)/documents/duels/$(request.resource.data.duelId)).data.status
+             == 'active';
     }
 
     match /leaderboard/{uid} {

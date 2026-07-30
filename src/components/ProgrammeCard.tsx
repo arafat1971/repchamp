@@ -298,7 +298,7 @@ export function ProgrammeCard() {
               <Text style={styles.targetNumber}>{day.target}</Text>
               <Text style={styles.targetLabel}>{def.label}</Text>
               <Text style={styles.body}>
-                Clear today's target to advance the ladder.
+                Clear today&apos;s target to advance the ladder.
               </Text>
               <AnimatedCTA text={`Start day ${day.index}`} />
             </View>

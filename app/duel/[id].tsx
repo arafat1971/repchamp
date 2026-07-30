@@ -1,5 +1,4 @@
 import * as Clipboard from 'expo-clipboard';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
@@ -11,7 +10,7 @@ import { createDuel, joinDuel, watchDuel, cancelDuel } from '@/services/duelServ
 import { successHaptic } from '@/lib/feedback';
 import { useSelfPlayer } from '@/state/useSelfPlayer';
 import { font, text } from '@/theme/typography';
-import { gradients, palette, radius } from '@/theme/tokens';
+import { palette, radius, shadow } from '@/theme/tokens';
 import type { ExerciseId } from '@/vision/exercises';
 
 /**
@@ -59,6 +58,7 @@ export default function DuelWaitingScreen() {
   // Mirror the live duel id into a ref so the unmount cleanup reads the latest
   // value without re-subscribing.
   const duelIdRef = useRef<string | null>(duelId);
+  // eslint-disable-next-line react-hooks/refs
   duelIdRef.current = duelId;
 
   // Host cleanup: if we leave the waiting room before the duel launched, delete
@@ -75,6 +75,7 @@ export default function DuelWaitingScreen() {
   // Create (host) or join (guest) the duel exactly once on mount.
   useEffect(() => {
     if (!self) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStatus('unavailable');
       return;
     }
@@ -168,7 +169,11 @@ export default function DuelWaitingScreen() {
       <Screen>
         <ModalHeader title="Live duels" />
         <View style={styles.center}>
-          <Text style={styles.bigEmoji}>🛰️</Text>
+          <Avatar
+            initial={(self?.displayName ?? 'Y').charAt(0).toUpperCase()}
+            uri={self?.avatarUrl ?? undefined}
+            size={80}
+          />
           <Text style={[text.h2, { textAlign: 'center', marginTop: 12 }]}>
             Live duels go online once the backend is set up
           </Text>
@@ -188,7 +193,7 @@ export default function DuelWaitingScreen() {
     <Screen>
       <ModalHeader title={role === 'guest' ? 'Joining duel' : 'Challenge sent'} />
 
-      <LinearGradient colors={gradients.ink} style={styles.stage}>
+      <View style={styles.stage}>
         <View style={styles.vsRow}>
           <View style={styles.vsSide}>
             <Avatar
@@ -203,7 +208,7 @@ export default function DuelWaitingScreen() {
 
           <View style={styles.vsSide}>
             <View style={styles.pendingAvatar}>
-              <ActivityIndicator color={palette.white} />
+              <ActivityIndicator color={palette.green600} />
             </View>
             <Text style={styles.vsName} numberOfLines={1}>
               {opponentName}
@@ -219,7 +224,7 @@ export default function DuelWaitingScreen() {
               ? 'Joining the arena…'
               : 'Waiting for your opponent to accept…'}
         </Text>
-      </LinearGradient>
+      </View>
 
       {role === 'host' && duelId ? (
         <>
@@ -235,8 +240,14 @@ export default function DuelWaitingScreen() {
         </>
       ) : null}
 
-      <PressableScale onPress={() => router.back()} style={styles.cancel} accessibilityRole="button">
-        <Text style={styles.cancelLabel}>Cancel</Text>
+      <PressableScale
+        onPress={() => router.back()}
+        style={styles.cancel}
+        accessibilityRole="button"
+        accessibilityLabel={role === 'guest' ? 'Cancel joining' : 'Cancel challenge'}
+      >
+        <View style={styles.cancelDot} />
+        <Text style={styles.cancelLabel}>{role === 'guest' ? 'Cancel' : 'Cancel challenge'}</Text>
       </PressableScale>
     </Screen>
   );
@@ -244,27 +255,34 @@ export default function DuelWaitingScreen() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
-  bigEmoji: { fontSize: 56 },
-  stage: { borderRadius: radius['5xl'], padding: 24, marginTop: 6 },
+  stage: {
+    borderRadius: radius['5xl'],
+    padding: 24,
+    marginTop: 6,
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: palette.border,
+    ...shadow.card,
+  },
   vsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   vsSide: { alignItems: 'center', gap: 10, flex: 1 },
   vs: {
-    ...font('extrabold', 18, { color: 'rgba(255,255,255,0.5)' }),
+    ...font('extrabold', 18, { color: palette.slate400 }),
     marginHorizontal: 8,
   },
-  vsName: { ...font('extrabold', 13, { color: palette.white }), maxWidth: 110, textAlign: 'center' },
+  vsName: { ...font('extrabold', 13, { color: palette.ink }), maxWidth: 110, textAlign: 'center' },
   pendingAvatar: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: palette.green50,
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.25)',
+    borderColor: palette.green200,
     alignItems: 'center',
     justifyContent: 'center',
   },
   status: {
-    ...font('semibold', 12, { color: 'rgba(255,255,255,0.8)' }),
+    ...font('semibold', 12, { color: palette.slate500 }),
     textAlign: 'center',
     marginTop: 20,
   },
@@ -290,6 +308,20 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl,
   },
   primaryLabel: font('extrabold', 15, { color: palette.white }),
-  cancel: { alignSelf: 'center', marginTop: 22, padding: 10 },
-  cancelLabel: font('extrabold', 14, { color: palette.grey600 }),
+  cancel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+    alignSelf: 'stretch',
+    marginTop: 24,
+    height: 54,
+    borderRadius: radius.pill,
+    backgroundColor: palette.white,
+    borderWidth: 1.5,
+    borderColor: palette.red100,
+    ...shadow.card,
+  },
+  cancelDot: { width: 8, height: 8, borderRadius: 2, backgroundColor: palette.red500 },
+  cancelLabel: font('extrabold', 15, { color: palette.red500 }),
 });

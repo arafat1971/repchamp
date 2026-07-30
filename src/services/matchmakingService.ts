@@ -17,7 +17,9 @@
  *
  * The transaction is what makes the seat-race safe: two seekers can't both claim
  * the same waiting ticket, because the second transaction re-reads it as no longer
- * `waiting` and falls through to sit in the queue itself.
+ * `waiting` and falls through to sit in the queue itself. Firestore rules further
+ * require a real duel (host = waiting athlete, guest = seeker) before any foreign
+ * ticket can flip to `matched`, so a client can't stamp a fake duelId alone.
  */
 
 import firestore from '@react-native-firebase/firestore';

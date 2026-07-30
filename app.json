@@ -28,7 +28,8 @@
       "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.VIBRATE"
+        "android.permission.VIBRATE",
+        "android.permission.POST_NOTIFICATIONS"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#8AC53E",
@@ -41,7 +42,10 @@
       "@react-native-firebase/auth",
       "@react-native-firebase/app-check",
       [
-        "@react-native-google-signin/google-signin"
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.613733102264-dujerefs3d7lv35i4ea1m5f2jqiqv9s4"
+        }
       ],
       [
         "expo-build-properties",
@@ -96,9 +100,10 @@
         "projectId": "d6be255f-fe5b-40f6-a206-f6e2810f9295"
       },
       "posthogKey": "phc_vhhgbS2KfchGjb4SnvgiV3URwPukzXLxPHRyEoP6oFh2",
-      "googleWebClientId": "",
+      "googleWebClientId": "613733102264-uuuqs1rlp1bqn1ni2v453eqr221qolfl.apps.googleusercontent.com",
       "revenueCatGoogle": "goog_MDPFQjukqNGkgnzOHPmxMJnnAmf",
-      "sentryDsn": "https://placeholder@sentry.io/0"
+      "revenueCatApple": "",
+      "sentryDsn": "https://435a8e5b3484a9ad4efc55b8c7a425c2@o4511822160986112.ingest.us.sentry.io/4511822170423296"
     },
     "runtimeVersion": "2.0.0",
     "updates": {

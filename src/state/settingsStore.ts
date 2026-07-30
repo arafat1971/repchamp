@@ -12,6 +12,8 @@ export interface SettingsState {
   voiceCoach: boolean;
   /** Allow duel-invite notifications. */
   duelInvites: boolean;
+  /** Daily "come train" reminders, three times a day. */
+  dailyReminder: boolean;
   /** Hide from the global leaderboard. */
   privateProfile: boolean;
   /** The live-camera "how to get a good read" tutorial has been dismissed once. */
@@ -22,7 +24,13 @@ export interface SettingsState {
   markCameraTutorialSeen: () => void;
 }
 
-export type SettingsToggle = 'sound' | 'haptics' | 'voiceCoach' | 'duelInvites' | 'privateProfile';
+export type SettingsToggle =
+  | 'sound'
+  | 'haptics'
+  | 'voiceCoach'
+  | 'duelInvites'
+  | 'dailyReminder'
+  | 'privateProfile';
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
@@ -31,6 +39,7 @@ export const useSettingsStore = create<SettingsState>()(
       haptics: true,
       voiceCoach: false,
       duelInvites: true,
+      dailyReminder: true,
       privateProfile: false,
       cameraTutorialSeen: false,
 

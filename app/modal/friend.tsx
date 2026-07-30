@@ -32,7 +32,7 @@ export default function FriendProfileScreen() {
     duels.length === 0
       ? 'No duels yet — go settle it'
       : wins > losses
-        ? `You're ahead ${wins}–${losses} 🔥`
+        ? `You're ahead ${wins}–${losses}`
         : losses > wins
           ? `${friend.name} leads ${losses}–${wins} — time for revenge`
           : `Dead even ${wins}–${losses} — settle it`;
@@ -81,7 +81,7 @@ export default function FriendProfileScreen() {
 
       <View style={styles.statRow}>
         <StatTile value={totalReps} label="Your reps vs them" color={palette.green500} />
-        <StatTile value={duels.length} label="Duels played" color={palette.purple500} />
+        <StatTile value={duels.length} label="Duels played" color={palette.green500} />
       </View>
 
       {duels.length > 0 ? (
@@ -117,7 +117,7 @@ export default function FriendProfileScreen() {
       ) : null}
 
       <PrimaryButton
-        label={`⚔️ Challenge ${friend.name}`}
+        label={`Challenge ${friend.name}`}
         onPress={() =>
           router.replace({
             pathname: '/session',

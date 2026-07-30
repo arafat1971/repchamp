@@ -1,6 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 
 import { ModalHeader } from '@/components/ModalHeader';
 import { Avatar, Eyebrow, PressableScale, Screen } from '@/components/ui';
@@ -77,9 +78,11 @@ export default function OpponentPickerScreen() {
         accessibilityRole="button"
         accessibilityLabel="Quick match with a random rival"
       >
-        <LinearGradient colors={gradients.amber} style={[styles.quickMatch, shadow.amber]}>
+        <LinearGradient colors={gradients.brandStrong} style={[styles.quickMatch, shadow.brand]}>
           <View style={styles.quickIcon}>
-            <Text style={{ fontSize: 24 }}>⚡</Text>
+            <Svg width={24} height={24} viewBox="0 0 24 24">
+              <Path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" fill={palette.white} />
+            </Svg>
           </View>
           <View style={{ flex: 1 }}>
             <Text style={font('extrabold', 16, { color: palette.white })}>Quick Match</Text>

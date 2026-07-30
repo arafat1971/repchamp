@@ -114,7 +114,16 @@ export class RepCounter {
       // Hold the last depth rather than snapping to 0 — a dropped frame or two
       // shouldn't look like the athlete teleported to the top of the movement.
       this.unusableSince ??= pose.timestamp;
-      if (pose.timestamp - this.unusableSince >= TRACKING_GRACE_MS) this.tracking = false;
+      if (pose.timestamp - this.unusableSince >= TRACKING_GRACE_MS) {
+        this.tracking = false;
+        // Abandon an in-progress down phase after a real tracking loss. Without
+        // this, returning to the top after occlusion can close a "rep" the
+        // athlete never finished while visible.
+        if (this.phase === 'down') {
+          this.phase = 'up';
+          this.resetRepAccumulators();
+        }
+      }
       return { ...this.state, completedRep: null };
     }
 

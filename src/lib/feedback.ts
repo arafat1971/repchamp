@@ -11,7 +11,7 @@ import { useSettingsStore } from '@/state/settingsStore';
  * loop stay free of `if (settings.sound)` noise.
  */
 
-/* eslint-disable @typescript-eslint/no-require-imports */
+ 
 const SOURCES = {
   rep: require('../../assets/sounds/rep.wav'),
   count: require('../../assets/sounds/count.wav'),
@@ -19,7 +19,7 @@ const SOURCES = {
   win: require('../../assets/sounds/win.wav'),
   lose: require('../../assets/sounds/lose.wav'),
 } as const;
-/* eslint-enable @typescript-eslint/no-require-imports */
+ 
 
 export type SoundName = keyof typeof SOURCES;
 

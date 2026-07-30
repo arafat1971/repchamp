@@ -13,6 +13,20 @@
  * is `mock`-prefixed (the only out-of-scope access the hoist guard allows).
  */
 
+/* ------------------------------------------------------------------ */
+
+import {
+  currentWeekKey,
+  fetchExpoPushToken,
+  fetchProfile,
+  publishScore,
+  removeScore,
+  saveExpoPushToken,
+  uploadAvatar,
+  upsertProfile,
+  type CloudProfile,
+} from '../userService';
+
 const mockState = { configured: true };
 
 /** collection -> (id -> doc data). users and leaderboard are both in play. */
@@ -38,6 +52,9 @@ function mockDocRef(col: string, id: string) {
       const store = mockCol(col);
       if (opts?.merge) store.set(id, { ...(store.get(id) ?? {}), ...data });
       else store.set(id, { ...data });
+    },
+    async delete() {
+      mockCol(col).delete(id);
     },
     async get() {
       const data = mockCol(col).get(id);
@@ -84,19 +101,6 @@ jest.mock('@react-native-firebase/storage', () => {
   const fn = () => ({ ref: (path: string) => mockStorageRef(path) });
   return { __esModule: true, default: fn };
 });
-
-/* ------------------------------------------------------------------ */
-
-import {
-  currentWeekKey,
-  fetchExpoPushToken,
-  fetchProfile,
-  publishScore,
-  saveExpoPushToken,
-  uploadAvatar,
-  upsertProfile,
-  type CloudProfile,
-} from '../userService';
 
 beforeEach(() => {
   mockState.configured = true;
@@ -220,6 +224,23 @@ describe('publishScore', () => {
       league: 'bronze',
     });
     expect(mockStore.leaderboard.size).toBe(0);
+  });
+});
+
+describe('removeScore', () => {
+  it('deletes the athlete from the leaderboard collection', async () => {
+    await publishScore({
+      uid: 'u1',
+      displayName: 'Hana',
+      avatarUrl: null,
+      weeklyXp: 10,
+      totalXp: 10,
+      level: 1,
+      league: 'bronze',
+    });
+    expect(mockStore.leaderboard.has('u1')).toBe(true);
+    await removeScore('u1');
+    expect(mockStore.leaderboard.has('u1')).toBe(false);
   });
 });
 

@@ -9,7 +9,21 @@
  * path and the unconfigured no-op fallback.
  */
 
-import type { Duel } from '../../domain/duel';
+import type { Duel , DuelPlayer } from '../../domain/duel';
+
+/* ------------------------------------------------------------------ */
+
+import {
+  cancelDuel,
+  createDuel,
+  fetchIncomingDuels,
+  finishDuel,
+  joinDuel,
+  pushLiveState,
+  seatFor,
+  watchDuel,
+  watchOpponent,
+} from '../duelService';
 
 /* ------------------------------------------------------------------ *
  * Mocks — declared before importing the module under test. Jest hoists
@@ -108,7 +122,7 @@ jest.mock('@react-native-firebase/firestore', () => {
   // A query over the in-memory store: chainable equality `where`s, a `createdAt`
   // sort, and a `limit`, resolved lazily on `.get()`. Mirrors the shape
   // fetchIncomingDuels builds so the fake exercises the real query path.
-  function mockQuery(filters: Array<[string, unknown]>, limit: number | null) {
+  function mockQuery(filters: [string, unknown][], limit: number | null) {
     return {
       where(field: string, _op: string, value: unknown) {
         return mockQuery([...filters, [field, value]], limit);
@@ -155,21 +169,6 @@ jest.mock('@react-native-firebase/firestore', () => {
   };
   return { __esModule: true, default: fn };
 });
-
-/* ------------------------------------------------------------------ */
-
-import {
-  cancelDuel,
-  createDuel,
-  fetchIncomingDuels,
-  finishDuel,
-  joinDuel,
-  pushLiveState,
-  seatFor,
-  watchDuel,
-  watchOpponent,
-} from '../duelService';
-import type { DuelPlayer } from '../../domain/duel';
 
 beforeEach(() => {
   mockState.configured = true;
@@ -315,7 +314,7 @@ describe('real-time head-to-head competition', () => {
 
     // The host's device watches the *opponent* (the guest) — this is the exact
     // seam the session HUD consumes to render the rival's live count.
-    const seen: Array<number | undefined> = [];
+    const seen: (number | undefined)[] = [];
     const stop = watchOpponent(id, HOST.uid, (opp) => seen.push(opp?.reps));
 
     // Fires immediately with the current value (guest at 0), like Firestore.

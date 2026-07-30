@@ -2,7 +2,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import type { BarcodeScanningResult } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ModalHeader } from '@/components/ModalHeader';
@@ -12,6 +12,7 @@ import { track } from '@/lib/analytics';
 import { successHaptic } from '@/lib/feedback';
 import { joinCoupleByCode } from '@/services/coupleService';
 import { useAuthStore } from '@/state/authStore';
+import { showDialog } from '@/state/useDialog';
 import { useProfileStore } from '@/state/profileStore';
 import { font, text } from '@/theme/typography';
 import { palette, radius } from '@/theme/tokens';
@@ -48,7 +49,19 @@ export default function CoupleScanScreen() {
 
   const pair = useCallback(
     async (rawScan: string) => {
-      if (handled.current || !uid) return;
+      if (handled.current) return;
+      if (!uid) {
+        showDialog({
+          title: 'Still signing in',
+          message: 'Wait a moment and scan again, or enter the invite code by hand.',
+          tone: 'info',
+          actions: [
+            { label: 'Enter code', variant: 'primary', onPress: () => router.replace('/modal/couple-invite') },
+            { label: 'OK', variant: 'cancel' },
+          ],
+        });
+        return;
+      }
       // A scanned QR may hold the invite *link* or the bare code — accept either.
       const code = parseInviteCode(rawScan) ?? normalizePairCode(rawScan);
       if (!code) return; // Not one of our codes — keep scanning.
@@ -64,10 +77,12 @@ export default function CoupleScanScreen() {
         // Let them try again rather than dead-end — unlatch and surface why.
         handled.current = false;
         setJoining(false);
-        Alert.alert(
-          'Could not pair',
-          error instanceof Error ? error.message : 'That code did not work. Try again.',
-        );
+        showDialog({
+          title: 'Could not pair',
+          message: error instanceof Error ? error.message : 'That code did not work. Try again.',
+          tone: 'danger',
+          actions: [{ label: 'Try again', variant: 'primary' }],
+        });
       }
     },
     [uid, displayName, avatarUri, router],
@@ -119,7 +134,7 @@ export default function CoupleScanScreen() {
       </View>
 
       <Text style={[text.caption, styles.hint]}>
-        Point your camera at the QR on your partner's phone.
+        Point your camera at the QR on your partner&apos;s phone.
       </Text>
 
       <PressableScale

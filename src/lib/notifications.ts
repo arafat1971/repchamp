@@ -29,8 +29,34 @@ import { saveExpoPushToken } from '@/services/userService';
 /** Android 8+ (minSdk 26 here) refuses notifications without a channel. */
 const CHANNEL_ID = 'couple';
 
-/** Identifier for the daily streak reminder, so re-scheduling replaces it. */
+/** Legacy single-reminder id — cancelled on re-schedule so old installs clean up. */
 const STREAK_REMINDER_ID = 'couple-streak-reminder';
+
+/**
+ * Three daily streak reminders — morning, midday, evening — so a busy day gets
+ * more than one chance to land before the streak resets at midnight. Each has a
+ * fixed id so re-scheduling replaces rather than stacks.
+ */
+const STREAK_REMINDER_SLOTS = [
+  {
+    id: 'couple-streak-reminder-am',
+    hour: 9,
+    title: 'Start the day strong',
+    body: (name: string) => `Get today's set in before ${name} beats you to it.`,
+  },
+  {
+    id: 'couple-streak-reminder-noon',
+    hour: 14,
+    title: 'Halfway through the day',
+    body: (name: string) => `You and ${name} still need today's reps to keep the streak.`,
+  },
+  {
+    id: 'couple-streak-reminder-pm',
+    hour: 19,
+    title: 'Your streak is on the line',
+    body: (name: string) => `Last call — you and ${name} haven't both trained today.`,
+  },
+] as const;
 
 let configured = false;
 
@@ -154,30 +180,101 @@ export async function ensureNotificationPermission(): Promise<boolean> {
 }
 
 /**
- * Schedule the daily "your streak needs you" reminder at `hour` local time.
+ * Schedule the daily "your streak needs you" reminders — three a day (morning,
+ * midday, evening) so a single missed banner doesn't cost the streak.
  *
- * Uses a fixed identifier so scheduling again replaces rather than stacks —
- * otherwise every app launch would add another copy of the same reminder.
+ * Each slot uses a fixed identifier so scheduling again replaces rather than
+ * stacks — otherwise every app launch would add more copies of each reminder.
  */
-export async function scheduleStreakReminder(partnerName: string, hour = 19): Promise<void> {
+export async function scheduleStreakReminder(partnerName: string): Promise<void> {
   if (!(await ensureNotificationPermission())) return;
   try {
+    // Clear the legacy single reminder from older installs so it can't linger.
     await Notifications.cancelScheduledNotificationAsync(STREAK_REMINDER_ID).catch(() => {});
-    await Notifications.scheduleNotificationAsync({
-      identifier: STREAK_REMINDER_ID,
-      content: {
-        title: 'Your streak is on the line',
-        body: `You and ${partnerName} haven't both trained today.`,
-        ...(Platform.OS === 'android' ? { channelId: CHANNEL_ID } : {}),
-      },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DAILY,
-        hour,
-        minute: 0,
-      },
-    });
+    for (const slot of STREAK_REMINDER_SLOTS) {
+      await Notifications.cancelScheduledNotificationAsync(slot.id).catch(() => {});
+      await Notifications.scheduleNotificationAsync({
+        identifier: slot.id,
+        content: {
+          title: slot.title,
+          body: slot.body(partnerName),
+          ...(Platform.OS === 'android' ? { channelId: CHANNEL_ID } : {}),
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DAILY,
+          hour: slot.hour,
+          minute: 0,
+        },
+      });
+    }
   } catch {
     // A refused or unavailable scheduler must never break the calling screen.
+  }
+}
+
+/**
+ * Solo daily training reminders — three a day for every athlete, independent of
+ * whether they've paired. Distinct ids from the couple streak reminder so the
+ * two never collide. Toggled by the "Daily reminders" setting.
+ */
+const DAILY_TRAINING_SLOTS = [
+  {
+    id: 'daily-train-am',
+    hour: 9,
+    title: 'Morning reps?',
+    body: 'A quick set now sets the tone for the whole day.',
+  },
+  {
+    id: 'daily-train-noon',
+    hour: 13,
+    title: 'Midday movement',
+    body: 'Two minutes of reps beats the afternoon slump.',
+  },
+  {
+    id: 'daily-train-pm',
+    hour: 19,
+    title: "Don't break the chain",
+    body: 'Log a set tonight to keep your streak alive.',
+  },
+] as const;
+
+/**
+ * Schedule (or refresh) the three solo daily training reminders. Fixed ids mean
+ * re-running replaces rather than stacks. Safe to call on every app launch.
+ */
+export async function scheduleDailyTrainingReminder(): Promise<void> {
+  if (!(await ensureNotificationPermission())) return;
+  try {
+    for (const slot of DAILY_TRAINING_SLOTS) {
+      await Notifications.cancelScheduledNotificationAsync(slot.id).catch(() => {});
+      await Notifications.scheduleNotificationAsync({
+        identifier: slot.id,
+        content: {
+          title: slot.title,
+          body: slot.body,
+          data: { type: 'daily-train' },
+          ...(Platform.OS === 'android' ? { channelId: CHANNEL_ID } : {}),
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DAILY,
+          hour: slot.hour,
+          minute: 0,
+        },
+      });
+    }
+  } catch {
+    // Best-effort; a refused scheduler must never break app start or Settings.
+  }
+}
+
+/** Drop all solo daily training reminders — the athlete turned them off. */
+export async function cancelDailyTrainingReminder(): Promise<void> {
+  try {
+    for (const slot of DAILY_TRAINING_SLOTS) {
+      await Notifications.cancelScheduledNotificationAsync(slot.id).catch(() => {});
+    }
+  } catch {
+    // Nothing scheduled; nothing to do.
   }
 }
 
@@ -216,10 +313,13 @@ export async function scheduleWeeklyRecap(weekday = 1, hour = 18): Promise<void>
   }
 }
 
-/** Drop the reminder — the streak is safe, or the couple has unpaired. */
+/** Drop all daily reminders — the streak is safe, or the couple has unpaired. */
 export async function cancelStreakReminder(): Promise<void> {
   try {
-    await Notifications.cancelScheduledNotificationAsync(STREAK_REMINDER_ID);
+    await Notifications.cancelScheduledNotificationAsync(STREAK_REMINDER_ID).catch(() => {});
+    for (const slot of STREAK_REMINDER_SLOTS) {
+      await Notifications.cancelScheduledNotificationAsync(slot.id).catch(() => {});
+    }
   } catch {
     // Nothing scheduled; nothing to do.
   }

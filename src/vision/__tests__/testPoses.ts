@@ -1,5 +1,4 @@
-import { KEYPOINT_COUNT, KEYPOINT_INDEX, type Keypoint, type Pose } from '../keypoints';
-import type { KeypointName } from '../keypoints';
+import { KEYPOINT_COUNT, KEYPOINT_INDEX, type Keypoint, type Pose , KeypointName } from '../keypoints';
 
 /**
  * Builds a synthetic pose so the rep logic can be tested without a camera.

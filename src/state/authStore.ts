@@ -17,6 +17,7 @@ import { create } from 'zustand';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import {
   ensureSignedIn,
+  LOCAL_USER,
   onAuthChange,
   signOut as authSignOut,
   type AuthUser,
@@ -25,9 +26,11 @@ import {
   fetchProfile,
   upsertProfile,
   publishScore,
+  removeScore,
   uploadAvatar,
 } from '@/services/userService';
 import { useProfileStore, selectWeeklyXp, selectLevel, selectLeague } from '@/state/profileStore';
+import { useSettingsStore } from '@/state/settingsStore';
 
 export type SyncStatus = 'idle' | 'signing-in' | 'syncing' | 'synced' | 'error';
 
@@ -58,7 +61,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
    */
   initialize: () => {
     if (!isFirebaseConfigured()) {
-      set({ ready: true, status: 'idle', configured: false });
+      // Keep a stable local identity so screens that need a uid (couple join,
+      // queue, self-player) don't spin forever with `user: null`.
+      set({ ready: true, status: 'idle', configured: false, user: LOCAL_USER });
       return () => {};
     }
 
@@ -124,15 +129,21 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       personalBests: p.personalBests,
     });
 
-    await publishScore({
-      uid: user.uid,
-      displayName: p.displayName,
-      avatarUrl: p.avatarUri,
-      weeklyXp,
-      totalXp: p.totalXp,
-      level,
-      league,
-    });
+    // A private profile means private: pull the row out of the ranked
+    // collection entirely rather than just hiding it in the local UI.
+    if (useSettingsStore.getState().privateProfile) {
+      await removeScore(user.uid);
+    } else {
+      await publishScore({
+        uid: user.uid,
+        displayName: p.displayName,
+        avatarUrl: p.avatarUri,
+        weeklyXp,
+        totalXp: p.totalXp,
+        level,
+        league,
+      });
+    }
   },
 
   /** Upload a picked avatar and return the URL to store locally. */

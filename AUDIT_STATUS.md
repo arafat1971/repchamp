@@ -53,17 +53,22 @@ Surfaced in Settings → Your Data (Export my data / Delete my account, double-c
 
 | Gap | Why it blocks | Where |
 |---|---|---|
-| **No RevenueCat products registered** | Paywall fetches an empty offering → the `ConfigurationError` you saw → **zero revenue possible**. | Google Play Console: create subscription → RevenueCat: add product + offering + `pro` entitlement |
-| **No iOS RevenueCat key** | Only `revenueCatGoogle` is in `app.json`. iOS paywall is dead until an `appl_…` key + App Store products exist. | `app.json` `extra.revenueCatApple` + App Store Connect |
-| **Sentry DSN is a placeholder** | Crash reporting is off (`https://placeholder@sentry.io/0`) — you're blind to production crashes. Non-blocking. | `app.json` `extra.sentryDsn` from your Sentry project |
-| **Cross-device nudge push half-wired** | Local streak reminders work; a nudge to a *backgrounded* partner needs a trusted sender. `nudgePartner` POSTs to Expo's push service directly (free, no Blaze) — works if the partner's Expo token is saved, but there's no `functions/` dir if you want server-guaranteed delivery. | Optional Cloud Function (documented in FIREBASE_SETUP.md) |
+| **No RevenueCat products registered** | Paywall fetches an empty offering → **zero revenue**. Android key is already in `app.json`; you still need Play products + a RevenueCat offering. | Google Play Console → RevenueCat: product + offering + `pro` entitlement. See `REVENUECAT_SETUP.md`. |
+| ~~**Sentry DSN is a placeholder**~~ | **FIXED** — real DSN in `app.json`. Crash reporting lights up on next build. | — |
+| ~~**Google Sign-In web client id empty**~~ | **FIXED** — web client id + refreshed `google-services.json` / `GoogleService-Info.plist` from Firebase. | Rebuild native app for Google Sign-In to light up. |
+| **Cross-device nudge push half-wired** | Local streak reminders work; partner nudge uses Expo Push from the client. Optional Cloud Function for guaranteed delivery. | Optional (documented in FIREBASE_SETUP.md) |
 
-### RevenueCat setup steps (clears the on-screen error)
-1. **Google Play Console** → create a subscription product (e.g. `repchamp_pro_monthly`).
-2. **RevenueCat** → Products → add that product ID.
-3. Create an **Offering** (e.g. `default`) → add a **Package** → attach the product.
-4. Attach an **Entitlement** named exactly `pro` (code checks `PRO_ENTITLEMENT = 'pro'`).
-5. Repeat for iOS with an App Store subscription + `appl_…` public key.
+### Deferred — not needed for Play Store launch
+| Gap | Status |
+|---|---|
+| **iOS RevenueCat / App Store products** | **Skipped on purpose** — shipping Android first. Leave `revenueCatApple` empty until App Store. Does not affect Play billing. |
+
+### RevenueCat setup steps (Play — clears empty paywall)
+1. **Google Play Console** → create subscription products (e.g. `rc_pro_monthly`, `rc_pro_annual`).
+2. **RevenueCat** → Products → add those product IDs; attach entitlement **`pro`**.
+3. Create an **Offering** (`current`) → add Packages → attach the products.
+4. Confirm `app.json` `extra.revenueCatGoogle` matches your `goog_…` public key.
+5. Rebuild, add a licence tester, verify the paywall shows prices and purchase flips Pro.
 
 ---
 
@@ -82,5 +87,5 @@ console access, see FIREBASE_SETUP.md):
 
 Also tightened this round and DEPLOYED: leaderboard `totalXp`/`displayName` caps and
 `users` profile XP + string-length caps (previously only `weeklyXp` was bounded).
-- The legal copy uses `privacy@repchamp.gg` as the contact — change it if that mailbox
+- The legal copy uses `support@peachtraders.xyz` as the contact — change it if that mailbox
   isn't real before store submission.

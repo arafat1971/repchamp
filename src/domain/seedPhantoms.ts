@@ -12,8 +12,8 @@
  *   photos — avatars are app-owned emoji art. This keeps us inside App Store
  *   3.2.2 / Google Play fake-engagement policy and out of likeness-law trouble.
  * - AI partners are NEVER written to Firebase. They exist only in-memory.
- * - Once 5+ real users exist, `shouldSeed()` returns false and the AI partners
- *   step aside so the real community leads.
+ * - Once 5+ real users publish weekly leaderboard scores, `shouldSeed()` returns
+ *   false and the AI partners step aside so the real community leads.
  * - Racing an AI partner routes to the existing bot-paced opponent engine — the
  *   same honest pacer used everywhere else.
  *
@@ -74,17 +74,25 @@ export async function shouldSeed(): Promise<boolean> {
   }
 
   try {
+    // Count live weekly leaderboard rows as the community size proxy — no Cloud
+    // Function / metadata doc required. Once 5+ real athletes publish scores,
+    // AI partners step aside.
     const firestore = (await import('@react-native-firebase/firestore')).default;
-    const doc = await firestore().collection('metadata').doc('stats').get();
-    const count = (doc.data() as { userCount?: number } | undefined)?.userCount ?? 0;
-    _seedCacheResult = count < 5;
+    const { currentWeekKey } = await import('@/services/userService');
+    const snap = await firestore()
+      .collection('leaderboard')
+      .where('weekKey', '==', currentWeekKey())
+      .limit(5)
+      .get();
+    _seedCacheResult = snap.size < 5;
+    _seedCacheTime = now;
+    return _seedCacheResult;
   } catch {
-    // Network error — seed to be safe so the app isn't empty.
+    // On any error, keep seeding so a permissions hiccup never empties the app.
     _seedCacheResult = true;
+    _seedCacheTime = now;
+    return true;
   }
-
-  _seedCacheTime = now;
-  return _seedCacheResult;
 }
 
 // ---------------------------------------------------------------------------

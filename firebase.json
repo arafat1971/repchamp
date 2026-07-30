@@ -27,6 +27,14 @@
       {
         "source": "/support",
         "destination": "/support.html"
+      },
+      {
+        "source": "/couple/join",
+        "destination": "/couple-join.html"
+      },
+      {
+        "source": "/@**",
+        "destination": "/friend-invite.html"
       }
     ]
   }

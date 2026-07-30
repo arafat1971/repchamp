@@ -24,6 +24,8 @@ import { text } from '@/theme/typography';
 import { gradients, palette, radius, shadow, type Gradient } from '@/theme/tokens';
 import { lightImpactHaptic } from '@/lib/feedback';
 
+export { Skeleton, SkeletonCircle } from './Skeleton';
+
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 /* ------------------------------------------------------------------ *
@@ -155,11 +157,13 @@ export const PressableScale = forwardRef<View, PressableProps & { children: Reac
         // haptic instead of composing with them. Both callbacks still forward
         // to the caller's handler below.
         onPressIn={(e) => {
+          // eslint-disable-next-line react-hooks/immutability
           scale.value = withTiming(0.96, { duration: 90 });
           lightImpactHaptic();
           props.onPressIn?.(e);
         }}
         onPressOut={(e) => {
+          // eslint-disable-next-line react-hooks/immutability
           scale.value = withSpring(1, { damping: 14, stiffness: 260 });
           props.onPressOut?.(e);
         }}

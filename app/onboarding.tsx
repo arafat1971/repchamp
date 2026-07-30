@@ -5,7 +5,6 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -40,6 +39,7 @@ import { OPPONENTS } from '@/domain/opponent';
 import { track } from '@/lib/analytics';
 import { fetchOffering, isPurchasesConfigured, purchase } from '@/services/purchases';
 import { useProStore } from '@/state/proStore';
+import { showDialog } from '@/state/useDialog';
 import {
   blockerAnswer,
   firstWeekPlan,
@@ -136,6 +136,7 @@ export default function OnboardingScreen() {
 
   const finish = useCallback(() => {
     completeOnboarding({ username: username || 'champion', weeklyGoal, avatarUri });
+    track('onboarding_completed', { weeklyGoal });
     // Drop straight into a first practice set — the last tap of onboarding *is*
     // the start of the workout. Getting to a counted rep fast is the single
     // biggest lever on activation; landing on Home and hunting for a button is
@@ -148,6 +149,7 @@ export default function OnboardingScreen() {
   /* Build-profile progress animation (step 10). */
   useEffect(() => {
     if (step !== 18) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setBuildPercent(0);
     const id = setInterval(() => {
       setBuildPercent((p) => {
@@ -382,9 +384,13 @@ function Welcome({ onNext, onTryNow }: { onNext: () => void; onTryNow: () => voi
   return (
     <View style={styles.step}>
       <View style={styles.brandRow}>
-        <LinearGradient colors={gradients.brandStrong} style={styles.brandMark}>
-          <Text style={{ fontSize: 17 }}>👑</Text>
-        </LinearGradient>
+        <View style={styles.brandMark}>
+          <Image
+            source={require('../assets/logo.png')}
+            style={styles.brandMarkImg}
+            contentFit="contain"
+          />
+        </View>
         <Text style={font('extrabold', 18, { color: palette.ink })}>RepChamp</Text>
       </View>
       <Text style={styles.tagline}>Compete. Improve. Win.</Text>
@@ -1867,6 +1873,7 @@ function Offer({ onDone }: { onDone: () => void }) {
 
   useEffect(() => {
     if (!billingReady) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
       return;
     }
@@ -1900,7 +1907,12 @@ function Offer({ onDone }: { onDone: () => void }) {
       onDone();
       return;
     }
-    Alert.alert('Purchase failed', result.message ?? 'Please try again.');
+    showDialog({
+      title: 'Purchase failed',
+      message: result.message ?? 'Please try again.',
+      tone: 'danger',
+      actions: [{ label: 'Try again', variant: 'primary' }],
+    });
   }, [annual, busy, setPro, onDone]);
 
   // No live offer to show — finish onboarding rather than fake a discount.
@@ -2020,9 +2032,9 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: 'hidden',
   },
+  brandMarkImg: { width: 32, height: 32 },
   tagline: { ...text.caption, fontSize: 13, textAlign: 'center', marginTop: 6 },
   hero: {
     flex: 1,

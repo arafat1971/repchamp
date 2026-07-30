@@ -13,6 +13,10 @@
 import type { QueueTicket } from '../../domain/matchmaking';
 import type { Duel } from '../../domain/duel';
 
+/* ------------------------------------------------------------------ */
+
+import { enqueue, leaveQueue, tryPair } from '../matchmakingService';
+
 const mockState = { configured: true };
 
 /** collection -> (id -> doc data). Two collections in play: matchmaking, duels. */
@@ -61,7 +65,7 @@ function mockDocRef(col: string, id: string) {
   };
 }
 
-function mockQuery(col: string, filters: Array<[string, unknown]>, limit: number | null) {
+function mockQuery(col: string, filters: [string, unknown][], limit: number | null) {
   return {
     where(field: string, _op: string, value: unknown) {
       return mockQuery(col, [...filters, [field, value]], limit);
@@ -118,10 +122,6 @@ jest.mock('@react-native-firebase/firestore', () => {
   };
   return { __esModule: true, default: fn };
 });
-
-/* ------------------------------------------------------------------ */
-
-import { enqueue, leaveQueue, tryPair } from '../matchmakingService';
 
 beforeEach(() => {
   mockState.configured = true;

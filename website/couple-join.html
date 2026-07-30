@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#8AC53E">
+  <title>Open RepChamp — Couple invite</title>
+  <meta name="description" content="You've been invited to train together on RepChamp. Open the app to pair.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/png" href="/assets/logo_nobg.png">
+  <style>
+    :root { --green: #8AC53E; --ink: #0f1a12; --muted: #5b6b60; --canvas: #F6F7F5; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      font-family: "Plus Jakarta Sans", system-ui, sans-serif; background: var(--canvas); color: var(--ink);
+      padding: 24px;
+    }
+    .card {
+      width: 100%; max-width: 400px; background: #fff; border-radius: 28px; padding: 32px 28px;
+      box-shadow: 0 12px 40px rgba(15, 26, 18, 0.08); text-align: center;
+    }
+    img.logo { width: 64px; height: 64px; border-radius: 16px; margin-bottom: 16px; }
+    h1 { font-size: 1.45rem; margin: 0 0 8px; font-weight: 800; }
+    p { margin: 0 0 22px; color: var(--muted); font-size: 0.95rem; line-height: 1.45; }
+    .code {
+      display: inline-block; font-weight: 800; letter-spacing: 0.18em; font-size: 1.1rem;
+      background: #f0fdf4; color: #15803d; padding: 10px 16px; border-radius: 12px; margin-bottom: 22px;
+    }
+    a.btn {
+      display: block; text-decoration: none; border-radius: 16px; padding: 15px 18px;
+      font-weight: 800; font-size: 0.95rem; margin-bottom: 10px;
+    }
+    a.primary { background: var(--green); color: #fff; }
+    a.secondary { background: #eef2ee; color: var(--ink); }
+    .hint { font-size: 0.8rem; color: var(--muted); margin-top: 14px; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <img class="logo" src="/assets/logo.png" alt="RepChamp">
+    <h1>You're invited to pair</h1>
+    <p>Train together on RepChamp — open the app to join your partner.</p>
+    <div class="code" id="codeDisplay">······</div>
+    <a class="btn primary" id="openApp" href="#">Open in RepChamp</a>
+    <a class="btn secondary" href="https://play.google.com/store/apps/details?id=gg.repchamp.app">Get the app on Google Play</a>
+    <p class="hint">If the app is installed, Open should jump straight into pairing.</p>
+  </main>
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var code = (params.get('code') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+      var deep = code
+        ? 'repchamp://couple/join?code=' + encodeURIComponent(code)
+        : 'repchamp://couple/join';
+      var el = document.getElementById('codeDisplay');
+      var open = document.getElementById('openApp');
+      if (code) el.textContent = code;
+      else el.textContent = 'No code';
+      open.href = deep;
+      // Auto-attempt deep link once — messengers often open this page in an in-app browser.
+      if (code) {
+        setTimeout(function () { window.location.href = deep; }, 400);
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -6,21 +6,18 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ModalHeader } from '@/components/ModalHeader';
 import { Avatar, Card, Divider, Screen } from '@/components/ui';
 import { buildLeaderboard, type LeaderboardRow } from '@/domain/leaderboard';
-
-/** A leaderboard row, plus the optional AI-partner fields injected when seeding. */
-type BoardRow = LeaderboardRow & { emoji?: string; isAI?: boolean };
 import { usePhantomSeed } from '@/domain/seedPhantoms';
-import { OPPONENTS } from '@/domain/opponent';
-import { fetchLeaderboard } from '@/services/leaderboardService';
+import { fetchLeaderboard, fetchFriends } from '@/services/leaderboardService';
 import { selectLeague, selectWeeklyXp, useProfileStore } from '@/state/profileStore';
 import { useAuthStore } from '@/state/authStore';
 import { useSettingsStore } from '@/state/settingsStore';
 import { font, text } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
 
-type Scope = 'global' | 'friends';
+/** A leaderboard row, plus the optional AI-partner fields injected when seeding. */
+type BoardRow = LeaderboardRow & { emoji?: string; isAI?: boolean };
 
-const FRIEND_IDS = new Set(OPPONENTS.map((o) => o.id));
+type Scope = 'global' | 'friends';
 
 export default function LeaderboardScreen() {
   const [scope, setScope] = useState<Scope>('global');
@@ -41,6 +38,7 @@ export default function LeaderboardScreen() {
   const [full, setFull] = useState<LeaderboardRow[]>(() =>
     buildLeaderboard(weeklyXp, username),
   );
+  const [friendIds, setFriendIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -52,6 +50,13 @@ export default function LeaderboardScreen() {
       .catch(() => {
         /* fetchLeaderboard already degrades to the local board internally. */
       });
+    if (uid) {
+      void fetchFriends(uid)
+        .then((list) => {
+          if (!cancelled) setFriendIds(new Set(list.map((f) => f.uid)));
+        })
+        .catch(() => {});
+    }
     return () => {
       cancelled = true;
     };
@@ -59,7 +64,7 @@ export default function LeaderboardScreen() {
 
   const hiddenFromGlobal = privateProfile && scope === 'global';
 
-  const baseBoard = scope === 'friends' ? buildLeaderboard(weeklyXp, username) : full;
+  const baseBoard = full;
   const rawRows = seed.isSeeding
     ? [
         ...baseBoard,
@@ -82,7 +87,13 @@ export default function LeaderboardScreen() {
 
   const rows = (
     scope === 'friends'
-      ? rawRows.filter((r) => r.isYou || FRIEND_IDS.has(r.id) || r.id.startsWith('ph_'))
+      ? (rawRows as BoardRow[]).filter(
+          (r) =>
+            r.isYou ||
+            friendIds.has(r.id) ||
+            // Seeded AI partners stay visible on Friends while the community is small.
+            (seed.isSeeding && (r.isAI || r.id.startsWith('ph_'))),
+        )
       : rawRows
   )
     .filter((r) => !(hiddenFromGlobal && r.isYou))
@@ -114,8 +125,10 @@ export default function LeaderboardScreen() {
         ))}
       </View>
 
-      <LinearGradient colors={gradients.amber} style={styles.leagueBanner}>
-        <Text style={{ fontSize: 34 }}>{league.emoji}</Text>
+      <LinearGradient colors={gradients.brand} style={[styles.leagueBanner, shadow.brand]}>
+        <View style={styles.leagueBadge}>
+          <Text style={{ fontSize: 26 }}>{league.emoji}</Text>
+        </View>
         <View style={{ flex: 1 }}>
           <Text style={font('extrabold', 16, { color: palette.white })}>{league.name} League</Text>
           <Text style={font('semibold', 12, { color: 'rgba(255,255,255,0.9)' })}>
@@ -210,11 +223,21 @@ const styles = StyleSheet.create({
   leagueBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 14,
     borderRadius: radius['3xl'],
     paddingVertical: 16,
     paddingHorizontal: 18,
     marginBottom: 20,
+  },
+  leagueBadge: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   list: { padding: 8 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingHorizontal: 10 },

@@ -57,6 +57,7 @@ export default function TrainScreen() {
         duration: defaultDuration('together'),
         targetUid: partner.uid,
         cooperative: true,
+        kind: 'train',
       });
       if (!duelId) {
         showDialog({
@@ -69,7 +70,13 @@ export default function TrainScreen() {
       }
       router.push({
         pathname: '/duel/[id]',
-        params: { id: duelId, name: partner.displayName },
+        params: {
+          id: duelId,
+          role: 'host',
+          kind: 'train',
+          name: partner.displayName,
+          target: partner.uid,
+        },
       });
     } finally {
       setStarting(false);

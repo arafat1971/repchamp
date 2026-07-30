@@ -56,8 +56,24 @@ function mockDocRef(col: string, id: string) {
     },
     async set(data: Record<string, unknown>, opts?: { merge?: boolean }) {
       const store = mockCol(col);
-      if (opts?.merge) store.set(id, { ...(store.get(id) ?? {}), ...data });
-      else store.set(id, { ...data });
+      if (opts?.merge) {
+        const prev = { ...(store.get(id) ?? {}) };
+        for (const [k, v] of Object.entries(data)) {
+          if (v && typeof v === 'object' && (v as { __delete?: boolean }).__delete) {
+            delete prev[k];
+          } else {
+            prev[k] = v;
+          }
+        }
+        store.set(id, prev);
+      } else {
+        const cleaned: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(data)) {
+          if (v && typeof v === 'object' && (v as { __delete?: boolean }).__delete) continue;
+          cleaned[k] = v;
+        }
+        store.set(id, cleaned);
+      }
     },
     async delete() {
       mockCol(col).delete(id);
@@ -99,6 +115,7 @@ jest.mock('@react-native-firebase/firestore', () => {
   });
   (fn as unknown as { FieldValue: unknown }).FieldValue = {
     serverTimestamp: () => '<ts>',
+    delete: () => ({ __delete: true }),
   };
   return { __esModule: true, default: fn };
 });
@@ -191,7 +208,10 @@ describe('touchPresence', () => {
 
 describe('saveExpoPushToken / fetchExpoPushToken', () => {
   it('writes the token to an owner-only private doc, not the public profile', async () => {
-    mockStore.users.set('u1', { displayName: 'Hana' });
+    mockStore.users.set('u1', {
+      displayName: 'Hana',
+      expoPushToken: 'ExponentPushToken[legacy]',
+    });
     await saveExpoPushToken('u1', 'ExponentPushToken[abc]');
     expect(mockStore.users.get('u1')).toEqual({ displayName: 'Hana' });
     const d = mockCol('users/u1/private').get('push')!;

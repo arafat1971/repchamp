@@ -1,10 +1,13 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { ModalHeader } from '@/components/ModalHeader';
 import { Avatar, Badge, Card, Divider, Eyebrow, PrimaryButton, Screen, StatTile } from '@/components/ui';
-import { getOpponent } from '@/domain/opponent';
+import { getOpponent, OPPONENTS } from '@/domain/opponent';
+import { getPhantomOpponent } from '@/domain/phantomRoster';
+import { fetchProfile } from '@/services/userService';
 import { useProfileStore } from '@/state/profileStore';
 import { font, text } from '@/theme/typography';
 import { gradients, palette, radius } from '@/theme/tokens';
@@ -15,11 +18,62 @@ const TINTS: Record<string, { background: string; color: string }> = {
   mia: { background: '#fde68a', color: '#92400e' },
 };
 
+function isKnownBot(id: string | undefined): boolean {
+  if (!id) return false;
+  if (OPPONENTS.some((o) => o.id === id)) return true;
+  return !!getPhantomOpponent(id);
+}
+
 export default function FriendProfileScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id?: string }>();
-  const friend = getOpponent(id);
+  const params = useLocalSearchParams<{
+    id?: string;
+    name?: string;
+    level?: string;
+    avatar?: string;
+    online?: string;
+  }>();
   const sessions = useProfileStore((s) => s.sessions);
+
+  const bot = isKnownBot(params.id);
+  const friend = bot
+    ? getOpponent(params.id)
+    : {
+        id: params.id ?? '',
+        name: params.name ?? 'Athlete',
+        initial: (params.name || 'A').charAt(0).toUpperCase(),
+        level: Number(params.level ?? 1) || 1,
+        online: params.online === '1',
+        avatarUrl: params.avatar || null,
+      };
+
+  const [cloudOnline, setCloudOnline] = useState(friend.online);
+  const [cloudName, setCloudName] = useState(friend.name);
+  const [cloudAvatar, setCloudAvatar] = useState(
+    'avatarUrl' in friend ? friend.avatarUrl : null,
+  );
+
+  useEffect(() => {
+    if (bot || !params.id) return;
+    let cancelled = false;
+    void fetchProfile(params.id).then((profile) => {
+      if (cancelled || !profile) return;
+      setCloudName(profile.displayName || cloudName);
+      setCloudAvatar(profile.avatarUrl);
+      if (typeof profile.lastActiveAt === 'number') {
+        setCloudOnline(Date.now() - profile.lastActiveAt < 15 * 60 * 1000);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+    // Intentionally only re-fetch when the friend id changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bot, params.id]);
+
+  const displayName = bot ? friend.name : cloudName;
+  const displayLevel = friend.level;
+  const displayOnline = bot ? friend.online : cloudOnline;
 
   const duels = sessions.filter((s) => s.mode === 'versus' && s.opponentId === friend.id);
   const wins = duels.filter((s) => s.won).length;
@@ -34,32 +88,54 @@ export default function FriendProfileScreen() {
       : wins > losses
         ? `You're ahead ${wins}–${losses}`
         : losses > wins
-          ? `${friend.name} leads ${losses}–${wins} — time for revenge`
+          ? `${displayName} leads ${losses}–${wins} — time for revenge`
           : `Dead even ${wins}–${losses} — settle it`;
+
+  const challenge = () => {
+    if (bot) {
+      router.replace({
+        pathname: '/session',
+        params: { exercise: 'push', mode: 'versus', opponent: friend.id },
+      });
+      return;
+    }
+    router.replace({
+      pathname: '/duel/new',
+      params: {
+        role: 'host',
+        target: friend.id,
+        name: displayName,
+        level: String(displayLevel),
+        kind: 'duel',
+      },
+    });
+  };
 
   return (
     <Screen>
-      <ModalHeader title={friend.name} />
+      <ModalHeader title={displayName} />
 
       <View style={styles.identity}>
         <Avatar
-          initial={friend.initial}
+          initial={(displayName || 'A').charAt(0).toUpperCase()}
+          uri={!bot ? (cloudAvatar ?? undefined) : undefined}
           size={88}
           square
           background={tint.background}
           color={tint.color}
+          online={displayOnline}
         />
         <Text style={[font('extrabold', 22, { color: palette.ink }), { marginTop: 12 }]}>
-          {friend.name}
+          {displayName}
         </Text>
-        <Text style={text.captionMd}>Level {friend.level}</Text>
+        <Text style={text.captionMd}>Level {displayLevel}</Text>
         <Text
           style={font('extrabold', 11, {
-            color: friend.online ? palette.green500 : palette.grey600,
+            color: displayOnline ? palette.green500 : palette.grey600,
             marginTop: 6,
           })}
         >
-          {friend.online ? '● Online' : 'Offline'}
+          {displayOnline ? '● Active' : 'Offline'}
         </Text>
       </View>
 
@@ -73,7 +149,7 @@ export default function FriendProfileScreen() {
           <Text style={font('extrabold', 16, { color: 'rgba(255,255,255,0.4)' })}>–</Text>
           <View style={{ alignItems: 'center' }}>
             <Text style={font('extrabold', 40, { color: palette.white })}>{losses}</Text>
-            <Text style={styles.h2hSide}>{friend.name.toUpperCase()}</Text>
+            <Text style={styles.h2hSide}>{displayName.toUpperCase()}</Text>
           </View>
         </View>
         <Text style={styles.h2hHeadline}>{headline}</Text>
@@ -116,15 +192,7 @@ export default function FriendProfileScreen() {
         </>
       ) : null}
 
-      <PrimaryButton
-        label={`Challenge ${friend.name}`}
-        onPress={() =>
-          router.replace({
-            pathname: '/session',
-            params: { exercise: 'push', mode: 'versus', opponent: friend.id },
-          })
-        }
-      />
+      <PrimaryButton label={`Challenge ${displayName}`} onPress={challenge} />
     </Screen>
   );
 }

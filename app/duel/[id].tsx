@@ -89,6 +89,16 @@ export default function DuelWaitingScreen() {
     void (async () => {
       try {
         if (role === 'host') {
+          // Train Together (and similar) mint the duel first, then open this
+          // screen with a real id — reuse it. Don't create a second pending doc.
+          const existingId = params.id && params.id !== 'new' ? params.id : null;
+          if (existingId) {
+            if (cancelled) return;
+            setDuelId(existingId);
+            setStatus('waiting');
+            return;
+          }
+
           const id = await createDuel({
             uid: self.uid,
             displayName: self.displayName,
@@ -106,7 +116,7 @@ export default function DuelWaitingScreen() {
           setStatus('waiting');
         } else {
           const id = params.id;
-          if (!id) return setStatus('unavailable');
+          if (!id || id === 'new') return setStatus('unavailable');
           const joined = await joinDuel(id, {
             uid: self.uid,
             displayName: self.displayName,

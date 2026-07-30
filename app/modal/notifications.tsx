@@ -107,6 +107,7 @@ export default function NotificationsScreen() {
                   ]}
                   onAccept={() => accept(invite)}
                   onDismiss={() => dismiss(invite)}
+                  acceptLabel={`Accept invite from ${invite.hostName}`}
                 />
               );
             })}
@@ -206,6 +207,7 @@ function InviteCard({
   chips,
   onAccept,
   onDismiss,
+  acceptLabel,
 }: {
   name: string;
   verb: string;
@@ -213,6 +215,7 @@ function InviteCard({
   chips: string[];
   onAccept: () => void;
   onDismiss: () => void;
+  acceptLabel?: string;
 }) {
   return (
     <Card style={styles.inviteCard}>
@@ -243,7 +246,7 @@ function InviteCard({
         <PressableScale
           onPress={onAccept}
           accessibilityRole="button"
-          accessibilityLabel={`Accept duel from ${name}`}
+          accessibilityLabel={acceptLabel ?? `Accept invite from ${name}`}
           style={styles.acceptButton}
         >
           <Text style={font('extrabold', 14, { color: palette.white })}>Accept</Text>

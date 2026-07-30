@@ -27,7 +27,7 @@ describe('invitePresentation', () => {
   it('labels duel / train / compete distinctly', () => {
     expect(invitePresentation('duel').verb).toMatch(/duel/i);
     expect(invitePresentation('train').chip).toBe('Train together');
-    expect(invitePresentation('compete').verb).toMatch(/board/i);
+    expect(invitePresentation('compete').verb).toMatch(/compete/i);
   });
 
   it('falls back to train when cooperative and kind missing', () => {

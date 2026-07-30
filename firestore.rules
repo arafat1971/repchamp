@@ -57,8 +57,25 @@ service cloud.firestore {
           && request.resource.data.lastActiveAt is number;
       }
 
+      // One-time migration: delete a legacy world-readable push token field.
+      function isLegacyPushStrip() {
+        return request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['expoPushToken'])
+          && !('expoPushToken' in request.resource.data);
+      }
+
+      // createdAt is stamped once — never rewrite it to game "New on RepChamp".
+      function createdAtPinned() {
+        return !('createdAt' in resource.data)
+          || request.resource.data.createdAt == resource.data.createdAt;
+      }
+
       allow create: if isOwner(uid) && isProfileWrite();
-      allow update: if isOwner(uid) && (isProfileWrite() || isPresenceOnly());
+      allow update: if isOwner(uid) && (
+        isPresenceOnly()
+        || isLegacyPushStrip()
+        || (isProfileWrite() && createdAtPinned())
+      );
       allow delete: if isOwner(uid);
 
       // Owner-only secrets (Expo push token). Partners receive the token via the

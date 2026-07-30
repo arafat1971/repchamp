@@ -174,6 +174,17 @@ export async function addFriendByUsername(
   return true;
 }
 
+/** Remove a friend edge from your own list. No-op when unconfigured. */
+export async function removeFriend(myUid: string, friendUid: string): Promise<void> {
+  if (!isFirebaseConfigured()) return;
+  await firestore()
+    .collection('users')
+    .doc(myUid)
+    .collection('friends')
+    .doc(friendUid)
+    .delete();
+}
+
 export interface ActiveFriend extends Friend {
   lastActiveAt: number | null;
   online: boolean;

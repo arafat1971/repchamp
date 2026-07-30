@@ -15,7 +15,7 @@ describe('liveActivity', () => {
   it('switches to real athletes once a community exists', () => {
     const a = liveActivity(40, 6, false);
     expect(a.count).toBe(40);
-    expect(a.label).toBe('athletes competing');
+    expect(a.label).toBe('athletes active');
     expect(a.seeded).toBe(false);
   });
 
@@ -26,7 +26,7 @@ describe('liveActivity', () => {
   });
 
   it('singularises the real label for one athlete', () => {
-    expect(liveActivity(1, 6, false).label).toBe('athlete competing');
+    expect(liveActivity(1, 6, false).label).toBe('athlete active');
   });
 
   it('never returns a negative count', () => {

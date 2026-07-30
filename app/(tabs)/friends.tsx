@@ -1,5 +1,5 @@
-import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View, TextInput } from 'react-native';
 
 import { Avatar, Card, Divider, Eyebrow, PressableScale, Screen } from '@/components/ui';
@@ -11,6 +11,7 @@ import {
   addFriendByUsername,
   fetchActiveFriends,
   fetchRecentAthletes,
+  removeFriend,
   type ActiveFriend,
   type RecentAthlete,
 } from '@/services/leaderboardService';
@@ -78,9 +79,11 @@ export default function FriendsScreen() {
       .catch(captureError);
   }, [uid]);
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh]),
+  );
 
   const onlineFriends = cloudFriends.filter((f) => f.online);
   const onlineBots = OPPONENTS.filter((o) => o.online);
@@ -399,7 +402,23 @@ export default function FriendsScreen() {
               <View key={f.uid}>
                 {index > 0 ? <Divider style={{ marginHorizontal: 10 }} /> : null}
                 <View style={styles.cloudRow}>
-                  <View style={styles.friendInfo}>
+                  <PressableScale
+                    onPress={() =>
+                      router.push({
+                        pathname: '/modal/friend',
+                        params: {
+                          id: f.uid,
+                          name: f.displayName,
+                          level: String(f.level),
+                          ...(f.avatarUrl ? { avatar: f.avatarUrl } : {}),
+                          online: f.online ? '1' : '0',
+                        },
+                      })
+                    }
+                    accessibilityRole="button"
+                    accessibilityLabel={`View ${f.displayName}'s profile`}
+                    style={styles.friendInfo}
+                  >
                     <Avatar
                       initial={(f.displayName || 'A').charAt(0).toUpperCase()}
                       uri={f.avatarUrl}
@@ -418,7 +437,7 @@ export default function FriendsScreen() {
                         {f.online ? '● Active' : 'Offline'} · Lv.{f.level}
                       </Text>
                     </View>
-                  </View>
+                  </PressableScale>
 
                   <View style={styles.actionRow}>
                     <PressableScale
@@ -444,6 +463,33 @@ export default function FriendsScreen() {
                       style={[styles.actionPill, styles.actionPillSoft]}
                     >
                       <Text style={font('extrabold', 11, { color: palette.green700 })}>Compete</Text>
+                    </PressableScale>
+                    <PressableScale
+                      onPress={() => {
+                        if (!uid) return;
+                        showDialog({
+                          title: 'Remove friend?',
+                          message: `${f.displayName} will leave your list. They can still have you on theirs.`,
+                          tone: 'danger',
+                          actions: [
+                            { label: 'Cancel', variant: 'cancel' },
+                            {
+                              label: 'Remove',
+                              variant: 'destructive',
+                              onPress: () => {
+                                void removeFriend(uid, f.uid)
+                                  .then(refresh)
+                                  .catch(captureError);
+                              },
+                            },
+                          ],
+                        });
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove ${f.displayName}`}
+                      style={[styles.actionPill, styles.actionPillMuted]}
+                    >
+                      <Text style={font('extrabold', 11, { color: palette.slate500 })}>Remove</Text>
                     </PressableScale>
                   </View>
                 </View>
@@ -536,6 +582,9 @@ const styles = StyleSheet.create({
   },
   actionPillSoft: {
     backgroundColor: palette.green50,
+  },
+  actionPillMuted: {
+    backgroundColor: palette.border,
   },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   aiTag: {

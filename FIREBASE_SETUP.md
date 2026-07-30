@@ -133,7 +133,8 @@ couple nudges push across devices via Expo — all on the free plan.
 ```
 users/{uid}
   uid, username (lowercased, for friend lookup), displayName,
-  avatarUrl, weeklyGoal, totalXp, personalBests{push,squat,shoulder,stretch}, updatedAt
+  avatarUrl, weeklyGoal, totalXp, personalBests{push,squat,shoulder,stretch},
+  createdAt, lastActiveAt, updatedAt
 
 users/{uid}/private/push   # owner-only
   expoPushToken, pushUpdatedAt
@@ -148,6 +149,10 @@ couples/{coupleId}       # doc id IS the 6-char pair code
   id, memberUids[2], pending,
   members[] { uid, displayName, avatarUrl, trainedDays[], totalReps, expoPushToken? },
   nudge { fromUid, at }, createdAt, pairedAt
+
+duels/{duelId}
+  exercise, duration, status, hostUid, guestUid, targetUid?,
+  host/guest seats, cooperative?, kind? ('duel'|'train'|'compete'), winnerUid?
 ```
 
 ## Live duels — end to end

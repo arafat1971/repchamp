@@ -7,13 +7,14 @@
  *    schedules for its own owner, and the in-app nudge shown when the partner is
  *    already looking at the app. These work with no server.
  *  - **Remote (Expo Push)**: `registerForPushNudges` stores this device's *Expo*
- *    push token on the user profile. When a partner nudges, the *sender's* app
- *    POSTs to Expo's push service (`coupleService.nudgePartner`), which delivers
- *    to that token even when the recipient's app is closed. This deliberately
- *    uses Expo Push rather than a Cloud Function so it needs no Blaze plan — the
- *    only server is Expo's, which is free. (Expo still routes Android delivery
- *    through FCM under the hood, so an FCM key must be uploaded to the Expo
- *    project once — see FIREBASE_SETUP.md.)
+ *    push token on `users/{uid}/private/push` (owner-only). When a partner nudges,
+ *    the *sender's* app POSTs to Expo's push service (`coupleService.nudgePartner`)
+ *    using the token the partner published on the couple member slice, which
+ *    delivers even when the recipient's app is closed. This deliberately uses
+ *    Expo Push rather than a Cloud Function so it needs no Blaze plan — the only
+ *    server is Expo's, which is free. (Expo still routes Android delivery through
+ *    FCM under the hood, so an FCM key must be uploaded to the Expo project once —
+ *    see FIREBASE_SETUP.md.)
  *
  * Nothing here throws on a device that refuses permission or lacks a project id —
  * every entry point resolves to a no-op so a declined prompt or an unconfigured

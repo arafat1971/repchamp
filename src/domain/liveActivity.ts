@@ -7,8 +7,8 @@
  *  - While the app is seeding AI partners (a fresh community), it reads
  *    "N training partners ready" — honest, because those AI partners genuinely
  *    are available to race this instant.
- *  - Once a real community exists, it reads "N athletes competing" using a real
- *    count sourced from Firestore.
+ *  - Once a real community exists, it reads "N athletes active" using a real
+ *    count sourced from Firestore (online friends + open matchmaking).
  *
  * Pure and framework-free so it can be unit-tested; the count itself is supplied
  * by the caller (from `useLiveActivity`, which reads the real number).
@@ -17,7 +17,7 @@
 export interface LiveActivity {
   /** The number to show. */
   count: number;
-  /** The honest label, e.g. "training partners ready" or "athletes competing". */
+  /** The honest label, e.g. "training partners ready" or "athletes active". */
   label: string;
   /** Whether this reflects AI partners (seeding) vs real athletes. */
   seeded: boolean;
@@ -35,7 +35,7 @@ export function liveActivity(realActive: number, aiReady: number, seeding: boole
   if (!seeding || realActive >= aiReady) {
     return {
       count: Math.max(0, realActive),
-      label: realActive === 1 ? 'athlete competing' : 'athletes competing',
+      label: realActive === 1 ? 'athlete active' : 'athletes active',
       seeded: false,
     };
   }

@@ -57,14 +57,15 @@ export async function fetchProfile(uid: string): Promise<CloudProfile | null> {
  */
 export async function saveExpoPushToken(uid: string, token: string): Promise<void> {
   if (!isFirebaseConfigured()) return;
-  await usersCol()
-    .doc(uid)
-    .collection('private')
-    .doc('push')
-    .set({
+  const ref = usersCol().doc(uid);
+  await Promise.all([
+    ref.collection('private').doc('push').set({
       expoPushToken: token,
       pushUpdatedAt: firestore.FieldValue.serverTimestamp(),
-    });
+    }),
+    // Strip any pre-migration token left on the world-readable profile.
+    ref.set({ expoPushToken: firestore.FieldValue.delete() }, { merge: true }),
+  ]);
 }
 
 /** Read this athlete's own private push token (owner-only). */
@@ -92,6 +93,8 @@ export async function upsertProfile(
       updatedAt: firestore.FieldValue.serverTimestamp(),
       lastActiveAt: now,
       ...(existing.exists() ? {} : { createdAt: now }),
+      // Never leave a harvestable token on the public profile after sync.
+      expoPushToken: firestore.FieldValue.delete(),
     },
     { merge: true },
   );

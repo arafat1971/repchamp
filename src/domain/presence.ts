@@ -39,7 +39,7 @@ export function invitePresentation(kind: InviteKind | null | undefined, cooperat
     case 'train':
       return { verb: 'Invited you to train together', chip: 'Train together' };
     case 'compete':
-      return { verb: 'Challenged you on this week’s board', chip: 'Compete' };
+      return { verb: 'Challenged you to compete', chip: 'Compete' };
     default:
       return { verb: 'Challenged you to a duel', chip: 'Duel' };
   }

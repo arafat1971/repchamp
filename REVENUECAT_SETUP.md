@@ -42,14 +42,17 @@ Use the same product IDs you will import into RevenueCat.
    packages pointing at those products.
 5. Confirm the **Google** public SDK key (`goog_…`) matches `app.json → extra.revenueCatGoogle`.
 
-### 3. Rebuild & test
+### 3. Rebuild & test (licence-tester smoke)
 ```bash
 npx expo prebuild --clean
 npm run android
 ```
-- Add a **licence tester** in Play Console → test purchase (no real charge).
-- The paywall should show real prices; buying flips `isPro` live; Restore recovers it
-  on a fresh install.
+1. Play Console → **Setup → Licence testing** → add your Google account.
+2. Install a **signed** build that uses the same package / signing as the Play product
+   (preview or internal-track AAB), open the paywall.
+3. Confirm real localised prices appear (not the empty/billing-not-set-up state).
+4. Buy with the tester account (no charge) → `isPro` flips live.
+5. Fresh install → **Restore** recovers Pro.
 
 ### 4. Later — App Store (optional)
 When you ship iOS: create App Store subscriptions with the same product IDs, add the

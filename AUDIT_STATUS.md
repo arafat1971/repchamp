@@ -53,9 +53,10 @@ Surfaced in Settings → Your Data (Export my data / Delete my account, double-c
 
 | Gap | Why it blocks | Where |
 |---|---|---|
-| **No RevenueCat products registered** | Paywall fetches an empty offering → **zero revenue**. Android key is already in `app.json`; you still need Play products + a RevenueCat offering. | Google Play Console → RevenueCat: product + offering + `pro` entitlement. See `REVENUECAT_SETUP.md`. |
+| **No RevenueCat products registered** | Paywall fetches an empty offering → **zero revenue**. Android key is already in `app.json`; you still need Play products + a RevenueCat offering. | Google Play Console → RevenueCat: **`rc_pro_monthly`** + **`rc_pro_annual`**, entitlement `pro`, offering `current`. See `REVENUECAT_SETUP.md`. |
+| **Android SHA fingerprints for Google Sign-In** | Web client id is set; release/EAS builds still need SHA-1/SHA-256 on the Firebase Android app. | `eas credentials` / `keytool` → Firebase → Android fingerprints. See `FIREBASE_SETUP.md` §3. |
 | ~~**Sentry DSN is a placeholder**~~ | **FIXED** — real DSN in `app.json`. Crash reporting lights up on next build. | — |
-| ~~**Google Sign-In web client id empty**~~ | **FIXED** — web client id + refreshed `google-services.json` / `GoogleService-Info.plist` from Firebase. | Rebuild native app for Google Sign-In to light up. |
+| ~~**Google Sign-In web client id empty**~~ | **FIXED** — web client id + refreshed `google-services.json` / `GoogleService-Info.plist` from Firebase. | Rebuild + add SHA fingerprints (row above). |
 | **Cross-device nudge push half-wired** | Local streak reminders work; partner nudge uses Expo Push from the client. Optional Cloud Function for guaranteed delivery. | Optional (documented in FIREBASE_SETUP.md) |
 
 ### Deferred — not needed for Play Store launch
@@ -81,9 +82,9 @@ Currently **collecting, not enforcing** — exactly the safe intended state. Dev
 shows the expected `403 Firebase App Check API has not been used in project 613733102264`
 and the SDK falling back to a placeholder token, so nothing breaks. To activate (your
 console access, see FIREBASE_SETUP.md):
-1. Enable the **App Check API** for the project (the 403 link), then register the
-   **Play Integrity** (Android) / **App Attest** (iOS) provider.
-2. Watch verified-vs-unverified metrics for Firestore/Storage, then flip **Enforce**.
+1. Enable the **App Check API** for the project (the 403 link).
+2. Register **Play Integrity** (Android) — still collect-only.
+3. Watch verified-vs-unverified metrics for Firestore/Storage, then flip **Enforce**.
 
 Also tightened this round and DEPLOYED: leaderboard `totalXp`/`displayName` caps and
 `users` profile XP + string-length caps (previously only `weeklyXp` was bounded).

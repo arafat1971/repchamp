@@ -37,9 +37,27 @@ The switch is automatic: `src/lib/firebase.ts → isFirebaseConfigured()` return
 - **Android** app → package `gg.repchamp.app` → download `google-services.json` → replace the placeholder at the project root.
 - **iOS** app → bundle `gg.repchamp.app` → download `GoogleService-Info.plist` → replace the placeholder at the project root.
 
-### 3. Google Sign-In client id
-- In the console, **Authentication → Sign-in method → Google**, copy the **Web client ID** (OAuth 2.0).
-- Put it in an env value and pass it to `signInWithGoogle(webClientId)` — e.g. add to `app.json → extra.googleWebClientId` and read via `expo-constants`.
+### 3. Google Sign-In (Web client ID + Android SHA fingerprints)
+- **Web client ID** — Authentication → Sign-in method → Google → copy the **Web client ID**.
+  It already lives in `app.json → extra.googleWebClientId`. Rebuild the native app after
+  changing it.
+- **Android SHA-1 / SHA-256** — without these, Google Sign-In fails on real devices even
+  when the web client id is correct. Add **both** the debug keystore and the EAS upload /
+  Play App Signing certificate:
+
+```bash
+# Debug keystore (local `npm run android` / Expo Go-adjacent builds)
+keytool -list -v -alias androiddebugkey \
+  -keystore ~/.android/debug.keystore -storepass android -keypass android
+
+# EAS / Play credentials (production + preview builds)
+eas credentials -p android
+# → production (and preview) → Keystore → copy SHA-1 and SHA-256
+```
+
+  Firebase Console → Project settings → Your apps → Android (`gg.repchamp.app`) →
+  **Add fingerprint** for each SHA-1 and SHA-256 you use. Download a fresh
+  `google-services.json` after adding fingerprints if Firebase prompts you to.
 
 ### 4. Deploy rules & indexes
 ```bash
@@ -219,18 +237,19 @@ provider, called once from `app/_layout.tsx`, and the `@react-native-firebase/ap
 Expo plugin is in `app.json`. It no-ops when Firebase is unconfigured, like every
 other service.
 
-Two things remain, both in the Firebase console — and the order matters so you never
-lock out live users:
+Finish in the Firebase console — **order matters** so you never lock out live users:
 
-1. **Register the provider.** Firebase console → App Check → your Android app →
-   register **Play Integrity**; your iOS app → register **App Attest** (or
-   DeviceCheck). This makes tokens *valid*; it does not yet *require* them.
-2. **Watch the metrics, then enforce.** With the provider registered, real installs
-   start sending tokens. In App Check → APIs, watch the "verified vs unverified"
-   split for **Cloud Firestore** and **Storage** fill in over a day or two of real
-   traffic. Only once verified traffic is healthy, flip **Enforce** on each. Until
-   you do, un-attested requests still succeed — so shipping the client change is
-   zero-risk; enforcement is the deliberate, reversible switch.
+1. **Enable the App Check API** for project `repchamp-14f78` (Cloud Console → enable
+   the API, or follow the `403 Firebase App Check API has not been used` link from
+   logcat). Until this is on, the SDK falls back to a placeholder token.
+2. **Register the provider** (still collect-only). Firebase console → App Check →
+   your Android app → register **Play Integrity**. (iOS → **App Attest** / DeviceCheck
+   later.) Tokens become *valid*; they are not yet *required*.
+3. **Watch metrics, then enforce.** App Check → APIs → watch verified vs unverified
+   for **Cloud Firestore** and **Storage** over a day or two of real traffic. Only
+   once verified traffic is healthy, flip **Enforce** on each. Until then,
+   un-attested requests still succeed — shipping the client is zero-risk;
+   enforcement is the deliberate switch.
 
 ⚠️ App Check is a **native module** — after pulling this change, `npx expo prebuild
 --clean && npm run android` (a full rebuild) is required for it to load on device.

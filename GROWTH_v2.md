@@ -51,9 +51,10 @@ ladder (tune to your market; these convert well for fitness):
 - Add a **7-day free trial** on the annual plan (RevenueCat → the annual product → intro
   offer → 7 days free). The app auto-shows "Start free trial".
 - **Entitlement must be named `pro`** (the code checks `PRO_ENTITLEMENT = 'pro'`).
-- Steps: Google Play Console → Monetize → Subscriptions → create `repchamp_pro` with three
-  base plans (weekly/monthly/annual) → activate. RevenueCat → add the product, attach to the
-  `default` offering as three packages, attach entitlement `pro`. See `PUBLISH_RUNBOOK.md`.
+- Steps: Google Play Console → Monetize → Subscriptions → create **`rc_pro_monthly`**
+  and **`rc_pro_annual`** (optional weekly later) → activate. RevenueCat → import those
+  product IDs, attach entitlement `pro`, put them on the `current` offering. See
+  `REVENUECAT_SETUP.md` / `PUBLISH_RUNBOOK.md`.
 
 > Why weekly at $4.99: it's not meant to sell much — its job is to be the reference price
 > that makes "$49.99/year" feel like a steal. This is standard pricing psychology.

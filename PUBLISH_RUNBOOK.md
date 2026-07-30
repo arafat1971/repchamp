@@ -49,13 +49,22 @@ This produces the signed `.aab`. EAS handles the keystore (or use your own).
 ### 5. RevenueCat products (unblocks revenue + activates the paywall)
 Until this is done the hard paywall stays **dormant** by design (the billing-configured
 safety valve), so the app is fully usable but earns nothing.
-1. Google Play Console → Monetize → Subscriptions → create `repchamp_pro` with
-   Monthly + Annual base plans; activate them.
-2. RevenueCat dashboard → add product `repchamp_pro`, entitlement **`pro`** (exact),
-   offering `default` with Monthly + Annual packages.
-3. Put the `appl_…` iOS key in `app.json` too when you do iOS.
 
-### 6. (Optional, recommended) real Sentry DSN
+**Canonical Play product IDs** (must match across Play Console + RevenueCat):
+- `rc_pro_monthly`
+- `rc_pro_annual` (optional 7-day free trial)
+
+1. Google Play Console → Monetize → Subscriptions → create those two products; activate.
+2. RevenueCat → import them → entitlement **`pro`** (exact) → offering **`current`**
+   with Monthly + Annual packages.
+3. Confirm `app.json → extra.revenueCatGoogle` matches your `goog_…` key.
+4. Leave `revenueCatApple` empty until App Store. Full checklist: `REVENUECAT_SETUP.md`.
+
+### 6. Google Sign-In fingerprints (production builds)
+Add debug + EAS/Play SHA-1 / SHA-256 to Firebase Android app settings — see
+`FIREBASE_SETUP.md` §3. Without fingerprints, Google Sign-In fails on release builds.
+
+### 7. (Optional, recommended) real Sentry DSN
 Replace the `sentryDsn` placeholder in `app.json` with your project's DSN so you get
 production crash reports. Builds already pass `SENTRY_DISABLE_AUTO_UPLOAD=true` via
 `eas.json`, so a missing org won't fail the build.

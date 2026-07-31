@@ -29,7 +29,10 @@ Six silent-failure bugs — paths that reported success while doing nothing. See
 - **Unsettled duels retried forever** — a 5s Firestore write loop for the life of the
   process, now capped.
 - **Leaderboard monotonicity was bypassable** — `weekKey` was unvalidated in the rules, which
-  disabled the "score can only go up" guard. ⚠️ Needs `firebase deploy --only firestore:rules`.
+  disabled the "score can only go up" guard. ✅ Deployed live to `repchamp-14f78` on
+  2026-08-01. Safe to tighten because `publishScore` is the only writer to `leaderboard/{uid}`
+  and it always sends `weekKey`; the other match in the codebase is a read-only query in
+  `seedPhantoms.ts`.
 
 ### Closed in follow-up work
 

@@ -26,19 +26,25 @@ export const POSE_BUFFER_LENGTH = 17 * 3;
 /** Joints below this confidence are not drawn, rather than drawn wrong. */
 const DRAW_THRESHOLD = 0.3;
 
-/** Skeleton bone stroke width (px). */
-const BONE_STROKE_WIDTH = 5;
+/**
+ * Skeleton bone stroke width (px). Every glow pass is expressed as an offset
+ * from this, so widening the core widens the whole treatment with it.
+ */
+const BONE_STROKE_WIDTH = 8;
 
-/** Joint marker radius — medium dots (~3× the previous thin markers). */
-const JOINT_RADIUS = 9;
+/**
+ * Joint marker radius. Kept comfortably wider than half the bone stroke so
+ * joints still read as distinct nodes rather than bulges in the line.
+ */
+const JOINT_RADIUS = 11;
 
 /**
  * How far past the wrist / ankle to extend the limb line toward fingers / toes.
  * MoveNet stops at wrist and ankle; extending along the limb direction makes
  * the silhouette reach the hands and feet without inventing noisy keypoints.
  */
-const HAND_EXTEND = 0.38;
-const FOOT_EXTEND = 0.42;
+const HAND_EXTEND = 0.46;
+const FOOT_EXTEND = 0.5;
 
 /** Proximal → distal pairs used to grow hands and feet. */
 const LIMB_TIPS: readonly (readonly [number, number, number])[] = [
@@ -46,6 +52,30 @@ const LIMB_TIPS: readonly (readonly [number, number, number])[] = [
   [KEYPOINT_INDEX.rightElbow, KEYPOINT_INDEX.rightWrist, HAND_EXTEND],
   [KEYPOINT_INDEX.leftKnee, KEYPOINT_INDEX.leftAnkle, FOOT_EXTEND],
   [KEYPOINT_INDEX.rightKnee, KEYPOINT_INDEX.rightAnkle, FOOT_EXTEND],
+];
+
+/**
+ * Joints that actually get a marker.
+ *
+ * MoveNet emits five face keypoints (nose, eyes, ears) but `SKELETON_BONES`
+ * deliberately connects none of them, so drawing them left loose dots floating
+ * over the athlete's face — noise that read as tracking errors rather than as
+ * the body line. Listing the drawn joints by name (rather than slicing the
+ * first five off) keeps this readable and survives a topology change.
+ */
+const DRAWN_JOINTS: readonly number[] = [
+  KEYPOINT_INDEX.leftShoulder,
+  KEYPOINT_INDEX.rightShoulder,
+  KEYPOINT_INDEX.leftElbow,
+  KEYPOINT_INDEX.rightElbow,
+  KEYPOINT_INDEX.leftWrist,
+  KEYPOINT_INDEX.rightWrist,
+  KEYPOINT_INDEX.leftHip,
+  KEYPOINT_INDEX.rightHip,
+  KEYPOINT_INDEX.leftKnee,
+  KEYPOINT_INDEX.rightKnee,
+  KEYPOINT_INDEX.leftAnkle,
+  KEYPOINT_INDEX.rightAnkle,
 ];
 
 /** Android skips all BlurMask passes — big win on Mali/Adreno mid-range SoCs. */
@@ -329,10 +359,10 @@ function Joints({
 }) {
   return (
     <Group>
-      {Array.from({ length: 17 }, (_, i) => (
+      {DRAWN_JOINTS.map((index) => (
         <Joint
-          key={i}
-          index={i}
+          key={index}
+          index={index}
           pose={pose}
           frame={frame}
           color={color}

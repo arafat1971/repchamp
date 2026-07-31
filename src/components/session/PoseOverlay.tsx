@@ -1,5 +1,15 @@
-import { BlurMask, Canvas, Circle, Group, Path, Skia } from '@shopify/react-native-skia';
-import { useMemo } from 'react';
+import {
+  BlurMask,
+  Canvas,
+  Circle,
+  Group,
+  Path,
+  Skia,
+  vec,
+  RadialGradient,
+  type CanvasRef,
+} from '@shopify/react-native-skia';
+import { forwardRef, useMemo } from 'react';
 import { Platform, StyleSheet, useWindowDimensions } from 'react-native';
 import {
   useDerivedValue,
@@ -68,10 +78,21 @@ export interface PoseOverlayProps {
  * camera's full frame rate — driving it from `useState` would cap it at whatever
  * the JS thread manages while also running inference.
  *
- * The glow is three passes of the same geometry: a wide, heavily blurred halo,
- * a mid blurred pass for density, then a crisp core.
+ * The glow is layered passes of the same geometry: a wide, softly blurred
+ * halo, a mid pass that fills it in, a tight inner bloom, then a crisp core
+ * stroke on top. Android renders a single cheap blur pass instead — enough
+ * to read as glowing without the multi-pass cost on mid-range GPUs.
+ *
+ * Forwards its Skia `CanvasRef` so a caller can `makeImageSnapshot()` the
+ * skeleton alone (transparent background, nothing else drawn here) — used by
+ * the share-card capture to composite a real camera photo with the current
+ * pose line, since VisionCamera's own `takeSnapshot()` only captures the
+ * camera layer, not this sibling canvas.
  */
-export function PoseOverlay({ pose, frame, color, visible }: PoseOverlayProps) {
+export const PoseOverlay = forwardRef<CanvasRef, PoseOverlayProps>(function PoseOverlay(
+  { pose, frame, color, visible },
+  ref,
+) {
   const { width: screenW, height: screenH } = useWindowDimensions();
 
   // Bone indices resolved once — the topology never changes.
@@ -211,21 +232,36 @@ export function PoseOverlay({ pose, frame, color, visible }: PoseOverlayProps) {
   const opacity = useDerivedValue(() => (visible.value ? 1 : 0), [visible]);
 
   return (
-    <Canvas style={StyleSheet.absoluteFill} pointerEvents="none">
+    <Canvas ref={ref} style={StyleSheet.absoluteFill} pointerEvents="none">
       <Group opacity={opacity}>
         {!LIGHT_OVERLAY ? (
           <>
+            {/* Outer halo — wide and soft, gives the skeleton a real "glowing"
+                silhouette rather than a hard-edged line with a shadow. */}
             <Path
               path={skeleton}
               style="stroke"
-              strokeWidth={BONE_STROKE_WIDTH + 8}
+              strokeWidth={BONE_STROKE_WIDTH + 14}
               strokeCap="round"
               strokeJoin="round"
               color={color}
-              opacity={0.28}
+              opacity={0.18}
             >
-              <BlurMask blur={12} style="normal" />
+              <BlurMask blur={18} style="normal" />
             </Path>
+            {/* Mid pass — fills in the halo so it reads as dense light, not a ring. */}
+            <Path
+              path={skeleton}
+              style="stroke"
+              strokeWidth={BONE_STROKE_WIDTH + 7}
+              strokeCap="round"
+              strokeJoin="round"
+              color={color}
+              opacity={0.32}
+            >
+              <BlurMask blur={9} style="normal" />
+            </Path>
+            {/* Inner bloom — tight blur right against the core stroke. */}
             <Path
               path={skeleton}
               style="stroke"
@@ -233,21 +269,26 @@ export function PoseOverlay({ pose, frame, color, visible }: PoseOverlayProps) {
               strokeCap="round"
               strokeJoin="round"
               color={color}
-              opacity={0.75}
+              opacity={0.8}
             >
               <BlurMask blur={4} style="normal" />
             </Path>
           </>
         ) : (
+          // Android: one cheap blur pass beats zero glow and stays well within
+          // budget on mid-range Mali/Adreno SoCs (a single BlurMask is far
+          // lighter than the two-to-three pass iOS treatment above).
           <Path
             path={skeleton}
             style="stroke"
-            strokeWidth={BONE_STROKE_WIDTH + 1.5}
+            strokeWidth={BONE_STROKE_WIDTH + 6}
             strokeCap="round"
             strokeJoin="round"
             color={color}
-            opacity={0.55}
-          />
+            opacity={0.4}
+          >
+            <BlurMask blur={7} style="normal" />
+          </Path>
         )}
 
         <Path
@@ -271,7 +312,7 @@ export function PoseOverlay({ pose, frame, color, visible }: PoseOverlayProps) {
       </Group>
     </Canvas>
   );
-}
+});
 
 function Joints({
   pose,
@@ -303,7 +344,7 @@ function Joints({
   );
 }
 
-/** One joint marker — medium filled dot, same size everywhere. */
+/** One joint marker — glowing radial dot on iOS, flat accent dot on Android. */
 function Joint({
   index,
   pose,
@@ -339,15 +380,27 @@ function Joint({
     () => ((pose.value[index * 3 + 2] ?? 0) >= DRAW_THRESHOLD ? JOINT_RADIUS : 0),
     [pose],
   );
+  const glowR = useDerivedValue(() => r.value * 2.2, [r]);
+  const center = useDerivedValue(() => vec(cx.value, cy.value), [cx, cy]);
 
   return (
-    <Circle
-      cx={cx}
-      cy={cy}
-      r={r}
-      color={LIGHT_OVERLAY ? color : '#ffffff'}
-      opacity={LIGHT_OVERLAY ? 0.95 : 1}
-    />
+    <Group>
+      {/* Soft halo behind the joint core — skipped on Android to keep the
+          per-joint draw cost flat (17 joints × extra blur pass adds up). */}
+      {!LIGHT_OVERLAY ? (
+        <Circle cx={cx} cy={cy} r={glowR} color={color} opacity={0.3}>
+          <BlurMask blur={6} style="normal" />
+        </Circle>
+      ) : null}
+      {!LIGHT_OVERLAY ? (
+        // Bright-core-to-accent radial fill so joints read as light sources.
+        <Circle cx={cx} cy={cy} r={r}>
+          <RadialGradient c={center} r={JOINT_RADIUS} colors={['#ffffff', color]} />
+        </Circle>
+      ) : (
+        <Circle cx={cx} cy={cy} r={r} color={color} opacity={0.95} />
+      )}
+    </Group>
   );
 }
 

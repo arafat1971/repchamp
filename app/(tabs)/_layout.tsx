@@ -1,8 +1,10 @@
 import { BlurView } from 'expo-blur';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect, Tabs, usePathname, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
+  Image as RNImage,
   Modal,
   Platform,
   Pressable,
@@ -203,6 +205,48 @@ function MuscleIcon({ size = 26, color = '#ffffff' }: { size?: number; color?: s
 }
 
 /**
+ * The FAB's flex mark — the illustrated `fabicon` asset.
+ *
+ * The artwork is a transparent-backed bicep centred in a 1024² canvas with
+ * roughly a quarter of each edge as empty padding, so it is rendered larger
+ * than the nominal icon box to make the arm itself read at FAB size. Falling
+ * back to the vector `MuscleIcon` if the asset ever fails to resolve keeps a
+ * broken/renamed file from leaving an empty FAB.
+ */
+const FLEX_ASSET = require('../../assets/fabicon.png') as number;
+const FLEX_ASSET_IS_REAL = (() => {
+  const meta = RNImage.resolveAssetSource(FLEX_ASSET);
+  return (meta?.width ?? 0) > 8 && (meta?.height ?? 0) > 8;
+})();
+
+/**
+ * The arm occupies only ~52% of its 1024² canvas (measured: 482×534 of
+ * content, the rest transparent padding). Since `contentFit="contain"` fits
+ * the whole canvas into the box, the visible arm would otherwise render at
+ * barely half the intended size. Scaling by ~1.3 lands it at roughly 68% of
+ * the circle — big enough to read, with enough margin that the round clip
+ * never bites into the fist or elbow.
+ */
+const FLEX_ART_INSET_SCALE = 1.3;
+
+function FlexMark({ size }: { size: number }) {
+  if (!FLEX_ASSET_IS_REAL) {
+    // Vector fallback sits on a light disc now, so it needs the brand green
+    // rather than the white it used against the old green circle.
+    return <MuscleIcon size={size - 6} color="#16a34a" />;
+  }
+  const drawn = size * FLEX_ART_INSET_SCALE;
+  return (
+    <Image
+      source={FLEX_ASSET}
+      style={{ width: drawn, height: drawn }}
+      contentFit="contain"
+      accessibilityLabel="Start workout"
+    />
+  );
+}
+
+/**
  * Train FAB — entrance bounce → glow → idle breathing.
  * Press expands a speed-dial (Push-ups / Squats / Sit-Ups / Custom) instead of
  * jumping straight to Train.
@@ -360,17 +404,22 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
             accessibilityLabel={open ? 'Close workout menu' : 'Start workout'}
             style={styles.fabButton}
           >
+            {/* Closed: a light disc so the full-colour flex mark reads at its
+                own colours — orange-on-green fought itself and looked like a
+                sticker. The brand green stays in the glow ring, the border and
+                the open state, so the FAB still reads as *the* green action.
+                Open: flips to the green gradient, where a white × belongs. */}
             <LinearGradient
-              colors={open ? ['#4ade80', '#15803d'] : ['#34d399', '#16a34a']}
+              colors={open ? ['#4ade80', '#15803d'] : ['#ffffff', '#f1f6f2']}
               start={{ x: 0.15, y: 0 }}
               end={{ x: 0.9, y: 1 }}
-              style={styles.fabCircle}
+              style={[styles.fabCircle, !open && styles.fabCircleClosed]}
             >
               <Animated.View style={iconSpin}>
                 {open ? (
                   <Text style={font('bold', 26, { color: '#fff', lineHeight: 28 })}>×</Text>
                 ) : (
-                  <MuscleIcon size={28} color="#ffffff" />
+                  <FlexMark size={34} />
                 )}
               </Animated.View>
             </LinearGradient>
@@ -501,6 +550,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35,
     shadowRadius: 14,
     elevation: 10,
+    // The flex art is drawn larger than the icon box to defeat its built-in
+    // padding, so clip it to the circle rather than let it bleed past the rim.
+    overflow: 'hidden',
+  },
+  /* Closed state is a light disc, so a white rim would vanish — the brand
+     green moves to the border to keep the FAB reading as the primary action. */
+  fabCircleClosed: {
+    borderColor: '#16a34a',
+    borderWidth: 2.5,
   },
   fabScrim: {
     flex: 1,

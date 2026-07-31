@@ -2,8 +2,9 @@
 
 Snapshot of the app's readiness gaps, split by who can close them. Last swept 2026-07-31.
 
-Health at time of audit: **506 tests pass, 0 type errors, 9 lint errors (all known
-stylistic false positives), Android build succeeds and runs on device** (Pixel 7a).
+Health after the audit and its follow-up work: **524 tests pass, 0 type errors, 9 lint
+errors (all known stylistic false positives on correct code), Android build succeeds and
+runs on device** (Pixel 7a).
 
 Full sweep of all 36 routes and 65 modules on 2026-07-31 found **no broken screens, no
 dead buttons, no unresolvable navigation, no orphaned routes and no TODO/FIXME in `app/`**.
@@ -30,12 +31,33 @@ Six silent-failure bugs — paths that reported success while doing nothing. See
 - **Leaderboard monotonicity was bypassable** — `weekKey` was unvalidated in the rules, which
   disabled the "score can only go up" guard. ⚠️ Needs `firebase deploy --only firestore:rules`.
 
-### Known remaining UX gaps (deliberately deferred)
+### Closed in follow-up work
 
-`friends.tsx` and `leaderboard.tsx` lack the loading/empty/error triad that
-`notifications.tsx` and `blocked.tsx` model correctly — a network failure on the friends
-list is pixel-identical to "you have no friends". Root cause: there is no shared
-`EmptyState`/`ErrorState` component, so every screen hand-rolls it.
+- **Profile sync reported success it never achieved** — `upsertProfile` signals a rejected
+  write by *returning false* rather than throwing, so `pushProfile`'s catch never fired: a
+  denied write left `status` on 'synced' while XP quietly stopped mirroring. It also
+  published a leaderboard row for a profile that was never saved.
+- **Action-shot capture leaked a temp file per rep** — it wrote a full-resolution JPEG to the
+  app cache on every capture with nothing reclaiming it. Now encodes in memory.
+- **Friends / leaderboard empty states** — a network failure on the friends list was
+  pixel-identical to "you have no friends". Added a shared `EmptyState`/`ErrorState` to
+  `src/components/ui`, which was the missing piece that let coverage drift in the first
+  place, and adopted it in both screens.
+- **FAB artwork clipping** — the scale constant was tuned to a near-square mark; the current
+  landscape one would have been cut off by the circular clip.
+
+Test coverage went 499 → 524. `accountService`, `proStore` and `authStore` had no tests at
+all, which is precisely why their bugs survived. Every regression test was verified by
+reinstating the original bug and confirming the test fails.
+
+### Known remaining gaps (deliberately deferred)
+
+- **`isUsernameAvailable` returns `true` on error**, so two offline devices can claim the
+  same name. The real fix is a `usernames/{name}` reservation doc, which is a schema change
+  rather than a patch; the current behaviour is a documented tradeoff (don't block onboarding
+  while offline).
+- **iOS billing is inert** — `revenueCatApple` is empty by choice while shipping Android
+  first. Not a defect.
 
 ---
 

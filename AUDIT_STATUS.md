@@ -1,9 +1,41 @@
 # Audit & Gap Status
 
-Snapshot of the app's readiness gaps, split by who can close them. Last swept 2026-07-26.
+Snapshot of the app's readiness gaps, split by who can close them. Last swept 2026-07-31.
 
-Health at time of audit: **312 tests pass, 0 type errors, Android build succeeds and
-runs on device** (Pixel 7a). The bones are solid; gaps are at the edges.
+Health at time of audit: **506 tests pass, 0 type errors, 9 lint errors (all known
+stylistic false positives), Android build succeeds and runs on device** (Pixel 7a).
+
+Full sweep of all 36 routes and 65 modules on 2026-07-31 found **no broken screens, no
+dead buttons, no unresolvable navigation, no orphaned routes and no TODO/FIXME in `app/`**.
+The bones are solid; gaps are at the edges.
+
+---
+
+## ✅ Closed in code (2026-07-31 audit)
+
+Six silent-failure bugs — paths that reported success while doing nothing. See commit
+"Fix silent-failure bugs found in the full-app audit" for the full reasoning.
+
+- **Account deletion (GDPR)** — every erase swallowed its own rejection, so the athlete was
+  told the account was deleted while their profile and leaderboard row were still live. Now
+  raises, naming what survived. Regression tests added (`accountService` had none).
+- **Couple credits could double-count** — `done` was persisted only after the whole flush
+  loop, and the server's replay window (40) was narrower than the client's retry memory
+  (200). Now persists per credit; server window raised to 250.
+- **Pro lost by a paying subscriber** — `refresh()` re-checked RevenueCat anonymously on a
+  cold start. Now passes the uid. `initialize()` could also hang the paywall forever.
+- **Blocking left an accepted duel live** — the cleanup query did not match the delete rule.
+- **Unsettled duels retried forever** — a 5s Firestore write loop for the life of the
+  process, now capped.
+- **Leaderboard monotonicity was bypassable** — `weekKey` was unvalidated in the rules, which
+  disabled the "score can only go up" guard. ⚠️ Needs `firebase deploy --only firestore:rules`.
+
+### Known remaining UX gaps (deliberately deferred)
+
+`friends.tsx` and `leaderboard.tsx` lack the loading/empty/error triad that
+`notifications.tsx` and `blocked.tsx` model correctly — a network failure on the friends
+list is pixel-identical to "you have no friends". Root cause: there is no shared
+`EmptyState`/`ErrorState` component, so every screen hand-rolls it.
 
 ---
 

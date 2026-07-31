@@ -69,6 +69,19 @@ import { palette } from '@/theme/tokens';
 /** Framing confidence that counts as "body locked". */
 const CALIBRATION_LOCK = 0.55;
 
+/**
+ * Trace the share-card capture.
+ *
+ * The capture has several ways to give up — the preview not being ready, the
+ * hidden composite layers never painting, a rejected screenshot — and every
+ * one of them used to return null silently, so a broken share card looked
+ * identical to one that was never attempted. Dev-only: this is diagnostic
+ * scaffolding, not something a shipped build should log.
+ */
+function captureDebug(message: string): void {
+  if (__DEV__) console.log(`[RepChamp] action shot: ${message}`);
+}
+
 export default function SessionScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -361,7 +374,12 @@ export default function SessionScreen() {
       return captureRef(cameraStageRef, { format: 'jpg', quality: 0.85 });
     }
 
-    if (!cameraRef.current || !poseOverlayRef.current) return null;
+    if (!cameraRef.current || !poseOverlayRef.current) {
+      captureDebug(
+        `refs missing (camera=${!!cameraRef.current} overlay=${!!poseOverlayRef.current})`,
+      );
+      return null;
+    }
 
     try {
       // `takeSnapshot()` rejects when the preview isn't ready yet (e.g. the
@@ -381,6 +399,11 @@ export default function SessionScreen() {
       const encoded = await photoImage.toEncodedImageDataAsync('jpg', 85);
       const photoUri = `data:image/jpeg;base64,${arrayBufferToBase64(encoded.buffer)}`;
       const skeletonUri = `data:image/png;base64,${skeletonSnapshot.encodeToBase64()}`;
+      captureDebug(
+        `encoded photo ${photoImage.width}x${photoImage.height} ` +
+          `(${Math.round(encoded.buffer.byteLength / 1024)}KB) ` +
+          `skeleton ${Math.round(skeletonUri.length / 1024)}KB`,
+      );
 
       // Mount both layers into the hidden composite view, wait for them to
       // paint, then screenshot the pair. `compositeRef` is deliberately not
@@ -397,25 +420,53 @@ export default function SessionScreen() {
         };
         // A layer that never loads must not hang the capture (and with it the
         // in-flight latch) forever.
-        const bail = setTimeout(() => finish(null), 2000);
+        //
+        // 2s was too tight: the skeleton layer is a full-screen lossless PNG
+        // that traces showed at 450-530KB — thirty times the photo's 16KB,
+        // since it is mostly transparency — and decoding it took ~1.6s on a
+        // Pixel 7a. That left almost no headroom on a slower device or a
+        // busier frame.
+        const bail = setTimeout(() => {
+          captureDebug(`composite timed out after 5s (layers loaded: ${loaded}/2)`);
+          finish(null);
+        }, 5000);
 
         onLayerLoadedRef.current = () => {
           loaded += 1;
           if (loaded < 2) return;
-          // One more frame so the native layout/paint from the state write
-          // has definitely landed before the screenshot reads it.
-          requestAnimationFrame(() => {
+          // Give the native side one beat to finish laying the layers out
+          // before screenshotting them.
+          //
+          // This used to use `requestAnimationFrame`, which never fired: RN
+          // drives it from the JS frame loop, and this composite is parked
+          // off-screen where it produces no frames, so the callback simply
+          // never ran and the capture always hit its 2s timeout — with both
+          // layers reported loaded, which is what gave the bug away. A plain
+          // timeout does not depend on anything being drawn.
+          setTimeout(() => {
             if (!compositeRef.current) {
+              captureDebug('composite view unmounted before capture');
               finish(null);
               return;
             }
             captureRef(compositeRef, { format: 'jpg', quality: 0.85 })
-              .then(finish)
-              .catch(() => finish(null));
-          });
+              .then((uri) => {
+                captureDebug(`composite captured -> ${uri.slice(0, 48)}`);
+                finish(uri);
+              })
+              .catch((error) => {
+                captureDebug(`composite captureRef failed: ${String(error)}`);
+                finish(null);
+              });
+          }, 32);
         };
         setCompositeLayers({ photoUri, skeletonUri });
       });
+    } catch (error) {
+      // Previously swallowed entirely by the bare `finally`, which made a
+      // failed capture indistinguishable from one that never ran.
+      captureDebug(`failed: ${String(error)}`);
+      return null;
     } finally {
       // Drop the layers again so the hidden view (and its two full-screen
       // bitmaps) doesn't sit in memory between reps.
@@ -457,11 +508,13 @@ export default function SessionScreen() {
           now - lastSnapshotAtRef.current >= SNAPSHOT_THROTTLE_MS
         ) {
           snapshotInFlightRef.current = true;
+          captureDebug(`rep ${completedRep.index} — attempting`);
           captureActionShot()
             .then((uri) => {
               if (!uri) return;
               lastSnapshotAtRef.current = Date.now();
               useSessionStore.getState().setCapturedSnapshotUri(uri);
+              captureDebug(`stored for rep ${completedRep.index}`);
             })
             .catch(() => {
               // Capture can fail (e.g. the preview isn't ready yet); allow a

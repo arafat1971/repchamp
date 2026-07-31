@@ -5,8 +5,10 @@ derived from an audit of what the code **actually** collects — accurate declar
 avoid rejection. Re-check if you add features (e.g. real analytics, ads, location).
 
 Key fact to get right: **the camera/video feed is processed entirely on-device and is
-never uploaded or recorded.** Only the avatar photo the user picks, plus workout stats,
-leave the device. Declare accordingly.
+never uploaded or recorded as video.** The avatar photo the user picks, workout stats,
+and — as of the duel/together photo-share feature — one still action shot per live
+duel/together set (shown only to that set's opponent/partner) leave the device.
+Declare accordingly.
 
 ---
 
@@ -42,12 +44,14 @@ purpose + optionality as noted.
 ### Photos and videos
 | Data | Collected | Purpose | Optional? |
 |---|---|---|---|
-| **Photos** (profile avatar the user picks) | Yes | App functionality (profile picture) | Optional |
-| **Videos** | **No** | The camera feed is processed on-device for rep counting and is never uploaded or recorded | — |
+| **Photos** (profile avatar the user picks; one action-shot still per live duel/together set, shown only to that set's opponent/partner) | Yes | App functionality (profile picture; shared result card in duel/together modes) | Optional (solo/practice sessions never upload a photo) |
+| **Videos** | **No** | The camera feed is processed on-device for rep counting and is never uploaded or recorded as video | — |
 
-> This is the important one: answer **No** to collecting videos. In the app's Data-safety
-> narrative and store listing, state clearly: "Workout video is processed on your device and
-> never leaves your phone."
+> Still answer **No** to collecting videos — that hasn't changed. But the Photos row now
+> also covers the duel/together action shot, so it can no longer be scoped to "avatar only."
+> In the app's Data-safety narrative and store listing, state clearly: "Workout video is
+> processed on your device and never leaves your phone. In live duels and together sessions,
+> one still photo per set is shared with your opponent or partner on the result card."
 
 ### App activity / app info and performance
 | Data | Collected | Purpose | Optional? |
@@ -94,9 +98,11 @@ purpose + optionality as noted.
 
 ## Companion narrative for the store listing (recommended)
 > RepChamp counts your reps using pose detection that runs entirely on your device. Your
-> camera feed is never recorded or uploaded. We store your profile, workout stats, and (if
-> you pair) your shared couple data to sync across devices and power leaderboards. You can
-> export or delete all of it anytime in Settings.
+> camera feed is never recorded as video or uploaded. In live duels and together sessions,
+> one still action photo per set is shared with your opponent or partner on the result
+> card — solo and practice sets never share a photo. We store your profile, workout stats,
+> and (if you pair) your shared couple data to sync across devices and power leaderboards.
+> You can export or delete all of it anytime in Settings.
 
 ---
 

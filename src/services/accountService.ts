@@ -16,6 +16,7 @@
  *   - `duels/{id}`                    pending / active matches
  *   - `couples/{coupleId}`            the shared bond — deleted whole
  *   - Storage `avatars/{uid}`         profile image (may not exist)
+ *   - Storage `duelPhotos/{duelId}/`  action shots from live duels / together sets
  *
  * As with every service here, all operations no-op when Firebase isn't
  * configured — a local-only user has nothing in the cloud to export or erase,
@@ -73,6 +74,51 @@ export async function exportAccountData(uid: string): Promise<Record<string, unk
  * Cancel pending invites and forfeit active seats so a deleting athlete does
  * not leave partners stuck in a live set against a ghost uid.
  */
+/**
+ * Erase this athlete's duel action shots from Storage.
+ *
+ * These are keyed `duelPhotos/{duelId}/{seat}.jpg` rather than by uid, so they
+ * cannot be found without first resolving which duels the athlete sat in — and
+ * `closeOpenDuels` only looks at pending and active ones, while a photo is
+ * uploaded when a set *finishes*. Deleting the profile therefore used to leave
+ * real photographs of the athlete behind, which is not a deletion we can
+ * honestly claim.
+ *
+ * Best-effort by design: a missing object is the normal case (most duels have
+ * no photo), and a transient failure here must not strand the athlete on a
+ * half-deleted account when everything identifying them is already gone.
+ */
+async function deleteDuelPhotos(uid: string): Promise<void> {
+  const db = firestore();
+  try {
+    const [asHost, asGuest] = await Promise.all([
+      db.collection('duels').where('hostUid', '==', uid).limit(100).get(),
+      db.collection('duels').where('guestUid', '==', uid).limit(100).get(),
+    ]);
+
+    const targets: string[] = [];
+    for (const snap of [asHost, asGuest]) {
+      for (const doc of snap.docs) {
+        const duel = doc.data() as Duel;
+        // Only the seat this athlete occupied — the opponent's shot is theirs.
+        const seat = duel.hostUid === uid ? 'host' : 'guest';
+        targets.push(`duelPhotos/${doc.id}/${seat}.jpg`);
+      }
+    }
+
+    await Promise.all(
+      targets.map((path) =>
+        storage()
+          .ref(path)
+          .delete()
+          .catch(() => undefined),
+      ),
+    );
+  } catch {
+    // Offline / missing index — the identifying data is already gone.
+  }
+}
+
 /** Cancel pending invites and forfeit active seats for this uid. */
 export async function closeOpenDuels(uid: string): Promise<void> {
   const db = firestore();
@@ -220,6 +266,8 @@ export async function deleteAccount(uid: string): Promise<void> {
     // No avatar (object-not-found) or a transient error — not worth failing the
     // whole deletion over; the profile doc that referenced it is already gone.
   }
+
+  await deleteDuelPhotos(uid);
 
   const current = auth().currentUser;
   if (!current || current.uid !== uid) return;

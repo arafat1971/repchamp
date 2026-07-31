@@ -28,12 +28,22 @@ function mockDoc(path: string) {
   };
 }
 
+/** Duel docs the `duels` collection returns, keyed by doc id. */
+const duelRows: Record<string, Record<string, unknown>> = {};
+
 function mockCollection(path: string) {
   const q = {
     where: () => q,
     limit: () => q,
     async get() {
-      return { docs: [] as unknown[] };
+      if (path !== 'duels') return { docs: [] as unknown[] };
+      return {
+        docs: Object.entries(duelRows).map(([id, data]) => ({
+          id,
+          data: () => data,
+          ref: mockDoc(`duels/${id}`),
+        })),
+      };
     },
   };
   return { ...q, doc: (id: string) => mockDoc(`${path}/${id}`) };
@@ -48,8 +58,17 @@ jest.mock('@react-native-firebase/firestore', () => {
   return { __esModule: true, default: fn };
 });
 
+/** Storage object paths deleted this run. */
+const storageDeleted: string[] = [];
+
 jest.mock('@react-native-firebase/storage', () => {
-  const fn = () => ({ ref: () => ({ async delete() {} }) });
+  const fn = () => ({
+    ref: (path: string) => ({
+      async delete() {
+        storageDeleted.push(path);
+      },
+    }),
+  });
   return { __esModule: true, default: fn };
 });
 
@@ -68,6 +87,8 @@ import { deleteAccount } from '../accountService';
 beforeEach(() => {
   mockState.configured = true;
   deleted.length = 0;
+  storageDeleted.length = 0;
+  for (const k of Object.keys(duelRows)) delete duelRows[k];
   for (const k of Object.keys(deleteOk)) delete deleteOk[k];
 });
 
@@ -101,5 +122,31 @@ describe('deleteAccount', () => {
     mockState.configured = false;
     await expect(deleteAccount('ada')).resolves.toBeUndefined();
     expect(deleted).toHaveLength(0);
+  });
+
+  it('erases the profile photo', async () => {
+    await deleteAccount('ada');
+    expect(storageDeleted).toContain('avatars/ada.jpg');
+  });
+
+  it('erases duel action shots, which are keyed by duel rather than by uid', async () => {
+    // Regression: only avatars were deleted, so real photographs of the
+    // athlete taken during live duels survived their account deletion.
+    duelRows['duel-1'] = { hostUid: 'ada', guestUid: 'bob', status: 'finished' };
+    duelRows['duel-2'] = { hostUid: 'cara', guestUid: 'ada', status: 'finished' };
+
+    await deleteAccount('ada');
+
+    expect(storageDeleted).toContain('duelPhotos/duel-1/host.jpg');
+    expect(storageDeleted).toContain('duelPhotos/duel-2/guest.jpg');
+  });
+
+  it('leaves the opponent’s photo alone', async () => {
+    // Their shot is their data, and the rules would reject the write anyway.
+    duelRows['duel-1'] = { hostUid: 'ada', guestUid: 'bob', status: 'finished' };
+
+    await deleteAccount('ada');
+
+    expect(storageDeleted).not.toContain('duelPhotos/duel-1/guest.jpg');
   });
 });

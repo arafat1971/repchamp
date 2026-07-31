@@ -122,3 +122,38 @@ describe('OneEuroFilter', () => {
     expect(peakOfRep(1.0, 800, 30)).toBeLessThanOrEqual(1.0);
   });
 });
+
+describe('rep sampling budget', () => {
+  /**
+   * Mirrors the frame-skip ceiling in `usePoseSession`: the thermal throttle
+   * may drop frames, but never so far that a rep loses the samples the filter
+   * needs to resolve its peak.
+   */
+  function maxFrameSkip(minRepDurationMs: number, targetFps = 30): number {
+    const MIN_SAMPLES_PER_REP = 8;
+    const frameMs = 1000 / targetFps;
+    return Math.max(1, Math.min(3, Math.floor(minRepDurationMs / (frameMs * MIN_SAMPLES_PER_REP))));
+  }
+
+  it('never throttles a fast exercise below a resolvable sample count', () => {
+    // High knees are the extreme: a 280ms rep at every-3rd-frame leaves three
+    // samples, which cannot describe a peak — reps went missing entirely.
+    for (const [minMs, expected] of [
+      [280, 1], // high-knees
+      [350, 1], // jumping-jack
+      [400, 1], // push
+      [600, 2], // shoulder rolls
+      [800, 3], // full-body stretch
+    ] as const) {
+      expect(maxFrameSkip(minMs)).toBe(expected);
+    }
+  });
+
+  it('leaves every exercise at least eight samples across its fastest rep', () => {
+    for (const minMs of [280, 350, 400, 450, 500, 600, 800]) {
+      const effectiveHz = 30 / maxFrameSkip(minMs);
+      const samples = Math.floor(minMs / (1000 / effectiveHz));
+      expect(samples).toBeGreaterThanOrEqual(8);
+    }
+  });
+});

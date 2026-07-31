@@ -256,6 +256,30 @@ export function usePoseSession({
   // eslint-disable-next-line react-hooks/refs
   countingRef.current = counting;
 
+  /**
+   * Ceiling on the thermal frame-skip, set by how fast this exercise's reps
+   * are.
+   *
+   * The throttle used to drop to every 3rd frame for every exercise alike. At
+   * 30fps that leaves 10 samples a second, which is ample for an 800ms
+   * full-body stretch but not for 280ms high knees — three samples cannot
+   * resolve a peak, so the depth signal never reaches `downThreshold` and the
+   * rep is never even started. Reps vanished rather than counting shallow.
+   *
+   * Keeping at least ~8 samples across the fastest legal rep is enough for the
+   * filter to track its peak, so the skip is capped at whatever still clears
+   * that. Slow exercises are unaffected and still throttle fully when hot.
+   */
+  const maxFrameSkip = useMemo(() => {
+    const MIN_SAMPLES_PER_REP = 8;
+    const frameMs = 1000 / TARGET_FPS;
+    const affordable = Math.floor(
+      definition.minRepDurationMs / (frameMs * MIN_SAMPLES_PER_REP),
+    );
+    // Never below 1 (no skipping) and never above the thermal ceiling of 3.
+    return Math.max(1, Math.min(3, affordable));
+  }, [definition]);
+
   useEffect(() => {
     countingSv.value = counting ? 1 : 0;
   }, [counting, countingSv]);
@@ -285,8 +309,8 @@ export function usePoseSession({
       reportFrameOnce(status, format, width, height, bytesPerRow, outputBytes);
       recordTimings(convertMs, inferMs);
       noteInferenceMs(inferMs);
-      const nextEvery = inferMs > 48 ? 3 : inferMs > 38 ? 2 : 1;
-      inferEveryN.value = nextEvery;
+      const thermalEvery = inferMs > 48 ? 3 : inferMs > 38 ? 2 : 1;
+      inferEveryN.value = Math.min(thermalEvery, maxFrameSkip);
       const nextFps = suggestedCameraFps(TARGET_FPS);
       if (nextFps !== cameraFpsRef.current) {
         cameraFpsRef.current = nextFps;
@@ -312,7 +336,7 @@ export function usePoseSession({
         formCue: update.formCue,
       });
     },
-    [onPose, onFraming, inferEveryN],
+    [onPose, onFraming, inferEveryN, maxFrameSkip],
   );
 
   /**

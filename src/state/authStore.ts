@@ -140,7 +140,13 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         }
 
         await get().pushProfile();
-        set({ status: 'synced', ready: true });
+        // `pushProfile` sets 'error' itself when the cloud write was rejected,
+        // so don't overwrite that with 'synced' — it reports what actually
+        // happened, and this line used to paper over it.
+        set((s) => ({
+          status: s.status === 'error' ? 'error' : 'synced',
+          ready: true,
+        }));
       } catch {
         set({ status: 'error', ready: true });
       }
@@ -165,7 +171,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     });
 
     try {
-      await upsertProfile({
+      // `upsertProfile` reports a rejected write by returning false rather
+      // than throwing (see its catch), so ignoring the result meant a denied
+      // write — rules, App Check, a bad username claim — left `status` on
+      // 'synced' while the athlete's XP quietly stopped mirroring to the
+      // cloud. Treat it as the failure it is.
+      const saved = await upsertProfile({
         uid: user.uid,
         username: (p.username || 'champion').toLowerCase(),
         displayName: p.displayName,
@@ -182,6 +193,13 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         weekExerciseReps: progress.weekExerciseReps,
         programme: progress.programme,
       });
+
+      if (!saved) {
+        // Local state is untouched, so nothing is lost — the next sync
+        // retries. Surfacing it keeps the UI honest in the meantime.
+        set({ status: 'error' });
+        return;
+      }
 
       // A private profile means private: pull the row out of the ranked
       // collection entirely rather than just hiding it in the local UI.

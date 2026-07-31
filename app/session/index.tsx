@@ -45,6 +45,7 @@ import {
   successHaptic,
 } from '@/lib/feedback';
 import { track } from '@/lib/analytics';
+import { arrayBufferToBase64 } from '@/lib/base64';
 import { touchPresence } from '@/services/userService';
 import { defaultDuration, useSessionStore } from '@/state/sessionStore';
 import { useCouple } from '@/state/useCouple';
@@ -371,7 +372,14 @@ export default function SessionScreen() {
         cameraRef.current.takeSnapshot(),
         Promise.resolve(poseOverlayRef.current.makeImageSnapshot()),
       ]);
-      const photoPath = await photoImage.saveToTemporaryFileAsync('jpg', 85);
+      // Encode in memory rather than via `saveToTemporaryFileAsync`. That
+      // wrote a full-resolution JPEG into the app cache on every capture with
+      // nothing ever reclaiming it — and since this now runs on *every rep*,
+      // a single long set would have left a pile of orphaned files behind.
+      // There is no delete API on the nitro Image and no filesystem module in
+      // the project, so not touching the disk at all is the fix.
+      const encoded = await photoImage.toEncodedImageDataAsync('jpg', 85);
+      const photoUri = `data:image/jpeg;base64,${arrayBufferToBase64(encoded.buffer)}`;
       const skeletonUri = `data:image/png;base64,${skeletonSnapshot.encodeToBase64()}`;
 
       // Mount both layers into the hidden composite view, wait for them to
@@ -406,7 +414,7 @@ export default function SessionScreen() {
               .catch(() => finish(null));
           });
         };
-        setCompositeLayers({ photoUri: `file://${photoPath}`, skeletonUri });
+        setCompositeLayers({ photoUri, skeletonUri });
       });
     } finally {
       // Drop the layers again so the hidden view (and its two full-screen

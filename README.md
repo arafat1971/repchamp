@@ -155,17 +155,4 @@ you see double-counting.
 
 ---
 
-## Not yet built
 
-Honest status — these are stubbed or absent, not silently faked:
-
-- **No backend.** Duels run against `OpponentPacer`, a deterministic local bot
-  with a fixed reps-per-minute per rival. Friends, the leaderboard and the
-  notification feed use fixed local data. Replace `src/domain/leaderboard.ts`
-  and `OpponentPacer` with server calls; nothing in the UI needs to change.
-- **No auth.** Onboarding's Google/Apple buttons advance the flow without
-  authenticating. Profiles are local to the device (MMKV).
-- **No billing.** The paywall selects a plan but takes no payment and says so.
-- **No push notifications.** `expo-notifications` is installed but not wired.
-- **Crash reporting** is a `console.error` in `ErrorBoundary` — swap in Sentry
-  before shipping.

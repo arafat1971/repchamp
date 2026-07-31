@@ -23,6 +23,11 @@ import {
   type AuthUser,
 } from '@/services/auth';
 import {
+  hydrateSessionsFromCloudProgress,
+  mergeProgrammeProgress,
+} from '@/domain/cloudProgress';
+import {
+  buildCloudProgressSlice,
   fetchProfile,
   upsertProfile,
   publishScore,
@@ -31,6 +36,7 @@ import {
 } from '@/services/userService';
 import { useProfileStore, selectWeeklyXp, selectLevel, selectLeague } from '@/state/profileStore';
 import { useSettingsStore } from '@/state/settingsStore';
+import type { SessionSummary } from '@/state/profileStore';
 
 export type SyncStatus = 'idle' | 'signing-in' | 'syncing' | 'synced' | 'error';
 
@@ -40,6 +46,11 @@ interface AuthState {
   /** True once the initial auth resolution has completed (avoids UI flicker). */
   ready: boolean;
   configured: boolean;
+  /**
+   * Last uid we synced — survives `user: null` during sign-out so the next
+   * account cannot Math.max-merge the previous profile.
+   */
+  lastUid: string | null;
 
   initialize: () => () => void;
   pushProfile: () => Promise<void>;
@@ -52,6 +63,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   status: 'idle',
   ready: false,
   configured: isFirebaseConfigured(),
+  lastUid: null,
 
   /**
    * Wire up auth. Call once from the root layout; returns an unsubscribe.
@@ -80,7 +92,14 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         return;
       }
 
-      set({ user, status: 'syncing' });
+      const prevUid = get().user?.uid ?? get().lastUid;
+      // Crossing onto a different uid (e.g. anon → existing Google/email) must not
+      // Math.max local anon XP/sessions onto that account. Same-uid link keeps local.
+      if (prevUid && prevUid !== user.uid) {
+        useProfileStore.getState().reset();
+      }
+
+      set({ user, status: 'syncing', lastUid: user.uid });
 
       try {
         const cloud = await fetchProfile(user.uid);
@@ -88,13 +107,35 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
         if (cloud) {
           // Reconcile: take the max of numeric progress so neither device regresses.
+          // Default local displayName is always "Champion" (truthy) — prefer cloud
+          // until this device has finished onboarding with a real handle.
+          const localDisplay =
+            local.onboarded && local.displayName && local.displayName !== 'Champion'
+              ? local.displayName
+              : '';
+          const cloudOnboarded =
+            cloud.onboarded === true ||
+            (!!cloud.username && cloud.username !== 'champion');
+          const sessions = hydrateSessionsFromCloudProgress(local.sessions, cloud) as SessionSummary[];
           useProfileStore.setState({
+            onboarded: local.onboarded || cloudOnboarded,
             username: local.username || cloud.username,
-            displayName: local.displayName || cloud.displayName,
-            avatarUri: local.avatarUri ?? cloud.avatarUrl,
+            displayName: localDisplay || cloud.displayName || local.displayName,
+            // Once onboarded, honor a local clear (null) — don't resurrect cloud avatar.
+            avatarUri: local.onboarded
+              ? local.avatarUri
+              : (local.avatarUri ?? cloud.avatarUrl),
             weeklyGoal: local.weeklyGoal || cloud.weeklyGoal,
             totalXp: Math.max(local.totalXp, cloud.totalXp),
             personalBests: mergeBests(local.personalBests, cloud.personalBests),
+            pairingBonusClaimed:
+              local.pairingBonusClaimed || !!cloud.pairingBonusClaimed,
+            pairingBonusUntil: Math.max(
+              local.pairingBonusUntil,
+              typeof cloud.pairingBonusUntil === 'number' ? cloud.pairingBonusUntil : 0,
+            ),
+            sessions,
+            programme: mergeProgrammeProgress(local.programme, cloud.programme ?? null),
           });
         }
 
@@ -118,6 +159,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     const weeklyXp = selectWeeklyXp(p);
     const level = selectLevel(p).level;
     const league = selectLeague(p).id;
+    const progress = buildCloudProgressSlice({
+      sessions: p.sessions,
+      programme: p.programme,
+    });
 
     try {
       await upsertProfile({
@@ -128,6 +173,14 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         weeklyGoal: p.weeklyGoal,
         totalXp: p.totalXp,
         personalBests: p.personalBests,
+        onboarded: p.onboarded,
+        pairingBonusClaimed: p.pairingBonusClaimed,
+        pairingBonusUntil: p.pairingBonusUntil,
+        trainedDays: progress.trainedDays,
+        weekKey: progress.weekKey,
+        weekXp: progress.weekXp,
+        weekExerciseReps: progress.weekExerciseReps,
+        programme: progress.programme,
       });
 
       // A private profile means private: pull the row out of the ranked
@@ -163,8 +216,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   },
 
   signOut: async () => {
+    const uid = get().user?.uid ?? get().lastUid;
     await authSignOut();
-    set({ user: null, status: 'idle' });
+    // Keep lastUid so the next anon/account still triggers a cross-uid reset.
+    set({ user: null, status: 'idle', lastUid: uid });
   },
 }));
 

@@ -19,6 +19,12 @@ export interface ResultShareCardProps {
   peakDepthPct?: number;
   fullDepthReps?: number;
   trackingStatus?: string;
+  /** True when pose tracking actually counted reps this set. */
+  aiVerified?: boolean;
+  /** Live versus ended level — neither side is WINNER. */
+  drew?: boolean;
+  /** Clock length for the versus meta line. */
+  durationSec?: number;
 
   mode?: SessionMode;
   opponentName?: string;
@@ -52,6 +58,10 @@ export const ResultShareCard = forwardRef<View, ResultShareCardProps>(
       formScore,
       peakDepthPct = 100,
       fullDepthReps,
+      trackingStatus = 'AI POSE TRACKED',
+      aiVerified = false,
+      drew = false,
+      durationSec = 60,
       mode = 'solo',
       opponentName = 'Opponent',
       opponentReps = 0,
@@ -64,6 +74,7 @@ export const ResultShareCard = forwardRef<View, ResultShareCardProps>(
     const userInitial = name ? name.trim().charAt(0).toUpperCase() : 'A';
     const oppInitial = opponentName ? opponentName.trim().charAt(0).toUpperCase() : 'O';
     const isVersus = mode === 'versus';
+    const durationLabel = `${Math.max(1, Math.round(durationSec))}s`;
 
     return (
       <View ref={ref} collapsable={false} style={styles.wrap}>
@@ -80,7 +91,7 @@ export const ResultShareCard = forwardRef<View, ResultShareCardProps>(
             </View>
             <View style={styles.aiPill}>
               <View style={styles.aiDot} />
-              <Text style={styles.aiPillText}>AI VERIFIED</Text>
+              <Text style={styles.aiPillText}>{aiVerified ? 'AI VERIFIED' : 'SESSION LOGGED'}</Text>
             </View>
           </View>
 
@@ -89,13 +100,13 @@ export const ResultShareCard = forwardRef<View, ResultShareCardProps>(
               {/* Result headline */}
               <Text style={styles.resultKicker}>DUEL FINISHED</Text>
               <Text style={[styles.resultTitle, { color: won ? ACCENT : INK }]}>
-                {won ? 'Victory' : 'Good effort'}
+                {drew ? 'Draw' : won ? 'Victory' : 'Good effort'}
               </Text>
 
               {/* Athletes */}
               <View style={styles.versusRow}>
                 <View style={styles.versusCol}>
-                  <View style={[styles.avatarRing, won && styles.avatarRingWin]}>
+                  <View style={[styles.avatarRing, won && !drew && styles.avatarRingWin]}>
                     {avatarUri ? (
                       <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
                     ) : (
@@ -105,28 +116,40 @@ export const ResultShareCard = forwardRef<View, ResultShareCardProps>(
                     )}
                   </View>
                   <Text style={styles.versusName} numberOfLines={1}>You</Text>
-                  <Text style={[styles.versusScore, { color: won ? ACCENT : INK }]}>{reps}</Text>
-                  {won ? <Text style={styles.winnerTag}>WINNER</Text> : <View style={styles.tagSpacer} />}
+                  <Text style={[styles.versusScore, { color: won && !drew ? ACCENT : INK }]}>{reps}</Text>
+                  {drew ? (
+                    <Text style={styles.winnerTag}>DRAW</Text>
+                  ) : won ? (
+                    <Text style={styles.winnerTag}>WINNER</Text>
+                  ) : (
+                    <View style={styles.tagSpacer} />
+                  )}
                 </View>
 
                 <Text style={styles.vsGlyph}>VS</Text>
 
                 <View style={styles.versusCol}>
-                  <View style={[styles.avatarRing, !won && styles.avatarRingWin]}>
+                  <View style={[styles.avatarRing, !won && !drew && styles.avatarRingWin]}>
                     <View style={styles.avatarFallback}>
                       <Text style={styles.avatarInitialMuted}>{oppInitial}</Text>
                     </View>
                   </View>
                   <Text style={styles.versusName} numberOfLines={1}>{opponentName}</Text>
-                  <Text style={[styles.versusScore, { color: !won ? ACCENT : INK }]}>{opponentReps}</Text>
-                  {!won ? <Text style={styles.winnerTag}>WINNER</Text> : <View style={styles.tagSpacer} />}
+                  <Text style={[styles.versusScore, { color: !won && !drew ? ACCENT : INK }]}>{opponentReps}</Text>
+                  {drew ? (
+                    <Text style={styles.winnerTag}>DRAW</Text>
+                  ) : !won ? (
+                    <Text style={styles.winnerTag}>WINNER</Text>
+                  ) : (
+                    <View style={styles.tagSpacer} />
+                  )}
                 </View>
               </View>
 
               {/* Workout summary */}
               <View style={styles.metaRow}>
                 <Text style={styles.metaLabel}>{exerciseLabel}</Text>
-                <Text style={styles.metaValue}>Most reps in {reps + opponentReps > 0 ? '60s' : '1 min'}</Text>
+                <Text style={styles.metaValue}>Most reps in {durationLabel}</Text>
               </View>
             </>
           ) : (
@@ -152,7 +175,7 @@ export const ResultShareCard = forwardRef<View, ResultShareCardProps>(
                 </View>
                 <View style={styles.stageTag}>
                   <View style={styles.liveDot} />
-                  <Text style={styles.stageTagText}>AI POSE TRACKED</Text>
+                  <Text style={styles.stageTagText}>{trackingStatus}</Text>
                 </View>
               </View>
 
@@ -187,7 +210,11 @@ export const ResultShareCard = forwardRef<View, ResultShareCardProps>(
           </View>
 
           {/* Hook */}
-          <Text style={styles.hook}>Every rep verified by AI. Think you can beat me?</Text>
+          <Text style={styles.hook}>
+            {aiVerified
+              ? 'Every rep verified by AI. Think you can beat me?'
+              : 'Logged on RepChamp. Think you can beat me?'}
+          </Text>
 
           {/* Footer */}
           <View style={styles.footer}>
@@ -266,7 +293,7 @@ function PoseSkeletonSvg({ exerciseId }: { exerciseId: string }) {
                 x2={p2.x}
                 y2={p2.y}
                 stroke={palette.green400}
-                strokeWidth="7"
+                strokeWidth="10"
                 strokeOpacity="0.35"
               />
               <Line
@@ -275,7 +302,7 @@ function PoseSkeletonSvg({ exerciseId }: { exerciseId: string }) {
                 x2={p2.x}
                 y2={p2.y}
                 stroke={palette.green400}
-                strokeWidth="2.5"
+                strokeWidth="5"
               />
             </G>
           );
@@ -283,8 +310,8 @@ function PoseSkeletonSvg({ exerciseId }: { exerciseId: string }) {
 
         {joints.map((j, idx) => (
           <G key={`joint-${idx}`}>
-            <Circle cx={j.x} cy={j.y} r="6" fill={palette.green400} fillOpacity="0.35" />
-            <Circle cx={j.x} cy={j.y} r="3" fill={palette.white} />
+            <Circle cx={j.x} cy={j.y} r="12" fill={palette.green400} fillOpacity="0.35" />
+            <Circle cx={j.x} cy={j.y} r="9" fill={palette.white} />
           </G>
         ))}
       </G>

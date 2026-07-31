@@ -53,6 +53,9 @@ const RIVAL_PASSED_KEY = 'repchamp.notif.rivalPassedWeek';
 
 let configured = false;
 let suppressCoupleNudgeInForeground = false;
+/** Wall-clock of the last in-app `presentNudge` — used to dedupe FCM only briefly. */
+let lastInAppNudgeAt = 0;
+const IN_APP_NUDGE_DEDUPE_MS = 8_000;
 
 function easProjectId(): string | undefined {
   const id =
@@ -105,8 +108,13 @@ function configureHandler(): void {
   Notifications.setNotificationHandler({
     handleNotification: async (notification) => {
       const type = notification.request.content.data?.type;
+      // Only suppress the FCM twin when we *just* showed the Firestore in-app
+      // nudge. Blanket foreground suppress dropped pushes when Firestore was
+      // slow/offline and the partner got neither banner nor presentNudge.
       const isForegroundDuplicate =
-        type === 'couple-nudge' && suppressCoupleNudgeInForeground;
+        type === 'couple-nudge' &&
+        suppressCoupleNudgeInForeground &&
+        Date.now() - lastInAppNudgeAt < IN_APP_NUDGE_DEDUPE_MS;
       return {
         shouldShowBanner: !isForegroundDuplicate,
         shouldShowList: !isForegroundDuplicate,
@@ -297,6 +305,7 @@ export async function cancelStreakReminder(): Promise<void> {
 export async function presentNudge(fromName: string): Promise<void> {
   if (!(await ensureNotificationPermission())) return;
   try {
+    lastInAppNudgeAt = Date.now();
     await Notifications.scheduleNotificationAsync({
       content: {
         title: `${fromName} is training`,
@@ -307,7 +316,8 @@ export async function presentNudge(fromName: string): Promise<void> {
       trigger: null,
     });
   } catch {
-    // Best-effort.
+    // Best-effort — clear the dedupe stamp so a real FCM push can still show.
+    lastInAppNudgeAt = 0;
   }
 }
 
@@ -357,7 +367,6 @@ export async function presentRivalPassed(input: {
   try {
     const prev = storage.getString(RIVAL_PASSED_KEY);
     if (prev === input.weekKey) return;
-    storage.set(RIVAL_PASSED_KEY, input.weekKey);
     await Notifications.cancelScheduledNotificationAsync(RIVAL_PASSED_ID).catch(() => {});
     await Notifications.scheduleNotificationAsync({
       identifier: RIVAL_PASSED_ID,
@@ -369,6 +378,8 @@ export async function presentRivalPassed(input: {
       },
       trigger: null,
     });
+    // Latch only after a successful present — a failed schedule must not burn the week.
+    storage.set(RIVAL_PASSED_KEY, input.weekKey);
   } catch {
     // Best-effort.
   }

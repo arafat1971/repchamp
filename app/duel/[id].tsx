@@ -1,12 +1,14 @@
 import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, BackHandler, StyleSheet, Text, View } from 'react-native';
 
 import { ModalHeader } from '@/components/ModalHeader';
 import { Avatar, PressableScale, Screen } from '@/components/ui';
-import { type Duel } from '@/domain/duel';
-import { createDuel, joinDuel, watchDuel, cancelDuel } from '@/services/duelService';
+import { seatOf, type Duel } from '@/domain/duel';
+import { parseDuelExercise } from '@/domain/duelExercises';
+import { createDuel, fetchDuel, joinDuel, watchDuel, cancelDuel } from '@/services/duelService';
+import { commitClientRateLimit } from '@/services/safetyService';
 import { successHaptic } from '@/lib/feedback';
 import { useSelfPlayer } from '@/state/useSelfPlayer';
 import { font, text } from '@/theme/typography';
@@ -48,7 +50,7 @@ export default function DuelWaitingScreen() {
     kind?: string;
   }>();
   const role = params.role === 'guest' ? 'guest' : 'host';
-  const exercise: ExerciseId = params.exercise === 'squat' ? 'squat' : 'push';
+  const exercise: ExerciseId = parseDuelExercise(params.exercise);
   const duration = params.duration ? Number(params.duration) : 20;
   const inviteKind =
     params.kind === 'train' || params.kind === 'compete' || params.kind === 'duel'
@@ -56,7 +58,9 @@ export default function DuelWaitingScreen() {
       : 'duel';
 
   const [duelId, setDuelId] = useState<string | null>(params.id ?? null);
-  const [status, setStatus] = useState<'starting' | 'waiting' | 'unavailable'>('starting');
+  const [status, setStatus] = useState<'starting' | 'waiting' | 'unavailable' | 'cancelled'>(
+    'starting',
+  );
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const launchedRef = useRef(false);
@@ -66,24 +70,93 @@ export default function DuelWaitingScreen() {
   // eslint-disable-next-line react-hooks/refs
   duelIdRef.current = duelId;
 
-  // Host cleanup: if we leave the waiting room before the duel launched, delete
-  // the pending doc so abandoned challenges don't pile up. A guest never owns
-  // the doc, and a launched duel is a normal hand-off, so both are left alone.
+  // Host cleanup: only cancel still-pending invites. An already-active duel must
+  // not be abandoned here — the Cancel button launches into /session instead.
   useEffect(() => {
     return () => {
-      if (role === 'host' && !launchedRef.current && duelIdRef.current) {
-        void cancelDuel(duelIdRef.current);
-      }
+      if (role !== 'host' || launchedRef.current || !duelIdRef.current) return;
+      const id = duelIdRef.current;
+      void fetchDuel(id).then((duel) => {
+        if (!duel || duel.status === 'active' || duel.status === 'finished') return;
+        void cancelDuel(id);
+      });
     };
   }, [role]);
 
-  // Create (host) or join (guest) the duel exactly once on mount.
+  const enterSession = (id: string, duel: Duel) => {
+    if (launchedRef.current) return;
+    launchedRef.current = true;
+    successHaptic();
+    router.replace({
+      pathname: '/session',
+      params: {
+        exercise: duel.exercise,
+        mode: duel.cooperative ? 'together' : 'versus',
+        duel: id,
+        duration: String(duel.duration),
+      },
+    });
+  };
+
+  const leaveWaiting = () => {
+    void (async () => {
+      const id = duelIdRef.current;
+      if (!id) {
+        router.back();
+        return;
+      }
+      const duel = await fetchDuel(id);
+      // Guest already joined — enter the set instead of orphaning the partner.
+      if (
+        duel &&
+        duel.status === 'active' &&
+        self &&
+        seatOf(duel, self.uid)
+      ) {
+        enterSession(id, duel);
+        return;
+      }
+      if (role === 'host' && !launchedRef.current) {
+        await cancelDuel(id);
+        // Guest may have joined between snapshot and cancel (cancel no-ops).
+        const again = await fetchDuel(id);
+        if (
+          again &&
+          again.status === 'active' &&
+          self &&
+          seatOf(again, self.uid)
+        ) {
+          enterSession(id, again);
+          return;
+        }
+      }
+      if (launchedRef.current) return;
+      router.back();
+    })();
+  };
+
+  // Header chevron + Android back must use the same leave path as Cancel.
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      leaveWaiting();
+      return true;
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role, self?.uid]);
+
+  // Create (host) or join (guest) once auth identity is ready. Cold-start from
+  // a push notification can mount before `self` exists — wait, don't dead-end
+  // on "backend not set up".
+  const bootstrappedUidRef = useRef<string | null>(null);
   useEffect(() => {
     if (!self) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setStatus('unavailable');
+      setStatus('starting');
       return;
     }
+    if (bootstrappedUidRef.current === self.uid) return;
+    bootstrappedUidRef.current = self.uid;
     let cancelled = false;
 
     void (async () => {
@@ -110,42 +183,98 @@ export default function DuelWaitingScreen() {
             kind: inviteKind,
             cooperative: inviteKind === 'train',
           });
-          if (cancelled) return;
-          if (!id) return setStatus('unavailable');
+          if (!id) {
+            if (!cancelled) setStatus('unavailable');
+            return;
+          }
+          // Keep the id on the cleanup ref immediately so a mid-create unmount
+          // still cancels the pending doc (and cancel here if already gone).
+          duelIdRef.current = id;
+          if (cancelled) {
+            void cancelDuel(id);
+            return;
+          }
+          // Rate-limit slot after a real challenge exists — cancel/fail must not burn it.
+          if (params.target) commitClientRateLimit('duelInvite', self.uid);
           setDuelId(id);
           setStatus('waiting');
         } else {
           const id = params.id;
           if (!id || id === 'new') return setStatus('unavailable');
+
+          // Re-open after accept / notification remount: already seated → resume.
+          const existing = await fetchDuel(id);
+          if (
+            existing &&
+            (existing.hostUid === self.uid || existing.guestUid === self.uid)
+          ) {
+            if (existing.status === 'active') {
+              // Even if this screen is unmounting, enter — don't leave host alone.
+              enterSession(id, existing);
+              return;
+            }
+            if (cancelled) return;
+            if (existing.status === 'finished') {
+              setStatus('cancelled');
+              setError('This match already finished.');
+              return;
+            }
+            // Still pending and we're already the guest — just watch.
+            setDuelId(id);
+            setStatus('waiting');
+            return;
+          }
+
           const joined = await joinDuel(id, {
             uid: self.uid,
             displayName: self.displayName,
             avatarUrl: self.avatarUrl,
             level: self.level,
           });
+          // Join already wrote active+guest — unmount must still enter session.
+          if (joined) {
+            const live = await fetchDuel(id);
+            if (live?.status === 'active') {
+              enterSession(id, live);
+              return;
+            }
+            if (cancelled) return;
+            setDuelId(id);
+            setStatus('waiting');
+            return;
+          }
           if (cancelled) return;
-          if (!joined) return setStatus('unavailable');
-          setDuelId(id);
-          setStatus('waiting');
+          setStatus('unavailable');
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Could not start the duel.');
+        if (!cancelled) {
+          setStatus('cancelled');
+          setError(e instanceof Error ? e.message : 'Could not start the duel.');
+        }
       }
     })();
 
     return () => {
       cancelled = true;
     };
-    // Self identity and role are fixed for this screen's lifetime.
+    // Re-run when cold-start auth hydrates a uid (queue already does this).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [self?.uid, role]);
 
   // Watch the duel doc; when both players are seated and it goes active, launch.
   useEffect(() => {
     if (!duelId || !self) return;
 
     const unsub = watchDuel(duelId, (duel: Duel | null) => {
-      if (!duel) return;
+      // Declined / host-cancelled deletes the doc — don't leave the host stuck
+      // on "Waiting for opponent…" forever.
+      if (!duel) {
+        if (!launchedRef.current) {
+          setStatus('cancelled');
+          setError('This challenge was declined or cancelled.');
+        }
+        return;
+      }
       const ready = duel.status === 'active' && !!duel.guestUid && !launchedRef.current;
       if (!ready) return;
       launchedRef.current = true;
@@ -160,6 +289,7 @@ export default function DuelWaitingScreen() {
           // two-seat transport but is scored cooperatively.
           mode: duel.cooperative ? 'together' : 'versus',
           duel: duelId,
+          duration: String(duel.duration),
         },
       });
     });
@@ -174,7 +304,7 @@ export default function DuelWaitingScreen() {
   };
 
   const botFallback = () =>
-    router.replace({ pathname: '/session', params: { exercise: 'push', mode: 'versus' } });
+    router.replace({ pathname: '/session', params: { exercise, mode: 'versus' } });
 
   const opponentName = params.name ?? 'your rival';
   const opponentLevel = params.level ? Number(params.level) : null;
@@ -206,9 +336,38 @@ export default function DuelWaitingScreen() {
     );
   }
 
+  if (status === 'cancelled') {
+    return (
+      <Screen>
+        <ModalHeader title="Challenge closed" />
+        <View style={styles.center}>
+          <Text style={[text.h2, { textAlign: 'center', marginTop: 12 }]}>
+            Challenge declined
+          </Text>
+          <Text style={[text.captionMd, styles.hint]}>
+            {error ?? 'This challenge was declined or cancelled.'}
+          </Text>
+          <PressableScale onPress={botFallback} style={styles.primaryBtn} accessibilityRole="button">
+            <Text style={styles.primaryLabel}>Duel a rival instead</Text>
+          </PressableScale>
+          <PressableScale
+            onPress={() => router.back()}
+            style={styles.cancel}
+            accessibilityRole="button"
+          >
+            <Text style={styles.cancelLabel}>Back</Text>
+          </PressableScale>
+        </View>
+      </Screen>
+    );
+  }
+
   return (
     <Screen>
-      <ModalHeader title={role === 'guest' ? 'Joining duel' : 'Challenge sent'} />
+      <ModalHeader
+        title={role === 'guest' ? 'Joining duel' : 'Challenge sent'}
+        onBack={leaveWaiting}
+      />
 
       <View style={styles.stage}>
         <View style={styles.vsRow}>
@@ -258,7 +417,7 @@ export default function DuelWaitingScreen() {
       ) : null}
 
       <PressableScale
-        onPress={() => router.back()}
+        onPress={leaveWaiting}
         style={styles.cancel}
         accessibilityRole="button"
         accessibilityLabel={role === 'guest' ? 'Cancel joining' : 'Cancel challenge'}

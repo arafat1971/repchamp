@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, StyleSheet, Text, View } from 'react-native';
+import { AppState, BackHandler, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
   FadeIn,
@@ -18,7 +18,8 @@ import { successHaptic } from '@/lib/feedback';
 import { type QueueTicket } from '@/domain/matchmaking';
 import { OPPONENTS } from '@/domain/opponent';
 import { usePhantomSeed } from '@/domain/seedPhantoms';
-import { enqueue, leaveQueue, tryPair, watchTicket } from '@/services/matchmakingService';
+import { enqueue, leaveQueue, tryPair, watchTicket, clearQueueTicket } from '@/services/matchmakingService';
+import { fetchDuel } from '@/services/duelService';
 import { useSelfPlayer } from '@/state/useSelfPlayer';
 import { font } from '@/theme/typography';
 import { palette, radius, shadow } from '@/theme/tokens';
@@ -51,6 +52,8 @@ export default function QueueScreen() {
 
   const [status, setStatus] = useState<'searching' | 'unavailable'>('searching');
   const launchedRef = useRef(false);
+  /** Set once we've intentionally left the ticket (Cancel / unmount). */
+  const leftQueueRef = useRef(false);
   const [elapsed, setElapsed] = useState(0);
 
   const phase = useMemo(() => {
@@ -84,9 +87,39 @@ export default function QueueScreen() {
 
   const launch = (duelId: string) => {
     if (launchedRef.current) return;
-    launchedRef.current = true;
-    successHaptic();
-    router.replace({ pathname: '/session', params: { exercise, mode: 'versus', duel: duelId } });
+    // Prefer the duel doc's format — the host ticket sets exercise/duration and
+    // the seeker's local params can disagree after an open-match claim.
+    void (async () => {
+      const duel = await fetchDuel(duelId);
+      // Stale / hostile / mismatched ticket — clear and stay searching.
+      const seated =
+        !!self &&
+        !!duel &&
+        (duel.hostUid === self.uid || duel.guestUid === self.uid);
+      const formatOk =
+        !!duel &&
+        (!duel.exercise || duel.exercise === exercise) &&
+        (!duel.duration || duel.duration === duration);
+      if (!duel || duel.status === 'finished' || !seated || !formatOk) {
+        if (self) void clearQueueTicket(self.uid);
+        return;
+      }
+      if (launchedRef.current) return;
+      launchedRef.current = true;
+      successHaptic();
+      // Clear once we're in-session — a leftover matched ticket would relaunch
+      // the finished duel on the next Quick Match.
+      if (self) void clearQueueTicket(self.uid);
+      router.replace({
+        pathname: '/session',
+        params: {
+          exercise: duel.exercise ?? exercise,
+          mode: 'versus',
+          duel: duelId,
+          duration: String(duel.duration ?? duration),
+        },
+      });
+    })();
   };
 
   // Enter the queue once we have a signed-in athlete. Depend on uid so a late
@@ -113,8 +146,14 @@ export default function QueueScreen() {
 
     const hunt = async () => {
       clearHunt();
-      await enqueue({ ...self, exercise, duration });
+      const existingDuel = await enqueue({ ...self, exercise, duration });
       if (cancelled || launchedRef.current) return;
+      // Foreground resume must not wipe a ticket that was matched while we were
+      // backgrounded — enqueue returns that duel id instead of resetting waiting.
+      if (existingDuel) {
+        launch(existingDuel);
+        return;
+      }
 
       const attempt = async () => {
         if (cancelled || launchedRef.current) return;
@@ -133,7 +172,12 @@ export default function QueueScreen() {
       if (launchedRef.current || cancelled) return;
       if (state === 'background') {
         clearHunt();
-        void leaveQueue(self.uid);
+        // Matched while leaving — launch immediately; don't drop the partner.
+        void leaveQueue(self.uid).then((leave) => {
+          if (!cancelled && !launchedRef.current && leave.outcome === 'matched') {
+            launch(leave.duelId);
+          }
+        });
       } else if (state === 'active') {
         // Re-join after a background leave so we don't sit in a ghost search.
         void hunt();
@@ -145,7 +189,15 @@ export default function QueueScreen() {
       sub.remove();
       clearHunt();
       if (tick) clearInterval(tick);
-      if (!launchedRef.current) void leaveQueue(self.uid);
+      // Cancel already left — don't double-delete. If we matched mid-leave, launch.
+      if (!launchedRef.current && !leftQueueRef.current) {
+        leftQueueRef.current = true;
+        void leaveQueue(self.uid).then((leave) => {
+          if (leave.outcome === 'matched' && !launchedRef.current) {
+            launch(leave.duelId);
+          }
+        });
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [self?.uid, exercise, duration]);
@@ -159,10 +211,9 @@ export default function QueueScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [self?.uid]);
 
-  const botFallback = () => {
+  const launchAiRival = () => {
     if (launchedRef.current) return;
     launchedRef.current = true;
-    if (self) void leaveQueue(self.uid);
     const pool = [
       ...OPPONENTS.filter((o) => o.online),
       ...(seed.isSeeding ? seed.phantomOnline.map((p) => ({ id: p.id })) : []),
@@ -171,9 +222,77 @@ export default function QueueScreen() {
     successHaptic();
     router.replace({
       pathname: '/session',
-      params: { exercise, mode: 'versus', opponent: pick.id },
+      params: {
+        exercise,
+        mode: 'versus',
+        opponent: pick.id,
+        duration: String(duration),
+      },
     });
   };
+
+  const botFallback = () => {
+    if (launchedRef.current) return;
+    // Offline / auth not ready — still allow a paced AI duel (CTA must work).
+    if (!self) {
+      launchAiRival();
+      return;
+    }
+    void (async () => {
+      // Atomic leave: if tryPair matched us mid-flight, launch that duel instead
+      // of inventing an AI rival and orphaning the partner.
+      leftQueueRef.current = true;
+      const leave = await leaveQueue(self.uid);
+      if (leave.outcome === 'matched') {
+        launch(leave.duelId);
+        return;
+      }
+      // Transient leave failure — stay searching; never AI-orphan a live partner.
+      if (leave.outcome === 'error') {
+        leftQueueRef.current = false;
+        return;
+      }
+      if (launchedRef.current) return;
+      launchAiRival();
+    })();
+  };
+
+  /** Cancel search — if we matched mid-leave, launch instead of orphaning. */
+  const cancelSearch = () => {
+    if (launchedRef.current) return;
+    if (!self) {
+      router.back();
+      return;
+    }
+    if (leftQueueRef.current) {
+      router.back();
+      return;
+    }
+    leftQueueRef.current = true;
+    void (async () => {
+      const leave = await leaveQueue(self.uid);
+      if (leave.outcome === 'matched') {
+        launch(leave.duelId);
+        return;
+      }
+      // Transient failure — stay searching so cleanup can retry leave later.
+      if (leave.outcome === 'error') {
+        leftQueueRef.current = false;
+        return;
+      }
+      if (launchedRef.current) return;
+      router.back();
+    })();
+  };
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      cancelSearch();
+      return true;
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [self?.uid]);
 
   useEffect(() => {
     if (status !== 'searching' || elapsed < WAIT_HINT_SEC) return;
@@ -226,7 +345,7 @@ export default function QueueScreen() {
 
   return (
     <Screen>
-      <ModalHeader title="Quick match" />
+      <ModalHeader title="Quick match" onBack={cancelSearch} />
 
       <Animated.View entering={FadeInDown.duration(320)} style={styles.stage}>
         {/* Live / AI mode chip */}
@@ -303,7 +422,7 @@ export default function QueueScreen() {
         )}
 
         <PressableScale
-          onPress={() => router.back()}
+          onPress={cancelSearch}
           style={styles.textCancel}
           accessibilityRole="button"
           accessibilityLabel="Cancel search"

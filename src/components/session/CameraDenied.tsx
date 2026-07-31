@@ -1,5 +1,5 @@
 import { BlurView } from 'expo-blur';
-import { Linking, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { PressableScale, PrimaryButton } from '@/components/ui';
@@ -26,7 +26,11 @@ export function CameraDenied({
 }) {
   return (
     <Animated.View entering={FadeIn.duration(220)} style={StyleSheet.absoluteFill}>
-      <BlurView intensity={38} tint="dark" style={StyleSheet.absoluteFill} />
+      {Platform.OS === 'ios' ? (
+        <BlurView intensity={38} tint="dark" style={StyleSheet.absoluteFill} />
+      ) : (
+        <View style={[StyleSheet.absoluteFill, styles.androidDim]} />
+      )}
       <View style={styles.scrim} />
 
       <View style={styles.body}>
@@ -76,6 +80,8 @@ function Step({ index, body }: { index: string; body: string }) {
 }
 
 const styles = StyleSheet.create({
+  /** Android BlurView needs a blurTarget; solid dim avoids dimezis spam + jank. */
+  androidDim: { backgroundColor: 'rgba(6,10,8,0.82)' },
   scrim: {
     position: 'absolute',
     top: 0,

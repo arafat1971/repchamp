@@ -34,8 +34,9 @@ export default function OpponentPickerScreen() {
       return opponent.online ? '● Online · first duel' : 'Offline · first duel';
     }
 
-    const wins = duels.filter((s) => s.won).length;
-    const losses = duels.length - wins;
+    const decisive = duels.filter((s) => !s.drew);
+    const wins = decisive.filter((s) => s.won).length;
+    const losses = decisive.filter((s) => !s.won).length;
     const status = opponent.online ? '● Online' : 'Offline';
 
     if (wins > losses) return `${status} · you lead ${wins}–${losses}`;

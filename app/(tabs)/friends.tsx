@@ -90,15 +90,21 @@ export default function FriendsScreen() {
   const filteredOpponents = OPPONENTS.filter((o) =>
     o.name.toLowerCase().includes(search.toLowerCase()),
   );
-  const filteredCloud = cloudFriends.filter((f) =>
-    f.displayName.toLowerCase().includes(search.toLowerCase()),
-  );
+  const q = search.trim().toLowerCase().replace(/^@+/, '');
+  const filteredCloud = cloudFriends.filter((f) => {
+    if (!q) return true;
+    return (
+      f.displayName.toLowerCase().includes(q) ||
+      (f.username ?? '').toLowerCase().includes(q)
+    );
+  });
   const friendUids = new Set(cloudFriends.map((f) => f.uid));
   const newAthletes = recent.filter(
     (a) =>
       !friendUids.has(a.uid) &&
-      (a.displayName.toLowerCase().includes(search.toLowerCase()) ||
-        (a.username ?? '').includes(search.toLowerCase())),
+      (!q ||
+        a.displayName.toLowerCase().includes(q) ||
+        (a.username ?? '').toLowerCase().includes(q)),
   );
 
   const duel = (opponent: Opponent) =>
@@ -111,7 +117,9 @@ export default function FriendsScreen() {
     const duels = sessions.filter((s) => s.mode === 'versus' && s.opponentId === id);
     return {
       wins: duels.filter((s) => s.won).length,
-      losses: duels.filter((s) => !s.won).length,
+      // Draws are neither wins nor losses — older records without `drew` still
+      // count `!won` as a loss (pre-draw-tracking behaviour).
+      losses: duels.filter((s) => !s.won && !s.drew).length,
     };
   };
 
@@ -479,7 +487,16 @@ export default function FriendsScreen() {
                               onPress: () => {
                                 void removeFriend(uid, f.uid)
                                   .then(refresh)
-                                  .catch(captureError);
+                                  .catch((error) => {
+                                    captureError(error);
+                                    showDialog({
+                                      title: "Couldn't remove",
+                                      message:
+                                        'Check your connection and try again.',
+                                      tone: 'danger',
+                                      actions: [{ label: 'Got it', variant: 'primary' }],
+                                    });
+                                  });
                               },
                             },
                           ],

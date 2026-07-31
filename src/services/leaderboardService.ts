@@ -19,7 +19,12 @@ import { isValidUsername, normalizeUsername } from '@/domain/input';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { buildLeaderboard, type LeaderboardRow } from '@/domain/leaderboard';
 import { ACTIVE_WINDOW_MS, isRecentlyActive } from '@/domain/presence';
-import { assertClientRateLimit, fetchBlockedIds, isBlockedEither } from '@/services/safetyService';
+import {
+  assertClientRateLimit,
+  commitClientRateLimit,
+  fetchBlockedIds,
+  isBlockedEither,
+} from '@/services/safetyService';
 import { currentWeekKey } from '@/services/userService';
 
 const AVATAR_TINTS = ['#fde68a', '#ddd6fe', '#bfdbfe', '#fecdd3', '#bbf7d0', '#bae6fd'];
@@ -159,12 +164,17 @@ export async function addFriendByUsername(
   const match = await firestore()
     .collection('users')
     .where('username', '==', name)
-    .limit(1)
+    .limit(5)
     .get();
 
   if (match.empty) throw new Error(`No athlete found with username "${name}"`);
-  const friendDoc = match.docs[0]!;
-  if (friendDoc.id === myUid) throw new Error("That's you!");
+  const candidates = match.docs.filter((d) => d.id !== myUid);
+  if (candidates.length === 0) throw new Error("That's you!");
+  // Colliding handles are rare but unsafe with limit(1) — refuse rather than guess.
+  if (candidates.length > 1) {
+    throw new Error('Several athletes share that username. Ask them to challenge you instead.');
+  }
+  const friendDoc = candidates[0]!;
 
   if (await isBlockedEither(myUid, friendDoc.id)) {
     throw new Error('You can’t add this athlete.');
@@ -184,6 +194,7 @@ export async function addFriendByUsername(
       addedAt: firestore.FieldValue.serverTimestamp(),
     });
 
+  commitClientRateLimit('friendAdd', myUid);
   return true;
 }
 

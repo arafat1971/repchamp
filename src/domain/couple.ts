@@ -28,6 +28,11 @@ export interface CoupleMember {
    * so the partner can nudge without reading a world-readable profile field.
    */
   expoPushToken?: string | null;
+  /**
+   * Recent outbox credit ids applied to this member — prevents double
+   * `totalReps` when a flush crashes between write and local "done".
+   */
+  creditedIds?: string[];
 }
 
 export interface Couple {
@@ -92,6 +97,26 @@ export function makePairCode(random: () => number = Math.random): string {
 export function normalizePairCode(input: string): string {
   const cleaned = input.toUpperCase().replace(/[^A-Z0-9]/g, '');
   return cleaned.length === PAIR_CODE_LENGTH ? cleaned : '';
+}
+
+/**
+ * Pull a pair code from typed input, a share URL, or pasted invite text.
+ * Prefer this at redeem boundaries so "paste what I got" works.
+ */
+export function extractPairCode(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+  const fromUrl = parseInviteCode(trimmed);
+  if (fromUrl) return fromUrl;
+  const direct = normalizePairCode(trimmed);
+  if (direct) return direct;
+  // Share blurb: "… join with ABC234" / trailing token in a longer paste.
+  const tokens = trimmed.toUpperCase().match(/[A-Z0-9]{6}/g) ?? [];
+  for (const token of tokens) {
+    const code = normalizePairCode(token);
+    if (code) return code;
+  }
+  return '';
 }
 
 /* ------------------------------------------------------------------ *

@@ -2,6 +2,7 @@ import {
   PUSHUP_LADDER,
   SQUAT_LADDER,
   advanceProgramme,
+  completeRestDay,
   getProgramme,
   programmeState,
   type ProgrammeProgress,
@@ -84,12 +85,25 @@ describe('advanceProgramme', () => {
     expect(next.completedDays).toBe(0);
   });
 
-  it('a rest day advances on any session', () => {
+  it('a rest day does not advance on a zero-rep junk set', () => {
+    const atRest: ProgrammeProgress = { programmeId: 'pushup-ladder', completedDays: 2 };
+    expect(programmeState(atRest)!.currentDay?.rest).toBe(true);
+    expect(advanceProgramme(atRest, 'push', 0)).toEqual(atRest);
+  });
+
+  it('a rest day advances on a real session', () => {
     // Day 3 (index 3) is the rest day → after 2 completed days.
     const atRest: ProgrammeProgress = { programmeId: 'pushup-ladder', completedDays: 2 };
     expect(programmeState(atRest)!.currentDay?.rest).toBe(true);
-    const next = advanceProgramme(atRest, 'push', 0);
+    const next = advanceProgramme(atRest, 'push', 5);
     expect(next.completedDays).toBe(3);
+  });
+
+  it('a qualifying workout on a rest day also clears the next training day', () => {
+    // After rest (day 3), day 4 is 14 push-ups.
+    const atRest: ProgrammeProgress = { programmeId: 'pushup-ladder', completedDays: 2 };
+    const next = advanceProgramme(atRest, 'push', 14);
+    expect(next.completedDays).toBe(4);
   });
 
   it('does nothing once the programme is finished', () => {
@@ -100,5 +114,17 @@ describe('advanceProgramme', () => {
   it('never mutates the input progress', () => {
     const frozen = Object.freeze({ programmeId: 'pushup-ladder', completedDays: 0 });
     expect(() => advanceProgramme(frozen, 'push', 20)).not.toThrow();
+  });
+});
+
+describe('completeRestDay', () => {
+  it('advances when the current day is rest', () => {
+    const atRest: ProgrammeProgress = { programmeId: 'pushup-ladder', completedDays: 2 };
+    expect(completeRestDay(atRest).completedDays).toBe(3);
+  });
+
+  it('is a no-op on a training day', () => {
+    const day1: ProgrammeProgress = { programmeId: 'pushup-ladder', completedDays: 0 };
+    expect(completeRestDay(day1)).toEqual(day1);
   });
 });

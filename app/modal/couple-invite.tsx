@@ -23,7 +23,13 @@ import { Card, Divider, Eyebrow, PressableScale, Screen } from '@/components/ui'
 import { track } from '@/lib/analytics';
 import { captureError } from '@/lib/crash';
 import { cancelStreakReminder } from '@/lib/notifications';
-import { createCouple, joinCoupleByCode, leaveCouple, nudgePartner } from '@/services/coupleService';
+import {
+  cancelCoupleInvite,
+  createCouple,
+  joinCoupleByCode,
+  leaveCouple,
+  nudgePartner,
+} from '@/services/coupleService';
 import { useAuthStore } from '@/state/authStore';
 import { useCouple } from '@/state/useCouple';
 import { showDialog } from '@/state/useDialog';
@@ -486,7 +492,9 @@ export default function CoupleInviteScreen() {
                   showDialog({
                     title: 'Nudge failed',
                     message:
-                      "We couldn't send that nudge. Check your connection and try again.",
+                      error instanceof Error
+                        ? error.message
+                        : "We couldn't send that nudge. Check your connection and try again.",
                     tone: 'danger',
                     actions: [{ label: 'Try again', variant: 'primary' }],
                   });
@@ -570,6 +578,54 @@ export default function CoupleInviteScreen() {
               </LinearGradient>
             </PressableScale>
           </Animated.View>
+          <PressableScale
+            onPress={() => {
+              if (!couple) return;
+              showDialog({
+                title: 'Cancel invite?',
+                message:
+                  'This closes the open pair code. You can create a new invite anytime.',
+                tone: 'danger',
+                actions: [
+                  { label: 'Keep invite', variant: 'cancel' },
+                  {
+                    label: 'Cancel invite',
+                    variant: 'destructive',
+                    onPress: async () => {
+                      try {
+                        const outcome = await cancelCoupleInvite(couple.id);
+                        if (outcome === 'paired') {
+                          showDialog({
+                            title: 'Already paired',
+                            message:
+                              "Your partner joined just in time — you're bonded. Unpair from below if you need to separate.",
+                            tone: 'info',
+                            actions: [{ label: 'Got it', variant: 'primary' }],
+                          });
+                        }
+                      } catch (error) {
+                        captureError(error);
+                        showDialog({
+                          title: 'Could not cancel',
+                          message:
+                            'Check your connection and try again.',
+                          tone: 'danger',
+                          actions: [{ label: 'Got it', variant: 'primary' }],
+                        });
+                      }
+                    },
+                  },
+                ],
+              });
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel couple invite"
+            style={{ marginTop: 14, alignItems: 'center', paddingVertical: 10 }}
+          >
+            <Text style={font('semibold', 14, { color: palette.slate500 })}>
+              Cancel invite
+            </Text>
+          </PressableScale>
         </>
       ) : null}
 

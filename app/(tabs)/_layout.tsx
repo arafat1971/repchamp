@@ -181,8 +181,30 @@ type FabAction = {
 };
 
 /**
+ * Flexed-arm glyph — crisp white silhouette for the green FAB.
+ * Reads as “muscle / start training” at 28dp without emoji noise.
+ */
+function MuscleIcon({ size = 26, color = '#ffffff' }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      {/* Shoulder → bicep bulge → upper arm */}
+      <Path
+        d="M8.8 6.2c1-.9 2.4-1.4 3.8-1.2 1 .1 1.9.7 2.5 1.5.5-.4 1.2-.6 1.9-.6 1.8 0 3.2 1.5 3.2 3.3 0 .6-.2 1.2-.5 1.7 1.1.8 1.8 2.1 1.8 3.6 0 2-1.3 3.7-3.1 4.3v1.4c0 .8-.6 1.4-1.4 1.4h-1.4c-.8 0-1.4-.6-1.4-1.4v-.6c-.5.2-1.1.3-1.7.3-1.6 0-3-.7-3.9-1.8-.6.8-1.6 1.3-2.7 1.3-1.9 0-3.4-1.5-3.4-3.4 0-1.3.7-2.4 1.8-3-.2-.5-.3-1-.3-1.6 0-1.9 1.4-3.4 3.2-3.6.1-.4.3-.8.6-1.1z"
+        fill={color}
+      />
+      {/* Inner bicep cut for depth */}
+      <Path
+        d="M10.2 9.5c.5-.8 1.4-1.2 2.4-1.2.5 0 1 .1 1.4.4-.1.4-.2.8-.2 1.2 0 1 .4 1.8 1.1 2.4-.7.6-1.6 1-2.6 1-1 0-1.9-.5-2.5-1.3.2-.8.3-1.6.4-2.5z"
+        fill="#15803d"
+        opacity={0.35}
+      />
+    </Svg>
+  );
+}
+
+/**
  * Train FAB — entrance bounce → glow → idle breathing.
- * Press expands a speed-dial (Push-ups / Squats / Plank / Custom) instead of
+ * Press expands a speed-dial (Push-ups / Squats / Sit-Ups / Custom) instead of
  * jumping straight to Train.
  */
 function TrainFab({ bottomPosition }: { bottomPosition: number }) {
@@ -269,11 +291,9 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
       onPress: () => router.push({ pathname: '/session', params: { exercise: 'squat', mode: 'practice' } }),
     },
     {
-      label: 'Plank',
+      label: 'Sit-Ups',
       emoji: '🧘',
       onPress: () => {
-        // No dedicated plank model yet — core sit-ups are the closest free-gated
-        // stand-in. Pro unlocks them; free athletes see the paywall.
         if (!canStartExercise(isPro, 'situp')) {
           router.push({ pathname: '/modal/paywall', params: { source: 'exercise-library' } });
           return;
@@ -294,7 +314,10 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
     <>
       <Modal visible={open} transparent animationType="fade" onRequestClose={close}>
         <Pressable style={styles.fabScrim} onPress={close}>
-          <View style={[styles.fabMenu, { bottom: bottomPosition + 70 }]} pointerEvents="box-none">
+          <View
+            style={[styles.fabMenu, { bottom: bottomPosition + 70 }]}
+            pointerEvents="box-none"
+          >
             {actions.map((action, i) => (
               <Animated.View
                 key={action.label}
@@ -347,25 +370,7 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
                 {open ? (
                   <Text style={font('bold', 26, { color: '#fff', lineHeight: 28 })}>×</Text>
                 ) : (
-                  <Svg width={26} height={26} viewBox="0 0 24 24" fill="none">
-                    <Path
-                      d="M7.2 9.2c-1.6 0-2.9 1.2-2.9 2.8s1.3 2.8 2.9 2.8h1.1V9.2H7.2zm8.5 0h-1.1v5.6h1.1c1.6 0 2.9-1.2 2.9-2.8s-1.3-2.8-2.9-2.8z"
-                      fill="#ffffff"
-                    />
-                    <Path d="M8.3 10.4h7.4v3.2H8.3z" fill="#ffffff" opacity={0.95} />
-                    <Path
-                      d="M4.1 10.6H2.8c-.5 0-.9.4-.9.9v.9c0 .5.4.9.9.9h1.3"
-                      stroke="#ffffff"
-                      strokeWidth={1.6}
-                      strokeLinecap="round"
-                    />
-                    <Path
-                      d="M19.9 10.6h1.3c.5 0 .9.4.9.9v.9c0 .5-.4.9-.9.9h-1.3"
-                      stroke="#ffffff"
-                      strokeWidth={1.6}
-                      strokeLinecap="round"
-                    />
-                  </Svg>
+                  <MuscleIcon size={28} color="#ffffff" />
                 )}
               </Animated.View>
             </LinearGradient>
@@ -405,9 +410,12 @@ export default function TabsLayout() {
           ],
           tabBarLabelStyle: styles.tabLabel,
           tabBarItemStyle: styles.tabItem,
-          tabBarBackground: () => (
-            <BlurView intensity={92} tint="light" style={StyleSheet.absoluteFill} />
-          ),
+          tabBarBackground: () =>
+            Platform.OS === 'ios' ? (
+              <BlurView intensity={92} tint="light" style={StyleSheet.absoluteFill} />
+            ) : (
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.97)' }]} />
+            ),
         }}
       >
         <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: HomeIcon }} />
@@ -469,10 +477,8 @@ const styles = StyleSheet.create({
   },
   fabContainer: {
     position: 'absolute',
-    alignSelf: 'center',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
+    right: 18,
+    alignItems: 'flex-end',
     zIndex: 999,
     elevation: 10,
   },
@@ -502,15 +508,14 @@ const styles = StyleSheet.create({
   },
   fabMenu: {
     position: 'absolute',
-    left: 24,
-    right: 24,
-    alignItems: 'center',
+    right: 18,
+    alignItems: 'flex-end',
   },
   fabMenuItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    minWidth: 220,
+    minWidth: 200,
     backgroundColor: '#ffffff',
     paddingVertical: 14,
     paddingHorizontal: 16,

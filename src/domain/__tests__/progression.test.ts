@@ -63,10 +63,17 @@ describe('xpForSession', () => {
   it('pays out per the design spec', () => {
     expect(xpForSession('versus', true)).toBe(200);
     expect(xpForSession('versus', false)).toBe(60);
+    expect(xpForSession('versus', false, { drew: true })).toBe(100);
     expect(xpForSession('solo', true)).toBe(300);
     expect(xpForSession('solo', false)).toBe(80);
     expect(xpForSession('practice', true)).toBe(40);
     expect(xpForSession('practice', false)).toBe(40);
+  });
+
+  it('pays nothing for forfeit or zero-rep sets', () => {
+    expect(xpForSession('versus', false, { forfeited: true, reps: 12 })).toBe(0);
+    expect(xpForSession('together', true, { reps: 0 })).toBe(0);
+    expect(xpForSession('practice', true, { reps: 0 })).toBe(0);
   });
 });
 

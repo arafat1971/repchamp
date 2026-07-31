@@ -33,6 +33,7 @@ import {
   restore,
   sortPackagesForPaywall,
 } from '@/services/purchases';
+import { useAuthStore } from '@/state/authStore';
 import { useProStore } from '@/state/proStore';
 import { showDialog } from '@/state/useDialog';
 import { font, text } from '@/theme/typography';
@@ -55,6 +56,7 @@ export default function PaywallScreen() {
   const params = useLocalSearchParams<{ source?: string }>();
   const refresh = useProStore((s) => s.refresh);
   const setPro = useProStore((s) => s.setPro);
+  const uid = useAuthStore((s) => s.user?.uid ?? null);
 
   const [packages, setPackages] = useState<PurchasesPackage[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -74,7 +76,7 @@ export default function PaywallScreen() {
     setLoadFailed(false);
     setPackages(null);
 
-    fetchOffering()
+    fetchOffering(uid)
       .then((offering) => {
         if (cancelled) return;
         const pkgs = sortPackagesForPaywall(offering?.availablePackages ?? []);
@@ -92,7 +94,7 @@ export default function PaywallScreen() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey]);
+  }, [reloadKey, uid]);
 
   const selected = useMemo(
     () => packages?.find((p) => p.identifier === selectedId) ?? null,
@@ -106,7 +108,7 @@ export default function PaywallScreen() {
   const onSubscribe = useCallback(async () => {
     if (!selected) return;
     setBusy(true);
-    const result = await purchase(selected);
+    const result = await purchase(selected, uid);
     setBusy(false);
 
     if (result.cancelled) return;
@@ -139,11 +141,11 @@ export default function PaywallScreen() {
       tone: 'danger',
       actions: [{ label: 'Try again', variant: 'primary' }],
     });
-  }, [selected, setPro, refresh, router]);
+  }, [selected, setPro, refresh, router, uid]);
 
   const onRestore = useCallback(async () => {
     setBusy(true);
-    const result = await restore();
+    const result = await restore(uid);
     setBusy(false);
 
     if (result.ok && result.isPro) {
@@ -168,7 +170,7 @@ export default function PaywallScreen() {
       tone: result.ok ? 'info' : 'danger',
       actions: [{ label: 'Got it', variant: 'primary' }],
     });
-  }, [setPro, refresh, router]);
+  }, [setPro, refresh, router, uid]);
 
   const ctaLabel = (() => {
     if (busy) return 'Please wait…';

@@ -54,6 +54,7 @@ export default function DuelNewScreen() {
     queue?: string;
     kind?: string;
     exercise?: string;
+    duration?: string;
   }>();
 
   const inviteKind =
@@ -63,7 +64,10 @@ export default function DuelNewScreen() {
   const isCoupleTrain = inviteKind === 'train';
 
   const [exercise, setExercise] = useState<ExerciseId>(() => parseDuelExercise(params.exercise));
-  const [duration, setDuration] = useState(20);
+  const [duration, setDuration] = useState(() => {
+    const n = Number(params.duration);
+    return DURATIONS.some((d) => d.value === n) ? n : 20;
+  });
 
   const selectedExercise = useMemo(
     () => EXERCISE_OPTIONS.find((e) => e.id === exercise) ?? EXERCISE_OPTIONS[0]!,
@@ -139,6 +143,7 @@ export default function DuelNewScreen() {
           });
           return;
         }
+        // Assert only — commit after createDuel succeeds in the waiting room.
         assertClientRateLimit('duelInvite', myUid);
         go();
       } catch (err) {

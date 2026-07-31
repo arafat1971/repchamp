@@ -81,35 +81,39 @@ export function useSessionRecorder({
       setState('starting');
       setError(null);
 
-      console.log('[rec] createRecorder…');
+      if (__DEV__) console.log('[rec] createRecorder…');
       const recorder = await videoOutput.createRecorder(
         maxDurationSec ? { maxDuration: maxDurationSec } : {},
       );
       recorderRef.current = recorder;
       startedAtRef.current = Date.now();
-      console.log('[rec] recorder created, starting…');
+      if (__DEV__) console.log('[rec] recorder created, starting…');
 
       // Poll the encoder's own counters so we can see whether frames are
       // actually being written, independent of the final file size.
-      const poll = setInterval(() => {
-        const r = recorderRef.current;
-        if (!r) {
-          clearInterval(poll);
-          return;
-        }
-        console.log(
-          `[rec] isRecording=${r.isRecording} dur=${r.recordedDuration.toFixed(1)}s ` +
-            `size=${r.recordedFileSize}B`,
-        );
-      }, 2000);
-      pollRef.current = poll;
+      if (__DEV__) {
+        const poll = setInterval(() => {
+          const r = recorderRef.current;
+          if (!r) {
+            clearInterval(poll);
+            return;
+          }
+          console.log(
+            `[rec] isRecording=${r.isRecording} dur=${r.recordedDuration.toFixed(1)}s ` +
+              `size=${r.recordedFileSize}B`,
+          );
+        }, 2000);
+        pollRef.current = poll;
+      }
 
       const startTs = Date.now();
       await recorder.startRecording(
         (filePath, reason) => {
-          console.log(
-            `[rec] onRecordingFinished reason=${reason} after ${Date.now() - startTs}ms: ${filePath}`,
-          );
+          if (__DEV__) {
+            console.log(
+              `[rec] onRecordingFinished reason=${reason} after ${Date.now() - startTs}ms: ${filePath}`,
+            );
+          }
           if (pollRef.current) clearInterval(pollRef.current);
           const result: SessionRecording = {
             filePath,
@@ -127,7 +131,7 @@ export function useSessionRecorder({
           setState('saved');
         },
         (recordingError) => {
-          console.log(`[rec] onRecordingError: ${recordingError.message}`);
+          if (__DEV__) console.log(`[rec] onRecordingError: ${recordingError.message}`);
           if (pollRef.current) clearInterval(pollRef.current);
           recorderRef.current = null;
           stoppingRef.current = false;
@@ -181,7 +185,7 @@ export function useSessionRecorder({
         }, 4000);
       });
 
-      console.log('[rec] stopRecording called by app');
+      if (__DEV__) console.log('[rec] stopRecording called by app');
       await recorder.stopRecording();
       return await finished;
     } catch (e) {

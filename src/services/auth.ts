@@ -18,6 +18,7 @@ import {
   statusCodes,
 } from '@react-native-google-signin/google-signin';
 
+import { buildCloudProgressSlice } from '@/domain/cloudProgress';
 import {
   isValidEmail,
   isValidPassword,
@@ -26,6 +27,8 @@ import {
 } from '@/domain/input';
 import { googleWebClientId as configuredGoogleWebClientId } from '@/lib/config';
 import { isFirebaseConfigured } from '@/lib/firebase';
+import { upsertProfile } from '@/services/userService';
+import { useProfileStore } from '@/state/profileStore';
 
 export interface AuthUser {
   uid: string;
@@ -87,6 +90,48 @@ export function onAuthChange(cb: (user: AuthUser | null) => void): () => void {
   return auth().onAuthStateChanged((u) => cb(u ? toAuthUser(u) : null));
 }
 
+/**
+ * Flush local progress onto the *current* Firebase uid before a cross-uid
+ * sign-in. Returns false when there was progress to save but the write failed
+ * — callers must abort the account switch so authStore.reset() cannot wipe it.
+ */
+async function flushLocalProfileToCurrentUid(): Promise<boolean> {
+  if (!isFirebaseConfigured()) return true;
+  const current = auth().currentUser;
+  if (!current) return true;
+  const p = useProfileStore.getState();
+  const hasProgress = p.onboarded || p.totalXp > 0 || p.sessions.length > 0;
+  if (!hasProgress) return true;
+  try {
+    const progress = buildCloudProgressSlice({
+      sessions: p.sessions,
+      programme: p.programme,
+    });
+    return await upsertProfile({
+      uid: current.uid,
+      username: (p.username || 'champion').toLowerCase(),
+      displayName: p.displayName,
+      avatarUrl: p.avatarUri,
+      weeklyGoal: p.weeklyGoal,
+      totalXp: p.totalXp,
+      personalBests: p.personalBests,
+      onboarded: p.onboarded,
+      pairingBonusClaimed: p.pairingBonusClaimed,
+      pairingBonusUntil: p.pairingBonusUntil,
+      trainedDays: progress.trainedDays,
+      weekKey: progress.weekKey,
+      weekXp: progress.weekXp,
+      weekExerciseReps: progress.weekExerciseReps,
+      programme: progress.programme,
+    });
+  } catch {
+    return false;
+  }
+}
+
+const ACCOUNT_SWITCH_FLUSH_ERROR =
+  'Could not save your progress before switching accounts. Check your connection and try again.';
+
 /** Ensure there is *some* signed-in user; creates an anonymous one if needed. */
 export async function ensureSignedIn(): Promise<AuthUser> {
   if (!isFirebaseConfigured()) return LOCAL_USER;
@@ -104,6 +149,26 @@ export async function signInWithEmail(email: string, password: string): Promise<
   if (!isValidEmail(normalized) || !password) {
     throw new Error('Enter a valid email and password.');
   }
+
+  const credential = auth.EmailAuthProvider.credential(normalized, password);
+  const current = auth().currentUser;
+
+  // Link onto the anonymous uid when present so local/cloud history carries over
+  // (same pattern as Google / sign-up). Existing email accounts fall through to
+  // a normal sign-in after `credential-already-in-use`.
+  if (current?.isAnonymous) {
+    try {
+      const linked = await current.linkWithCredential(credential);
+      return toAuthUser(linked.user);
+    } catch (linkError) {
+      if (!isCredentialAlreadyInUse(linkError)) throw linkError;
+      // Existing email account — park anon progress before the uid switches.
+      if (!(await flushLocalProfileToCurrentUid())) {
+        throw new Error(ACCOUNT_SWITCH_FLUSH_ERROR);
+      }
+    }
+  }
+
   const cred = await auth().signInWithEmailAndPassword(normalized, password);
   return toAuthUser(cred.user);
 }
@@ -171,6 +236,10 @@ export async function signInWithGoogle(webClientId?: string): Promise<AuthUser> 
         return toAuthUser(linked.user);
       } catch (linkError) {
         if (!isCredentialAlreadyInUse(linkError)) throw linkError;
+        // Existing Google account — park anon progress before the uid switches.
+        if (!(await flushLocalProfileToCurrentUid())) {
+          throw new Error(ACCOUNT_SWITCH_FLUSH_ERROR);
+        }
         const signed = await auth().signInWithCredential(googleCredential);
         return toAuthUser(signed.user);
       }

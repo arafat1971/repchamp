@@ -7,8 +7,8 @@
  * train / compete without a second collection.
  */
 
-/** How long after a heartbeat an athlete still counts as active. */
-export const ACTIVE_WINDOW_MS = 15 * 60 * 1000;
+/** How long after a heartbeat an athlete still counts as active (~3 heartbeats). */
+export const ACTIVE_WINDOW_MS = 3 * 60 * 1000;
 
 /** Challenge flavors stored on pending duel docs (`kind`). */
 export type InviteKind = 'duel' | 'train' | 'compete';

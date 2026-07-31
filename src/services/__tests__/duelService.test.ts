@@ -18,6 +18,7 @@ import {
   createDuel,
   fetchIncomingDuels,
   finishDuel,
+  forceSettleAbandoned,
   joinDuel,
   pushLiveState,
   seatFor,
@@ -118,6 +119,14 @@ jest.mock('@/lib/firebase', () => ({
   isFirebaseConfigured: () => mockState.configured,
 }));
 
+jest.mock('@/services/safetyService', () => ({
+  isBlockedEither: jest.fn(async () => false),
+}));
+
+jest.mock('@/services/safetyService', () => ({
+  isBlockedEither: jest.fn(async () => false),
+}));
+
 jest.mock('@react-native-firebase/firestore', () => {
   // A query over the in-memory store: chainable equality `where`s, a `createdAt`
   // sort, and a `limit`, resolved lazily on `.get()`. Mirrors the shape
@@ -158,6 +167,10 @@ jest.mock('@react-native-firebase/firestore', () => {
           const cur = mockStore.get(ref.id);
           if (!cur) throw new Error('no doc');
           mockApplyDotted(cur, patch);
+          mockNotify(ref.id);
+        },
+        delete(ref: { id: string }) {
+          mockStore.delete(ref.id);
           mockNotify(ref.id);
         },
       };
@@ -281,8 +294,13 @@ describe('pushLiveState', () => {
   it('is a no-op when unconfigured', async () => {
     const id = await openAndJoin();
     mockState.configured = false;
-    await pushLiveState(id, 'host', { reps: 99, formScore: 100 });
+    expect(await pushLiveState(id, 'host', { reps: 99, formScore: 100 })).toBe(false);
     expect((mockStore.get(id!) as unknown as Duel).host.reps).toBe(0);
+  });
+
+  it('returns true after a successful live write', async () => {
+    const id = await openAndJoin();
+    expect(await pushLiveState(id, 'host', { reps: 3, formScore: 80 })).toBe(true);
   });
 });
 
@@ -330,6 +348,61 @@ describe('finishDuel', () => {
     mockState.configured = false;
     await finishDuel(id, 'host', { reps: 5, formScore: 50 });
     expect((mockStore.get(id!) as unknown as Duel).host.done).toBe(false);
+  });
+
+  it('does not rewrite a finished duel or an already-done seat', async () => {
+    const id = await openAndJoin();
+    await finishDuel(id, 'host', { reps: 12, formScore: 90 });
+    await finishDuel(id, 'guest', { reps: 9, formScore: 88 });
+    const before = mockStore.get(id!) as unknown as Duel;
+    expect(before.winnerUid).toBe('h');
+
+    await finishDuel(id, 'host', { reps: 99, formScore: 10 });
+    await finishDuel(id, 'guest', { reps: 99, formScore: 10 });
+    const after = mockStore.get(id!) as unknown as Duel;
+    expect(after.host.reps).toBe(12);
+    expect(after.guest?.reps).toBe(9);
+    expect(after.winnerUid).toBe('h');
+    expect(after.status).toBe('finished');
+  });
+});
+
+describe('forceSettleAbandoned', () => {
+  it('forfeits an open opponent seat and settles the winner', async () => {
+    const id = await openAndJoin();
+    await finishDuel(id, 'host', { reps: 15, formScore: 92 });
+    const ok = await forceSettleAbandoned(id, 'h', { reps: 15, formScore: 92 });
+    expect(ok).toBe(true);
+    const d = mockStore.get(id!) as unknown as Duel;
+    expect(d.status).toBe('finished');
+    expect(d.guest?.done).toBe(true);
+    expect(d.guest?.forfeited).toBe(true);
+    expect(d.winnerUid).toBe('h');
+  });
+
+  it('does not forfeit a still-live opponent before match end + grace', async () => {
+    const id = await openAndJoin();
+    const doc = mockStore.get(id!)!;
+    doc.startedAt = Date.now();
+    doc.duration = 60;
+    await finishDuel(id, 'host', { reps: 15, formScore: 92 });
+    const ok = await forceSettleAbandoned(id, 'h', { reps: 15, formScore: 92 });
+    expect(ok).toBe(false);
+    const d = mockStore.get(id!) as unknown as Duel;
+    expect(d.status).toBe('active');
+    expect(d.host.done).toBe(true);
+    expect(d.guest?.done).toBe(false);
+    expect(d.guest?.forfeited).toBe(false);
+  });
+
+  it('is a no-op when the duel is already finished', async () => {
+    const id = await openAndJoin();
+    await finishDuel(id, 'host', { reps: 10, formScore: 80 });
+    await finishDuel(id, 'guest', { reps: 12, formScore: 85 });
+    await forceSettleAbandoned(id, 'h', { reps: 99, formScore: 1 });
+    const d = mockStore.get(id!) as unknown as Duel;
+    expect(d.winnerUid).toBe('g');
+    expect(d.host.reps).toBe(10);
   });
 });
 
@@ -420,6 +493,13 @@ describe('cancelDuel', () => {
     const id = await createDuel({ ...HOST, exercise: 'push', duration: 20 });
     await cancelDuel(id!);
     expect(mockStore.has(id!)).toBe(false);
+  });
+
+  it('does not delete an active duel (guest already joined)', async () => {
+    const id = await openAndJoin();
+    await cancelDuel(id);
+    expect(mockStore.has(id)).toBe(true);
+    expect((mockStore.get(id) as unknown as Duel).status).toBe('active');
   });
 
   it('is a no-op when unconfigured', async () => {

@@ -1,5 +1,5 @@
 import { BlurView } from 'expo-blur';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { PressableScale, PrimaryButton } from '@/components/ui';
@@ -51,7 +51,11 @@ export function CameraTutorial({ onDismiss }: { onDismiss: () => void }) {
       exiting={FadeOut.duration(160)}
       style={StyleSheet.absoluteFill}
     >
-      <BlurView intensity={38} tint="dark" style={StyleSheet.absoluteFill} />
+      {Platform.OS === 'ios' ? (
+        <BlurView intensity={38} tint="dark" style={StyleSheet.absoluteFill} />
+      ) : (
+        <View style={[StyleSheet.absoluteFill, styles.androidDim]} />
+      )}
       <View style={styles.scrim} />
 
       <View style={styles.body}>
@@ -89,6 +93,8 @@ export function CameraTutorial({ onDismiss }: { onDismiss: () => void }) {
 }
 
 const styles = StyleSheet.create({
+  /** Android BlurView needs a blurTarget; solid dim avoids dimezis spam + jank. */
+  androidDim: { backgroundColor: 'rgba(6,10,8,0.82)' },
   scrim: {
     position: 'absolute',
     top: 0,

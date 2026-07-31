@@ -12,11 +12,13 @@ import {
 } from '@/domain/progression';
 import {
   advanceProgramme,
+  completeRestDay,
   programmeState,
   type ProgrammeProgress,
   type ProgrammeState,
 } from '@/domain/programme';
 import { normalizeUsername, sanitizeDisplayName } from '@/domain/input';
+import { isoWeekKey } from '@/domain/weeklyChallenge';
 import { EXERCISES, type ExerciseId } from '@/vision/exercises';
 import { zustandStorage } from '@/lib/storage';
 
@@ -30,6 +32,8 @@ export interface SessionSummary {
   opponentId: string | null;
   target: number | null;
   won: boolean;
+  /** Live versus ended level. Absent/false on older records. */
+  drew?: boolean;
   xp: number;
   formScore: number;
   durationSec: number;
@@ -59,6 +63,11 @@ export interface ProfileState {
    * it's OR'd in as a temporary grant.
    */
   pairingBonusUntil: number;
+  /**
+   * Lifetime latch — the free Pro week for pairing is granted once per device
+   * account. Without this, leave → re-pair after expiry farms unlimited Pro.
+   */
+  pairingBonusClaimed: boolean;
 
   completeOnboarding: (input: { username: string; weeklyGoal: number; avatarUri: string | null }) => void;
   setUsername: (username: string) => void;
@@ -69,7 +78,9 @@ export interface ProfileState {
   startProgramme: (programmeId: string) => void;
   /** Leave the current programme. */
   leaveProgramme: () => void;
-  /** Grant a Pro bonus for `days` from now (idempotent — never shortens an active one). */
+  /** Mark today's programme rest day complete (no workout required). */
+  completeProgrammeRestDay: () => void;
+  /** Grant a Pro bonus for `days` from now (once per account; never shortens an active one). */
   grantPairingBonus: (days: number) => void;
   reset: () => void;
 }
@@ -89,6 +100,7 @@ const initialState = {
   ) as Record<ExerciseId, number>,
   programme: null as ProgrammeProgress | null,
   pairingBonusUntil: 0,
+  pairingBonusClaimed: false,
 };
 
 export const useProfileStore = create<ProfileState>()(
@@ -117,10 +129,17 @@ export const useProfileStore = create<ProfileState>()(
       recordSession: (input) => {
         const summary: SessionSummary = {
           ...input,
+          // Zero-rep / give-up must not pay XP even if a caller passed a payout.
+          xp: input.reps > 0 ? input.xp : 0,
           id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           completedAt: new Date().toISOString(),
           day: dayKey(),
         };
+
+        // Empty sets are not training days — skip history, streak, and programme.
+        if (summary.reps <= 0) {
+          return summary;
+        }
 
         set((state) => ({
           totalXp: state.totalXp + summary.xp,
@@ -144,27 +163,44 @@ export const useProfileStore = create<ProfileState>()(
 
       startProgramme: (programmeId) => set({ programme: { programmeId, completedDays: 0 } }),
       leaveProgramme: () => set({ programme: null }),
+      completeProgrammeRestDay: () =>
+        set((state) => {
+          if (!state.programme) return {};
+          return { programme: completeRestDay(state.programme) };
+        }),
 
       grantPairingBonus: (days) =>
         set((state) => {
+          // One free week per account — leave/re-pair must not re-arm the grant.
+          if (state.pairingBonusClaimed) return {};
           const proposed = Date.now() + days * 24 * 60 * 60 * 1000;
-          // Never shorten an already-active bonus — extend to the later expiry.
-          return { pairingBonusUntil: Math.max(state.pairingBonusUntil, proposed) };
+          return {
+            pairingBonusUntil: Math.max(state.pairingBonusUntil, proposed),
+            pairingBonusClaimed: true,
+          };
         }),
 
       reset: () => set({ ...initialState }),
     }),
     {
       name: 'repchamp.profile',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => zustandStorage),
-      // v1 → v2 added `programme`; backfill it so old persisted profiles load.
+      // v1 → v2 added `programme`; v2 → v3 locks pairing Pro to a single grant.
       migrate: (persisted, version) => {
         const state = persisted as Partial<ProfileState>;
-        if (version < 2 && state.programme === undefined) {
-          return { ...state, programme: null } as ProfileState;
+        let next = { ...state } as ProfileState;
+        if (version < 2 && next.programme === undefined) {
+          next = { ...next, programme: null };
         }
-        return state as ProfileState;
+        if (version < 3) {
+          // Already received a bonus before → treat as claimed so re-pair can't farm.
+          next = {
+            ...next,
+            pairingBonusClaimed: next.pairingBonusClaimed ?? (next.pairingBonusUntil ?? 0) > 0,
+          };
+        }
+        return next;
       },
     },
   ),
@@ -179,13 +215,17 @@ export function selectLevel(state: Pick<ProfileState, 'totalXp'>): LevelProgress
   return levelFromXp(state.totalXp);
 }
 
-/** Sessions inside the trailing 7 days, newest first. */
+/** Sessions in the current ISO week (same key as the leaderboard `weekKey`). */
 export function selectWeekSessions(
   state: Pick<ProfileState, 'sessions'>,
   now: Date = new Date(),
 ): SessionSummary[] {
-  const cutoff = now.getTime() - 7 * 24 * 60 * 60 * 1000;
-  return state.sessions.filter((s) => new Date(s.completedAt).getTime() >= cutoff);
+  const week = isoWeekKey(now);
+  return state.sessions.filter((s) => {
+    const [y, m, d] = s.day.split('-').map(Number);
+    if (!y || !m || !d) return false;
+    return isoWeekKey(new Date(y, m - 1, d)) === week;
+  });
 }
 
 export function selectWeeklyXp(state: Pick<ProfileState, 'sessions'>, now?: Date): number {
@@ -228,9 +268,10 @@ export function selectDuelsWon(state: Pick<ProfileState, 'sessions'>): number {
 }
 
 export function selectWinRate(state: Pick<ProfileState, 'sessions'>): number {
-  const duels = state.sessions.filter((s) => s.mode === 'versus');
-  if (duels.length === 0) return 0;
-  return Math.round((duels.filter((s) => s.won).length / duels.length) * 100);
+  // Draws are neither wins nor losses — exclude them so ties don't tank win %.
+  const decided = state.sessions.filter((s) => s.mode === 'versus' && !s.drew);
+  if (decided.length === 0) return 0;
+  return Math.round((decided.filter((s) => s.won).length / decided.length) * 100);
 }
 
 /** Longest streak ever achieved, walking the full session history. */

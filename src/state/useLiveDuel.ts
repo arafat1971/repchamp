@@ -14,17 +14,20 @@
  * configured — so even a stray `duelId` degrades to the bot rather than throwing.
  */
 
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   DUEL_SYNC_INTERVAL_MS,
+  duelStartedAtMs,
   type Duel,
   type DuelSeat,
 } from '@/domain/duel';
 import { clampDuelRepJump } from '@/domain/fairPlay';
 import {
+  fetchDuel,
   finishDuel,
   pushLiveState,
+  seatFor,
   watchDuel,
 } from '@/services/duelService';
 import { useAuthStore } from '@/state/authStore';
@@ -33,13 +36,20 @@ import { useSessionStore } from '@/state/sessionStore';
 export interface LiveDuel {
   /** True while a live duel is driving the opponent (vs. the bot pacer). */
   active: boolean;
+  /** Shared match origin from `duel.startedAt`, or null until the watch lands. */
+  matchStartedAtMs: number | null;
   /** Stream the athlete's current reps/form up to their seat, throttled. */
   push: (reps: number, formScore: number) => void;
   /** Settle the duel when the set ends (clock out or forfeit). */
   finish: (reps: number, formScore: number, forfeited: boolean) => void;
 }
 
-const INERT: LiveDuel = { active: false, push: () => {}, finish: () => {} };
+const INERT: LiveDuel = {
+  active: false,
+  matchStartedAtMs: null,
+  push: () => {},
+  finish: () => {},
+};
 
 /**
  * Wire a live duel identified by `duelId`, or return an inert controller when
@@ -57,14 +67,23 @@ export function useLiveDuel(duelId: string | null | undefined): LiveDuel {
   /** Last reps value we intended for the cloud seat (fair-jump baseline). */
   const lastSentRepsRef = useRef(0);
   const finishedRef = useRef(false);
+  const [matchStartedAtMs, setMatchStartedAtMs] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!duelId || !uid) return;
+    if (!duelId || !uid) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setMatchStartedAtMs(null);
+      return;
+    }
     finishedRef.current = false;
     lastSentRepsRef.current = 0;
+    setMatchStartedAtMs(null);
 
     const unsub = watchDuel(duelId, (duel: Duel | null) => {
       if (!duel) return;
+      const startMs = duelStartedAtMs(duel);
+      if (startMs != null) setMatchStartedAtMs(startMs);
+
       const seat: DuelSeat | null =
         duel.hostUid === uid ? 'host' : duel.guestUid === uid ? 'guest' : null;
       seatRef.current = seat;
@@ -77,9 +96,14 @@ export function useLiveDuel(duelId: string | null | undefined): LiveDuel {
 
       const other = seat === 'host' ? duel.guest : duel.host;
       if (other) {
-        useSessionStore.getState().setOpponentReps(other.reps);
+        // Never rewind the HUD on a stale snapshot.
+        const prev = useSessionStore.getState().opponentReps;
+        useSessionStore.getState().setOpponentReps(Math.max(prev, other.reps));
         if (other.displayName) useSessionStore.getState().setOpponentName(other.displayName);
       }
+      // Persist the remote uid so H2H history and rematch can address them.
+      const otherUid = seat === 'host' ? duel.guestUid : duel.hostUid;
+      if (otherUid) useSessionStore.getState().setOpponentId(otherUid);
     });
 
     return unsub;
@@ -93,24 +117,47 @@ export function useLiveDuel(duelId: string | null | undefined): LiveDuel {
       if (now - lastPushAtRef.current < DUEL_SYNC_INTERVAL_MS) return;
       lastPushAtRef.current = now;
       const fairReps = clampDuelRepJump(lastSentRepsRef.current, reps);
-      lastSentRepsRef.current = fairReps;
-      void pushLiveState(duelId, seat, { reps: fairReps, formScore });
+      // Only advance the fair baseline after a successful write — a failed push
+      // used to jump the baseline and brick later ticks against the +8 rule.
+      void pushLiveState(duelId, seat, { reps: fairReps, formScore }).then((ok) => {
+        if (ok) lastSentRepsRef.current = Math.max(lastSentRepsRef.current, fairReps);
+      });
     },
     [duelId],
   );
 
   const finish = useCallback(
     (reps: number, formScore: number, forfeited: boolean) => {
-      const seat = seatRef.current;
-      if (!duelId || !seat || finishedRef.current) return;
+      if (!duelId || !uid || finishedRef.current) return;
+      // Latch immediately so a re-entrant finish effect cannot double-settle.
       finishedRef.current = true;
-      void finishDuel(duelId, seat, { reps, formScore, forfeited });
+
+      void (async () => {
+        let seat = seatRef.current;
+        if (!seat) {
+          // Watch snapshot may not have landed yet — one-shot resolve.
+          const duel = await fetchDuel(duelId);
+          seat = duel ? seatFor(duel, uid) : null;
+          if (seat) seatRef.current = seat;
+        }
+        if (!seat) {
+          // Allow a later retry if the athlete is somehow still finishing.
+          finishedRef.current = false;
+          return;
+        }
+        const ok = await finishDuel(duelId, seat, { reps, formScore, forfeited });
+        if (!ok) {
+          // Write failed (offline / transient) — clear latch so a remount or
+          // re-run of the finish handoff can settle the cloud duel.
+          finishedRef.current = false;
+        }
+      })();
     },
-    [duelId],
+    [duelId, uid],
   );
 
   return useMemo(() => {
     if (!duelId || !uid) return INERT;
-    return { active: true, push, finish };
-  }, [duelId, uid, push, finish]);
+    return { active: true, matchStartedAtMs, push, finish };
+  }, [duelId, uid, matchStartedAtMs, push, finish]);
 }

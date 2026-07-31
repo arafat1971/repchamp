@@ -9,17 +9,26 @@ export function ModalHeader({
   title,
   subtitle,
   hideBack = false,
+  onBack,
 }: {
   title: string;
   subtitle?: string;
   /** Hide the back chevron — used by the hard paywall so it can't be dismissed. */
   hideBack?: boolean;
+  /** Override the default `router.back()` — e.g. cancel a pending duel first. */
+  onBack?: () => void;
 }) {
   const router = useRouter();
 
   return (
     <View style={styles.row}>
-      {hideBack ? null : <IconButton glyph="‹" label="Go back" onPress={() => router.back()} />}
+      {hideBack ? null : (
+        <IconButton
+          glyph="‹"
+          label="Go back"
+          onPress={() => (onBack ? onBack() : router.back())}
+        />
+      )}
       <View style={{ flex: 1 }}>
         <Text style={text.h1} numberOfLines={1}>
           {title}

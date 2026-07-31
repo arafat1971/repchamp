@@ -21,6 +21,12 @@ import type { InviteKind } from '@/domain/presence';
 /** How often a client is allowed to push its live state up, in ms (~3 Hz). */
 export const DUEL_SYNC_INTERVAL_MS = 320;
 
+/**
+ * Extra wall-clock buffer after `startedAt + duration` before an open seat may
+ * be force-forfeited. Covers independent calibration delays on each device.
+ */
+export const ABANDON_SETTLE_GRACE_MS = 60_000;
+
 /** Duel lifecycle. `pending` → both present → `active` → `finished`. */
 export type DuelStatus = 'pending' | 'active' | 'finished';
 
@@ -73,6 +79,45 @@ export interface Duel {
    * Defaults to `duel` when absent (older docs).
    */
   kind?: InviteKind;
+  /**
+   * Wall-clock start when the guest joined (`joinDuel`). Firestore Timestamp or
+   * ms epoch depending on the reader; use `duelStartedAtMs` to normalise.
+   */
+  startedAt?: unknown;
+}
+
+/** Parse a duel `startedAt` into epoch ms, or null when missing/unusable. */
+export function duelStartedAtMs(duel: { startedAt?: unknown }): number | null {
+  const v = duel.startedAt;
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (v && typeof v === 'object') {
+    const withMillis = v as { toMillis?: () => number; seconds?: number };
+    if (typeof withMillis.toMillis === 'function') {
+      const ms = withMillis.toMillis();
+      return Number.isFinite(ms) ? ms : null;
+    }
+    if (typeof withMillis.seconds === 'number' && Number.isFinite(withMillis.seconds)) {
+      return withMillis.seconds * 1000;
+    }
+  }
+  return null;
+}
+
+/**
+ * True when an unfinished opponent seat may be force-forfeited.
+ *
+ * Requires match end (`startedAt + duration`) plus calibration grace. When
+ * `startedAt` is missing (legacy docs / test fakes), allow forfeit so abandoned
+ * matches can still settle.
+ */
+export function canForfeitOpenOpponent(
+  duel: Pick<Duel, 'duration' | 'startedAt'>,
+  now = Date.now(),
+): boolean {
+  const start = duelStartedAtMs(duel);
+  if (start == null) return true;
+  const durationMs = Math.max(0, duel.duration) * 1000;
+  return now >= start + durationMs + ABANDON_SETTLE_GRACE_MS;
 }
 
 /** A fresh player slice at the start of a duel. */
@@ -109,6 +154,11 @@ export function opponentOf(duel: Duel, uid: string): DuelPlayer | null {
   return null;
 }
 
+/** True when both seats exist and have finished (clock-out or forfeit). */
+export function bothSeatsDone(duel: Pick<Duel, 'host' | 'guest'>): boolean {
+  return !!duel.host?.done && !!duel.guest?.done;
+}
+
 /**
  * A duel is decided once both players are `done`.
  *
@@ -119,7 +169,7 @@ export function opponentOf(duel: Duel, uid: string): DuelPlayer | null {
 export function resolveWinner(duel: Duel): string | null {
   const { host, guest } = duel;
   if (!guest) return null;
-  if (!host.done || !guest.done) return null;
+  if (!bothSeatsDone(duel)) return null;
 
   if (host.forfeited && !guest.forfeited) return guest.uid;
   if (guest.forfeited && !host.forfeited) return host.uid;

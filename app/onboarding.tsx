@@ -38,6 +38,7 @@ import { captureError } from '@/lib/crash';
 import { OPPONENTS } from '@/domain/opponent';
 import { track } from '@/lib/analytics';
 import { fetchOffering, isPurchasesConfigured, purchase, sortPackagesForPaywall } from '@/services/purchases';
+import { isUsernameAvailable } from '@/services/userService';
 import {
   hasFreeTrial,
   planTitle,
@@ -47,6 +48,7 @@ import {
   trialPeriodLabel,
   trialRibbon,
 } from '@/domain/subscriptionCopy';
+import { useAuthStore } from '@/state/authStore';
 import { useProStore } from '@/state/proStore';
 import { showDialog } from '@/state/useDialog';
 import {
@@ -147,6 +149,16 @@ export default function OnboardingScreen() {
   const finish = useCallback(() => {
     completeOnboarding({ username: username || 'champion', weeklyGoal, avatarUri });
     track('onboarding_completed', { weeklyGoal });
+    // Upload local photo first — pushProfile strips non-HTTPS URLs, so a bare
+    // file:// avatar never reached friends/duel seats.
+    void (async () => {
+      const auth = useAuthStore.getState();
+      if (avatarUri) {
+        const remote = await auth.syncAvatar(avatarUri);
+        useProfileStore.getState().setAvatar(remote);
+      }
+      await auth.pushProfile();
+    })();
     // Drop straight into a first practice set — the last tap of onboarding *is*
     // the start of the workout. Getting to a counted rep fast is the single
     // biggest lever on activation; landing on Home and hunting for a button is
@@ -285,7 +297,15 @@ export default function OnboardingScreen() {
                 setUsernameError(err ?? 'Pick a username.');
                 return;
               }
-              next();
+              const uid = useAuthStore.getState().user?.uid;
+              void (async () => {
+                const free = await isUsernameAvailable(username, uid);
+                if (!free) {
+                  setUsernameError('That username is taken. Try another.');
+                  return;
+                }
+                next();
+              })();
             }}
           />
         ) : null}
@@ -1955,6 +1975,7 @@ function PlanOption({
  */
 function Offer({ onDone }: { onDone: () => void }) {
   const setPro = useProStore((s) => s.setPro);
+  const uid = useAuthStore((s) => s.user?.uid ?? null);
   const [annual, setAnnual] = useState<PurchasesPackage | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -1987,7 +2008,7 @@ function Offer({ onDone }: { onDone: () => void }) {
   const onStart = useCallback(async () => {
     if (!annual || busy) return;
     setBusy(true);
-    const result = await purchase(annual);
+    const result = await purchase(annual, uid);
     setBusy(false);
     if (result.cancelled) return;
     if (result.ok && result.isPro) {
@@ -2005,7 +2026,7 @@ function Offer({ onDone }: { onDone: () => void }) {
       tone: 'danger',
       actions: [{ label: 'Try again', variant: 'primary' }],
     });
-  }, [annual, busy, setPro, onDone]);
+  }, [annual, busy, setPro, onDone, uid]);
 
   // No live offer to show — finish onboarding rather than fake a discount.
   const showOffer = billingReady && annual !== null;

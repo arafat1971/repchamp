@@ -2,6 +2,7 @@ import {
   WEEKLY_CHALLENGES,
   currentWeeklyChallenge,
   daysLeftInWeek,
+  isoWeekKey,
   isoWeekNumber,
   weeklyChallengeProgress,
 } from '@/domain/weeklyChallenge';
@@ -27,6 +28,18 @@ describe('daysLeftInWeek', () => {
     // 2026-07-13 is a Monday, 2026-07-19 is a Sunday.
     expect(daysLeftInWeek(new Date(2026, 6, 13))).toBe(7);
     expect(daysLeftInWeek(new Date(2026, 6, 19))).toBe(1);
+  });
+});
+
+describe('isoWeekKey', () => {
+  it('matches the leaderboard week-key shape', () => {
+    expect(isoWeekKey(new Date(Date.UTC(2026, 6, 26)))).toBe('2026-W30');
+  });
+
+  it('keeps Mon–Sun of the same ISO week on one key', () => {
+    // 2026-07-13 Mon … 2026-07-19 Sun
+    expect(isoWeekKey(new Date(2026, 6, 13))).toBe(isoWeekKey(new Date(2026, 6, 19)));
+    expect(isoWeekKey(new Date(2026, 6, 13))).not.toBe(isoWeekKey(new Date(2026, 6, 20)));
   });
 });
 

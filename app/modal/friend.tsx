@@ -7,6 +7,7 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { Avatar, Badge, Card, Divider, Eyebrow, PressableScale, PrimaryButton, Screen, StatTile } from '@/components/ui';
 import { getOpponent, OPPONENTS } from '@/domain/opponent';
 import { getPhantomOpponent } from '@/domain/phantomRoster';
+import { isRecentlyActive } from '@/domain/presence';
 import { blockUser } from '@/services/safetyService';
 import { fetchProfile } from '@/services/userService';
 import { useAuthStore } from '@/state/authStore';
@@ -65,7 +66,7 @@ export default function FriendProfileScreen() {
       setCloudName(profile.displayName || cloudName);
       setCloudAvatar(profile.avatarUrl);
       if (typeof profile.lastActiveAt === 'number') {
-        setCloudOnline(Date.now() - profile.lastActiveAt < 15 * 60 * 1000);
+        setCloudOnline(isRecentlyActive(profile.lastActiveAt));
       }
     });
     return () => {
@@ -80,8 +81,9 @@ export default function FriendProfileScreen() {
   const displayOnline = bot ? friend.online : cloudOnline;
 
   const duels = sessions.filter((s) => s.mode === 'versus' && s.opponentId === friend.id);
-  const wins = duels.filter((s) => s.won).length;
-  const losses = duels.length - wins;
+  const decisive = duels.filter((s) => !s.drew);
+  const wins = decisive.filter((s) => s.won).length;
+  const losses = decisive.filter((s) => !s.won).length;
   const totalReps = duels.reduce((acc, s) => acc + s.reps, 0);
 
   const tint = TINTS[friend.id] ?? { background: palette.green50, color: palette.green700 };
@@ -229,9 +231,13 @@ export default function FriendProfileScreen() {
                     </Text>
                   </View>
                   <Badge
-                    label={duel.won ? 'You won' : 'Lost'}
-                    color={duel.won ? palette.green600 : palette.red500}
-                    background={duel.won ? palette.green50 : palette.red100}
+                    label={duel.drew ? 'Draw' : duel.won ? 'You won' : 'Lost'}
+                    color={
+                      duel.drew ? palette.slate500 : duel.won ? palette.green600 : palette.red500
+                    }
+                    background={
+                      duel.drew ? '#f4f4f5' : duel.won ? palette.green50 : palette.red100
+                    }
                   />
                 </View>
               </View>

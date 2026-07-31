@@ -16,11 +16,11 @@ export const POSE_BUFFER_LENGTH = 17 * 3;
 /** Joints below this confidence are not drawn, rather than drawn wrong. */
 const DRAW_THRESHOLD = 0.3;
 
-/** Crisp skeleton stroke width. */
+/** Skeleton bone stroke width (px). */
 const BONE_STROKE_WIDTH = 5;
 
-/** Small professional joint marker — keeps the overlay looking like a thin stick figure. */
-const JOINT_RADIUS = 3;
+/** Joint marker radius — medium dots (~3× the previous thin markers). */
+const JOINT_RADIUS = 9;
 
 /**
  * How far past the wrist / ankle to extend the limb line toward fingers / toes.
@@ -303,9 +303,7 @@ function Joints({
   );
 }
 
-/**
- * One joint marker — small filled dot, same size everywhere for a clean look.
- */
+/** One joint marker — medium filled dot, same size everywhere. */
 function Joint({
   index,
   pose,

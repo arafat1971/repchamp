@@ -69,6 +69,16 @@ export function isoWeekNumber(date = new Date()): number {
   return Math.ceil(((d.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
 }
 
+/** ISO week key like `2026-W30` — shared by local weekly XP and the leaderboard. */
+export function isoWeekKey(date = new Date()): string {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(((d.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
 /** This week's challenge — the same for everyone, rotating by week number. */
 export function currentWeeklyChallenge(date = new Date()): WeeklyChallengeDef {
   const idx = isoWeekNumber(date) % WEEKLY_CHALLENGES.length;

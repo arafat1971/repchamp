@@ -64,7 +64,34 @@ describe('exercise library — depth signal moves the right way', () => {
     expect(def.analyze(deep).depth!).toBeGreaterThan(def.analyze(standing).depth!);
   });
 
-  it('high-knees: a lifted knee reads higher than a resting one', () => {
+  it('lunge: alternating sides return low depth when both legs are even', () => {
+    // Both legs equally bent → asymmetry ~0 so the rep counter can close.
+    const bothDeep = poseFrom({
+      leftHip: { x: 0.4, y: 0.5 },
+      leftKnee: { x: 0.4, y: 0.62 },
+      leftAnkle: { x: 0.56, y: 0.62 },
+      rightHip: { x: 0.6, y: 0.5 },
+      rightKnee: { x: 0.6, y: 0.62 },
+      rightAnkle: { x: 0.76, y: 0.62 },
+      leftShoulder: { x: 0.4, y: 0.3 },
+      rightShoulder: { x: 0.6, y: 0.3 },
+    });
+    const oneDeep = poseFrom({
+      leftHip: { x: 0.4, y: 0.5 },
+      leftKnee: { x: 0.4, y: 0.62 },
+      leftAnkle: { x: 0.56, y: 0.62 },
+      rightHip: { x: 0.6, y: 0.4 },
+      rightKnee: { x: 0.6, y: 0.6 },
+      rightAnkle: { x: 0.6, y: 0.8 }, // straight
+      leftShoulder: { x: 0.4, y: 0.3 },
+      rightShoulder: { x: 0.6, y: 0.3 },
+    });
+    const def = getExercise('lunge');
+    expect(def.analyze(bothDeep).depth!).toBeLessThan(def.upThreshold);
+    expect(def.analyze(oneDeep).depth!).toBeGreaterThan(def.analyze(bothDeep).depth!);
+  });
+
+  it('high-knees: a single lifted knee reads higher than rest (asymmetry signal)', () => {
     const rest = poseFrom({
       leftShoulder: { x: 0.5, y: 0.3 },
       rightShoulder: { x: 0.5, y: 0.3 },
@@ -78,11 +105,22 @@ describe('exercise library — depth signal moves the right way', () => {
       rightShoulder: { x: 0.5, y: 0.3 },
       leftHip: { x: 0.5, y: 0.5 },
       rightHip: { x: 0.5, y: 0.5 },
-      leftKnee: { x: 0.5, y: 0.42 }, // one knee driven up above the hip line
+      leftKnee: { x: 0.5, y: 0.35 }, // one knee driven up
       rightKnee: { x: 0.5, y: 0.7 },
+    });
+    const bothHigh = poseFrom({
+      leftShoulder: { x: 0.5, y: 0.3 },
+      rightShoulder: { x: 0.5, y: 0.3 },
+      leftHip: { x: 0.5, y: 0.5 },
+      rightHip: { x: 0.5, y: 0.5 },
+      leftKnee: { x: 0.5, y: 0.35 },
+      rightKnee: { x: 0.5, y: 0.35 },
     });
     const def = getExercise('high-knees');
     expect(def.analyze(lifted).depth!).toBeGreaterThan(def.analyze(rest).depth!);
+    // Alternating signal must return low when both knees are equally high —
+    // otherwise the hysteresis counter never closes a rep.
+    expect(def.analyze(bothHigh).depth!).toBeLessThan(def.upThreshold);
   });
 
   it('jumping-jack: hands overhead read higher than hands down', () => {
@@ -104,6 +142,23 @@ describe('exercise library — depth signal moves the right way', () => {
     });
     const def = getExercise('jumping-jack');
     expect(def.analyze(up).depth!).toBeGreaterThan(def.analyze(down).depth!);
+  });
+
+  it('jumping-jack / shoulder / stretch tolerate one occluded wrist', () => {
+    const oneWristUp: Pose = makePose(
+      {
+        leftShoulder: { x: 0.4, y: 0.3, score: 0.95 },
+        rightShoulder: { x: 0.6, y: 0.3, score: 0.95 },
+        leftHip: { x: 0.4, y: 0.5, score: 0.95 },
+        rightHip: { x: 0.6, y: 0.5, score: 0.95 },
+        leftWrist: { x: 0.45, y: 0.1, score: 0.95 },
+        rightWrist: { x: 0.55, y: 0.1, score: 0.05 }, // occluded
+      },
+      0,
+    );
+    for (const id of ['jumping-jack', 'shoulder', 'stretch'] as ExerciseId[]) {
+      expect(getExercise(id).analyze(oneWristUp).depth).not.toBeNull();
+    }
   });
 
   it('glute-bridge: raised hips read higher than hips on the floor', () => {

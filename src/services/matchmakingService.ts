@@ -26,11 +26,14 @@ import firestore from '@react-native-firebase/firestore';
 
 import { isFirebaseConfigured } from '@/lib/firebase';
 import {
+  OPEN_MATCH_DURATION,
+  OPEN_MATCH_EXERCISE,
   type QueueTicket,
   buildMatchDuel,
   canPair,
   makeTicket,
 } from '@/domain/matchmaking';
+import { isBlockedEither } from '@/services/safetyService';
 
 const QUEUE = 'matchmaking';
 const DUELS = 'duels';
@@ -56,19 +59,42 @@ export interface QueueInput {
 /**
  * Drop this athlete's `waiting` ticket in the queue. No-op when unconfigured.
  *
- * Overwrites any stale ticket for the same uid, so re-entering after a prior
- * match or a crash always starts clean at `waiting`.
+ * If the ticket is already `matched` to a still-live duel (`active`/`pending`),
+ * returns that `duelId` so a foreground resume cannot wipe the pairing.
+ * Finished / missing duels are treated as stale — the ticket is rewritten to
+ * `waiting` so Quick Match cannot relaunch an old match.
+ *
+ * @returns existing live duel id when already matched to an open duel, else null.
  */
-export async function enqueue(input: QueueInput): Promise<void> {
-  if (!isFirebaseConfigured()) return;
+export async function enqueue(input: QueueInput): Promise<string | null> {
+  if (!isFirebaseConfigured()) return null;
   try {
-    const ticket = makeTicket(input);
-    await ticketDoc(input.uid).set({
-      ...ticket,
-      enqueuedAt: firestore.FieldValue.serverTimestamp(),
+    return await firestore().runTransaction(async (tx) => {
+      const ref = ticketDoc(input.uid);
+      const snap = await tx.get(ref);
+      if (snap.exists()) {
+        const existing = snap.data() as QueueTicket;
+        if (existing.status === 'matched' && existing.duelId) {
+          const duelSnap = await tx.get(firestore().collection(DUELS).doc(existing.duelId));
+          if (duelSnap.exists()) {
+            const duel = duelSnap.data() as { status?: string };
+            if (duel.status === 'active' || duel.status === 'pending') {
+              return existing.duelId;
+            }
+          }
+          // Stale matched pointer — fall through and rewrite as waiting.
+        }
+      }
+      const ticket = makeTicket(input);
+      tx.set(ref, {
+        ...ticket,
+        enqueuedAt: firestore.FieldValue.serverTimestamp(),
+      });
+      return null;
     });
   } catch {
     // Offline — queue UI falls back to AI rival on timeout.
+    return null;
   }
 }
 
@@ -91,9 +117,19 @@ export async function tryPair(seeker: QueueInput): Promise<string | null> {
       .limit(5)
       .get();
 
-    const candidates = snap.docs
+    const format = {
+      exercise: seeker.exercise ?? OPEN_MATCH_EXERCISE,
+      duration: seeker.duration ?? OPEN_MATCH_DURATION,
+    };
+    const formatCandidates = snap.docs
       .map((d) => d.data() as QueueTicket)
-      .filter((t) => canPair(seeker.uid, t));
+      .filter((t) => canPair(seeker.uid, t, format));
+    // Skip anyone either side has blocked — Quick Match must honor the block list.
+    const candidates: QueueTicket[] = [];
+    for (const t of formatCandidates) {
+      if (await isBlockedEither(seeker.uid, t.uid)) continue;
+      candidates.push(t);
+    }
     if (candidates.length === 0) return null;
 
     const duelId = firestore().collection(DUELS).doc().id;
@@ -102,10 +138,17 @@ export async function tryPair(seeker: QueueInput): Promise<string | null> {
     return await firestore().runTransaction(async (tx) => {
       const seekerRef = ticketDoc(seeker.uid);
       const seekerSnap = await tx.get(seekerRef);
-      // If someone paired us while we were scanning, follow that duel instead.
+      // If someone paired us while we were scanning, follow that duel instead —
+      // but only if it's still live (not a finished leftover ticket).
       if (seekerSnap.exists()) {
         const mine = seekerSnap.data() as QueueTicket;
-        if (mine.status === 'matched' && mine.duelId) return mine.duelId;
+        if (mine.status === 'matched' && mine.duelId) {
+          const duelSnap = await tx.get(firestore().collection(DUELS).doc(mine.duelId));
+          if (duelSnap.exists()) {
+            const duel = duelSnap.data() as { status?: string };
+            if (duel.status === 'active' || duel.status === 'pending') return mine.duelId;
+          }
+        }
       }
 
       // Claim the first candidate that's still waiting at transaction time.
@@ -114,7 +157,7 @@ export async function tryPair(seeker: QueueInput): Promise<string | null> {
         const candidateSnap = await tx.get(candidateRef);
         if (!candidateSnap.exists()) continue;
         const fresh = candidateSnap.data() as QueueTicket;
-        if (!canPair(seeker.uid, fresh)) continue;
+        if (!canPair(seeker.uid, fresh, format)) continue;
 
         // The waiting athlete hosts; the seeker who claimed them guests.
         const duel = buildMatchDuel(duelId, fresh, guest);
@@ -160,17 +203,87 @@ export function watchTicket(
   );
 }
 
+/** Result of leaving the open-match queue. */
+export type LeaveQueueResult =
+  | { outcome: 'left' }
+  | { outcome: 'matched'; duelId: string }
+  | { outcome: 'missing' }
+  /** Transient failure — caller must NOT invent an AI rival. */
+  | { outcome: 'error' };
+
 /**
- * Leave the queue — delete this athlete's ticket. Best-effort; no-op when
- * unconfigured. Called when the athlete cancels or the screen unmounts before a
- * match, so abandoned `waiting` tickets don't accumulate.
+ * Leave the queue — delete this athlete's ticket if still waiting.
+ *
+ * Transactional: re-reads before delete so a racing `tryPair` that flips the
+ * ticket to `matched` cannot be wiped. Returns `matched` + duelId when that
+ * duel is still live so the caller can launch instead of inventing an AI rival.
+ * Finished / missing duel pointers are cleared as a normal leave.
+ * Transaction failures return `error` (or `matched` after a re-read) — never a
+ * false `missing` that would orphan a live partner into an AI duel.
  */
-export async function leaveQueue(uid: string): Promise<void> {
+export async function leaveQueue(uid: string): Promise<LeaveQueueResult> {
+  if (!isFirebaseConfigured()) return { outcome: 'missing' };
+  try {
+    return await firestore().runTransaction(async (tx) => {
+      const ref = ticketDoc(uid);
+      const snap = await tx.get(ref);
+      if (!snap.exists()) return { outcome: 'missing' as const };
+      const ticket = snap.data() as QueueTicket;
+      if (ticket.status === 'matched' && ticket.duelId) {
+        const duelSnap = await tx.get(firestore().collection(DUELS).doc(ticket.duelId));
+        if (duelSnap.exists()) {
+          const duel = duelSnap.data() as { status?: string };
+          if (duel.status === 'active' || duel.status === 'pending') {
+            return { outcome: 'matched' as const, duelId: ticket.duelId };
+          }
+        }
+        // Stale matched pointer — clear so AI fallback can proceed.
+      }
+      tx.delete(ref);
+      return { outcome: 'left' as const };
+    });
+  } catch {
+    // Don't treat a failed transaction as "ticket gone" — re-read first.
+    try {
+      const snap = await ticketDoc(uid).get();
+      if (!snap.exists()) return { outcome: 'missing' };
+      const ticket = snap.data() as QueueTicket;
+      if (ticket.status === 'matched' && ticket.duelId) {
+        return { outcome: 'matched', duelId: ticket.duelId };
+      }
+      // Still waiting (or unmatched) — stay in queue UI, never AI-fallback.
+      return { outcome: 'error' };
+    } catch {
+      return { outcome: 'error' };
+    }
+  }
+}
+/**
+ * One-shot read of this athlete's queue ticket.
+ */
+export async function fetchTicket(uid: string): Promise<QueueTicket | null> {
+  if (!isFirebaseConfigured()) return null;
+  try {
+    const snap = await ticketDoc(uid).get();
+    return snap.exists() ? (snap.data() as QueueTicket) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Delete this athlete's queue ticket after a successful live launch.
+ *
+ * Unlike `leaveQueue`, this clears `matched` tickets too — once both athletes
+ * are in the session the ticket is only a stale pointer that would otherwise
+ * relaunch a finished duel on the next Quick Match.
+ */
+export async function clearQueueTicket(uid: string): Promise<void> {
   if (!isFirebaseConfigured()) return;
   try {
     await ticketDoc(uid).delete();
   } catch {
-    // A racing pairing may have matched us first; harmless to leave it.
+    // Best-effort — a missing ticket is already cleared.
   }
 }
 

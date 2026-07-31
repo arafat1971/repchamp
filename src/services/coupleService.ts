@@ -17,11 +17,16 @@ import firestore from '@react-native-firebase/firestore';
 
 import { isFirebaseConfigured } from '@/lib/firebase';
 import {
+  extractPairCode,
   makePairCode,
-  normalizePairCode,
   type Couple,
   type CoupleMember,
 } from '@/domain/couple';
+import {
+  assertClientRateLimit,
+  commitClientRateLimit,
+  isBlockedEither,
+} from '@/services/safetyService';
 
 const COUPLES = 'couples';
 
@@ -47,6 +52,15 @@ function makeMember(input: CoupleMemberInput): CoupleMember {
     trainedDays: [],
     totalReps: 0,
   };
+}
+
+/**
+ * True when this athlete already sits on any couple doc (pending or paired).
+ * Used to refuse a second membership so `watchMyCouple` can't pick the wrong bond.
+ */
+async function findMembershipId(uid: string): Promise<string | null> {
+  const snap = await couplesCol().where('memberUids', 'array-contains', uid).limit(1).get();
+  return snap.docs[0]?.id ?? null;
 }
 
 /**
@@ -98,6 +112,11 @@ export async function syncMyCouplePushToken(uid: string, token: string): Promise
 export async function createCouple(input: CoupleMemberInput): Promise<string | null> {
   if (!isFirebaseConfigured()) return null;
 
+  const existing = await findMembershipId(input.uid);
+  if (existing) {
+    throw new Error('Leave your current couple before creating a new invite.');
+  }
+
   for (let attempt = 0; attempt < 5; attempt++) {
     const code = makePairCode();
     const ref = coupleDoc(code);
@@ -134,10 +153,24 @@ export async function joinCoupleByCode(
 ): Promise<Couple | null> {
   if (!isFirebaseConfigured()) return null;
 
-  const code = normalizePairCode(rawCode);
+  const code = extractPairCode(rawCode);
   if (!code) throw new Error('That pair code does not look right.');
 
+  const membershipId = await findMembershipId(input.uid);
+  if (membershipId && membershipId !== code) {
+    throw new Error('Leave your current couple before joining another.');
+  }
+
   const ref = coupleDoc(code);
+
+  // Block check outside the transaction (same pattern as joinDuel).
+  const peek = await ref.get();
+  if (peek.exists()) {
+    const hostUid = (peek.data() as Couple).memberUids[0];
+    if (hostUid && hostUid !== input.uid && (await isBlockedEither(input.uid, hostUid))) {
+      throw new Error('You can’t join this couple.');
+    }
+  }
 
   return firestore().runTransaction(async (tx) => {
     const snap = await tx.get(ref);
@@ -217,8 +250,12 @@ export async function recordCoupleSession(
   uid: string,
   reps: number,
   day: string,
+  /** Durable outbox id — skips the increment when already applied. */
+  creditId?: string,
 ): Promise<void> {
   if (!isFirebaseConfigured()) return;
+  // Zero-rep / give-up sets must not farm the shared streak.
+  if (!Number.isFinite(reps) || reps <= 0) return;
 
   const ref = coupleDoc(coupleId);
   await firestore().runTransaction(async (tx) => {
@@ -226,15 +263,19 @@ export async function recordCoupleSession(
     if (!snap.exists()) return;
 
     const couple = snap.data() as Couple;
-    const members = couple.members.map((m) =>
-      m.uid === uid
-        ? {
-            ...m,
-            totalReps: m.totalReps + reps,
-            trainedDays: m.trainedDays.includes(day) ? m.trainedDays : [...m.trainedDays, day],
-          }
-        : m,
-    );
+    const members = couple.members.map((m) => {
+      if (m.uid !== uid) return m;
+      const credited = Array.isArray(m.creditedIds) ? m.creditedIds : [];
+      if (creditId && credited.includes(creditId)) return m;
+      return {
+        ...m,
+        totalReps: m.totalReps + reps,
+        trainedDays: m.trainedDays.includes(day) ? m.trainedDays : [...m.trainedDays, day],
+        ...(creditId
+          ? { creditedIds: [...credited, creditId].slice(-40) }
+          : {}),
+      };
+    });
     tx.set(ref, { members }, { merge: true });
   });
 }
@@ -263,11 +304,15 @@ export async function nudgePartner(
 ): Promise<void> {
   if (!isFirebaseConfigured()) return;
 
+  // Cap spam — friend-add / duel-invite already rate-limit; nudges did not.
+  assertClientRateLimit('coupleNudge', fromUid);
+
   // (1) In-app path — the record the partner's subscription watches.
   await coupleDoc(coupleId).set(
     { nudge: { fromUid, at: firestore.FieldValue.serverTimestamp() } },
     { merge: true },
   );
+  commitClientRateLimit('coupleNudge', fromUid);
 
   // (2) Remote path — push to the partner's device via Expo.
   try {
@@ -306,4 +351,30 @@ export async function nudgePartner(
 export async function leaveCouple(coupleId: string): Promise<void> {
   if (!isFirebaseConfigured()) return;
   await coupleDoc(coupleId).delete();
+}
+
+/**
+ * Cancel an open pair invite without wiping a bond that just got claimed.
+ * Deletes only while still `pending` with a single member.
+ * @returns `'cancelled'` | `'paired'` (partner joined) | `'missing'`
+ */
+export async function cancelCoupleInvite(
+  coupleId: string,
+): Promise<'cancelled' | 'paired' | 'missing'> {
+  if (!isFirebaseConfigured()) return 'missing';
+  try {
+    return await firestore().runTransaction(async (tx) => {
+      const ref = coupleDoc(coupleId);
+      const snap = await tx.get(ref);
+      if (!snap.exists()) return 'missing' as const;
+      const couple = snap.data() as Couple;
+      if (!couple.pending || couple.memberUids.length >= 2) {
+        return 'paired' as const;
+      }
+      tx.delete(ref);
+      return 'cancelled' as const;
+    });
+  } catch {
+    return 'missing';
+  }
 }

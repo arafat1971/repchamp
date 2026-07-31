@@ -18,6 +18,7 @@ import type { Couple } from '../../domain/couple';
 /* ------------------------------------------------------------------ */
 
 import {
+  cancelCoupleInvite,
   createCouple,
   joinCoupleByCode,
   leaveCouple,
@@ -115,6 +116,12 @@ jest.mock('@/lib/firebase', () => ({
   isFirebaseConfigured: () => mockState.configured,
 }));
 
+jest.mock('@/services/safetyService', () => ({
+  assertClientRateLimit: jest.fn(),
+  commitClientRateLimit: jest.fn(),
+  isBlockedEither: jest.fn(async () => false),
+}));
+
 jest.mock('@react-native-firebase/firestore', () => {
   const fn = () => ({
     collection: (name: string) => ({
@@ -131,6 +138,9 @@ jest.mock('@react-native-firebase/firestore', () => {
           const store = mockCol(ref._col);
           if (opts?.merge) store.set(ref.id, { ...(store.get(ref.id) ?? {}), ...data });
           else store.set(ref.id, { ...data });
+        },
+        delete(ref: { _col: string; id: string }) {
+          mockCol(ref._col).delete(ref.id);
         },
       };
       return cb(tx);
@@ -187,6 +197,12 @@ describe('createCouple', () => {
     expect(await createCouple(ADA)).toBeNull();
     expect(mockStore.couples.size).toBe(0);
   });
+
+  it('refuses a second create while already in a couple', async () => {
+    await createCouple(ADA);
+    Math.random = () => 0.5;
+    await expect(createCouple(ADA)).rejects.toThrow(/Leave your current couple/i);
+  });
 });
 
 describe('joinCoupleByCode', () => {
@@ -224,6 +240,23 @@ describe('joinCoupleByCode', () => {
     await expect(
       joinCoupleByCode(code, { uid: 'cy', displayName: 'Cy' }),
     ).rejects.toThrow(/already paired up/i);
+  });
+
+  it('refuses joining another couple while already a member elsewhere', async () => {
+    const adaCode = await open();
+    Math.random = () => 0.42;
+    const beaCode = await createCouple(BEA);
+    await expect(joinCoupleByCode(adaCode, BEA)).rejects.toThrow(/Leave your current couple/i);
+    expect(mockStore.couples.get(beaCode!)!.memberUids).toEqual(['bea']);
+  });
+
+  it('refuses join when either athlete has blocked the other', async () => {
+    const { isBlockedEither } = jest.requireMock('@/services/safetyService') as {
+      isBlockedEither: jest.Mock;
+    };
+    isBlockedEither.mockResolvedValueOnce(true);
+    const code = await open();
+    await expect(joinCoupleByCode(code, BEA)).rejects.toThrow(/can’t join this couple/i);
   });
 
   it('returns null when unconfigured', async () => {
@@ -297,9 +330,27 @@ describe('recordCoupleSession', () => {
     expect(ada.trainedDays).toEqual(['2026-07-26']);
   });
 
+  it('is idempotent for the same creditId (outbox retry)', async () => {
+    const code = await createCouple(ADA);
+    await recordCoupleSession(code!, 'ada', 12, '2026-07-26', 'credit-1');
+    await recordCoupleSession(code!, 'ada', 12, '2026-07-26', 'credit-1');
+    const c = mockStore.couples.get(code!) as unknown as Couple;
+    const ada = c.members.find((m) => m.uid === 'ada')!;
+    expect(ada.totalReps).toBe(12);
+    expect(ada.creditedIds).toContain('credit-1');
+  });
+
   it('is a no-op for an unknown couple', async () => {
     await recordCoupleSession('ZZZZZZ', 'ada', 5, '2026-07-26');
     expect(mockStore.couples.has('ZZZZZZ')).toBe(false);
+  });
+
+  it('ignores zero-rep sets so give-up cannot farm the streak', async () => {
+    const code = await createCouple(ADA);
+    await recordCoupleSession(code!, 'ada', 0, '2026-07-26');
+    const c = mockStore.couples.get(code!) as unknown as Couple;
+    expect(c.members[0]!.totalReps).toBe(0);
+    expect(c.members[0]!.trainedDays).toEqual([]);
   });
 
   it('is a no-op when unconfigured', async () => {
@@ -378,6 +429,21 @@ describe('leaveCouple', () => {
     const code = await createCouple(ADA);
     mockState.configured = false;
     await leaveCouple(code!);
+    expect(mockStore.couples.has(code!)).toBe(true);
+  });
+});
+
+describe('cancelCoupleInvite', () => {
+  it('deletes a still-pending invite', async () => {
+    const code = await createCouple(ADA);
+    expect(await cancelCoupleInvite(code!)).toBe('cancelled');
+    expect(mockStore.couples.has(code!)).toBe(false);
+  });
+
+  it('does not delete a bond that was just claimed', async () => {
+    const code = await createCouple(ADA);
+    await joinCoupleByCode(code!, BEA);
+    expect(await cancelCoupleInvite(code!)).toBe('paired');
     expect(mockStore.couples.has(code!)).toBe(true);
   });
 });

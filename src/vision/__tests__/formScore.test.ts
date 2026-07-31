@@ -77,6 +77,18 @@ describe('buildFormReport', () => {
     expect(sloppy.score).toBeLessThan(clean.score);
   });
 
+  it('does not flatter a weak set with excellent copy', () => {
+    const weak = buildFormReport(
+      pushUp,
+      Array.from({ length: 4 }, () =>
+        rep({ peakDepth: 0.45, alignment: 0.3, fullDepth: false, durationMs: 600 }),
+      ),
+    );
+    expect(weak.score).toBeLessThan(60);
+    expect(weak.grade).toBe('Needs work');
+    expect(weak.summary.toLowerCase()).not.toMatch(/on point|clean lockouts/);
+  });
+
   it('counts full-depth and partial reps separately', () => {
     const report = buildFormReport(pushUp, [
       rep({ fullDepth: true }),

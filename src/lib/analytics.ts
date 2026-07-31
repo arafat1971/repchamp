@@ -1,3 +1,5 @@
+import { AppState } from 'react-native';
+
 import { posthogKey } from '@/lib/config';
 import { assertHttps } from '@/lib/https';
 
@@ -69,6 +71,16 @@ function apiKey(): string | undefined {
 let distinctId: string | null = null;
 let queue: QueuedEvent[] = [];
 let timer: ReturnType<typeof setInterval> | null = null;
+let appStateFlushInstalled = false;
+
+/** Flush the queue when the app backgrounds so session_finished isn't lost. */
+function ensureAppStateFlush(): void {
+  if (appStateFlushInstalled) return;
+  appStateFlushInstalled = true;
+  AppState.addEventListener('change', (state) => {
+    if (state !== 'active') void flush();
+  });
+}
 
 /**
  * Identify the current user, so events tie to a person across sessions. Pass the
@@ -89,6 +101,7 @@ export function track<E extends EventName>(
   // Drop oldest when offline backlog balloons — keeps memory bounded.
   if (queue.length > MAX_QUEUE) queue = queue.slice(queue.length - MAX_QUEUE);
   ensureTimer();
+  ensureAppStateFlush();
   if (queue.length >= MAX_BATCH) void flush();
 }
 

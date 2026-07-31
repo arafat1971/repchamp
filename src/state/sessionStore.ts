@@ -18,6 +18,8 @@ export interface SessionConfig {
   opponentId: string | null;
   /** Display name of the live opponent, for the result screen. */
   opponentName?: string | null;
+  /** Live Firestore duel id — when set, ties are draws (mirrors cloud). */
+  duelId?: string | null;
 }
 
 export interface SessionState {
@@ -38,6 +40,10 @@ export interface SessionState {
   formCue: string;
 
   won: boolean;
+  /** True when a live versus set ended level — not a win and not a loss. */
+  drew: boolean;
+  /** True when the athlete tapped Give Up before the clock ran out. */
+  forfeited: boolean;
   xpGained: number;
   formReport: FormReport | null;
   /** Real captured camera snapshot during practice for the share card. */
@@ -58,6 +64,8 @@ export interface SessionState {
   setOpponentReps: (reps: number) => void;
   /** Record the live opponent's display name once it resolves from the duel doc. */
   setOpponentName: (name: string) => void;
+  /** Record the live opponent's uid for H2H history / rematch targeting. */
+  setOpponentId: (id: string) => void;
   setCapturedSnapshotUri: (uri: string | null) => void;
   tickClock: () => void;
   finish: (options?: { forfeited?: boolean }) => void;
@@ -90,6 +98,8 @@ const idle = {
   repRecords: [] as RepRecord[],
   formCue: 'Get set…',
   won: false,
+  drew: false,
+  forfeited: false,
   xpGained: 0,
   formReport: null,
   capturedSnapshotUri: null as string | null,
@@ -110,6 +120,9 @@ export function didWin(config: SessionConfig, reps: number, opponentReps: number
     case 'solo':
       return reps >= (config.target ?? 0);
     case 'versus':
+      // Live human matches mirror cloud settle: a tie is a draw. Bot pacers
+      // still award the tie so a dead-heat against AI doesn't feel like a loss.
+      if (config.duelId) return reps > opponentReps;
       return reps >= opponentReps;
   }
 }
@@ -187,6 +200,9 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   setOpponentName: (name) =>
     set((s) => s.config ? { config: { ...s.config, opponentName: name } } : {}),
 
+  setOpponentId: (id) =>
+    set((s) => (s.config ? { config: { ...s.config, opponentId: id } } : {})),
+
   setCapturedSnapshotUri: (uri) => set({ capturedSnapshotUri: uri }),
 
   tickClock: () => {
@@ -206,13 +222,25 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     const state = get();
     if (!state.config || state.phase === 'finished') return;
 
-    const won = options?.forfeited ? false : didWin(state.config, state.reps, state.opponentReps);
+    const forfeited = options?.forfeited ?? false;
+    const drew =
+      !forfeited &&
+      state.config.mode === 'versus' &&
+      !!state.config.duelId &&
+      state.reps === state.opponentReps;
+    const won = forfeited || drew ? false : didWin(state.config, state.reps, state.opponentReps);
     const exercise = getExercise(state.config.exercise);
 
     set({
       phase: 'finished',
       won,
-      xpGained: xpForSession(state.config.mode, won),
+      drew,
+      forfeited,
+      xpGained: xpForSession(state.config.mode, won, {
+        drew,
+        reps: state.reps,
+        forfeited,
+      }),
       formReport: buildFormReport(exercise, state.repRecords),
     });
   },

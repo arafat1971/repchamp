@@ -31,15 +31,20 @@ const mockState = { configured: true };
 
 /** A mutable Firebase auth user, with the linkWithCredential the upgrade uses. */
 function mockUser(over: Partial<Record<string, unknown>> = {}) {
-  const u: Record<string, unknown> = {
+  const linkWithCredential = jest.fn(async () => ({
+    user: { uid: 'fb-uid', isAnonymous: false },
+  }));
+  const u = {
     uid: 'fb-uid',
     isAnonymous: false,
-    email: null,
-    displayName: null,
-    photoURL: null,
+    email: null as string | null,
+    displayName: null as string | null,
+    photoURL: null as string | null,
+    linkWithCredential,
     ...over,
   };
-  u.linkWithCredential = jest.fn(async () => ({
+  // Keep the resolved user in sync with this mock's identity after overrides.
+  linkWithCredential.mockImplementation(async () => ({
     user: { ...u, isAnonymous: false },
   }));
   return u;
@@ -57,6 +62,27 @@ const mockAuthState = {
 
 jest.mock('@/lib/firebase', () => ({
   isFirebaseConfigured: () => mockState.configured,
+}));
+
+jest.mock('@/services/userService', () => ({
+  upsertProfile: jest.fn(async () => true),
+  buildCloudProgressSlice: jest.fn(() => ({
+    trainedDays: [],
+    weekKey: '2026-W01',
+    weekXp: 0,
+    weekExerciseReps: {},
+    programme: null,
+  })),
+}));
+
+jest.mock('@/domain/cloudProgress', () => ({
+  buildCloudProgressSlice: jest.fn(() => ({
+    trainedDays: [],
+    weekKey: '2026-W01',
+    weekXp: 0,
+    weekExerciseReps: {},
+    programme: null,
+  })),
 }));
 
 jest.mock('@react-native-firebase/auth', () => {
@@ -216,6 +242,28 @@ describe('signInWithEmail', () => {
     const u = await signInWithEmail('  a@b.co  ', 'pw');
     expect(mockAuthState.signInWithEmailAndPassword).toHaveBeenCalledWith('a@b.co', 'pw');
     expect(u.email).toBe('a@b.co');
+  });
+
+  it('links onto an anonymous account, preserving the uid', async () => {
+    const anon = mockUser({ uid: 'keep-uid', isAnonymous: true });
+    mockAuthState.currentUser = anon;
+    const u = await signInWithEmail('a@b.co', 'password1');
+    expect(anon.linkWithCredential).toHaveBeenCalledTimes(1);
+    expect(mockAuthState.signInWithEmailAndPassword).not.toHaveBeenCalled();
+    expect(u.uid).toBe('keep-uid');
+    expect(u.isAnonymous).toBe(false);
+  });
+
+  it('falls back to sign-in when the email is already linked elsewhere', async () => {
+    const anon = mockUser({ uid: 'anon', isAnonymous: true });
+    anon.linkWithCredential.mockRejectedValue({ code: 'auth/email-already-in-use' });
+    mockAuthState.currentUser = anon;
+    mockAuthState.signInWithEmailAndPassword.mockResolvedValue({
+      user: mockUser({ uid: 'existing', email: 'a@b.co', isAnonymous: false }),
+    });
+    const u = await signInWithEmail('a@b.co', 'password1');
+    expect(mockAuthState.signInWithEmailAndPassword).toHaveBeenCalledWith('a@b.co', 'password1');
+    expect(u.uid).toBe('existing');
   });
 });
 

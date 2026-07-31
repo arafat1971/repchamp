@@ -30,6 +30,10 @@ import {
 } from '@/domain/couple';
 import { dayKey } from '@/domain/progression';
 import { presentNudge } from '@/lib/notifications';
+import {
+  flushCoupleCreditOutbox,
+  promotePendingCoupleCredit,
+} from '@/services/coupleCreditOutbox';
 import { syncCouplePushToken, watchMyCouple } from '@/services/coupleService';
 import { fetchExpoPushToken } from '@/services/userService';
 import { useAuthStore } from '@/state/authStore';
@@ -106,17 +110,16 @@ export function useCouple(): CoupleView {
       setCouple(next);
       setLoading(false);
 
-      // Reward the invite loop: the moment a bond is fully paired (both seats
-      // filled), grant BOTH partners a free week of Pro. Each device sees the
-      // transition on its own snapshot, so both get it. Guarded by a ref so it
-      // fires once per app run, and `grantPairingBonus` never shortens an active
-      // bonus, so re-pairing can't stack repeatedly within a session.
+      // Reward the invite loop once: first time a bond is fully paired on this
+      // device. `grantPairingBonus` is a lifetime latch — leave/re-pair after
+      // expiry must not farm another free Pro week.
       const fullyPaired = !!next && next.memberUids.length >= 2 && next.pending === false;
       if (fullyPaired && !rewardedPairing.current) {
         rewardedPairing.current = true;
         useProfileStore.getState().grantPairingBonus(PAIRING_BONUS_DAYS);
+        // Persist the lifetime latch + until stamp before the next device can re-farm.
+        void useAuthStore.getState().pushProfile();
       }
-      if (!fullyPaired) rewardedPairing.current = false;
 
       // Surface a nudge the *partner* sent, once. The first snapshot only seeds
       // the baseline, so a poke from yesterday doesn't fire on every launch.
@@ -130,15 +133,21 @@ export function useCouple(): CoupleView {
       if (at !== null && at !== seenNudgeAt.current && from && from !== uid) {
         seenNudgeAt.current = at;
         const sender = next?.members.find((m) => m.uid === from);
-        // Foreground presentation. When the app is open the FCM push is
-        // suppressed (see `installForegroundNudgeSuppressor`), so this Firestore
-        // path is the single in-app nudge and there is no duplicate. When the app
-        // is closed, the Cloud Function's push is what lands instead.
+        // Foreground presentation. A recent presentNudge briefly suppresses the
+        // twin FCM banner (see `installForegroundNudgeSuppressor`); if Firestore
+        // is slow, the push still shows. When the app is closed, Expo push lands.
         void presentNudge(sender?.displayName ?? 'Your partner');
       }
     });
     return unsubscribe;
   }, [uid]);
+
+  // Promote a together-set credit parked before the bond hydrated (session → result).
+  useEffect(() => {
+    if (!uid || !couple?.id) return;
+    const creditId = promotePendingCoupleCredit(couple.id, uid);
+    if (creditId) void flushCoupleCreditOutbox();
+  }, [uid, couple?.id]);
 
   // When a bond appears (or this device already had a private token before pairing),
   // publish the token onto our member slice so the partner can nudge remotely.

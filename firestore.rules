@@ -79,11 +79,17 @@ service cloud.firestore {
           || request.resource.data.createdAt == resource.data.createdAt;
       }
 
+      // Multi-device sync: a slower device must not lower lifetime XP.
+      function totalXpMonotonic() {
+        return !('totalXp' in resource.data)
+          || request.resource.data.totalXp >= resource.data.totalXp;
+      }
+
       allow create: if isOwner(uid) && isProfileWrite();
       allow update: if isOwner(uid) && (
         isPresenceOnly()
         || isLegacyPushStrip()
-        || (isProfileWrite() && createdAtPinned())
+        || (isProfileWrite() && createdAtPinned() && totalXpMonotonic())
       );
       allow delete: if isOwner(uid);
 
@@ -222,8 +228,62 @@ service cloud.firestore {
                   && after.formScore <= 100));
       }
 
+      // Opponent disconnect: caller may forfeit the *other* open seat at its
+      // last synced reps (reps/uid/form frozen) and finish the duel. Own seat
+      // may finish in the same write via seatRepsFair.
+      function seatForfeitOnly(before, after) {
+        return before != null
+          && before.done == false
+          && after.done == true
+          && after.forfeited == true
+          && after.uid == before.uid
+          && after.reps == before.reps
+          && after.formScore == before.formScore;
+      }
+
+      function hostAbandonSettle() {
+        return request.auth.uid == resource.data.hostUid
+          && resource.data.status == 'active'
+          && resource.data.guest != null
+          && seatForfeitOnly(resource.data.guest, request.resource.data.guest)
+          && request.resource.data.host.done == true
+          && seatRepsFair(resource.data.host, request.resource.data.host)
+          && request.resource.data.status == 'finished'
+          && request.resource.data.guestUid == resource.data.guestUid
+          && request.resource.data.hostUid == resource.data.hostUid
+          && (
+            request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['guest', 'status', 'winnerUid'])
+            || request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['host', 'guest', 'status', 'winnerUid'])
+          );
+      }
+
+      function guestAbandonSettle() {
+        return request.auth.uid == resource.data.guestUid
+          && resource.data.status == 'active'
+          && resource.data.guest != null
+          && seatForfeitOnly(resource.data.host, request.resource.data.host)
+          && request.resource.data.guest.done == true
+          && seatRepsFair(resource.data.guest, request.resource.data.guest)
+          && request.resource.data.status == 'finished'
+          && request.resource.data.guestUid == resource.data.guestUid
+          && request.resource.data.hostUid == resource.data.hostUid
+          && (
+            request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['host', 'status', 'winnerUid'])
+            || request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['host', 'guest', 'status', 'winnerUid'])
+          );
+      }
+
       function isLiveUpdate() {
-        return isPlayer() && (hostSeatWrite() || guestSeatWrite());
+        return isPlayer() && (
+          hostSeatWrite()
+          || guestSeatWrite()
+          || hostAbandonSettle()
+          || guestAbandonSettle()
+        );
       }
 
       allow update: if isAuthed() && (isJoin() || isLiveUpdate());
@@ -366,7 +426,15 @@ service cloud.firestore {
           && request.resource.data.displayName is string
           && request.resource.data.displayName.size() <= 40;
       }
-      allow create, update: if isOwner(uid) && validScoreRow();
+      // Same-week weeklyXp and lifetime totalXp are monotonic so a reinstall
+      // with empty local sessions cannot wipe a real board row.
+      function scoreMonotonic() {
+        return (resource.data.weekKey != request.resource.data.weekKey
+            || request.resource.data.weeklyXp >= resource.data.weeklyXp)
+          && request.resource.data.totalXp >= resource.data.totalXp;
+      }
+      allow create: if isOwner(uid) && validScoreRow();
+      allow update: if isOwner(uid) && validScoreRow() && scoreMonotonic();
       allow delete: if isOwner(uid);
     }
   }

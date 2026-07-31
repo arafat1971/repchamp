@@ -8,6 +8,8 @@ import { palette } from '@/theme/tokens';
 
 interface Props {
   children: ReactNode;
+  /** Optional escape hatch — e.g. reset session store and leave the stack. */
+  onReset?: () => void;
 }
 
 interface State {
@@ -34,7 +36,10 @@ export class ErrorBoundary extends Component<Props, State> {
     }
   }
 
-  private reset = () => this.setState({ error: null });
+  private reset = () => {
+    this.setState({ error: null });
+    this.props.onReset?.();
+  };
 
   override render() {
     const { error } = this.state;

@@ -28,6 +28,7 @@ import { currentWeekKey } from '@/services/userService';
 
 jest.mock('@/services/safetyService', () => ({
   assertClientRateLimit: jest.fn(),
+  commitClientRateLimit: jest.fn(),
   isBlockedEither: jest.fn(async () => false),
   fetchBlockedIds: jest.fn(async () => new Set()),
 }));

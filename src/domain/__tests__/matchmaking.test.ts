@@ -35,8 +35,25 @@ describe('canPair', () => {
     expect(canPair('me', ticket('you'))).toBe(true);
   });
 
-  it('rejects your own ticket (no self-match)', () => {
-    expect(canPair('me', ticket('me'))).toBe(false);
+  it('rejects mismatched exercise or duration when format is required', () => {
+    expect(
+      canPair('me', ticket('you', { exercise: 'squat', duration: 20 }), {
+        exercise: 'push',
+        duration: 20,
+      }),
+    ).toBe(false);
+    expect(
+      canPair('me', ticket('you', { exercise: 'push', duration: 45 }), {
+        exercise: 'push',
+        duration: 20,
+      }),
+    ).toBe(false);
+    expect(
+      canPair('me', ticket('you', { exercise: 'push', duration: 20 }), {
+        exercise: 'push',
+        duration: 20,
+      }),
+    ).toBe(true);
   });
 
   it('rejects an already-matched ticket', () => {

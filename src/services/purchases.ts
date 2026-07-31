@@ -1,4 +1,5 @@
 import Purchases, {
+  LOG_LEVEL,
   type CustomerInfo,
   type PurchasesOffering,
   type PurchasesPackage,
@@ -47,6 +48,9 @@ export async function configurePurchases(uid: string | null): Promise<void> {
   const next = configureChain.then(async () => {
     try {
       if (!configured) {
+        // Keep SDK console noise down — empty offerings still surface in the
+        // paywall UI; they should not look like a crash in Metro.
+        Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.WARN : LOG_LEVEL.ERROR);
         Purchases.configure({ apiKey: key, appUserID: uid ?? undefined });
         configured = true;
         configuredUid = uid;
@@ -70,10 +74,11 @@ export function isProFromInfo(info: CustomerInfo | null): boolean {
 }
 
 /** Current entitlement, fetched fresh. False when unconfigured or on error. */
-export async function fetchIsPro(): Promise<boolean> {
+export async function fetchIsPro(uid?: string | null): Promise<boolean> {
   if (!isPurchasesConfigured()) return false;
   try {
-    await configurePurchases(null);
+    // Prefer the signed-in uid; fall back to whatever identity is already configured.
+    await configurePurchases(uid ?? configuredUid);
     return isProFromInfo(await Purchases.getCustomerInfo());
   } catch {
     return false;
@@ -92,15 +97,35 @@ export function watchCustomerInfo(onChange: (isPro: boolean) => void): () => voi
 }
 
 /**
- * The current (or best fallback) offering, or null when none have packages.
- * Throws on SDK / network failure so the UI can show a retry state instead of
- * a false “no plans” empty screen.
+ * True when RevenueCat rejected the fetch because Play products are missing
+ * from the dashboard offering — a config gap, not a network failure.
  */
-export async function fetchOffering(): Promise<PurchasesOffering | null> {
+export function isEmptyOfferingsConfigError(error: unknown): boolean {
+  if (typeof error !== 'object' || error == null) return false;
+  const code = 'code' in error ? String((error as { code?: unknown }).code) : '';
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    code === 'ConfigurationError' ||
+    /no Play Store products registered/i.test(message) ||
+    /offerings.*empty/i.test(message)
+  );
+}
+
+/**
+ * The current (or best fallback) offering, or null when none have packages.
+ * Empty-dashboard configuration returns null (paywall shows retry / setup copy)
+ * instead of throwing a scary ConfigurationError up the tree.
+ */
+export async function fetchOffering(uid?: string | null): Promise<PurchasesOffering | null> {
   if (!isPurchasesConfigured()) return null;
-  await configurePurchases(null);
-  const offerings = await Purchases.getOfferings();
-  return pickCurrentOffering(offerings);
+  await configurePurchases(uid ?? configuredUid);
+  try {
+    const offerings = await Purchases.getOfferings();
+    return pickCurrentOffering(offerings);
+  } catch (error) {
+    if (isEmptyOfferingsConfigError(error)) return null;
+    throw error;
+  }
 }
 
 export interface PurchaseResult {
@@ -112,12 +137,24 @@ export interface PurchaseResult {
 }
 
 /** Buy a package. Reports cancellation distinctly so the UI doesn't alarm on it. */
-export async function purchase(pkg: PurchasesPackage): Promise<PurchaseResult> {
+export async function purchase(
+  pkg: PurchasesPackage,
+  uid?: string | null,
+): Promise<PurchaseResult> {
   if (!isPurchasesConfigured()) {
     return { ok: false, isPro: false, cancelled: false, message: 'Billing is not set up yet.' };
   }
+  const appUserId = uid ?? configuredUid;
+  if (!appUserId) {
+    return {
+      ok: false,
+      isPro: false,
+      cancelled: false,
+      message: 'Sign in before purchasing so your subscription stays on this account.',
+    };
+  }
   try {
-    await configurePurchases(null);
+    await configurePurchases(appUserId);
     const { customerInfo } = await Purchases.purchasePackage(pkg);
     return { ok: true, isPro: isProFromInfo(customerInfo), cancelled: false };
   } catch (error) {
@@ -135,12 +172,21 @@ export async function purchase(pkg: PurchasesPackage): Promise<PurchaseResult> {
 }
 
 /** Restore prior purchases (required on paywall; also offered in Settings). */
-export async function restore(): Promise<PurchaseResult> {
+export async function restore(uid?: string | null): Promise<PurchaseResult> {
   if (!isPurchasesConfigured()) {
     return { ok: false, isPro: false, cancelled: false, message: 'Billing is not set up yet.' };
   }
+  const appUserId = uid ?? configuredUid;
+  if (!appUserId) {
+    return {
+      ok: false,
+      isPro: false,
+      cancelled: false,
+      message: 'Sign in to restore purchases on this account.',
+    };
+  }
   try {
-    await configurePurchases(null);
+    await configurePurchases(appUserId);
     const info = await Purchases.restorePurchases();
     const isPro = isProFromInfo(info);
     return {

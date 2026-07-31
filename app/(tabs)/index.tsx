@@ -50,6 +50,8 @@ const DAILY_TARGET = 25;
 const MEDAL_BRONZE = require('../../assets/medal-bronze.png');
 const TROPHY_BRONZE = require('../../assets/trophy-bronze.png');
 const BADGE_VS = require('../../assets/badge-vs.png');
+const IC_PUSHUP = require('../../assets/ic-pushup.png');
+const IC_SQUAT = require('../../assets/ic-squat.png');
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -120,34 +122,7 @@ export default function HomeScreen() {
   }, [focus.kind]);
 
   /** Route the adaptive hero's single CTA when an urgent focus wins over the carousel. */
-  const onHeroPress = () => {
-    track('home_hero_tapped', { kind: focus.kind });
-    switch (focus.kind) {
-      case 'first-session':
-        return router.push({ pathname: '/session', params: { exercise: 'push', mode: 'practice' } });
-      case 'streak-at-risk':
-      case 'partner-trained':
-      case 'invite-partner':
-        return router.push('/modal/couple-invite');
-      case 'daily-challenge':
-        return router.push('/modal/daily');
-      case 'goal-met':
-        return router.push({ pathname: '/session', params: { exercise: 'push', mode: 'practice' } });
-      case 'recovery':
-        return router.push('/modal/rest');
-    }
-  };
-
-  // Retention nudges beat the rotating game carousel — first set and a streak
-  // about to break need a single, decisive card, not a slideshow.
-  const urgentHero = focus.kind === 'first-session' || focus.kind === 'streak-at-risk';
-
-  const onCoupleAction = async (action: 'train' | 'nudge' | 'open') => {
-    track('home_couple_strip', { action });
-    if (action === 'nudge' || action === 'open') {
-      router.push('/modal/couple-invite');
-      return;
-    }
+  const startCoupleTrain = () => {
     if (!couple.paired || !couple.partner || !self) {
       router.push('/modal/couple-invite');
       return;
@@ -163,6 +138,41 @@ export default function HomeScreen() {
     });
   };
 
+  const onHeroPress = () => {
+    track('home_hero_tapped', { kind: focus.kind });
+    switch (focus.kind) {
+      case 'first-session':
+        return router.push({ pathname: '/session', params: { exercise: 'push', mode: 'practice' } });
+      case 'streak-at-risk':
+      case 'partner-trained':
+        // Same path as CoupleStrip "Train together" — invite modal has no train CTA.
+        return startCoupleTrain();
+      case 'invite-partner':
+        return router.push('/modal/couple-invite');
+      case 'daily-challenge':
+        return router.push('/modal/daily');
+      case 'goal-met':
+        return router.push({ pathname: '/session', params: { exercise: 'push', mode: 'practice' } });
+      case 'recovery':
+        return router.push('/modal/rest');
+    }
+  };
+
+  // Retention nudges beat the rotating game carousel.
+  const urgentHero =
+    focus.kind === 'first-session' ||
+    focus.kind === 'streak-at-risk' ||
+    focus.kind === 'partner-trained';
+
+  const onCoupleAction = async (action: 'train' | 'nudge' | 'open') => {
+    track('home_couple_strip', { action });
+    if (action === 'nudge' || action === 'open') {
+      router.push('/modal/couple-invite');
+      return;
+    }
+    startCoupleTrain();
+  };
+
   const heroSlides = useMemo(
     () =>
       buildHomeHeroSlides({
@@ -173,8 +183,8 @@ export default function HomeScreen() {
         onlineLabel: `${activity.count} ${activity.label}`,
         isWeekend: [0, 6].includes(new Date().getDay()),
         onTrainTogether: () => {
-          track('home_hero_tapped', { kind: 'invite-partner' });
-          router.push('/modal/couple-invite');
+          track('home_hero_tapped', { kind: couple.paired ? 'train-together' : 'invite-partner' });
+          startCoupleTrain();
         },
         onDaily: () => {
           track('home_hero_tapped', { kind: 'daily-challenge' });
@@ -188,12 +198,13 @@ export default function HomeScreen() {
           track('home_hero_tapped', { kind: 'tournament' });
           router.push('/(tabs)/arena');
         },
-        onDoubleXp: () => {
-          track('home_hero_tapped', { kind: 'double-xp' });
-          router.push({ pathname: '/session', params: { exercise: 'push', mode: 'practice' } });
+        onQuickMatch: () => {
+          track('home_hero_tapped', { kind: 'quick-match' });
+          router.push({ pathname: '/duel/new', params: { queue: '1' } });
         },
       }),
-    [couple.paired, couple.partner?.displayName, dailyBest, activity.count, activity.label, router],
+    // startCoupleTrain closes over couple/self/router — rebuild when pairing changes.
+    [couple.paired, couple.partner, self, dailyBest, activity.count, activity.label, router],
   );
 
   const daysToReward = Math.max(0, goal - daysTrained);
@@ -367,7 +378,7 @@ export default function HomeScreen() {
       <StaggerIn index={3} style={styles.quickGrid}>
         <QuickTile
           label="Push-Ups"
-          emoji="💪"
+          image={IC_PUSHUP}
           accent="#16a34a"
           tint={['#f0fdf4', '#dcfce7']}
           stats={pushStats}
@@ -375,7 +386,7 @@ export default function HomeScreen() {
         />
         <QuickTile
           label="Squats"
-          emoji="🦵"
+          image={IC_SQUAT}
           accent="#7c3aed"
           tint={['#faf5ff', '#f3e8ff']}
           stats={squatStats}
@@ -396,7 +407,11 @@ export default function HomeScreen() {
           }
           accessibilityRole="button"
           accessibilityLabel={
-            pendingDuels > 0 ? `${pendingDuels} challenges waiting` : 'Start a head-to-head challenge'
+            pendingDuels > 0
+              ? `${pendingDuels} challenges waiting`
+              : seed.isSeeding
+                ? 'AI exhibition match — start your own challenge'
+                : 'Start a head-to-head challenge'
           }
         >
           <LinearGradient
@@ -406,8 +421,11 @@ export default function HomeScreen() {
             style={styles.challengeCard}
           >
             {(() => {
+              // Real inbox wins over exhibition DEMO — a11y already says N waiting.
               const ch =
-                seed.isSeeding && seed.phantomChallenges.length > 0
+                pendingDuels === 0 &&
+                seed.isSeeding &&
+                seed.phantomChallenges.length > 0
                   ? seed.phantomChallenges[0]!
                   : null;
 
@@ -489,12 +507,12 @@ export default function HomeScreen() {
         <View style={{ height: 10 }} />
         <MoreRow
           emoji="🏆"
-          title="Tournament"
-          subtitle="Climb the arena brackets"
+          title="Tournaments"
+          subtitle="Coming soon — open Arena duels for now"
           onPress={() => {
             showDialog({
               title: 'Tournaments coming soon',
-              message: 'Bracket play is on the way. Jump into Arena for live duels in the meantime.',
+              message: 'Bracket play isn’t live yet. Jump into Arena for live duels in the meantime.',
               actions: [
                 { label: 'Not now', variant: 'cancel' },
                 {
@@ -620,27 +638,6 @@ function LeagueXpBar({ fill }: { fill: number }) {
   );
 }
 
-function LivePulseBadge() {
-  const pulse = useSharedValue(0.45);
-  useEffect(() => {
-    pulse.value = withRepeat(
-      withSequence(
-        withTiming(1, { duration: 700, easing: Easing.inOut(Easing.ease) }),
-        withTiming(0.45, { duration: 700, easing: Easing.inOut(Easing.ease) }),
-      ),
-      -1,
-      false,
-    );
-  }, [pulse]);
-  const pulseStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
-  return (
-    <View style={styles.livePulseBadge}>
-      <Animated.View style={[styles.livePulseDot, pulseStyle]} />
-      <Text style={font('bold', 10, { color: palette.green700, letterSpacing: 0.6 })}>LIVE</Text>
-    </View>
-  );
-}
-
 /** Dual race bars — Nova vs Titan style with drifting avatars. */
 function DualChallengeBars({
   name1,
@@ -703,12 +700,22 @@ function DualChallengeBars({
       <View style={styles.challengeRow}>
         <View style={{ flex: 1 }}>
           <Text style={font('semibold', 14.5, { color: palette.ink })}>{title}</Text>
-          <Text style={font('regular', 12, { color: '#15803d' })}>
-            {name1} vs {name2}
+          <View style={styles.challengeSubRow}>
+            <Text style={font('regular', 12, { color: '#15803d' })}>
+              {name1} vs {name2}
+            </Text>
+            <View style={styles.aiPill}>
+              <Text style={font('bold', 8, { color: palette.green700 })}>AI</Text>
+            </View>
+          </View>
+          <Text style={font('regular', 11, { color: palette.grey500, marginTop: 2 })}>
+            Exhibition · tap to start yours
           </Text>
         </View>
         <View style={styles.challengeTrailing}>
-          <LivePulseBadge />
+          <View style={styles.demoBadge}>
+            <Text style={font('bold', 10, { color: palette.slate500, letterSpacing: 0.6 })}>DEMO</Text>
+          </View>
           <Text style={font('regular', 11, { color: palette.slate500, marginTop: 3 })}>{timeLeft} left</Text>
         </View>
       </View>
@@ -745,6 +752,7 @@ function DualChallengeBars({
 
 function QuickTile({
   label,
+  image,
   emoji,
   accent,
   tint,
@@ -752,7 +760,8 @@ function QuickTile({
   onPress,
 }: {
   label: string;
-  emoji: string;
+  image?: number;
+  emoji?: string;
   accent: string;
   tint: readonly [string, string];
   stats: { todayBest: number; lastBest: number; delta: number };
@@ -776,8 +785,12 @@ function QuickTile({
     >
       <LinearGradient colors={tint} start={{ x: 0.2, y: 0 }} end={{ x: 0.8, y: 1 }} style={styles.quickTileNew}>
         <View style={styles.quickTileTop}>
-          <View style={[styles.quickEmojiBubble, { backgroundColor: `${accent}18`, borderColor: `${accent}33` }]}>
-            <Text style={{ fontSize: 22 }}>{emoji}</Text>
+          <View style={[styles.quickIconBubble, { borderColor: `${accent}33` }]}>
+            {image ? (
+              <Image source={image} style={styles.quickIconImg} contentFit="contain" />
+            ) : (
+              <Text style={{ fontSize: 22 }}>{emoji}</Text>
+            )}
           </View>
           <View style={[styles.deltaPill, { backgroundColor: stats.delta >= 0 ? '#dcfce7' : '#fee2e2' }]}>
             <Text style={font('bold', 11, { color: stats.delta >= 0 ? '#15803d' : '#b91c1c' })}>{deltaLabel}</Text>
@@ -938,150 +951,6 @@ const styles = StyleSheet.create({
   liveCountInline: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 },
   liveDotSmall: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: palette.green500 },
 
-  // Couple hero — compact banner: full couple photo as the card background,
-  // copy + CTA over it, proof chips pinned along the bottom.
-  coupleHero: {
-    position: 'relative',
-    borderRadius: 26,
-    overflow: 'hidden',
-    height: 210,
-    // Hairline inner edge — stops the card reading as a flat rectangle against
-    // the light canvas and catches the light the way a physical card would.
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.16)',
-    ...shadow.brand,
-  },
-  /**
-   * Photo fills the whole card, edge to edge.
-   *
-   * Offset with `left`/`right` alone, never a scale transform: scale expands
-   * from the centre, so combining the two compounds the shift and crops the
-   * couple. `cover` already fills the frame. Legibility comes from the mask
-   * above rather than from insetting the image, so the artwork is never
-   * letterboxed against the card colour.
-   */
-  coupleHeroPhoto: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    // Nudged right so the couple sits clear of the copy column; `cover` plus
-    // the small right overhang keeps the card filled.
-    left: 19,
-    right: -32,
-    zIndex: 1,
-  },
-  /** Sits above the photo (1), below the copy (3). */
-  coupleHeroMask: { zIndex: 2 },
-  /** Soft green wash to mute cyan landmark glow baked into the hero art. */
-  coupleHeroPhotoWash: {
-    ...StyleSheet.absoluteFill,
-    zIndex: 2,
-    backgroundColor: 'rgba(30, 80, 40, 0.28)',
-  },
-  /** Soft top-right fade so the crown is less dominant. */
-  coupleHeroCrownFade: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    width: '55%',
-    height: '55%',
-    zIndex: 2,
-  },
-  coupleHeroContent: {
-    position: 'relative',
-    zIndex: 3,
-    flex: 1,
-    paddingHorizontal: 22,
-    paddingTop: 22,
-    // Clears the chip row pinned to the card's foot.
-    paddingBottom: 48,
-    justifyContent: 'space-between',
-    // Holds the copy inside the masked half of the card.
-    maxWidth: 224,
-  },
-  coupleHeroSub: {
-    ...font('semibold', 11, { color: 'rgba(235,255,241,0.92)' }),
-    marginTop: 9,
-    lineHeight: 15,
-    // Narrower now the copy is shorter — keeps both lines well inside the
-    // masked area rather than trailing into the clear part of the gradient.
-    maxWidth: 168,
-  },
-  /**
-   * Proof chips, pinned bottom-left rather than spanning the full width.
-   *
-   * The mask only covers the left of the card, so a full-width row put the
-   * last chip over unmasked artwork. Keeping them in the left column means
-   * every chip lands on darkened background.
-   */
-  /**
-   * Chips are capped to the masked left column and allowed to wrap.
-   *
-   * Unbounded they ran the full card width and landed on the couple's hands,
-   * where the gradient has already cleared — the last chip sat on raw photo.
-   */
-  coupleChips: {
-    position: 'absolute',
-    left: 22,
-    bottom: 14,
-    maxWidth: 220,
-    zIndex: 3,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  coupleChip: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  coupleChipLabel: font('bold', 10.5, { color: 'rgba(240,255,244,0.95)' }),
-  coupleChipDivider: {
-    width: StyleSheet.hairlineWidth,
-    height: 12,
-    backgroundColor: 'rgba(255,255,255,0.35)',
-  },
-  coupleCtaBright: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 9,
-    alignSelf: 'flex-start',
-    paddingLeft: 16,
-    paddingRight: 7,
-    paddingVertical: 7,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.45)',
-    transform: [{ translateY: 10 }],
-    shadowColor: '#16a34a',
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-  },
-  coupleCtaArrowBright: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: palette.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  coupleCta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    alignSelf: 'flex-start',
-    paddingHorizontal: 18,
-    paddingVertical: 13,
-    borderRadius: 14,
-    ...shadow.brand,
-  },
-  coupleCtaArrow: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
   // Stat cards
   row: { flexDirection: 'row', gap: 12, marginTop: 18, alignItems: 'stretch' },
   rowTight: { flexDirection: 'row', gap: 12 },
@@ -1193,14 +1062,16 @@ const styles = StyleSheet.create({
   quickImgContainer: { height: 92, justifyContent: 'center', alignItems: 'center' },
   quickImgBig: { width: 98, height: 92 },
   quickIconBubble: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: 'rgba(255,255,255,0.92)',
+    width: 58,
+    height: 58,
+    borderRadius: 18,
+    borderWidth: 1,
+    backgroundColor: 'rgba(255,255,255,0.95)',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
-  quickIconImg: { width: 40, height: 40 },
+  quickIconImg: { width: 52, height: 52 },
   quickChevron: {
     position: 'absolute',
     top: 16,
@@ -1271,22 +1142,13 @@ const styles = StyleSheet.create({
   vsBadge: { width: 46, height: 31, marginHorizontal: -10, zIndex: 2 },
   challengeTrailing: { alignItems: 'center', justifyContent: 'center' },
   liveBadge: { width: 60, height: 40 },
-  livePulseBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: palette.green50,
+  demoBadge: {
+    backgroundColor: '#f4f4f5',
     borderWidth: 1,
-    borderColor: '#86efac',
+    borderColor: palette.border,
     paddingHorizontal: 9,
     paddingVertical: 5,
     borderRadius: 999,
-  },
-  livePulseDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: palette.green500,
   },
   fireIcon: { width: 34, height: 34 },
   matchProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14 },

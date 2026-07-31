@@ -15,12 +15,20 @@ import firestore from '@react-native-firebase/firestore';
 import storage from '@react-native-firebase/storage';
 
 import { isFirebaseConfigured } from '@/lib/firebase';
+import {
+  mergeCloudProgressSlice,
+  type CloudProgressSlice,
+} from '@/domain/cloudProgress';
 import { normalizeUsername, sanitizeDisplayName } from '@/domain/input';
 import { clampWeeklyXp } from '@/domain/fairPlay';
 import { isCloudSafeAvatarUrl } from '@/domain/safety';
+import { isoWeekKey } from '@/domain/weeklyChallenge';
+import type { ProgrammeProgress } from '@/domain/programme';
 import type { ExerciseId } from '@/vision/exercises';
 
-/** The durable, cloud-synced projection of a user. Gameplay history stays local. */
+export { buildCloudProgressSlice } from '@/domain/cloudProgress';
+
+/** The durable, cloud-synced projection of a user. */
 export interface CloudProfile {
   uid: string;
   username: string;
@@ -35,6 +43,18 @@ export interface CloudProfile {
   createdAt?: number;
   /** Millisecond heartbeat — powers Friends "Active now" and the Home pill. */
   lastActiveAt?: number;
+  /** True once onboarding finished on any device — skip the wizard on reinstall. */
+  onboarded?: boolean;
+  /** Lifetime latch for the couple pairing Pro week (anti-farm across devices). */
+  pairingBonusClaimed?: boolean;
+  /** Epoch ms until local pairing Pro remains active (max across devices). */
+  pairingBonusUntil?: number;
+  /** Compact history for streak / weekly UI / programme after reinstall. */
+  trainedDays?: string[];
+  weekKey?: string;
+  weekXp?: number;
+  weekExerciseReps?: Partial<Record<ExerciseId, number>>;
+  programme?: ProgrammeProgress | null;
 }
 
 const USERS = 'users';
@@ -83,20 +103,89 @@ export async function fetchExpoPushToken(uid: string): Promise<string | null> {
 }
 
 /**
+ * True when no other profile currently claims this username.
+ * Client mitigation until a `usernames/{name}` reservation exists server-side.
+ */
+export async function isUsernameAvailable(
+  username: string,
+  excludeUid?: string,
+): Promise<boolean> {
+  if (!isFirebaseConfigured()) return true;
+  const name = normalizeUsername(username);
+  if (!name) return false;
+  try {
+    const snap = await usersCol().where('username', '==', name).limit(5).get();
+    return snap.docs.every((d) => d.id === excludeUid);
+  } catch {
+    // Offline — don't block local onboarding; upsert will reconcile later.
+    return true;
+  }
+}
+
+/** Prefer the higher personal best per exercise across devices. */
+function mergePersonalBests(
+  cloud: Record<string, number> | undefined,
+  local: Record<ExerciseId, number>,
+): Record<ExerciseId, number> {
+  const out = { ...local } as Record<string, number>;
+  if (cloud) {
+    for (const [k, v] of Object.entries(cloud)) {
+      if (typeof v === 'number') out[k] = Math.max(out[k] ?? 0, v);
+    }
+  }
+  return out as Record<ExerciseId, number>;
+}
+
+/**
  * Upsert the durable profile slice. Merge so we never clobber fields another
  * device wrote (e.g. a higher personal best) that this device doesn't track.
- * Stamps `createdAt` once on first write and refreshes `lastActiveAt`.
+ * `totalXp` and personal bests take the max across devices so a late sync
+ * cannot regress progress. Stamps `createdAt` once and refreshes `lastActiveAt`.
+ */
+/**
+ * Mirror the durable profile slice to Firestore.
+ * @returns `true` when the write confirmed (or Firebase is unconfigured / no-op).
+ *          `false` when the write failed — callers that must park progress before
+ *          a uid switch should abort rather than treat silence as success.
  */
 export async function upsertProfile(
   profile: Omit<CloudProfile, 'updatedAt' | 'createdAt' | 'lastActiveAt'>,
-): Promise<void> {
-  if (!isFirebaseConfigured()) return;
+): Promise<boolean> {
+  if (!isFirebaseConfigured()) return true;
   try {
-    const username = normalizeUsername(profile.username) || 'champion';
-    const displayName = sanitizeDisplayName(profile.displayName, username);
-    const avatarUrl = isCloudSafeAvatarUrl(profile.avatarUrl) ? profile.avatarUrl : null;
+    let username = normalizeUsername(profile.username) || 'champion';
     const ref = usersCol().doc(profile.uid);
     const existing = await ref.get();
+    const cloud = existing.exists() ? (existing.data() as Partial<CloudProfile>) : null;
+    // Never steal another athlete's handle on sync.
+    if (!(await isUsernameAvailable(username, profile.uid))) {
+      username =
+        (typeof cloud?.username === 'string' && cloud.username) ||
+        `${username.slice(0, 16)}_${profile.uid.slice(0, 4)}`;
+    }
+    const displayName = sanitizeDisplayName(profile.displayName, username);
+    const avatarUrl = isCloudSafeAvatarUrl(profile.avatarUrl) ? profile.avatarUrl : null;
+    const totalXp = Math.max(
+      Math.max(0, Math.floor(profile.totalXp)),
+      typeof cloud?.totalXp === 'number' ? cloud.totalXp : 0,
+    );
+    const personalBests = mergePersonalBests(cloud?.personalBests, profile.personalBests);
+    const pairingBonusClaimed = !!(
+      profile.pairingBonusClaimed || cloud?.pairingBonusClaimed
+    );
+    const pairingBonusUntil = Math.max(
+      typeof profile.pairingBonusUntil === 'number' ? profile.pairingBonusUntil : 0,
+      typeof cloud?.pairingBonusUntil === 'number' ? cloud.pairingBonusUntil : 0,
+    );
+    const onboarded = !!(profile.onboarded || cloud?.onboarded);
+    const localProgress: CloudProgressSlice = {
+      trainedDays: Array.isArray(profile.trainedDays) ? profile.trainedDays : [],
+      weekKey: typeof profile.weekKey === 'string' ? profile.weekKey : isoWeekKey(),
+      weekXp: typeof profile.weekXp === 'number' ? profile.weekXp : 0,
+      weekExerciseReps: profile.weekExerciseReps ?? {},
+      programme: profile.programme ?? null,
+    };
+    const progress = mergeCloudProgressSlice(localProgress, cloud);
     const now = Date.now();
     await ref.set(
       {
@@ -104,6 +193,16 @@ export async function upsertProfile(
         username,
         displayName,
         avatarUrl,
+        totalXp,
+        personalBests,
+        onboarded,
+        pairingBonusClaimed,
+        pairingBonusUntil,
+        trainedDays: progress.trainedDays,
+        weekKey: progress.weekKey,
+        weekXp: progress.weekXp,
+        weekExerciseReps: progress.weekExerciseReps,
+        programme: progress.programme,
         updatedAt: firestore.FieldValue.serverTimestamp(),
         lastActiveAt: now,
         ...(existing.exists() ? {} : { createdAt: now }),
@@ -112,8 +211,10 @@ export async function upsertProfile(
       },
       { merge: true },
     );
+    return true;
   } catch {
     // Offline / network — caller keeps local state and retries later.
+    return false;
   }
 }
 
@@ -150,21 +251,39 @@ export async function publishScore(input: {
 }): Promise<void> {
   if (!isFirebaseConfigured()) return;
   try {
-    await firestore()
-      .collection('leaderboard')
-      .doc(input.uid)
-      .set(
-        {
-          ...input,
-          displayName: sanitizeDisplayName(input.displayName),
-          weeklyXp: clampWeeklyXp(input.weeklyXp),
-          totalXp: Math.max(0, Math.floor(input.totalXp)),
-          updatedAt: firestore.FieldValue.serverTimestamp(),
-          // `weekKey` lets a scheduled function/rule reset stale weekly rows.
-          weekKey: currentWeekKey(),
-        },
-        { merge: true },
-      );
+    const weekKey = currentWeekKey();
+    const ref = firestore().collection('leaderboard').doc(input.uid);
+    const existing = await ref.get();
+    let weeklyXp = clampWeeklyXp(input.weeklyXp);
+    let totalXp = Math.max(0, Math.floor(input.totalXp));
+    if (existing.exists()) {
+      const row = existing.data() as {
+        weeklyXp?: number;
+        totalXp?: number;
+        weekKey?: string;
+      };
+      // Same ISO week: never publish a lower weekly score (empty local sessions
+      // after reinstall would otherwise wipe the board).
+      if (row.weekKey === weekKey && typeof row.weeklyXp === 'number') {
+        weeklyXp = Math.max(weeklyXp, clampWeeklyXp(row.weeklyXp));
+      }
+      if (typeof row.totalXp === 'number') {
+        totalXp = Math.max(totalXp, Math.max(0, Math.floor(row.totalXp)));
+      }
+    }
+    await ref.set(
+      {
+        ...input,
+        displayName: sanitizeDisplayName(input.displayName),
+        avatarUrl: isCloudSafeAvatarUrl(input.avatarUrl) ? input.avatarUrl : null,
+        weeklyXp,
+        totalXp,
+        updatedAt: firestore.FieldValue.serverTimestamp(),
+        // `weekKey` lets a scheduled function/rule reset stale weekly rows.
+        weekKey,
+      },
+      { merge: true },
+    );
   } catch {
     // Offline — local XP still counts; next sync retries.
   }
@@ -212,11 +331,5 @@ export async function deleteAvatar(uid: string): Promise<void> {
 
 /** ISO week key like `2026-W30`, matching the weekly XP rollup elsewhere. */
 export function currentWeekKey(date = new Date()): string {
-  // ISO-8601 week number.
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  const week = Math.ceil(((d.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
-  return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+  return isoWeekKey(date);
 }

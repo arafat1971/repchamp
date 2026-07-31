@@ -1,4 +1,4 @@
-import { angleAt, clamp, midpoint, normalize, tiltFromHorizontal, weightedMidpoint } from './geometry';
+import { angleAt, clamp, normalize, tiltFromHorizontal, weightedMidpoint } from './geometry';
 import { KEYPOINT_INDEX, MIN_KEYPOINT_SCORE, meanScore } from './keypoints';
 import type { Keypoint, KeypointName, Pose } from './keypoints';
 
@@ -263,17 +263,15 @@ export const shoulderRolls: ExerciseDefinition = {
     const rightWrist = kp(pose, 'rightWrist');
 
     if (
-      leftShoulder.score < MIN_KEYPOINT_SCORE ||
-      rightShoulder.score < MIN_KEYPOINT_SCORE ||
-      leftWrist.score < MIN_KEYPOINT_SCORE ||
-      rightWrist.score < MIN_KEYPOINT_SCORE
+      (leftShoulder.score < MIN_KEYPOINT_SCORE && rightShoulder.score < MIN_KEYPOINT_SCORE) ||
+      (leftWrist.score < MIN_KEYPOINT_SCORE && rightWrist.score < MIN_KEYPOINT_SCORE)
     ) {
       return { depth: null, alignment: 0, visibility };
     }
 
     const shoulderMid = weightedMidpoint(leftShoulder, rightShoulder);
     const hipMid = weightedMidpoint(kp(pose, 'leftHip'), kp(pose, 'rightHip'));
-    const wristMid = midpoint(leftWrist, rightWrist);
+    const wristMid = weightedMidpoint(leftWrist, rightWrist);
 
     // Torso span in normalised image units (keypoints are 0..1) — normalises for
     // the athlete's distance from camera. Guard against a degenerate span in a
@@ -336,17 +334,15 @@ export const fullBodyStretch: ExerciseDefinition = {
     const rightWrist = kp(pose, 'rightWrist');
 
     if (
-      leftShoulder.score < MIN_KEYPOINT_SCORE ||
-      rightShoulder.score < MIN_KEYPOINT_SCORE ||
-      leftWrist.score < MIN_KEYPOINT_SCORE ||
-      rightWrist.score < MIN_KEYPOINT_SCORE
+      (leftShoulder.score < MIN_KEYPOINT_SCORE && rightShoulder.score < MIN_KEYPOINT_SCORE) ||
+      (leftWrist.score < MIN_KEYPOINT_SCORE && rightWrist.score < MIN_KEYPOINT_SCORE)
     ) {
       return { depth: null, alignment: 0, visibility };
     }
 
     const shoulderMid = weightedMidpoint(leftShoulder, rightShoulder);
     const hipMid = weightedMidpoint(kp(pose, 'leftHip'), kp(pose, 'rightHip'));
-    const wristMid = midpoint(leftWrist, rightWrist);
+    const wristMid = weightedMidpoint(leftWrist, rightWrist);
 
     const torso = Math.abs(hipMid.y - shoulderMid.y);
     if (torso < 0.02) return { depth: null, alignment: 0, visibility };
@@ -384,8 +380,9 @@ const LUNGE_REQUIRED = [
 ] as const;
 
 /**
- * Lunge: the *front* knee bends toward 90°. Filmed side-on; we measure whichever
- * leg is more visible, exactly like the squat.
+ * Lunge: the *front* knee bends toward 90°. Side-on uses the visible leg; when
+ * both legs are seen (facing / alternating), depth is left/right asymmetry so
+ * the hysteresis counter can close — same class of fix as high-knees.
  */
 export const lunge: ExerciseDefinition = {
   id: 'lunge',
@@ -401,27 +398,38 @@ export const lunge: ExerciseDefinition = {
   cues: ['Deep lunge!', 'Chest up', 'Drive through the heel', 'Control the descent'],
 
   analyze(pose: Pose): FrameAnalysis {
-    const side = betterSide(
-      pose,
-      ['leftHip', 'leftKnee', 'leftAnkle'],
-      ['rightHip', 'rightKnee', 'rightAnkle'],
-    );
-    const visibility = meanScore(pose, side);
-    const [hipName, kneeName, ankleName] = side;
-    const hip = kp(pose, hipName);
-    const knee = kp(pose, kneeName);
-    const ankle = kp(pose, ankleName);
+    const visibility = meanScore(pose, LUNGE_REQUIRED);
 
-    if (
-      hip.score < MIN_KEYPOINT_SCORE ||
-      knee.score < MIN_KEYPOINT_SCORE ||
-      ankle.score < MIN_KEYPOINT_SCORE
-    ) {
+    const legDepth = (hipName: KeypointName, kneeName: KeypointName, ankleName: KeypointName) => {
+      const hip = kp(pose, hipName);
+      const knee = kp(pose, kneeName);
+      const ankle = kp(pose, ankleName);
+      if (
+        hip.score < MIN_KEYPOINT_SCORE ||
+        knee.score < MIN_KEYPOINT_SCORE ||
+        ankle.score < MIN_KEYPOINT_SCORE
+      ) {
+        return null;
+      }
+      const kneeAngle = angleAt(hip, knee, ankle);
+      return kneeAngle === null ? null : normalize(kneeAngle, 168, 85);
+    };
+
+    const leftDepth = legDepth('leftHip', 'leftKnee', 'leftAnkle');
+    const rightDepth = legDepth('rightHip', 'rightKnee', 'rightAnkle');
+
+    if (leftDepth == null && rightDepth == null) {
       return { depth: null, alignment: 0, visibility };
     }
 
-    const kneeAngle = angleAt(hip, knee, ankle);
-    const depth = kneeAngle === null ? null : normalize(kneeAngle, 168, 85);
+    // One leg only (typical side-on) → that leg's depth. Both → asymmetry so
+    // alternating lunges return to a low depth between sides.
+    const depth =
+      leftDepth == null
+        ? rightDepth
+        : rightDepth == null
+          ? leftDepth
+          : clamp(Math.abs(leftDepth - rightDepth), 0, 1);
 
     const shoulderMid = weightedMidpoint(kp(pose, 'leftShoulder'), kp(pose, 'rightShoulder'));
     const hipMid = weightedMidpoint(kp(pose, 'leftHip'), kp(pose, 'rightHip'));
@@ -461,17 +469,30 @@ export const situp: ExerciseDefinition = {
 
   analyze(pose: Pose): FrameAnalysis {
     const visibility = meanScore(pose, SITUP_REQUIRED);
-    const shoulderMid = weightedMidpoint(kp(pose, 'leftShoulder'), kp(pose, 'rightShoulder'));
-    const hipMid = weightedMidpoint(kp(pose, 'leftHip'), kp(pose, 'rightHip'));
-    const kneeMid = weightedMidpoint(kp(pose, 'leftKnee'), kp(pose, 'rightKnee'));
+    const leftShoulder = kp(pose, 'leftShoulder');
+    const rightShoulder = kp(pose, 'rightShoulder');
+    const leftHip = kp(pose, 'leftHip');
+    const rightHip = kp(pose, 'rightHip');
+    const leftKnee = kp(pose, 'leftKnee');
+    const rightKnee = kp(pose, 'rightKnee');
+
+    if (
+      (leftShoulder.score < MIN_KEYPOINT_SCORE && rightShoulder.score < MIN_KEYPOINT_SCORE) ||
+      (leftHip.score < MIN_KEYPOINT_SCORE && rightHip.score < MIN_KEYPOINT_SCORE) ||
+      (leftKnee.score < MIN_KEYPOINT_SCORE && rightKnee.score < MIN_KEYPOINT_SCORE)
+    ) {
+      return { depth: null, alignment: 0, visibility };
+    }
+
+    const shoulderMid = weightedMidpoint(leftShoulder, rightShoulder);
+    const hipMid = weightedMidpoint(leftHip, rightHip);
+    const kneeMid = weightedMidpoint(leftKnee, rightKnee);
 
     const torsoAngle = angleAt(shoulderMid, hipMid, kneeMid);
     const depth = torsoAngle === null ? null : normalize(torsoAngle, 150, 70);
 
     // Symmetry: the two shoulders should rise level. A tilt reads as a twist.
-    const shoulderSkew = Math.abs(
-      kp(pose, 'leftShoulder').y - kp(pose, 'rightShoulder').y,
-    );
+    const shoulderSkew = Math.abs(leftShoulder.y - rightShoulder.y);
     const alignment = 1 - normalize(shoulderSkew, 0, 0.2);
 
     return { depth, alignment, visibility };
@@ -507,15 +528,30 @@ export const gluteBridge: ExerciseDefinition = {
 
   analyze(pose: Pose): FrameAnalysis {
     const visibility = meanScore(pose, BRIDGE_REQUIRED);
-    const shoulderMid = weightedMidpoint(kp(pose, 'leftShoulder'), kp(pose, 'rightShoulder'));
-    const hipMid = weightedMidpoint(kp(pose, 'leftHip'), kp(pose, 'rightHip'));
-    const kneeMid = weightedMidpoint(kp(pose, 'leftKnee'), kp(pose, 'rightKnee'));
+    const leftShoulder = kp(pose, 'leftShoulder');
+    const rightShoulder = kp(pose, 'rightShoulder');
+    const leftHip = kp(pose, 'leftHip');
+    const rightHip = kp(pose, 'rightHip');
+    const leftKnee = kp(pose, 'leftKnee');
+    const rightKnee = kp(pose, 'rightKnee');
+
+    if (
+      (leftShoulder.score < MIN_KEYPOINT_SCORE && rightShoulder.score < MIN_KEYPOINT_SCORE) ||
+      (leftHip.score < MIN_KEYPOINT_SCORE && rightHip.score < MIN_KEYPOINT_SCORE) ||
+      (leftKnee.score < MIN_KEYPOINT_SCORE && rightKnee.score < MIN_KEYPOINT_SCORE)
+    ) {
+      return { depth: null, alignment: 0, visibility };
+    }
+
+    const shoulderMid = weightedMidpoint(leftShoulder, rightShoulder);
+    const hipMid = weightedMidpoint(leftHip, rightHip);
+    const kneeMid = weightedMidpoint(leftKnee, rightKnee);
 
     const hipAngle = angleAt(shoulderMid, hipMid, kneeMid);
     // ~120° hips-down → straight ~178° at the top of the bridge.
     const depth = hipAngle === null ? null : normalize(hipAngle, 120, 178);
 
-    const hipSkew = Math.abs(kp(pose, 'leftHip').y - kp(pose, 'rightHip').y);
+    const hipSkew = Math.abs(leftHip.y - rightHip.y);
     const alignment = 1 - normalize(hipSkew, 0, 0.2);
 
     return { depth, alignment, visibility };
@@ -575,17 +611,25 @@ export const pikePush: ExerciseDefinition = {
     const depth = elbowAngle === null ? null : normalize(elbowAngle, 165, 85);
 
     // Pike quality: the hips should sit high, so the shoulder→hip line tilts
-    // steeply. Reuse tilt-from-horizontal as a proxy for "hips up".
-    const shoulderMid = weightedMidpoint(kp(pose, 'leftShoulder'), kp(pose, 'rightShoulder'));
-    const hipMid = weightedMidpoint(kp(pose, 'leftHip'), kp(pose, 'rightHip'));
-    const pikeTilt = tiltFromHorizontal(shoulderMid, hipMid);
-    const alignment = normalize(pikeTilt, 25, 70);
+    // steeply. Skip alignment when both hips are occluded rather than scoring
+    // a collapsed torso midpoint as "good pike".
+    const leftHip = kp(pose, 'leftHip');
+    const rightHip = kp(pose, 'rightHip');
+    let alignment = 0;
+    if (leftHip.score >= MIN_KEYPOINT_SCORE || rightHip.score >= MIN_KEYPOINT_SCORE) {
+      const shoulderMid = weightedMidpoint(kp(pose, 'leftShoulder'), kp(pose, 'rightShoulder'));
+      const hipMid = weightedMidpoint(leftHip, rightHip);
+      const pikeTilt = tiltFromHorizontal(shoulderMid, hipMid);
+      alignment = normalize(pikeTilt, 25, 70);
+    }
 
     return { depth, alignment, visibility };
   },
 };
 
 const HIGH_KNEES_REQUIRED = [
+  'leftShoulder',
+  'rightShoulder',
   'leftHip',
   'rightHip',
   'leftKnee',
@@ -594,44 +638,55 @@ const HIGH_KNEES_REQUIRED = [
 
 /**
  * High knees: a standing cardio drill, filmed facing the camera. One "rep" is a
- * knee driven up to hip height. Depth is how high the higher knee rises toward
- * the hip line, measured against torso length so it's scale-invariant.
+ * knee driven up to hip height. Depth uses left/right asymmetry so alternating
+ * knees can close the hysteresis loop (see analyze).
  */
 export const highKnees: ExerciseDefinition = {
   id: 'high-knees',
   label: 'High Knees',
   hudLabel: 'KNEES',
   requiredKeypoints: HIGH_KNEES_REQUIRED,
-  downThreshold: 0.55,
-  upThreshold: 0.22,
-  fullDepthThreshold: 0.68,
-  minRepDurationMs: 350,
+  downThreshold: 0.45,
+  upThreshold: 0.18,
+  fullDepthThreshold: 0.6,
+  minRepDurationMs: 280,
   metricLabels: ['Knee height', 'Balance', 'Tempo consistency'],
   coachingTip: 'Drive each knee up to hip height and keep a quick, even rhythm.',
   cues: ['Knees up!', 'Quick feet', 'Stay tall', 'Keep the pace'],
 
   analyze(pose: Pose): FrameAnalysis {
     const visibility = meanScore(pose, HIGH_KNEES_REQUIRED);
-    const hipMid = weightedMidpoint(kp(pose, 'leftHip'), kp(pose, 'rightHip'));
-    const shoulderMid = weightedMidpoint(kp(pose, 'leftShoulder'), kp(pose, 'rightShoulder'));
-
+    const leftShoulder = kp(pose, 'leftShoulder');
+    const rightShoulder = kp(pose, 'rightShoulder');
+    const leftHip = kp(pose, 'leftHip');
+    const rightHip = kp(pose, 'rightHip');
     const leftKnee = kp(pose, 'leftKnee');
     const rightKnee = kp(pose, 'rightKnee');
-    if (leftKnee.score < MIN_KEYPOINT_SCORE && rightKnee.score < MIN_KEYPOINT_SCORE) {
+
+    if (
+      (leftShoulder.score < MIN_KEYPOINT_SCORE && rightShoulder.score < MIN_KEYPOINT_SCORE) ||
+      (leftHip.score < MIN_KEYPOINT_SCORE && rightHip.score < MIN_KEYPOINT_SCORE) ||
+      (leftKnee.score < MIN_KEYPOINT_SCORE && rightKnee.score < MIN_KEYPOINT_SCORE)
+    ) {
       return { depth: null, alignment: 0, visibility };
     }
+
+    const hipMid = weightedMidpoint(leftHip, rightHip);
+    const shoulderMid = weightedMidpoint(leftShoulder, rightShoulder);
 
     const torso = Math.abs(hipMid.y - shoulderMid.y);
     if (torso < 0.02) return { depth: null, alignment: 0, visibility };
 
-    // The higher of the two knees (smaller y). Height above the hip in torso
-    // units: 0 at rest, ~1 when the knee reaches hip level.
-    const higherKneeY = Math.min(leftKnee.y, rightKnee.y);
-    const raise = (hipMid.y - higherKneeY) / torso;
-    const depth = clamp(raise, 0, 1);
+    // Per-leg raise above the hip (0 at rest, ~1 at hip height). Alternating
+    // high knees keep *one* knee elevated, so max(raise) never returns to the
+    // up threshold and the hysteresis counter stalls. Use left/right asymmetry
+    // instead: high when one knee is driven up, low when both are even.
+    const leftRaise = clamp((hipMid.y - leftKnee.y) / torso, 0, 1);
+    const rightRaise = clamp((hipMid.y - rightKnee.y) / torso, 0, 1);
+    const depth = clamp(Math.abs(leftRaise - rightRaise), 0, 1);
 
     // Balance: shoulders stay level through the drill.
-    const shoulderSkew = Math.abs(kp(pose, 'leftShoulder').y - kp(pose, 'rightShoulder').y) / torso;
+    const shoulderSkew = Math.abs(leftShoulder.y - rightShoulder.y) / torso;
     const alignment = 1 - normalize(shoulderSkew, 0, 0.3);
 
     return { depth, alignment, visibility };
@@ -671,19 +726,20 @@ export const jumpingJack: ExerciseDefinition = {
     const rightShoulder = kp(pose, 'rightShoulder');
     const leftWrist = kp(pose, 'leftWrist');
     const rightWrist = kp(pose, 'rightWrist');
+    const leftHip = kp(pose, 'leftHip');
+    const rightHip = kp(pose, 'rightHip');
 
     if (
-      leftShoulder.score < MIN_KEYPOINT_SCORE ||
-      rightShoulder.score < MIN_KEYPOINT_SCORE ||
-      leftWrist.score < MIN_KEYPOINT_SCORE ||
-      rightWrist.score < MIN_KEYPOINT_SCORE
+      (leftShoulder.score < MIN_KEYPOINT_SCORE && rightShoulder.score < MIN_KEYPOINT_SCORE) ||
+      (leftWrist.score < MIN_KEYPOINT_SCORE && rightWrist.score < MIN_KEYPOINT_SCORE) ||
+      (leftHip.score < MIN_KEYPOINT_SCORE && rightHip.score < MIN_KEYPOINT_SCORE)
     ) {
       return { depth: null, alignment: 0, visibility };
     }
 
     const shoulderMid = weightedMidpoint(leftShoulder, rightShoulder);
-    const hipMid = weightedMidpoint(kp(pose, 'leftHip'), kp(pose, 'rightHip'));
-    const wristMid = midpoint(leftWrist, rightWrist);
+    const hipMid = weightedMidpoint(leftHip, rightHip);
+    const wristMid = weightedMidpoint(leftWrist, rightWrist);
 
     const torso = Math.abs(hipMid.y - shoulderMid.y);
     if (torso < 0.02) return { depth: null, alignment: 0, visibility };

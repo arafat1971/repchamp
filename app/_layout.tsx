@@ -27,10 +27,16 @@ import {
 import { useAuthStore } from '@/state/authStore';
 import { useProStore } from '@/state/proStore';
 import { usePresenceHeartbeat } from '@/state/usePresenceHeartbeat';
+import { useChallengeInviteSync } from '@/state/useIncomingDuelCount';
 import { useNotificationSync } from '@/state/useNotificationSync';
 import { useRivalPassedAlert } from '@/state/useRivalPassedAlert';
 import { fontFamily } from '@/theme/typography';
 import { palette } from '@/theme/tokens';
+import { flushCoupleCreditOutbox } from '@/services/coupleCreditOutbox';
+import {
+  resumePendingLiveSettles,
+} from '@/services/liveResultSettle';
+import { useProfileStore } from '@/state/profileStore';
 import { preloadPoseModel } from '@/vision/modelCache';
 
 // Hold the splash until fonts are ready, so the first frame never shows
@@ -57,10 +63,9 @@ export default function RootLayout() {
     return releaseAudio;
   }, []);
 
-  // Tap handlers for local/push notifications.
+  // Tap handlers for local/push notifications (cold start + foreground).
   useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response.notification.request.content.data ?? {};
+    const routeFromData = (data: Record<string, unknown>) => {
       const type = data.type;
       if (type === 'weekly-recap') {
         router.push('/modal/recap');
@@ -69,11 +74,28 @@ export default function RootLayout() {
       } else if (type === 'rival-passed') {
         router.push('/(tabs)/friends');
       } else if (type === 'workout-reminder' || type === 'streak-reminder') {
-        router.push('/(tabs)/train');
+        router.push({ pathname: '/session', params: { exercise: 'push', mode: 'practice' } });
       } else if (type === 'couple-nudge') {
         router.push('/modal/couple-invite');
       }
+    };
+
+    const seen = new Set<string>();
+    const handle = (response: Notifications.NotificationResponse) => {
+      const key = response.notification.request.identifier;
+      if (seen.has(key)) return;
+      seen.add(key);
+      const data = (response.notification.request.content.data ?? {}) as Record<string, unknown>;
+      routeFromData(data);
+    };
+
+    // Kill-state taps never hit the listener — read the last response once.
+    void Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (!response) return;
+      handle(response);
+      void Notifications.clearLastNotificationResponseAsync();
     });
+    const sub = Notifications.addNotificationResponseReceivedListener(handle);
     return () => sub.remove();
   }, [router]);
 
@@ -107,6 +129,8 @@ export default function RootLayout() {
   // Low-volume local reminders (≤1/day workout or streak + weekly summary).
   useNotificationSync();
   useRivalPassedAlert();
+  // Challenge inbox banners + badge — app-wide, not Home-focus-gated.
+  useChallengeInviteSync();
 
   // Once signed in, register this device for push nudges so a partner's poke can
   // reach it even when closed. No-ops until Firebase is provisioned.
@@ -122,6 +146,28 @@ export default function RootLayout() {
     const stopSuppressor = installForegroundNudgeSuppressor();
     // Configure billing and start following the live Pro entitlement.
     const stopPro = initializePro(uid);
+    // Retry couple credits that failed while the session screen was open.
+    void flushCoupleCreditOutbox();
+    // Re-arm live-duel XP settles that survived process death.
+    resumePendingLiveSettles((item, bank) => {
+      if (useAuthStore.getState().user?.uid !== item.uid) return false;
+      useProfileStore.getState().recordSession({
+        exercise: item.record.exercise,
+        mode: item.record.sessionMode,
+        reps: item.record.reps,
+        opponentReps:
+          item.record.sessionMode === 'versus' ? bank.opponentReps : null,
+        opponentId: bank.opponentId ?? item.record.opponentId ?? null,
+        target: item.record.target,
+        won: bank.won,
+        drew: bank.drew,
+        xp: bank.xp,
+        formScore: item.record.formScore,
+        durationSec: item.record.durationSec,
+      });
+      void useAuthStore.getState().pushProfile();
+      return true;
+    });
     return () => {
       stopTokenSync();
       stopSuppressor();
@@ -150,11 +196,9 @@ export default function RootLayout() {
               name="session"
               options={{ gestureEnabled: false, animation: 'fade' }}
             />
-            {/* Matchmaking waiting room. A card, not a modal, so its own Cancel
-                owns the exit and a stray swipe can't strand a pending duel. */}
-            <Stack.Screen name="duel/new" options={{ animation: 'slide_from_bottom' }} />
-            <Stack.Screen name="duel/[id]" options={{ animation: 'slide_from_bottom' }} />
-            <Stack.Screen name="duel/queue" options={{ animation: 'slide_from_bottom' }} />
+            {/* Nested duel stack (new / waiting / queue) — ErrorBoundary lives in
+                app/duel/_layout. Card presentation so Cancel owns the exit. */}
+            <Stack.Screen name="duel" options={{ animation: 'slide_from_bottom' }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
           </Stack>
           <DialogHost />

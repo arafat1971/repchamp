@@ -59,6 +59,19 @@ export default function NotificationsScreen() {
   };
 
   const seed = usePhantomSeed();
+  /** Local dismiss for seeded phantom/bot invites (no cloud doc to cancel). */
+  const [dismissedPhantoms, setDismissedPhantoms] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const dismissPhantom = (id: string) =>
+    setDismissedPhantoms((prev) => new Set(prev).add(id));
+
+  const phantomInvites =
+    seed.isSeeding && seed.phantomOnline.length > 0
+      ? seed.phantomOnline
+          .filter((p) => !dismissedPhantoms.has(p.id))
+          .slice(0, 2)
+      : [];
 
   return (
     <Screen>
@@ -112,9 +125,9 @@ export default function NotificationsScreen() {
               );
             })}
           </View>
-        ) : seed.isSeeding && seed.phantomOnline.length > 0 ? (
+        ) : phantomInvites.length > 0 ? (
           <View style={{ gap: 12 }}>
-            {seed.phantomOnline.slice(0, 2).map((phantom) => (
+            {phantomInvites.map((phantom) => (
               <InviteCard
                 key={phantom.id}
                 name={phantom.name}
@@ -135,11 +148,11 @@ export default function NotificationsScreen() {
                     params: { exercise: 'push', mode: 'versus', opponent: phantom.id },
                   })
                 }
-                onDismiss={() => router.back()}
+                onDismiss={() => dismissPhantom(phantom.id)}
               />
             ))}
           </View>
-        ) : (
+        ) : !dismissedPhantoms.has(challenger.id) ? (
           <InviteCard
             name={challenger.name}
             verb="Challenged you to a duel"
@@ -158,8 +171,10 @@ export default function NotificationsScreen() {
                 params: { exercise: 'push', mode: 'versus', opponent: challenger.id },
               })
             }
-            onDismiss={() => router.back()}
+            onDismiss={() => dismissPhantom(challenger.id)}
           />
+        ) : (
+          <Text style={[text.caption, { marginBottom: 4 }]}>No pending invites</Text>
         )}
       </StaggerIn>
 

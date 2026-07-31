@@ -127,6 +127,7 @@ export function ProgrammeCard() {
   const router = useRouter();
   const state = useProfileStore(useShallow(selectProgramme));
   const startProgramme = useProfileStore((s) => s.startProgramme);
+  const completeProgrammeRestDay = useProfileStore((s) => s.completeProgrammeRestDay);
   const isPro = useEffectivePro();
 
   const gated = !isPro && isPurchasesConfigured();
@@ -245,7 +246,10 @@ export function ProgrammeCard() {
   const progressPercent = Math.round(state.percent * 100);
 
   const onStart = () => {
-    if (day.rest) return;
+    if (day.rest) {
+      completeProgrammeRestDay();
+      return;
+    }
     router.push({
       pathname: '/session',
       params: { exercise: day.exercise, mode: 'solo', target: String(day.target) },
@@ -258,10 +262,9 @@ export function ProgrammeCard() {
       accessibilityRole="button"
       accessibilityLabel={
         day.rest
-          ? 'Rest day'
+          ? 'Mark rest day complete'
           : `Programme day ${day.index}: ${day.target} ${def.label}`
       }
-      disabled={day.rest}
     >
       <LinearGradient
         colors={['#15803d', '#16a34a', '#22c55e']}
@@ -288,8 +291,9 @@ export function ProgrammeCard() {
             <View style={{ flex: 1 }}>
               <Text style={styles.title}>Rest day 🧘</Text>
               <Text style={styles.body}>
-                Recovery is part of the plan. Come back tomorrow.
+                Recovery is part of the plan. Tap when you&apos;re ready for the next day.
               </Text>
+              <AnimatedCTA text="Mark rest complete" />
             </View>
           </View>
         ) : (

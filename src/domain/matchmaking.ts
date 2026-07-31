@@ -64,11 +64,20 @@ export function makeTicket(input: {
  *
  * A candidate is claimable only if it's a *different* athlete who is still
  * `waiting`. Same-uid tickets (a stale ticket from this very athlete) and any
- * already-matched/cancelled ticket are skipped, so an athlete never matches
- * themselves and a claimed ticket is never double-booked.
+ * already-matched/cancelled ticket are skipped. When `seekerFormat` is passed,
+ * exercise + duration must match so strangers don't launch into different rules.
  */
-export function canPair(seekerUid: string, candidate: QueueTicket): boolean {
-  return candidate.uid !== seekerUid && candidate.status === 'waiting';
+export function canPair(
+  seekerUid: string,
+  candidate: QueueTicket,
+  seekerFormat?: Pick<QueueTicket, 'exercise' | 'duration'>,
+): boolean {
+  if (candidate.uid === seekerUid || candidate.status !== 'waiting') return false;
+  if (!seekerFormat) return true;
+  return (
+    candidate.exercise === seekerFormat.exercise &&
+    candidate.duration === seekerFormat.duration
+  );
 }
 
 /**
@@ -77,8 +86,12 @@ export function canPair(seekerUid: string, candidate: QueueTicket): boolean {
  * orders by `enqueuedAt`); this just takes the first claimable one so the head of
  * the queue is served first.
  */
-export function pickOpponent(seekerUid: string, pool: QueueTicket[]): QueueTicket | null {
-  return pool.find((t) => canPair(seekerUid, t)) ?? null;
+export function pickOpponent(
+  seekerUid: string,
+  pool: QueueTicket[],
+  seekerFormat?: Pick<QueueTicket, 'exercise' | 'duration'>,
+): QueueTicket | null {
+  return pool.find((t) => canPair(seekerUid, t, seekerFormat)) ?? null;
 }
 
 /**

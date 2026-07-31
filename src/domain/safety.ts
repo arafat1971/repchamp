@@ -83,6 +83,7 @@ export function isCloudSafeAvatarUrl(url: string | null | undefined): boolean {
 export const RATE_LIMITS = {
   friendAdd: { max: 20, windowMs: 60 * 60 * 1000 },
   duelInvite: { max: 30, windowMs: 60 * 60 * 1000 },
+  coupleNudge: { max: 3, windowMs: 60 * 60 * 1000 },
   report: { max: 10, windowMs: 24 * 60 * 60 * 1000 },
   reportSameTarget: { max: 1, windowMs: 24 * 60 * 60 * 1000 },
 } as const;

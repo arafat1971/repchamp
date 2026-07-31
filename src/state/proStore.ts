@@ -38,12 +38,16 @@ export const useProStore = create<ProState>()((set) => ({
     let cancelled = false;
     let unwatch: () => void = () => {};
 
+    // Drop the previous account's entitlement immediately — otherwise a uid
+    // switch briefly inherits the last user's Pro flag.
+    set({ isPro: false, ready: false });
+
     // Configure first, then attach the listener. Registering before configure
     // can no-op or throw on a cold start — and the paywall may race this path.
     void (async () => {
       await configurePurchases(uid);
       if (cancelled) return;
-      const pro = await fetchIsPro();
+      const pro = await fetchIsPro(uid);
       if (cancelled) return;
       set({ isPro: pro, ready: true });
       unwatch = watchCustomerInfo((next) => {
@@ -54,6 +58,7 @@ export const useProStore = create<ProState>()((set) => ({
     return () => {
       cancelled = true;
       unwatch();
+      set({ isPro: false, ready: false });
     };
   },
 

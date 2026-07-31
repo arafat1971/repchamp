@@ -42,8 +42,13 @@ describe('didWin', () => {
     expect(didWin(versus, 9, 12)).toBe(false);
   });
 
-  it('awards a tie to the athlete', () => {
+  it('awards a tie to the athlete against a bot', () => {
     expect(didWin(versus, 10, 10)).toBe(true);
+  });
+
+  it('treats a live-duel tie as a draw (mirrors cloud)', () => {
+    expect(didWin({ ...versus, duelId: 'd1' }, 10, 10)).toBe(false);
+    expect(didWin({ ...versus, duelId: 'd1' }, 11, 10)).toBe(true);
   });
 
   it('wins solo only by clearing the target', () => {
@@ -145,7 +150,8 @@ describe('session lifecycle', () => {
     useSessionStore.getState().finish({ forfeited: true });
 
     expect(useSessionStore.getState().won).toBe(false);
-    expect(useSessionStore.getState().xpGained).toBe(60);
+    // Forfeit (and zero-rep) sessions award no XP — fair-play / abandon guard.
+    expect(useSessionStore.getState().xpGained).toBe(0);
   });
 
   it('does not re-finish an already finished session', () => {

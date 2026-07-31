@@ -1,6 +1,9 @@
 import {
+  ABANDON_SETTLE_GRACE_MS,
   DUEL_SYNC_INTERVAL_MS,
+  canForfeitOpenOpponent,
   didUidWin,
+  duelStartedAtMs,
   makePlayer,
   opponentFromPlayer,
   opponentOf,
@@ -139,5 +142,25 @@ describe('DUEL_SYNC_INTERVAL_MS', () => {
   it('throttles to a few writes a second, not per frame', () => {
     expect(DUEL_SYNC_INTERVAL_MS).toBeGreaterThanOrEqual(200);
     expect(DUEL_SYNC_INTERVAL_MS).toBeLessThanOrEqual(1000);
+  });
+});
+
+describe('canForfeitOpenOpponent', () => {
+  it('allows forfeit when startedAt is missing (legacy)', () => {
+    expect(canForfeitOpenOpponent({ duration: 20 })).toBe(true);
+  });
+
+  it('parses Timestamp-like startedAt values', () => {
+    expect(duelStartedAtMs({ startedAt: 1_700_000_000_000 })).toBe(1_700_000_000_000);
+    expect(duelStartedAtMs({ startedAt: { seconds: 1_700_000_000 } })).toBe(1_700_000_000_000);
+    expect(duelStartedAtMs({ startedAt: { toMillis: () => 42 } })).toBe(42);
+  });
+
+  it('blocks forfeit until match end plus calibration grace', () => {
+    const start = 1_000_000;
+    const duration = 20;
+    const earliest = start + duration * 1000 + ABANDON_SETTLE_GRACE_MS;
+    expect(canForfeitOpenOpponent({ duration, startedAt: start }, earliest - 1)).toBe(false);
+    expect(canForfeitOpenOpponent({ duration, startedAt: start }, earliest)).toBe(true);
   });
 });

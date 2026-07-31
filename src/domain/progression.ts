@@ -79,13 +79,21 @@ export type SessionMode = 'versus' | 'solo' | 'practice' | 'together';
  * loser: it is cooperative, and taxing the partner who managed fewer reps would
  * punish exactly the person the mode exists to keep showing up.
  */
-export function xpForSession(mode: SessionMode, won: boolean): number {
+export function xpForSession(
+  mode: SessionMode,
+  won: boolean,
+  opts?: { drew?: boolean; reps?: number; forfeited?: boolean },
+): number {
+  // Give-up / empty sets must not farm XP or weekly board.
+  if (opts?.forfeited || (opts?.reps != null && opts.reps <= 0)) return 0;
+
   switch (mode) {
     case 'practice':
       return 40;
     case 'solo':
       return won ? 300 : 80;
     case 'versus':
+      if (opts?.drew) return 100;
       return won ? 200 : 60;
     case 'together':
       return 200;

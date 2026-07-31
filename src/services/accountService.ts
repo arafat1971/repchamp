@@ -10,8 +10,10 @@
  *   - `users/{uid}`                   profile, XP (no push tokens)
  *   - `users/{uid}/private/push`      Expo push token (owner-only)
  *   - `users/{uid}/friends/{id}`      friend edges
+ *   - `users/{uid}/blocks/{id}`       block list
  *   - `leaderboard/{uid}`             weekly-XP row
  *   - `matchmaking/{uid}`             open-queue ticket (may not exist)
+ *   - `duels/{id}`                    pending / active matches
  *   - `couples/{coupleId}`            the shared bond — deleted whole
  *   - Storage `avatars/{uid}`         profile image (may not exist)
  *
@@ -24,7 +26,13 @@ import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import storage from '@react-native-firebase/storage';
 
+import { seatOf, type Duel } from '@/domain/duel';
 import { isFirebaseConfigured } from '@/lib/firebase';
+import { cancelDuel, finishDuel } from '@/services/duelService';
+
+/** Thrown when cloud wipe succeeded but Auth still needs a fresh login. */
+export const CLOUD_ERASED_REAUTH_MESSAGE =
+  'Your cloud data was erased. Confirm your login (Google or email), then tap Delete again to remove the login. Do not log out.';
 
 /**
  * Gather everything the cloud holds about this user into one plain object,
@@ -36,13 +44,14 @@ export async function exportAccountData(uid: string): Promise<Record<string, unk
 
   const db = firestore();
   const userRef = db.collection('users').doc(uid);
-  const [profile, leaderboard, matchmaking, coupleSnap, friendsSnap, pushSnap] =
+  const [profile, leaderboard, matchmaking, coupleSnap, friendsSnap, blocksSnap, pushSnap] =
     await Promise.all([
       userRef.get(),
       db.collection('leaderboard').doc(uid).get(),
       db.collection('matchmaking').doc(uid).get(),
       db.collection('couples').where('memberUids', 'array-contains', uid).limit(1).get(),
       userRef.collection('friends').get(),
+      userRef.collection('blocks').get(),
       userRef.collection('private').doc('push').get(),
     ]);
 
@@ -52,11 +61,75 @@ export async function exportAccountData(uid: string): Promise<Record<string, unk
     uid,
     profile: profile.exists() ? profile.data() : null,
     friends: friendsSnap.docs.map((d) => ({ uid: d.id, ...d.data() })),
+    blocks: blocksSnap.docs.map((d) => ({ uid: d.id, ...d.data() })),
     privatePush: pushSnap.exists() ? pushSnap.data() : null,
     leaderboard: leaderboard.exists() ? leaderboard.data() : null,
     matchmaking: matchmaking.exists() ? matchmaking.data() : null,
     couple: couple ? { id: couple.id, ...couple.data() } : null,
   };
+}
+
+/**
+ * Cancel pending invites and forfeit active seats so a deleting athlete does
+ * not leave partners stuck in a live set against a ghost uid.
+ */
+/** Cancel pending invites and forfeit active seats for this uid. */
+export async function closeOpenDuels(uid: string): Promise<void> {
+  const db = firestore();
+  try {
+    const [pendingHost, pendingTarget, activeHost, activeGuest] = await Promise.all([
+      db
+        .collection('duels')
+        .where('hostUid', '==', uid)
+        .where('status', '==', 'pending')
+        .limit(25)
+        .get(),
+      db
+        .collection('duels')
+        .where('targetUid', '==', uid)
+        .where('status', '==', 'pending')
+        .limit(25)
+        .get(),
+      db
+        .collection('duels')
+        .where('hostUid', '==', uid)
+        .where('status', '==', 'active')
+        .limit(25)
+        .get(),
+      db
+        .collection('duels')
+        .where('guestUid', '==', uid)
+        .where('status', '==', 'active')
+        .limit(25)
+        .get(),
+    ]);
+
+    const pendingIds = new Set<string>();
+    for (const snap of [pendingHost, pendingTarget]) {
+      for (const doc of snap.docs) pendingIds.add(doc.id);
+    }
+    await Promise.all([...pendingIds].map((id) => cancelDuel(id)));
+
+    const activeSeen = new Set<string>();
+    for (const snap of [activeHost, activeGuest]) {
+      for (const doc of snap.docs) {
+        if (activeSeen.has(doc.id)) continue;
+        activeSeen.add(doc.id);
+        const duel = doc.data() as Duel;
+        const seat = seatOf(duel, uid);
+        if (!seat) continue;
+        const mine = duel[seat];
+        // Forfeit our seat — partner keeps playing and settles when they finish.
+        await finishDuel(doc.id, seat, {
+          reps: mine?.reps ?? 0,
+          formScore: mine?.formScore ?? 0,
+          forfeited: true,
+        });
+      }
+    }
+  } catch {
+    // Missing index / offline — profile wipe still proceeds.
+  }
 }
 
 /**
@@ -68,33 +141,47 @@ export async function exportAccountData(uid: string): Promise<Record<string, unk
  * semantics — because a bond with one erased partner is not a state the app
  * models. Avatar removal is best-effort.
  *
- * No-ops when unconfigured. The caller is responsible for wiping local storage
- * afterwards (`clearAllStorage`), regardless of what this returns.
+ * Throws when Auth delete needs a recent login so the UI can ask the athlete to
+ * re-authenticate — cloud data is already erased in that case. Safe to call
+ * again after reauth (cloud deletes are idempotent / not-found tolerant).
+ *
+ * No-ops when unconfigured. The caller should wipe local storage only after
+ * Auth delete succeeds — never on the reauth path (that would abandon the login).
  */
 export async function deleteAccount(uid: string): Promise<void> {
   if (!isFirebaseConfigured()) return;
+  if (!uid) throw new Error('Sign in first, then try deleting again.');
 
   const db = firestore();
   const userRef = db.collection('users').doc(uid);
 
-  const [coupleSnap, friendsSnap] = await Promise.all([
-    db.collection('couples').where('memberUids', 'array-contains', uid).limit(1).get(),
+  const [coupleSnap, friendsSnap, blocksSnap] = await Promise.all([
+    db.collection('couples').where('memberUids', 'array-contains', uid).limit(5).get(),
     userRef.collection('friends').get(),
+    userRef.collection('blocks').get(),
   ]);
+
+  await closeOpenDuels(uid);
 
   // Subcollections first — Firestore does not cascade-delete them with the parent.
   const deletions: Promise<unknown>[] = [
-    userRef.collection('private').doc('push').delete(),
-    ...friendsSnap.docs.map((d) => d.ref.delete()),
-    db.collection('leaderboard').doc(uid).delete(),
-    db.collection('matchmaking').doc(uid).delete(),
+    userRef.collection('private').doc('push').delete().catch(() => undefined),
+    ...friendsSnap.docs.map((d) => d.ref.delete().catch(() => undefined)),
+    ...blocksSnap.docs.map((d) => d.ref.delete().catch(() => undefined)),
+    db.collection('leaderboard').doc(uid).delete().catch(() => undefined),
+    db.collection('matchmaking').doc(uid).delete().catch(() => undefined),
   ];
-  const couple = coupleSnap.docs[0];
-  if (couple) deletions.push(couple.ref.delete());
+  for (const couple of coupleSnap.docs) {
+    deletions.push(couple.ref.delete().catch(() => undefined));
+  }
 
   await Promise.all(deletions);
   // Parent profile last, after secrets / friends are gone.
-  await userRef.delete();
+  try {
+    await userRef.delete();
+  } catch {
+    // Already erased on a prior attempt that stopped at Auth reauth.
+  }
 
   try {
     await storage().ref(`avatars/${uid}.jpg`).delete();
@@ -103,9 +190,16 @@ export async function deleteAccount(uid: string): Promise<void> {
     // whole deletion over; the profile doc that referenced it is already gone.
   }
 
+  const current = auth().currentUser;
+  if (!current || current.uid !== uid) return;
+
   try {
-    await auth().currentUser?.delete();
-  } catch {
-    // Requires-recent-login on a linked email account; the data is already gone.
+    await current.delete();
+  } catch (error) {
+    const code = String((error as { code?: string })?.code ?? '');
+    if (code === 'auth/requires-recent-login') {
+      throw new Error(CLOUD_ERASED_REAUTH_MESSAGE);
+    }
+    throw error instanceof Error ? error : new Error('Could not delete the login.');
   }
 }

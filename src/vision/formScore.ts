@@ -107,14 +107,12 @@ export function buildFormReport(
     ) * 100,
   );
   const fullDepthReps = reps.filter((r) => r.fullDepth).length;
+  const { grade, summary } = formCopy(exercise.id, score, fullDepthReps, reps.length);
 
   return {
     score,
-    grade: score >= 92 ? 'Excellent form' : score >= 84 ? 'Solid form' : 'Good effort',
-    summary:
-      exercise.id === 'squat'
-        ? 'Depth and control were on point.'
-        : 'Clean lockouts, steady pace.',
+    grade,
+    summary,
     metrics: [
       { label: romLabel, pct: Math.round(rom * 100) },
       // Shown as "—" by the report when the joints were never visible enough
@@ -132,5 +130,42 @@ export function buildFormReport(
     tip: exercise.coachingTip,
     fullDepthReps,
     partialReps: reps.length - fullDepthReps,
+  };
+}
+
+/** Honest grade / summary — never claim “on point” for a mediocre score. */
+function formCopy(
+  exerciseId: string,
+  score: number,
+  fullDepthReps: number,
+  totalReps: number,
+): { grade: string; summary: string } {
+  if (score >= 92) {
+    return {
+      grade: 'Excellent form',
+      summary:
+        exerciseId === 'squat'
+          ? 'Depth and control were on point.'
+          : 'Clean lockouts, steady pace.',
+    };
+  }
+  if (score >= 80) {
+    return {
+      grade: 'Solid form',
+      summary:
+        fullDepthReps >= totalReps * 0.7
+          ? 'Strong set — a little more range would make it elite.'
+          : 'Good rhythm; drive a bit deeper on the next set.',
+    };
+  }
+  if (score >= 60) {
+    return {
+      grade: 'Good effort',
+      summary: 'You got the reps in. Focus on full range and steady tempo.',
+    };
+  }
+  return {
+    grade: 'Needs work',
+    summary: 'Prioritize depth and control over speed — quality reps build real strength.',
   };
 }

@@ -170,11 +170,36 @@ export function advanceProgramme(
 
   const day = state.currentDay;
   if (day.rest) {
-    // Rest days are cleared by any session (or could be tapped through in the UI).
-    return { ...progress, completedDays: progress.completedDays + 1 };
+    // Rest auto-clears only on a real set (reps > 0). Explicit "Mark rest
+    // complete" still uses `completeRestDay`. If this set also meets the *next*
+    // training day's target, credit that day too — otherwise a qualifying
+    // workout on a rest day only skipped rest and forced a redo.
+    if (reps <= 0) return progress;
+    let next: ProgrammeProgress = {
+      ...progress,
+      completedDays: progress.completedDays + 1,
+    };
+    const afterRest = programmeState(next);
+    const training = afterRest?.currentDay;
+    if (
+      training &&
+      !training.rest &&
+      completedExercise === training.exercise &&
+      reps >= training.target
+    ) {
+      next = { ...next, completedDays: next.completedDays + 1 };
+    }
+    return next;
   }
   if (completedExercise === day.exercise && reps >= day.target) {
     return { ...progress, completedDays: progress.completedDays + 1 };
   }
   return progress;
+}
+
+/** Explicit rest-day completion from the programme card (no session required). */
+export function completeRestDay(progress: ProgrammeProgress): ProgrammeProgress {
+  const state = programmeState(progress);
+  if (!state || state.finished || !state.currentDay?.rest) return progress;
+  return { ...progress, completedDays: progress.completedDays + 1 };
 }

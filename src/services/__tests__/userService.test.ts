@@ -19,6 +19,7 @@ import {
   currentWeekKey,
   fetchExpoPushToken,
   fetchProfile,
+  isUsernameAvailable,
   publishScore,
   removeScore,
   saveExpoPushToken,
@@ -107,10 +108,36 @@ jest.mock('@/lib/firebase', () => ({
   isFirebaseConfigured: () => mockState.configured,
 }));
 
+function mockQuery(col: string, filters: [string, unknown][], limit: number | null) {
+  return {
+    where(field: string, _op: string, value: unknown) {
+      return mockQuery(col, [...filters, [field, value]], limit);
+    },
+    limit(n: number) {
+      return mockQuery(col, filters, n);
+    },
+    async get() {
+      let docs = [...mockCol(col).entries()].filter(([, data]) =>
+        filters.every(([f, v]) => data[f] === v),
+      );
+      if (limit != null) docs = docs.slice(0, limit);
+      return {
+        empty: docs.length === 0,
+        docs: docs.map(([id, data]) => ({
+          id,
+          data: () => data,
+          exists: () => true,
+        })),
+      };
+    },
+  };
+}
+
 jest.mock('@react-native-firebase/firestore', () => {
   const fn = () => ({
     collection: (name: string) => ({
       doc: (id: string) => mockDocRef(name, id),
+      where: (field: string, _op: string, value: unknown) => mockQuery(name, [[field, value]], null),
     }),
   });
   (fn as unknown as { FieldValue: unknown }).FieldValue = {
@@ -143,6 +170,14 @@ const PROFILE: Omit<CloudProfile, 'updatedAt'> = {
   weeklyGoal: 5,
   totalXp: 1200,
   personalBests: { push: 30, squat: 42 } as CloudProfile['personalBests'],
+  onboarded: true,
+  pairingBonusClaimed: false,
+  pairingBonusUntil: 0,
+  trainedDays: [],
+  weekKey: '2026-W31',
+  weekXp: 0,
+  weekExerciseReps: {},
+  programme: null,
 };
 
 describe('fetchProfile', () => {
@@ -184,10 +219,72 @@ describe('upsertProfile', () => {
     expect(d.createdAt).toBe(99);
   });
 
+  it('keeps an existing cloud username when the local handle is taken', async () => {
+    mockStore.users.set('other', { uid: 'other', username: 'hana' });
+    mockStore.users.set('u1', { uid: 'u1', username: 'oldname', totalXp: 10, createdAt: 1 });
+    await upsertProfile(PROFILE);
+    expect(mockStore.users.get('u1')!.username).toBe('oldname');
+  });
+
+  it('keeps pairing bonus latch and onboarded sticky across devices', async () => {
+    mockStore.users.set('u1', {
+      uid: 'u1',
+      username: 'hana',
+      totalXp: 100,
+      onboarded: true,
+      pairingBonusClaimed: true,
+      pairingBonusUntil: 9_000,
+    });
+    await upsertProfile({
+      ...PROFILE,
+      onboarded: false,
+      pairingBonusClaimed: false,
+      pairingBonusUntil: 1_000,
+      totalXp: 100,
+    });
+    const d = mockStore.users.get('u1')!;
+    expect(d.onboarded).toBe(true);
+    expect(d.pairingBonusClaimed).toBe(true);
+    expect(d.pairingBonusUntil).toBe(9_000);
+  });
+
+  it('never lowers cloud totalXp or personal bests from a lagging device', async () => {
+    mockStore.users.set('u1', {
+      ...PROFILE,
+      totalXp: 5000,
+      personalBests: { push: 50, squat: 10 },
+      createdAt: 1,
+    });
+    await upsertProfile({
+      ...PROFILE,
+      totalXp: 100,
+      personalBests: { push: 20, squat: 40 } as CloudProfile['personalBests'],
+    });
+    const d = mockStore.users.get('u1')!;
+    expect(d.totalXp).toBe(5000);
+    expect(d.personalBests).toEqual({ push: 50, squat: 40 });
+  });
+
   it('is a no-op when unconfigured', async () => {
     mockState.configured = false;
     await upsertProfile(PROFILE);
     expect(mockStore.users.size).toBe(0);
+  });
+});
+
+describe('isUsernameAvailable', () => {
+  it('is true when nobody owns the name', async () => {
+    expect(await isUsernameAvailable('fresh_name')).toBe(true);
+  });
+
+  it('is false when another uid owns the name', async () => {
+    mockStore.users.set('other', { username: 'taken' });
+    expect(await isUsernameAvailable('taken', 'me')).toBe(false);
+  });
+
+  it('is true when only the excluded uid owns the name', async () => {
+    mockStore.users.set('me', { username: 'mine' });
+    expect(await isUsernameAvailable('mine', 'me')).toBe(true);
   });
 });
 
@@ -257,6 +354,27 @@ describe('publishScore', () => {
     expect(d.league).toBe('silver');
     expect(d.updatedAt).toBe('<ts>');
     expect(d.weekKey).toBe(currentWeekKey());
+  });
+
+  it('does not wipe same-week weeklyXp with a lower local score', async () => {
+    mockStore.leaderboard.set('u1', {
+      uid: 'u1',
+      weeklyXp: 800,
+      totalXp: 2000,
+      weekKey: currentWeekKey(),
+    });
+    await publishScore({
+      uid: 'u1',
+      displayName: 'Hana',
+      avatarUrl: null,
+      weeklyXp: 0,
+      totalXp: 100,
+      level: 1,
+      league: 'bronze',
+    });
+    const d = mockStore.leaderboard.get('u1')!;
+    expect(d.weeklyXp).toBe(800);
+    expect(d.totalXp).toBe(2000);
   });
 
   it('is a no-op when unconfigured', async () => {

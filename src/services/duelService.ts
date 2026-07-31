@@ -25,12 +25,14 @@ import {
   type Duel,
   type DuelPlayer,
   type DuelSeat,
+  canForfeitOpenOpponent,
   makePlayer,
   opponentOf,
   resolveWinner,
   seatOf,
 } from '@/domain/duel';
 import { parseInviteKind, type InviteKind } from '@/domain/presence';
+import { isBlockedEither } from '@/services/safetyService';
 
 const DUELS = 'duels';
 
@@ -121,6 +123,15 @@ export async function joinDuel(
   if (!isFirebaseConfigured()) return null;
 
   const ref = duelDoc(duelId);
+  // Block check outside the transaction (extra reads); refuse before seating.
+  const peek = await ref.get();
+  if (peek.exists()) {
+    const hostUid = (peek.data() as Duel).hostUid;
+    if (hostUid && (await isBlockedEither(input.uid, hostUid))) {
+      throw new Error('You can’t join this challenge.');
+    }
+  }
+
   return firestore().runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists()) throw new Error('That duel no longer exists.');
@@ -161,15 +172,24 @@ export async function pushLiveState(
   duelId: string,
   seat: DuelSeat,
   slice: { reps: number; formScore: number },
-): Promise<void> {
-  if (!isFirebaseConfigured()) return;
+): Promise<boolean> {
+  if (!isFirebaseConfigured()) return false;
   try {
+    const snap = await duelDoc(duelId).get();
+    if (!snap.exists()) return false;
+    const duel = snap.data() as Duel;
+    if (duel.status === 'finished') return false;
+    const player = duel[seat];
+    if (!player || player.done) return false;
+
     await duelDoc(duelId).update({
       [`${seat}.reps`]: clampDuelReps(slice.reps),
       [`${seat}.formScore`]: clampFormScore(slice.formScore),
     });
+    return true;
   } catch {
     // Offline / App Check / transient — drop this tick; the next push retries.
+    return false;
   }
 }
 
@@ -186,8 +206,8 @@ export async function finishDuel(
   duelId: string,
   seat: DuelSeat,
   outcome: { reps: number; formScore: number; forfeited?: boolean },
-): Promise<void> {
-  if (!isFirebaseConfigured()) return;
+): Promise<boolean> {
+  if (!isFirebaseConfigured()) return false;
 
   const ref = duelDoc(duelId);
   try {
@@ -196,10 +216,15 @@ export async function finishDuel(
       if (!snap.exists()) return;
 
       const duel = snap.data() as Duel;
+      // Already settled — never rewrite winnerUid / reps from a late retry.
+      if (duel.status === 'finished') return;
+      const currentSeat = duel[seat] as DuelPlayer | undefined;
+      if (currentSeat?.done) return;
+
       const updated: Duel = {
         ...duel,
         [seat]: {
-          ...(duel[seat] as DuelPlayer),
+          ...(currentSeat as DuelPlayer),
           reps: clampDuelReps(outcome.reps),
           formScore: clampFormScore(outcome.formScore),
           done: true,
@@ -225,8 +250,103 @@ export async function finishDuel(
 
       tx.update(ref, patch);
     });
+    return true;
   } catch {
-    // Offline finish — local result still stands; cloud can catch up on retry.
+    // Offline / transient — caller may clear its latch and retry.
+    return false;
+  }
+}
+
+/**
+ * Force-settle a duel when the opponent never finishes (crash / disconnect).
+ *
+ * Marks our seat done with the local outcome. The open opponent seat is only
+ * forfeited after match end + calibration grace (`canForfeitOpenOpponent`) so a
+ * faster finisher cannot steal a live set mid-rep. Returns true when the duel
+ * is `finished` after the call (or already was).
+ */
+export async function forceSettleAbandoned(
+  duelId: string,
+  uid: string,
+  outcome: { reps: number; formScore: number; forfeited?: boolean },
+): Promise<boolean> {
+  if (!isFirebaseConfigured()) return false;
+
+  const ref = duelDoc(duelId);
+  let finished = false;
+  try {
+    await firestore().runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) return;
+
+      const duel = snap.data() as Duel;
+      if (duel.status === 'finished') {
+        finished = true;
+        return;
+      }
+
+      const seat = seatOf(duel, uid);
+      if (!seat) return;
+      const otherSeat: DuelSeat = seat === 'host' ? 'guest' : 'host';
+      const mine = duel[seat] as DuelPlayer | undefined;
+      const other = duel[otherSeat] as DuelPlayer | undefined;
+      if (!mine) return;
+
+      const patch: Record<string, unknown> = {};
+      const nextMine: DuelPlayer = mine.done
+        ? mine
+        : {
+            ...mine,
+            reps: clampDuelReps(outcome.reps),
+            formScore: clampFormScore(outcome.formScore),
+            done: true,
+            forfeited: outcome.forfeited ?? false,
+          };
+      if (!mine.done) {
+        patch[`${seat}.reps`] = nextMine.reps;
+        patch[`${seat}.formScore`] = nextMine.formScore;
+        patch[`${seat}.done`] = true;
+        patch[`${seat}.forfeited`] = nextMine.forfeited;
+      }
+
+      let nextOther = other;
+      // Never forfeit a still-live opponent before the shared match window ends.
+      if (other && !other.done && canForfeitOpenOpponent(duel)) {
+        nextOther = { ...other, done: true, forfeited: true };
+        patch[`${otherSeat}.done`] = true;
+        patch[`${otherSeat}.forfeited`] = true;
+      }
+
+      if (nextMine.done && nextOther?.done) {
+        const updated: Duel = {
+          ...duel,
+          [seat]: nextMine,
+          [otherSeat]: nextOther,
+        };
+        patch.status = 'finished';
+        patch.winnerUid = updated.cooperative ? null : resolveWinner(updated);
+        finished = true;
+      }
+
+      if (Object.keys(patch).length > 0) tx.update(ref, patch);
+    });
+    return finished;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * One-shot read of a duel doc. Used when finish must resolve a seat before the
+ * watch snapshot has landed. Returns null when unconfigured or missing.
+ */
+export async function fetchDuel(duelId: string): Promise<Duel | null> {
+  if (!isFirebaseConfigured()) return null;
+  try {
+    const snap = await duelDoc(duelId).get();
+    return snap.exists() ? (snap.data() as Duel) : null;
+  } catch {
+    return null;
   }
 }
 
@@ -245,7 +365,9 @@ export function watchDuel(
   }
   return duelDoc(duelId).onSnapshot(
     (snap) => onChange(snap?.exists() ? (snap.data() as Duel) : null),
-    () => onChange(null),
+    // Transient permission/network errors must not look like "doc deleted"
+    // (that used to cancel a live waiting room).
+    () => {},
   );
 }
 
@@ -275,15 +397,20 @@ export function seatFor(duel: Duel, uid: string): DuelSeat | null {
  * Delete a duel the host abandoned before anyone joined — or that the
  * addressed target declined from their inbox.
  *
- * The waiting room calls this when the host cancels or navigates away while the
- * duel is still `pending`, so stale open duels don't accumulate. The
- * notifications "Later" action uses the same path so a declined invite does not
- * reappear. Best-effort: swallows errors and no-ops when unconfigured.
+ * Transactional: only deletes when still `pending` with no guest. A guest join
+ * between a naive get and delete used to wipe an active match.
  */
 export async function cancelDuel(duelId: string): Promise<void> {
   if (!isFirebaseConfigured()) return;
   try {
-    await duelDoc(duelId).delete();
+    await firestore().runTransaction(async (tx) => {
+      const ref = duelDoc(duelId);
+      const snap = await tx.get(ref);
+      if (!snap.exists()) return;
+      const duel = snap.data() as Duel;
+      if (duel.status !== 'pending' || duel.guestUid) return;
+      tx.delete(ref);
+    });
   } catch {
     // A guest may have joined between the check and here; leave it to play out.
   }
@@ -320,7 +447,7 @@ export async function fetchIncomingDuels(uid: string, limit = 10): Promise<Incom
       .limit(limit)
       .get();
 
-    return snap.docs
+    const incoming = snap.docs
       .map((doc) => {
         const d = doc.data() as Duel;
         // A challenge already claimed by a guest is no longer joinable — skip it.
@@ -338,6 +465,14 @@ export async function fetchIncomingDuels(uid: string, limit = 10): Promise<Incom
         } satisfies IncomingDuel;
       })
       .filter((d): d is IncomingDuel => d !== null);
+
+    // Drop challenges from anyone either side has blocked.
+    const visible: IncomingDuel[] = [];
+    for (const d of incoming) {
+      if (await isBlockedEither(uid, d.hostUid)) continue;
+      visible.push(d);
+    }
+    return visible;
   } catch {
     return [];
   }

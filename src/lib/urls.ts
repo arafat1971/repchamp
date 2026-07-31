@@ -10,7 +10,7 @@ export const WEB_BASE = 'https://repchamp.web.app';
 
 export const PRIVACY_URL = `${WEB_BASE}/privacy`;
 export const TERMS_URL = `${WEB_BASE}/terms`;
-export const SUPPORT_EMAIL = 'support@peachtraders.xyz';
+export const SUPPORT_EMAIL = 'arafathossain455@gmail.com';
 
 /** Google Play listing — used by web invite landing pages and share fallbacks. */
 export const PLAY_STORE_URL =

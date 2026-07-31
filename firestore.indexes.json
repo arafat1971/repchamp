@@ -18,6 +18,14 @@
       ]
     },
     {
+      "collectionGroup": "duels",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "hostUid", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "matchmaking",
       "queryScope": "COLLECTION",
       "fields": [

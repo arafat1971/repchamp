@@ -1,7 +1,14 @@
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import {
+  AppState,
+  BackHandler,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
 import { useCameraPermission } from 'react-native-vision-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,7 +26,7 @@ import { PressableScale } from '@/components/ui';
 import {
   EXERCISE_SAFETY_CHIP,
 } from '@/domain/exerciseSafety';
-import { OpponentPacer, getOpponent } from '@/domain/opponent';
+import { OpponentPacer, getOpponent, type Opponent } from '@/domain/opponent';
 import { shouldPromptUpgrade } from '@/domain/paywallGate';
 import type { SessionMode } from '@/domain/progression';
 import { isPurchasesConfigured } from '@/services/purchases';
@@ -41,7 +48,12 @@ import { useCouple } from '@/state/useCouple';
 import { useLiveDuel } from '@/state/useLiveDuel';
 import { isInSync } from '@/domain/couple';
 import { dayKey } from '@/domain/progression';
-import { recordCoupleSession } from '@/services/coupleService';
+import {
+  flushCoupleCreditOutbox,
+  isCoupleCreditDone,
+  promotePendingCoupleCredit,
+  stashPendingCoupleCredit,
+} from '@/services/coupleCreditOutbox';
 import { useSettingsStore } from '@/state/settingsStore';
 import { EXERCISES, getExercise, type ExerciseId } from '@/vision/exercises';
 import { buildFormReport } from '@/vision/formScore';
@@ -63,6 +75,7 @@ export default function SessionScreen() {
     target?: string;
     opponent?: string;
     duel?: string;
+    duration?: string;
   }>();
 
   // Accept any registered exercise id, falling back to push-ups for a missing or
@@ -78,15 +91,21 @@ export default function SessionScreen() {
         : params.mode === 'together'
           ? 'together'
           : 'versus';
-  const target = params.target ? Number(params.target) : mode === 'solo' ? 25 : null;
-  const opponentId = params.opponent ?? 'adrian';
-
+  const rawTarget = params.target != null && params.target !== '' ? Number(params.target) : NaN;
+  const target =
+    Number.isFinite(rawTarget) && rawTarget > 0
+      ? rawTarget
+      : mode === 'solo'
+        ? 25
+        : null;
   /**
    * A real 1v1 match id, present only when this session was opened from a live
    * duel (createDuel/joinDuel). When set, `useLiveDuel` streams our reps up and
    * drives the opponent from the remote seat; when absent the bot pacer runs.
    */
   const duelId = params.duel ?? null;
+  // Live matches must not invent a bot id — that made "Play Again" rematch Adrian.
+  const opponentId = duelId ? (params.opponent ?? null) : (params.opponent ?? 'adrian');
   const live = useLiveDuel(duelId);
   const uid = useAuthStore((s) => s.user?.uid);
 
@@ -95,7 +114,25 @@ export default function SessionScreen() {
   }, [uid]);
 
   const definition = getExercise(exercise);
-  const opponent = useMemo(() => getOpponent(opponentId), [opponentId]);
+  const liveOpponentName = useSessionStore((s) => s.config?.opponentName ?? null);
+  const opponent = useMemo((): Opponent => {
+    // Live human matches must never fall back to the Adrian bot for the HUD.
+    if (duelId) {
+      const name = (liveOpponentName ?? '').trim() || 'Rival';
+      return {
+        id: 'live',
+        name,
+        initial: name.charAt(0).toUpperCase(),
+        color: '#1e3a5f',
+        borderColor: '#3b82f6',
+        repColor: '#93c5fd',
+        level: 1,
+        online: true,
+        repsPerMinute: 0,
+      };
+    }
+    return getOpponent(opponentId);
+  }, [duelId, opponentId, liveOpponentName]);
 
   const { hasPermission, status: permissionStatus, canRequestPermission, requestPermission } =
     useCameraPermission();
@@ -115,6 +152,23 @@ export default function SessionScreen() {
    */
   const isPro = useEffectivePro();
   const proReady = useProStore((s) => s.ready);
+
+  // Freemium gate: latch once billing readiness resolves. Re-evaluating every
+  // render let a late `proReady` flip Redirect mid-set and tear down the camera.
+  const upgradeGateLatched = useRef(false);
+  const [upgradeBlocked, setUpgradeBlocked] = useState(false);
+  useEffect(() => {
+    if (upgradeGateLatched.current) return;
+    if (!proReady || !isPurchasesConfigured()) return;
+    upgradeGateLatched.current = true;
+    setUpgradeBlocked(
+      shouldPromptUpgrade({
+        isPro,
+        exercise,
+        isCoupleMode: mode === 'together',
+      }),
+    );
+  }, [proReady, isPro, exercise, mode]);
 
   const phase = useSessionStore((s) => s.phase);
   const reps = useSessionStore((s) => s.reps);
@@ -148,8 +202,19 @@ export default function SessionScreen() {
   // re-roll the rival's score mid-set.
   const pacerRef = useRef<OpponentPacer | null>(null);
   const startedAtRef = useRef<number>(0);
+  /** True after session_started / speak / recording have fired for this set. */
+  const setKickoffFiredRef = useRef(false);
+  /** Milliseconds spent backgrounded during the active set — excluded from elapsed. */
+  const pausedAccumMsRef = useRef(0);
+  const backgroundedAtRef = useRef<number | null>(null);
   /** True once the athlete tapped Give Up, so the live duel settles as a forfeit. */
   const forfeitedRef = useRef(false);
+  /** Latch so couple credit cannot double-fire if `couple` identity churns. */
+  const coupleCreditedRef = useRef(false);
+  /** Prevents overlapping credit writes before the success latch flips. */
+  const coupleCreditInFlightRef = useRef(false);
+  /** Navigate to result exactly once — couple/live dep churn must not cancel it. */
+  const handedOffRef = useRef(false);
   const [framing, setFraming] = useState(0);
 
   /**
@@ -176,12 +241,27 @@ export default function SessionScreen() {
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
-      setAppActive(state === 'active');
+      if (state === 'active') {
+        if (backgroundedAtRef.current != null) {
+          pausedAccumMsRef.current += Date.now() - backgroundedAtRef.current;
+          backgroundedAtRef.current = null;
+        }
+        setAppActive(true);
+      } else {
+        if (backgroundedAtRef.current == null) backgroundedAtRef.current = Date.now();
+        setAppActive(false);
+      }
     });
     return () => sub.remove();
   }, []);
 
-  const duration = mode === 'solo' && target ? defaultDuration('solo') : defaultDuration(mode);
+  const durationParam = params.duration ? Number(params.duration) : NaN;
+  const duration =
+    Number.isFinite(durationParam) && durationParam > 0
+      ? durationParam
+      : mode === 'solo' && target
+        ? defaultDuration('solo')
+        : defaultDuration(mode);
 
   /* ---------------------------------------------------------------- *
    * Session bootstrap
@@ -194,15 +274,30 @@ export default function SessionScreen() {
   }, [hasPermission, canRequestPermission, requestPermission]);
 
   useEffect(() => {
-    startSession({ exercise, mode, duration, target, opponentId: mode === 'versus' ? opponentId : null });
+    startSession({
+      exercise,
+      mode,
+      duration,
+      target,
+      opponentId: mode === 'versus' && !duelId ? opponentId : null,
+      duelId,
+    });
     // Fresh session — allow a new action shot to be captured.
     snapshotCapturedRef.current = false;
+    coupleCreditedRef.current = false;
+    coupleCreditInFlightRef.current = false;
+    handedOffRef.current = false;
+    forfeitedRef.current = false;
+    setKickoffFiredRef.current = false;
+    startedAtRef.current = 0;
     // A live duel (duelId set) drives the opponent from the remote seat — no bot.
     // Key off the route param, NOT live.active: auth can resolve after mount and
     // flip live.active, which must never re-run startSession and wipe mid-set reps.
+    // Do NOT depend on `opponent` / liveOpponentName — first name snapshot used to
+    // recreate the opponent object and restart the whole set mid-rep.
     pacerRef.current =
       mode === 'versus' && !duelId
-        ? new OpponentPacer(opponent, duration, Date.now() % 100000)
+        ? new OpponentPacer(getOpponent(opponentId), duration, Date.now() % 100000)
         : null;
 
     // Deliberately does NOT reset the session store. Navigating to the result
@@ -211,7 +306,7 @@ export default function SessionScreen() {
     // that screen out. `start()` resets state at the beginning of every
     // session, and the result screen's "Done" resets it on the way out.
     return stopSpeaking;
-  }, [exercise, mode, duration, target, opponentId, opponent, startSession, duelId]);
+  }, [exercise, mode, duration, target, opponentId, startSession, duelId]);
 
   /* ---------------------------------------------------------------- *
    * Pose pipeline
@@ -417,40 +512,70 @@ export default function SessionScreen() {
   /* ---------------------------------------------------------------- *
    * Duel clock + opponent
    * ---------------------------------------------------------------- */
+  const liveRef = useRef(live);
+  liveRef.current = live;
+
+  // New session — clear the clock latch so the next Go! starts clean.
+  useEffect(() => {
+    if (phase === 'calibrating') {
+      startedAtRef.current = 0;
+      setKickoffFiredRef.current = false;
+      pausedAccumMsRef.current = 0;
+      backgroundedAtRef.current = null;
+    }
+  }, [phase]);
+
   useEffect(() => {
     if (phase !== 'active') return;
 
-    startedAtRef.current = Date.now();
-    track('session_started', { exercise, mode });
-    if (mode === 'together') {
-      track('couple_together_started', { exercise });
+    // HUD clock always latches at local Go! so calibration can't eat the set.
+    // Force-settle still uses cloud `duel.startedAt + duration + grace`.
+    if (startedAtRef.current === 0) {
+      startedAtRef.current = Date.now();
+      pausedAccumMsRef.current = 0;
+      backgroundedAtRef.current = null;
     }
-    // Filming starts with the set, not with calibration — nobody wants the
-    // shuffling-into-position footage in their share card.
-    void startRecording();
-    speak(
-      mode === 'practice'
-        ? 'Practice time. Nice and steady.'
-        : mode === 'solo'
-          ? 'Go! Beat the target.'
-          : 'Go! Let us move.',
-    );
 
-    // Wall-clock remaining so backgrounding the app can't freeze the timer and
-    // unfairly extend a timed duel (setInterval is throttled off-screen).
-    // Form score only when we actually push — avoids JS-thread ANR on low-end.
+    // Fire session_started / recording / speak only once per set.
+    if (!setKickoffFiredRef.current) {
+      setKickoffFiredRef.current = true;
+      track('session_started', { exercise, mode });
+      if (mode === 'together') {
+        track('couple_together_started', { exercise });
+      }
+      // Filming starts with the set, not with calibration — nobody wants the
+      // shuffling-into-position footage in their share card.
+      void startRecording();
+      speak(
+        mode === 'practice'
+          ? 'Practice time. Nice and steady.'
+          : mode === 'solo'
+            ? 'Go! Beat the target.'
+            : 'Go! Let us move.',
+      );
+    }
+
+    // Solo/bot: pause while backgrounded. Live: keep wall-clock ticking so we
+    // still finish() if the app is backgrounded past match end (XP not lost).
     let lastFormPush = 0;
     const id = setInterval(() => {
-      const elapsed = (Date.now() - startedAtRef.current) / 1000;
+      const liveNow = liveRef.current;
+      const backgrounded = AppState.currentState !== 'active';
+      if (backgrounded && !liveNow.active) return;
+
+      const pauseMs = liveNow.active ? 0 : pausedAccumMsRef.current;
+      const elapsed = (Date.now() - startedAtRef.current - pauseMs) / 1000;
       const pacer = pacerRef.current;
-      if (pacer) useSessionStore.getState().setOpponentReps(pacer.repsAt(elapsed));
-      if (live.active) {
+      if (pacer && !backgrounded) {
+        useSessionStore.getState().setOpponentReps(pacer.repsAt(elapsed));
+      }
+      if (liveNow.active && !backgrounded) {
         const now = Date.now();
         if (now - lastFormPush >= 320) {
           lastFormPush = now;
           const s = useSessionStore.getState();
           const form = buildFormReport(definition, s.repRecords).score;
-          live.push(s.reps, form);
+          liveNow.push(s.reps, form);
         }
       }
       const remaining = Math.max(0, Math.ceil(duration - elapsed));
@@ -465,42 +590,66 @@ export default function SessionScreen() {
     }, 250);
 
     return () => clearInterval(id);
-    // Depend on live.active (boolean), not the live object — identity is stable
-    // after useMemo, but this keeps the intent explicit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, mode, duration, startRecording, live.active, definition, exercise]);
+  }, [phase, mode, duration, startRecording, definition, exercise]);
 
   /* ---------------------------------------------------------------- *
-   * Hand off to the result screen
+   * Couple credit (separate from navigation so partner hydrate can't cancel it)
    * ---------------------------------------------------------------- */
   useEffect(() => {
-    if (phase !== 'finished') return;
+    if (phase !== 'finished' || mode !== 'together') return;
+    const s0 = useSessionStore.getState();
+    if (
+      s0.reps <= 0 ||
+      forfeitedRef.current ||
+      coupleCreditedRef.current ||
+      coupleCreditInFlightRef.current
+    ) {
+      return;
+    }
+    const memberUid = coupleMe?.uid ?? uid;
+    if (!memberUid) return;
+
+    // Always park — bond may still be hydrating when we hand off to result.
+    stashPendingCoupleCredit({
+      uid: memberUid,
+      reps: s0.reps,
+      day: dayKey(),
+      startedAt: startedAtRef.current,
+    });
+
+    const coupleId = couple?.id;
+    if (!coupleId) return;
+
+    const creditId = promotePendingCoupleCredit(coupleId, memberUid);
+    if (!creditId) return;
+
+    coupleCreditInFlightRef.current = true;
+    void flushCoupleCreditOutbox().finally(() => {
+      if (isCoupleCreditDone(creditId)) coupleCreditedRef.current = true;
+      coupleCreditInFlightRef.current = false;
+    });
+  }, [phase, mode, couple?.id, coupleMe?.uid, uid]);
+
+  /* ---------------------------------------------------------------- *
+   * Hand off to the result screen (once)
+   * ---------------------------------------------------------------- */
+  useEffect(() => {
+    if (phase !== 'finished' || handedOffRef.current) return;
+    handedOffRef.current = true;
     successHaptic();
 
     const s0 = useSessionStore.getState();
     track('session_finished', { exercise, mode, reps: s0.reps, won: s0.won });
 
-    // Settle the live duel (if any): stamp our final reps/form on our seat and,
-    // once both players are done, resolve the winner. Idempotent in useLiveDuel.
+    // Settle the live duel when wiring is ready. Auth can resolve after finish
+    // (cold challenge launch) — retry below when `live` flips active later.
     if (live.active) {
-      const s = useSessionStore.getState();
-      const form = buildFormReport(definition, s.repRecords).score;
-      live.finish(s.reps, form, forfeitedRef.current);
+      const form = s0.formReport?.score ?? 0;
+      live.finish(s0.reps, form, forfeitedRef.current);
     }
 
-    // Credit the couple: the reps go on this athlete's side of the bond and
-    // today is marked, which is what the shared streak is computed from. Only
-    // for a real together set — a solo session must not prop up a couple streak
-    // the partner had no part in.
-    if (mode === 'together' && couple && coupleMe) {
-      const s = useSessionStore.getState();
-      void recordCoupleSession(couple.id, coupleMe.uid, s.reps, dayKey());
-    }
-
-    // Fallback: if no mid-set shot was grabbed (e.g. a very short set with fewer
-    // than two reps), try once more before the camera tears down. The live
-    // capture during reps is preferred — by this point the camera may already be
-    // releasing — but a best-effort frame beats an empty share stage.
+    // Best-effort late snapshot while the camera is still mounted.
     if (!snapshotCapturedRef.current && cameraStageRef.current) {
       snapshotCapturedRef.current = true;
       void captureRef(cameraStageRef, { format: 'jpg', quality: 0.85 })
@@ -508,17 +657,22 @@ export default function SessionScreen() {
         .catch(() => {});
     }
 
-    // Navigation waits for the clip: leaving this screen tears down the camera
-    // session, and an encoder killed mid-flush writes an empty file.
-    let cancelled = false;
+    // Navigation waits for the clip when recording is on. With recording off
+    // (current Android default), stop resolves immediately. Never cancel this
+    // replace — couple/live identity churn used to drop the athlete on a stuck
+    // finished frame with no result screen.
     void stopRecording().finally(() => {
-      if (!cancelled) router.replace('/session/result');
+      router.replace('/session/result');
     });
-    return () => {
-      cancelled = true;
-    };
-  }, [phase, router, stopRecording, live, definition, mode, couple, coupleMe]);
+  }, [phase, router, stopRecording, live, exercise, mode]);
 
+  // Cold-start auth: finish handoff can run while `live` is still inert.
+  useEffect(() => {
+    if (phase !== 'finished' || !live.active || !duelId) return;
+    const s0 = useSessionStore.getState();
+    const form = s0.formReport?.score ?? 0;
+    live.finish(s0.reps, form, forfeitedRef.current);
+  }, [phase, live, duelId]);
   // Guarantee an action shot for the share card even on a zero-rep set: a short
   // delay after the set goes live (athlete framed, camera + pose line on screen)
   // grabs one frame. The rep-completion capture above is preferred and latches
@@ -546,19 +700,41 @@ export default function SessionScreen() {
     useSessionStore.getState().finish({ forfeited: true });
   }, [cancelRecording]);
 
+  /**
+   * Leave the session screen. Live duels mid-set must forfeit (same as Give Up)
+   * so the partner is not stranded until abandon grace.
+   */
+  const leaveSession = useCallback(() => {
+    const p = useSessionStore.getState().phase;
+    if (duelId && (p === 'countdown' || p === 'active')) {
+      giveUp();
+      return;
+    }
+    if (duelId && live.active && p !== 'finished') {
+      forfeitedRef.current = true;
+      void cancelRecording();
+      const s0 = useSessionStore.getState();
+      live.finish(s0.reps, s0.formReport?.score ?? 0, true);
+    }
+    stopSpeaking();
+    useSessionStore.getState().reset();
+    router.back();
+  }, [duelId, giveUp, live, cancelRecording, router]);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      leaveSession();
+      return true;
+    });
+    return () => sub.remove();
+  }, [leaveSession]);
+
   const accent =
     exercise === 'squat' || exercise === 'stretch' ? palette.purple500 : palette.green500;
 
-  // Freemium gate: the core (push/squat, any mode, couple) is free forever — that
-  // builds the habit and powers the invite loop. Only a free user reaching for a
-  // Pro-only exercise gets the trial paywall (soft, dismissible), and only once
-  // billing is set up and the entitlement read has resolved (never flash a Pro).
-  const needsUpgrade =
-    proReady &&
-    isPurchasesConfigured() &&
-    shouldPromptUpgrade({ isPro, exercise, isCoupleMode: mode === 'together' });
-
-  if (needsUpgrade) {
+  // Never hard-redirect once the set is underway — soft paywall after result is fine.
+  const setUnderway = phase === 'countdown' || phase === 'active' || phase === 'finished';
+  if (upgradeBlocked && !setUnderway) {
     return (
       <Redirect
         href={{ pathname: '/modal/paywall', params: { source: `exercise-${exercise}` } }}
@@ -725,7 +901,7 @@ export default function SessionScreen() {
         {cameraBlocked ? (
           <CameraDenied
             restricted={permissionStatus === 'restricted'}
-            onBack={() => router.back()}
+            onBack={leaveSession}
           />
         ) : null}
       </CameraStage>
@@ -738,7 +914,7 @@ export default function SessionScreen() {
       ) : null}
 
       {modelState === 'error' ? (
-        <PressableScale onPress={() => router.back()} style={styles.modelBanner}>
+        <PressableScale onPress={leaveSession} style={styles.modelBanner}>
           <Text style={styles.modelBannerText}>
             Pose model unavailable — run `npm run fetch-model`. Tap to go back.
           </Text>

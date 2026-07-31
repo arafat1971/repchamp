@@ -15,7 +15,7 @@ import type { Duel } from '../../domain/duel';
 
 /* ------------------------------------------------------------------ */
 
-import { enqueue, leaveQueue, tryPair } from '../matchmakingService';
+import { clearQueueTicket, enqueue, leaveQueue, tryPair } from '../matchmakingService';
 
 const mockState = { configured: true };
 
@@ -93,6 +93,14 @@ jest.mock('@/lib/firebase', () => ({
   isFirebaseConfigured: () => mockState.configured,
 }));
 
+jest.mock('@/services/safetyService', () => ({
+  isBlockedEither: jest.fn(async () => false),
+}));
+
+jest.mock('@/services/safetyService', () => ({
+  isBlockedEither: jest.fn(async () => false),
+}));
+
 jest.mock('@react-native-firebase/firestore', () => {
   const fn = () => ({
     collection: (name: string) => ({
@@ -111,6 +119,9 @@ jest.mock('@react-native-firebase/firestore', () => {
           const cur = mockCol(ref._col).get(ref.id);
           if (!cur) throw new Error('no doc');
           Object.assign(cur, patch);
+        },
+        delete(ref: { id: string; _col: string }) {
+          mockCol(ref._col).delete(ref.id);
         },
       };
       return cb(tx);
@@ -141,6 +152,20 @@ describe('enqueue', () => {
     expect(t.status).toBe('waiting');
     expect(t.duelId).toBeNull();
     expect(t.displayName).toBe('Ana');
+  });
+
+  it('reuses a matched ticket only when the duel is still live', async () => {
+    await enqueue(A);
+    await enqueue(B);
+    const duelId = await tryPair(B);
+    expect(await enqueue(A)).toBe(duelId);
+
+    const duel = mockStore.duels.get(duelId!) as unknown as Duel;
+    duel.status = 'finished';
+    expect(await enqueue(A)).toBeNull();
+    const t = mockStore.matchmaking.get('a') as unknown as QueueTicket;
+    expect(t.status).toBe('waiting');
+    expect(t.duelId).toBeNull();
   });
 
   it('is a no-op when unconfigured', async () => {
@@ -199,10 +224,39 @@ describe('leaveQueue', () => {
     expect(mockStore.matchmaking.has('a')).toBe(false);
   });
 
+  it('returns matched when the paired duel is still live', async () => {
+    await enqueue(A);
+    await enqueue(B);
+    const duelId = await tryPair(B);
+    const leave = await leaveQueue('a');
+    expect(leave).toEqual({ outcome: 'matched', duelId });
+    expect(mockStore.matchmaking.has('a')).toBe(true);
+  });
+
+  it('clears a matched ticket pointing at a finished duel', async () => {
+    await enqueue(A);
+    await enqueue(B);
+    const duelId = await tryPair(B);
+    (mockStore.duels.get(duelId!) as unknown as Duel).status = 'finished';
+    const leave = await leaveQueue('a');
+    expect(leave).toEqual({ outcome: 'left' });
+    expect(mockStore.matchmaking.has('a')).toBe(false);
+  });
+
   it('is a no-op when unconfigured', async () => {
     await enqueue(A);
     mockState.configured = false;
     await leaveQueue('a');
     expect(mockStore.matchmaking.has('a')).toBe(true);
+  });
+});
+
+describe('clearQueueTicket', () => {
+  it('deletes matched tickets after launch', async () => {
+    await enqueue(A);
+    await enqueue(B);
+    await tryPair(B);
+    await clearQueueTicket('a');
+    expect(mockStore.matchmaking.has('a')).toBe(false);
   });
 });

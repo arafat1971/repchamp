@@ -88,5 +88,4 @@ console access, see FIREBASE_SETUP.md):
 
 Also tightened this round and DEPLOYED: leaderboard `totalXp`/`displayName` caps and
 `users` profile XP + string-length caps (previously only `weeklyXp` was bounded).
-- The legal copy uses `support@peachtraders.xyz` as the contact — change it if that mailbox
-  isn't real before store submission.
+- The legal copy uses `arafathossain455@gmail.com` as the contact.

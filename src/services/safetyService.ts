@@ -42,7 +42,7 @@ function writeTimestamps(key: string, stamps: number[]): void {
   storage.set(key, JSON.stringify(stamps));
 }
 
-/** Throw if this athlete is over the client rate limit for `kind`. */
+/** Throw if this athlete is over the client rate limit for `kind` (does not consume). */
 export function assertClientRateLimit(
   kind: keyof typeof RATE_LIMITS,
   uid: string,
@@ -54,13 +54,88 @@ export function assertClientRateLimit(
   if (!canPassRateLimit(stamps, cfg.max, cfg.windowMs)) {
     throw new Error('Slow down — try again later.');
   }
+}
+
+/** Consume a rate-limit slot after a successful side effect. */
+export function commitClientRateLimit(
+  kind: keyof typeof RATE_LIMITS,
+  uid: string,
+  extra = '',
+): void {
+  const cfg = RATE_LIMITS[kind];
+  const key = rateKey(kind, uid, extra);
+  const stamps = readTimestamps(key);
   writeTimestamps(key, recordRateLimitEvent(stamps, cfg.windowMs));
+}
+
+/** Check + consume in one step (for flows that can't fail after the gate). */
+export function takeClientRateLimit(
+  kind: keyof typeof RATE_LIMITS,
+  uid: string,
+  extra = '',
+): void {
+  assertClientRateLimit(kind, uid, extra);
+  commitClientRateLimit(kind, uid, extra);
 }
 
 export interface BlockedUser {
   uid: string;
   displayName: string;
   blockedAt: number;
+}
+
+/** Cancel pending challenges between these two athletes (best-effort). */
+async function cancelPendingDuelsBetween(myUid: string, targetUid: string): Promise<void> {
+  const db = firestore();
+  try {
+    const [asHost, asTarget] = await Promise.all([
+      db
+        .collection('duels')
+        .where('hostUid', '==', myUid)
+        .where('status', '==', 'pending')
+        .limit(25)
+        .get(),
+      db
+        .collection('duels')
+        .where('targetUid', '==', myUid)
+        .where('status', '==', 'pending')
+        .limit(25)
+        .get(),
+    ]);
+    const ops: Promise<unknown>[] = [];
+    for (const doc of asHost.docs) {
+      const data = doc.data() as { targetUid?: string | null };
+      if (data.targetUid === targetUid) ops.push(doc.ref.delete());
+    }
+    for (const doc of asTarget.docs) {
+      const data = doc.data() as { hostUid?: string };
+      if (data.hostUid === targetUid) ops.push(doc.ref.delete());
+    }
+    await Promise.all(ops);
+  } catch {
+    // Missing index / offline — block still stands; inbox filters hide the rest.
+  }
+}
+
+/** Leave a couple bond when the blocked uid is the partner (best-effort). */
+async function leaveCoupleWith(myUid: string, targetUid: string): Promise<void> {
+  try {
+    const snap = await firestore()
+      .collection('couples')
+      .where('memberUids', 'array-contains', myUid)
+      .limit(5)
+      .get();
+    const ops: Promise<unknown>[] = [];
+    for (const doc of snap.docs) {
+      const data = doc.data() as { memberUids?: string[] };
+      if (Array.isArray(data.memberUids) && data.memberUids.includes(targetUid)) {
+        ops.push(doc.ref.delete());
+      }
+    }
+    await Promise.all(ops);
+  } catch {
+    // Offline — block still stands; couple UI will fail closed on next read.
+  }
 }
 
 /** Block a peer. Also removes them from your friends list when present. */
@@ -83,6 +158,12 @@ export async function blockUser(
     firestore().collection('users').doc(myUid).collection('friends').doc(targetUid),
   );
   await batch.commit();
+
+  // Client-doable cleanup the rules allow — reverse friend edge needs CF.
+  await Promise.all([
+    cancelPendingDuelsBetween(myUid, targetUid),
+    leaveCoupleWith(myUid, targetUid),
+  ]);
 }
 
 export async function unblockUser(myUid: string, targetUid: string): Promise<void> {
@@ -148,4 +229,7 @@ export async function createReport(input: CreateReportInput): Promise<void> {
     createdAt: firestore.FieldValue.serverTimestamp(),
     clientAt: Date.now(),
   });
+  // Only burn the slot after a successful write so offline/rules failures can retry.
+  commitClientRateLimit('report', input.reporterUid);
+  commitClientRateLimit('reportSameTarget', input.reporterUid, input.targetUid);
 }

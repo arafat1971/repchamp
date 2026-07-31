@@ -7,6 +7,7 @@ import {
   coupleBondPresentation,
   coupleLevel,
   couplePoints,
+  extractPairCode,
   inviteDeepLink,
   inviteLink,
   parseInviteCode,
@@ -90,6 +91,15 @@ describe('invite links', () => {
   it('returns null when there is no usable code', () => {
     expect(parseInviteCode('https://repchamp.web.app/couple/join')).toBeNull();
     expect(parseInviteCode('https://repchamp.web.app/couple/join?code=ABC')).toBeNull();
+  });
+
+  it('extractPairCode accepts typed codes, URLs, and pasted share text', () => {
+    expect(extractPairCode('abc234')).toBe('ABC234');
+    expect(extractPairCode(inviteLink('ABC234'))).toBe('ABC234');
+    expect(extractPairCode('Train with me on RepChamp: https://repchamp.web.app/couple/join?code=ABC234')).toBe(
+      'ABC234',
+    );
+    expect(extractPairCode('not a code')).toBe('');
   });
 });
 

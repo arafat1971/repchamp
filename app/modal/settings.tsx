@@ -10,7 +10,14 @@ import {
   syncLocalReminders,
 } from '@/lib/notifications';
 import { clearAllStorage } from '@/lib/storage';
-import { deleteAccount, exportAccountData } from '@/services/accountService';
+import {
+  CLOUD_ERASED_REAUTH_MESSAGE,
+  closeOpenDuels,
+  deleteAccount,
+  exportAccountData,
+} from '@/services/accountService';
+import { flushCoupleCreditOutbox } from '@/services/coupleCreditOutbox';
+import { forceBankPendingLiveSettles } from '@/services/liveResultSettle';
 import { isPurchasesConfigured, resetPurchases, restore } from '@/services/purchases';
 import { track } from '@/lib/analytics';
 import { useAuthStore } from '@/state/authStore';
@@ -80,10 +87,53 @@ export default function SettingsScreen() {
   const refreshPro = useProStore((s) => s.refresh);
   const [busy, setBusy] = useState<null | 'export' | 'delete' | 'restore'>(null);
 
-  const clearLocalSession = async () => {
+  const clearLocalSession = async (opts?: { syncFirst?: boolean }) => {
+    if (opts?.syncFirst !== false) {
+      // Bank any live-duel XP still in the settle outbox before MMKV wipe.
+      forceBankPendingLiveSettles((item, bank) => {
+        useProfileStore.getState().recordSession({
+          exercise: item.record.exercise,
+          mode: item.record.sessionMode,
+          reps: item.record.reps,
+          opponentReps:
+            item.record.sessionMode === 'versus' ? bank.opponentReps : null,
+          opponentId: bank.opponentId ?? item.record.opponentId ?? null,
+          target: item.record.target,
+          won: bank.won,
+          drew: bank.drew,
+          xp: bank.xp,
+          formScore: item.record.formScore,
+          durationSec: item.record.durationSec,
+        });
+        return true;
+      });
+      // Best-effort cloud mirror — unsynced XP / couple credits are lost otherwise.
+      try {
+        await useAuthStore.getState().pushProfile();
+      } catch {
+        // Offline / App Check — still proceed; the dialog already warned.
+      }
+      try {
+        await flushCoupleCreditOutbox();
+      } catch {
+        // Same — wipe continues; credits may already be on the couple doc.
+      }
+    }
+    // Don't leave partners mid-match against a ghost uid after logout.
+    if (uid) {
+      try {
+        await closeOpenDuels(uid);
+      } catch {
+        // Best-effort; wipe still proceeds.
+      }
+    }
     await resetPurchases();
     setPro(false);
-    void cloudSignOut();
+    try {
+      await cloudSignOut();
+    } catch {
+      // Local wipe still proceeds; next launch mints a fresh anon session.
+    }
     resetProfile();
     clearAllStorage();
   };
@@ -92,7 +142,7 @@ export default function SettingsScreen() {
     showDialog({
       title: 'Log out?',
       message:
-        'This clears your profile, session history and XP on this device. It cannot be undone.',
+        'This clears your profile, session history and XP on this device. Sync runs first when possible. It cannot be undone.',
       tone: 'danger',
       actions: [
         { label: 'Cancel', variant: 'cancel' },
@@ -101,7 +151,7 @@ export default function SettingsScreen() {
           variant: 'destructive',
           onPress: () => {
             void (async () => {
-              await clearLocalSession();
+              await clearLocalSession({ syncFirst: true });
               router.replace('/onboarding');
             })();
           },
@@ -114,7 +164,7 @@ export default function SettingsScreen() {
     if (busy || !isPurchasesConfigured()) return;
     setBusy('restore');
     void (async () => {
-      const result = await restore();
+      const result = await restore(uid);
       setBusy(null);
       if (result.ok && result.isPro) {
         setPro(true);
@@ -195,15 +245,33 @@ export default function SettingsScreen() {
             setBusy('delete');
             void (async () => {
               try {
-                await deleteAccount(uid ?? '');
-              } catch (error) {
-                // Even a partial failure shouldn't strand the user signed-in with
-                // half-deleted data; log it, then still wipe local and sign out.
-                captureError(error);
-              } finally {
-                await clearLocalSession();
+                if (!uid) {
+                  throw new Error('Sign in first, then try deleting again.');
+                }
+                await deleteAccount(uid);
+                // Cloud + auth erased — wipe device and leave.
+                await clearLocalSession({ syncFirst: false });
                 setBusy(null);
                 router.replace('/onboarding');
+              } catch (error) {
+                captureError(error);
+                const message =
+                  error instanceof Error
+                    ? error.message
+                    : 'Could not delete your account right now. Please try again.';
+                // Cloud wiped but Auth needs a fresh login — keep the session so
+                // they can reauth and tap Delete again. Signing out here orphans
+                // the Auth user that still needs current.delete().
+                const cloudErased =
+                  message === CLOUD_ERASED_REAUTH_MESSAGE ||
+                  /cloud data was erased/i.test(message);
+                setBusy(null);
+                showDialog({
+                  title: cloudErased ? 'Confirm your login' : 'Delete failed',
+                  message: cloudErased ? CLOUD_ERASED_REAUTH_MESSAGE : message,
+                  tone: cloudErased ? 'info' : 'danger',
+                  actions: [{ label: 'Got it', variant: 'primary' }],
+                });
               }
             })();
           },

@@ -87,8 +87,20 @@ export class OneEuroFilter {
      * units/second. Values in the hundredths (common when filtering pixel
      * coordinates, which move by hundreds of units) leave this term negligible
      * against `minCutoff` and turn the filter into a plain low-pass.
+     *
+     * This was 1.0, which was still too close to that plain low-pass: the
+     * cutoff barely rose during a rep, so the filter lagged the descent and
+     * clipped its peak. A push-up whose true depth was 0.75 came out at 0.68
+     * once the thermal throttle dropped inference to ~10Hz — under the 0.70
+     * `downThreshold`, so the rep was never even *started*, let alone counted.
+     * Reps went missing rather than being graded shallow.
+     *
+     * At 10 the same rep holds ~0.74 across 30Hz and 10Hz, for roughly 10%
+     * more frame-to-frame jitter on a noisy resting signal. Deliberately fixes
+     * this by making the filter track honestly rather than by loosening any
+     * threshold or duration gate — those are what keep duel scores comparable.
      */
-    private readonly beta = 1.0,
+    private readonly beta = 10.0,
     /** Cutoff for the derivative estimate itself (Hz). */
     private readonly derivativeCutoff = 1.0,
   ) {}

@@ -85,4 +85,40 @@ describe('OneEuroFilter', () => {
     filter.reset();
     expect(filter.filter(0.1, 66)).toBe(0.1);
   });
+
+  /**
+   * Simulate one rep as a half-sine from 0 up to `peak` and back, sampled at
+   * `hz`, and report the deepest value the filter reported.
+   */
+  function peakOfRep(peak: number, repMs: number, hz: number): number {
+    const filter = new OneEuroFilter();
+    const step = 1000 / hz;
+    let deepest = 0;
+    for (let t = 0; t <= repMs; t += step) {
+      deepest = Math.max(deepest, filter.filter(peak * Math.sin((t / repMs) * Math.PI), t));
+    }
+    return deepest;
+  }
+
+  it('preserves the depth of a genuine rep even at a throttled sample rate', () => {
+    // Regression: reps were going missing rather than being graded shallow. A
+    // push-up whose true depth is 0.75 has to smooth to at least the 0.70
+    // `downThreshold` or the counter never even starts the rep. With the old
+    // beta of 1.0 this came out at 0.68 once the thermal throttle dropped
+    // inference to ~10Hz, so the rep was invisible.
+    const PUSH_DOWN_THRESHOLD = 0.7;
+
+    for (const hz of [30, 15, 10]) {
+      for (const repMs of [600, 800, 1200]) {
+        expect(peakOfRep(0.75, repMs, hz)).toBeGreaterThanOrEqual(PUSH_DOWN_THRESHOLD);
+      }
+    }
+  });
+
+  it('does not overshoot the true depth of a rep', () => {
+    // The counter grades depth off this signal, so tracking harder must not
+    // start inventing range the athlete did not actually produce.
+    expect(peakOfRep(0.75, 800, 30)).toBeLessThanOrEqual(0.75);
+    expect(peakOfRep(1.0, 800, 30)).toBeLessThanOrEqual(1.0);
+  });
 });

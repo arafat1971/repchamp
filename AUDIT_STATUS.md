@@ -49,9 +49,25 @@ Six silent-failure bugs — paths that reported success while doing nothing. See
 - **FAB artwork clipping** — the scale constant was tuned to a near-square mark; the current
   landscape one would have been cut off by the circular clip.
 
-Test coverage went 499 → 524. `accountService`, `proStore` and `authStore` had no tests at
-all, which is precisely why their bugs survived. Every regression test was verified by
-reinstating the original bug and confirming the test fails.
+Test coverage went 499 → 551, and every service now has a test file. `accountService`,
+`proStore`, `authStore`, `safetyService` and `liveResultSettle` had none at all, which is
+precisely why their bugs survived. Every regression test was verified by reinstating the
+original bug and confirming the test fails.
+
+### On-device verification (Pixel 7a, 2026-08-01)
+
+- **FAB artwork** — confirmed by screenshot: both figures render fully inside the ring with
+  margin. The inherited 1.3 scale would have clipped them.
+- **Camera session** — opened a live squats session, camera preview streaming, calibration
+  ring and framing brackets rendering, clean teardown on exit. **Zero `SuspendAll` / SIGABRT /
+  ANR signatures**, which is the scenario that used to abort within ~90s before the
+  VisionCamera 5.2.0 / Nitro 0.36.4 upgrade.
+- **Share-card action photo — still unverified.** The capture only runs on a *completed rep*,
+  so it needs a person in frame; with the phone on a desk, MoveNet never detects a body and
+  calibration stalls (correct behaviour). This one cannot be verified without a real set.
+
+Earlier "blank screenshot" failures were the device screen being off, not a secure-surface
+block — `screencap` works normally when the phone is awake.
 
 ### Known remaining gaps (deliberately deferred)
 

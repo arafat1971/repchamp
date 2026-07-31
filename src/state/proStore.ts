@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 
+import { captureError } from '@/lib/crash';
 import {
   configurePurchases,
   fetchIsPro,
@@ -30,6 +31,17 @@ interface ProState {
   setPro: (isPro: boolean) => void;
 }
 
+/**
+ * The uid the store was last initialised with.
+ *
+ * `refresh()` needs it: calling `fetchIsPro()` with no uid falls back to
+ * whatever identity RevenueCat happens to already hold, which on a cold start
+ * is none — so a paying subscriber got re-checked as anonymous and read back
+ * as free. Kept module-level rather than in state because it is plumbing, not
+ * something a component should re-render on.
+ */
+let activeUid: string | null = null;
+
 export const useProStore = create<ProState>()((set) => ({
   isPro: false,
   ready: false,
@@ -37,6 +49,7 @@ export const useProStore = create<ProState>()((set) => ({
   initialize: (uid) => {
     let cancelled = false;
     let unwatch: () => void = () => {};
+    activeUid = uid;
 
     // Drop the previous account's entitlement immediately — otherwise a uid
     // switch briefly inherits the last user's Pro flag.
@@ -45,14 +58,23 @@ export const useProStore = create<ProState>()((set) => ({
     // Configure first, then attach the listener. Registering before configure
     // can no-op or throw on a cold start — and the paywall may race this path.
     void (async () => {
-      await configurePurchases(uid);
-      if (cancelled) return;
-      const pro = await fetchIsPro(uid);
-      if (cancelled) return;
-      set({ isPro: pro, ready: true });
-      unwatch = watchCustomerInfo((next) => {
-        if (!cancelled) set({ isPro: next });
-      });
+      try {
+        await configurePurchases(uid);
+        if (cancelled) return;
+        const pro = await fetchIsPro(uid);
+        if (cancelled) return;
+        set({ isPro: pro, ready: true });
+        unwatch = watchCustomerInfo((next) => {
+          if (!cancelled) set({ isPro: next });
+        });
+      } catch (error) {
+        // Never leave `ready` false on a throw: the paywall blocks on it, so a
+        // transient billing error used to hang that screen on its spinner for
+        // the rest of the session with no way out. Resolve as not-Pro — the
+        // listener and the next `refresh()` can still upgrade it later.
+        captureError(error);
+        if (!cancelled) set({ ready: true });
+      }
     })();
 
     return () => {
@@ -63,7 +85,8 @@ export const useProStore = create<ProState>()((set) => ({
   },
 
   refresh: async () => {
-    set({ isPro: await fetchIsPro() });
+    const pro = await fetchIsPro(activeUid);
+    set({ isPro: pro });
   },
 
   setPro: (isPro) => set({ isPro }),

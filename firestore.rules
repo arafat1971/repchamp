@@ -424,7 +424,13 @@ service cloud.firestore {
           && request.resource.data.totalXp >= 0
           && request.resource.data.totalXp <= 100000000
           && request.resource.data.displayName is string
-          && request.resource.data.displayName.size() <= 40;
+          && request.resource.data.displayName.size() <= 40
+          // `weekKey` was previously unvalidated, which made scoreMonotonic()
+          // trivially bypassable: that check waives the "weeklyXp can only go
+          // up" guard whenever the key differs, so any junk value disabled it.
+          // Pin it to the ISO shape the client actually writes (2026-W31).
+          && request.resource.data.weekKey is string
+          && request.resource.data.weekKey.matches('^[0-9]{4}-W[0-9]{2}$');
       }
       // Same-week weeklyXp and lifetime totalXp are monotonic so a reinstall
       // with empty local sessions cannot wipe a real board row.

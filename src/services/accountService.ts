@@ -163,24 +163,55 @@ export async function deleteAccount(uid: string): Promise<void> {
 
   await closeOpenDuels(uid);
 
+  /**
+   * Track which erasures actually landed.
+   *
+   * Every delete below used to swallow its own rejection, so `Promise.all`
+   * always resolved and the athlete was told their account was deleted even
+   * when their profile and leaderboard row were still live — a privacy
+   * promise we could not actually keep. Failures are still tolerated
+   * individually (one rejected delete must not abandon the rest), but they
+   * are now recorded and raised at the end so the caller can report the
+   * truth and let the athlete retry.
+   */
+  const failed: string[] = [];
+  const attempt = (label: string, work: Promise<unknown>): Promise<unknown> =>
+    work.catch(() => {
+      failed.push(label);
+    });
+
   // Subcollections first — Firestore does not cascade-delete them with the parent.
   const deletions: Promise<unknown>[] = [
-    userRef.collection('private').doc('push').delete().catch(() => undefined),
-    ...friendsSnap.docs.map((d) => d.ref.delete().catch(() => undefined)),
-    ...blocksSnap.docs.map((d) => d.ref.delete().catch(() => undefined)),
-    db.collection('leaderboard').doc(uid).delete().catch(() => undefined),
-    db.collection('matchmaking').doc(uid).delete().catch(() => undefined),
+    attempt('push token', userRef.collection('private').doc('push').delete()),
+    ...friendsSnap.docs.map((d) => attempt('friends', d.ref.delete())),
+    ...blocksSnap.docs.map((d) => attempt('blocks', d.ref.delete())),
+    attempt('leaderboard row', db.collection('leaderboard').doc(uid).delete()),
+    attempt('matchmaking ticket', db.collection('matchmaking').doc(uid).delete()),
   ];
   for (const couple of coupleSnap.docs) {
-    deletions.push(couple.ref.delete().catch(() => undefined));
+    deletions.push(attempt('couple record', couple.ref.delete()));
   }
 
   await Promise.all(deletions);
   // Parent profile last, after secrets / friends are gone.
   try {
     await userRef.delete();
-  } catch {
-    // Already erased on a prior attempt that stopped at Auth reauth.
+  } catch (error) {
+    // A not-found here is the expected resume path: a previous attempt erased
+    // the cloud data and stopped at the Auth reauth step. Anything else is a
+    // real failure and must not be reported as a successful deletion.
+    const code = String((error as { code?: string })?.code ?? '');
+    if (code !== 'firestore/not-found' && code !== 'not-found') {
+      failed.push('profile');
+    }
+  }
+
+  if (failed.length > 0) {
+    const unique = [...new Set(failed)];
+    throw new Error(
+      `Some of your data could not be deleted (${unique.join(', ')}). ` +
+        'Nothing else was changed — please check your connection and try again.',
+    );
   }
 
   try {

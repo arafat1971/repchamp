@@ -305,8 +305,31 @@ export function armLiveResultSettle(input: ArmLiveSettleInput): void {
     });
   };
 
+  /**
+   * Cap the forfeit retries.
+   *
+   * This fires every 5s and is only cleared by `teardown()`, which runs on a
+   * *successful* bank — so a duel that never settles (opponent gone, rules
+   * rejecting the write) used to retry forever, a permanent Firestore write
+   * loop for the life of the process with every rejection invisible. Roughly
+   * two minutes of attempts is far past the 90s last-resort fallback, so if
+   * it has not worked by then it is not going to.
+   */
+  const MAX_FORCE_ATTEMPTS = 24;
+  let forceAttempts = 0;
+
   const attemptForce = () => {
     if (settled) return;
+    if (forceAttempts >= MAX_FORCE_ATTEMPTS) {
+      if (forceInterval) {
+        clearInterval(forceInterval);
+        forceInterval = null;
+      }
+      return;
+    }
+    forceAttempts += 1;
+    // `forceSettleAbandoned` swallows its own errors and resolves false, so
+    // there is nothing to catch here — the cap above is what bounds it.
     void forceSettleAbandoned(input.duelId, input.uid, input.outcome);
   };
 

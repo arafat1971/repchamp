@@ -238,6 +238,17 @@ export function watchMyCouple(uid: string, onChange: (couple: Couple | null) => 
 }
 
 /**
+ * How many applied credit ids the couple doc remembers.
+ *
+ * This is the server-side replay guard, so it must outlive the client's own
+ * "already flushed" memory in `coupleCreditOutbox.ts` (capped at 200) — not
+ * the other way round. It previously kept only 40, so an id could age out
+ * here while the outbox still held it, and a replayed credit would be applied
+ * twice. Kept comfortably above the client's cap.
+ */
+const CREDIT_HISTORY_LIMIT = 250;
+
+/**
  * Credit a finished session to one member: their reps go up and today is added
  * to the days that feed the shared streak.
  *
@@ -272,7 +283,7 @@ export async function recordCoupleSession(
         totalReps: m.totalReps + reps,
         trainedDays: m.trainedDays.includes(day) ? m.trainedDays : [...m.trainedDays, day],
         ...(creditId
-          ? { creditedIds: [...credited, creditId].slice(-40) }
+          ? { creditedIds: [...credited, creditId].slice(-CREDIT_HISTORY_LIMIT) }
           : {}),
       };
     });

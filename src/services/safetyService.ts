@@ -105,11 +105,19 @@ async function cancelPendingDuelsBetween(myUid: string, targetUid: string): Prom
     const ops: Promise<unknown>[] = [];
     for (const doc of asHost.docs) {
       const data = doc.data() as { targetUid?: string | null };
+      // We host it, so the rules let us delete it whatever its state.
       if (data.targetUid === targetUid) ops.push(doc.ref.delete());
     }
     for (const doc of asTarget.docs) {
-      const data = doc.data() as { hostUid?: string };
-      if (data.hostUid === targetUid) ops.push(doc.ref.delete());
+      const data = doc.data() as { hostUid?: string; guestUid?: string | null };
+      if (data.hostUid !== targetUid) continue;
+      // As the *target* the rules only permit a delete while the seat is still
+      // open (`guestUid == null`). Attempting it once someone has joined is
+      // rejected, and that rejection lands in the catch below — so the block
+      // used to look successful while the challenge stayed live. Skip those
+      // here; the inbox filters already hide a blocked athlete's duels.
+      if (data.guestUid != null) continue;
+      ops.push(doc.ref.delete());
     }
     await Promise.all(ops);
   } catch {

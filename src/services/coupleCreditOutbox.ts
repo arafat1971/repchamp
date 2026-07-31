@@ -123,7 +123,10 @@ export async function flushCoupleCreditOutbox(): Promise<void> {
   if (list.length === 0) return;
 
   const done = readDone();
-  const remaining: CoupleCreditItem[] = [];
+  // Everything still owed, in order. Items leave only once their credit has
+  // actually landed; a failure keeps its item here so the next flush retries.
+  let pending = list.filter((item) => !done.has(item.id));
+  writeList(OUTBOX_KEY, pending);
 
   for (const item of list) {
     if (done.has(item.id)) continue;
@@ -136,11 +139,17 @@ export async function flushCoupleCreditOutbox(): Promise<void> {
         item.id,
       );
       done.add(item.id);
+      pending = pending.filter((x) => x.id !== item.id);
+      // Persist after *every* credit rather than once at the end of the loop.
+      // A kill mid-flush (backgrounded, OOM) used to lose the record of
+      // everything already written, so the next flush replayed those credits
+      // and the couple's rep total double-counted. The server-side
+      // `creditedIds` guard is the backstop, but it only remembers a bounded
+      // window — this is what keeps us from leaning on it in the first place.
+      writeDone(done);
+      writeList(OUTBOX_KEY, pending);
     } catch {
-      remaining.push(item);
+      // Leave it in `pending` and move on; a later item may still succeed.
     }
   }
-
-  writeDone(done);
-  writeList(OUTBOX_KEY, remaining);
 }

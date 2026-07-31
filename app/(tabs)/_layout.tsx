@@ -207,27 +207,33 @@ function MuscleIcon({ size = 26, color = '#ffffff' }: { size?: number; color?: s
 /**
  * The FAB's flex mark — the illustrated `fabicon` asset.
  *
- * The artwork is a transparent-backed bicep centred in a 1024² canvas with
- * roughly a quarter of each edge as empty padding, so it is rendered larger
- * than the nominal icon box to make the arm itself read at FAB size. Falling
- * back to the vector `MuscleIcon` if the asset ever fails to resolve keeps a
- * broken/renamed file from leaving an empty FAB.
+ * Falling back to the vector `MuscleIcon` if the asset ever fails to resolve
+ * keeps a broken or renamed file from leaving an empty FAB.
  */
 const FLEX_ASSET = require('../../assets/fabicon.png') as number;
-const FLEX_ASSET_IS_REAL = (() => {
-  const meta = RNImage.resolveAssetSource(FLEX_ASSET);
-  return (meta?.width ?? 0) > 8 && (meta?.height ?? 0) > 8;
-})();
+const FLEX_ASSET_META = RNImage.resolveAssetSource(FLEX_ASSET);
+const FLEX_ASSET_IS_REAL =
+  (FLEX_ASSET_META?.width ?? 0) > 8 && (FLEX_ASSET_META?.height ?? 0) > 8;
 
 /**
- * The arm occupies only ~52% of its 1024² canvas (measured: 482×534 of
- * content, the rest transparent padding). Since `contentFit="contain"` fits
- * the whole canvas into the box, the visible arm would otherwise render at
- * barely half the intended size. Scaling by ~1.3 lands it at roughly 68% of
- * the circle — big enough to read, with enough margin that the round clip
- * never bites into the fist or elbow.
+ * How large the artwork is drawn, relative to the circle's diameter.
+ *
+ * `contentFit="contain"` fits the *whole canvas* into this box, and the mark
+ * sits inside a large transparent margin, so drawing it at exactly the circle
+ * size would render it far smaller than the circle implies.
+ *
+ * This has to be tuned to the artwork and cannot be derived at runtime:
+ * `resolveAssetSource` reports the canvas (1024²), not the opaque content, and
+ * both the old and current marks share that canvas while differing in shape.
+ * Measured for the current duo mark, whose content is 866×560 (1.55:1
+ * landscape, 85% of the canvas width) — at the previous 1.3 it rendered ~64pt
+ * wide inside a 58pt circle and the round clip cut off both outer arms. 0.9
+ * lands it ~44pt wide with margin to spare.
+ *
+ * If the artwork is swapped again, re-measure: a near-square mark can take a
+ * value above 1, a wide one cannot.
  */
-const FLEX_ART_INSET_SCALE = 1.3;
+const FLEX_ART_INSET_SCALE = 0.9;
 
 function FlexMark({ size }: { size: number }) {
   if (!FLEX_ASSET_IS_REAL) {

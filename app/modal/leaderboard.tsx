@@ -1,10 +1,11 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ModalHeader } from '@/components/ModalHeader';
-import { Avatar, Card, Divider, Screen } from '@/components/ui';
+import { Avatar, Card, Divider, EmptyState, Screen } from '@/components/ui';
 import { buildLeaderboard, type LeaderboardRow } from '@/domain/leaderboard';
 import { usePhantomSeed } from '@/domain/seedPhantoms';
 import { fetchLeaderboard, fetchFriends } from '@/services/leaderboardService';
@@ -20,6 +21,7 @@ type BoardRow = LeaderboardRow & { emoji?: string; isAI?: boolean };
 type Scope = 'global' | 'friends';
 
 export default function LeaderboardScreen() {
+  const router = useRouter();
   const [scope, setScope] = useState<Scope>('global');
   const profile = useProfileStore();
   const privateProfile = useSettingsStore((s) => s.privateProfile);
@@ -138,12 +140,33 @@ export default function LeaderboardScreen() {
       </LinearGradient>
 
       <Card style={styles.list}>
-        {rows.map((row, index) => (
-          <View key={row.id}>
-            {index > 0 ? <Divider style={{ marginHorizontal: 10 }} /> : null}
-            <Row row={row} />
-          </View>
-        ))}
+        {/* Friends scope with nobody added used to render an empty card and,
+            because `you` is filtered out too, no footer either — a blank panel
+            with no explanation of what to do about it. */}
+        {rows.length === 0 ? (
+          scope === 'friends' ? (
+            <EmptyState
+              glyph="👥"
+              title="No friends on the board yet"
+              message="Add friends to see how you stack up against them each week."
+              actionLabel="Add a friend"
+              onAction={() => router.push('/modal/add-friend')}
+            />
+          ) : (
+            <EmptyState
+              glyph="🏁"
+              title="No rankings yet"
+              message="Finish a set to put yourself on the board."
+            />
+          )
+        ) : (
+          rows.map((row, index) => (
+            <View key={row.id}>
+              {index > 0 ? <Divider style={{ marginHorizontal: 10 }} /> : null}
+              <Row row={row} />
+            </View>
+          ))
+        )}
       </Card>
 
       {hiddenFromGlobal ? (

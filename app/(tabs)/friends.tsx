@@ -2,7 +2,18 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View, TextInput } from 'react-native';
 
-import { Avatar, Card, Divider, Eyebrow, PressableScale, Screen } from '@/components/ui';
+import {
+  Avatar,
+  Card,
+  Divider,
+  EmptyState,
+  ErrorState,
+  Eyebrow,
+  PressableScale,
+  Screen,
+  Skeleton,
+  SkeletonCircle,
+} from '@/components/ui';
 import { StaggerIn } from '@/components/motion';
 import { captureError } from '@/lib/crash';
 import { OPPONENTS, type Opponent } from '@/domain/opponent';
@@ -45,6 +56,26 @@ function AiTag({ style }: { style?: object }) {
   );
 }
 
+/**
+ * Placeholder rows shown while the friends list loads, shaped like the real
+ * row so the layout does not jump when the data lands.
+ */
+function FriendRowSkeleton() {
+  return (
+    <View>
+      {[0, 1, 2].map((i) => (
+        <View key={i} style={styles.skeletonRow}>
+          <SkeletonCircle size={44} />
+          <View style={{ flex: 1, gap: 8 }}>
+            <Skeleton width="52%" height={13} />
+            <Skeleton width="34%" height={11} />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 function inviteParams(f: ActiveFriend, kind: InviteKind) {
   return {
     pathname: '/duel/new' as const,
@@ -68,15 +99,30 @@ export default function FriendsScreen() {
   const [cloudFriends, setCloudFriends] = useState<ActiveFriend[]>([]);
   const [recent, setRecent] = useState<RecentAthlete[]>([]);
   const [addingUid, setAddingUid] = useState<string | null>(null);
+  /**
+   * Distinguish "still loading", "loaded and genuinely empty" and "the fetch
+   * failed". Without this the three were pixel-identical — a dropped
+   * connection looked exactly like having no friends, with no way to retry.
+   */
+  const [loading, setLoading] = useState(!!uid);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const refresh = useCallback(() => {
-    if (!uid) return;
-    void fetchActiveFriends(uid)
-      .then(setCloudFriends)
-      .catch(captureError);
-    void fetchRecentAthletes(uid)
-      .then(setRecent)
-      .catch(captureError);
+    if (!uid) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setLoadFailed(false);
+    void Promise.all([
+      fetchActiveFriends(uid).then(setCloudFriends),
+      fetchRecentAthletes(uid).then(setRecent),
+    ])
+      .catch((error) => {
+        captureError(error);
+        setLoadFailed(true);
+      })
+      .finally(() => setLoading(false));
   }, [uid]);
 
   useFocusEffect(
@@ -402,7 +448,41 @@ export default function FriendsScreen() {
         </Card>
       </StaggerIn>
 
-      {filteredCloud.length > 0 ? (
+      {/* The section always renders now. It used to disappear entirely when
+          the list was empty, so a failed fetch, a search with no matches and
+          genuinely having no friends were indistinguishable. */}
+      {filteredCloud.length === 0 ? (
+        <StaggerIn index={5}>
+          <Eyebrow style={{ marginTop: 24, marginBottom: 12 }}>ON REPCHAMP</Eyebrow>
+          <Card style={{ padding: 8 }}>
+            {loading ? (
+              <FriendRowSkeleton />
+            ) : loadFailed ? (
+              <ErrorState
+                title="Could not load friends"
+                message="Your list is still safe — this is just the connection."
+                onRetry={refresh}
+              />
+            ) : search.trim() ? (
+              <EmptyState
+                glyph="🔍"
+                title={`No matches for “${search.trim()}”`}
+                message="Try a different name, or add them by username."
+                actionLabel="Add a friend"
+                onAction={() => router.push('/modal/add-friend')}
+              />
+            ) : (
+              <EmptyState
+                glyph="👋"
+                title="No friends yet"
+                message="Add someone by username and challenge them to a duel."
+                actionLabel="Add a friend"
+                onAction={() => router.push('/modal/add-friend')}
+              />
+            )}
+          </Card>
+        </StaggerIn>
+      ) : (
         <StaggerIn index={5}>
           <Eyebrow style={{ marginTop: 24, marginBottom: 12 }}>ON REPCHAMP</Eyebrow>
           <Card style={{ padding: 8 }}>
@@ -514,7 +594,7 @@ export default function FriendsScreen() {
             ))}
           </Card>
         </StaggerIn>
-      ) : null}
+      )}
     </Screen>
   );
 }
@@ -582,6 +662,13 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     paddingHorizontal: 10,
     gap: 10,
+  },
+  skeletonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 11,
+    paddingHorizontal: 10,
   },
   friendInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
   duelButton: {

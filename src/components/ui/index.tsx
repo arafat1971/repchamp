@@ -25,6 +25,7 @@ import { gradients, palette, radius, shadow, type Gradient } from '@/theme/token
 import { lightImpactHaptic } from '@/lib/feedback';
 
 export { Skeleton, SkeletonCircle } from './Skeleton';
+export { EmptyState, ErrorState } from './EmptyState';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 

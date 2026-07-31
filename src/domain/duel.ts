@@ -47,6 +47,12 @@ export interface DuelPlayer {
   done: boolean;
   /** True when this player gave up rather than finished. */
   forfeited: boolean;
+  /**
+   * HTTPS download URL of this athlete's final-rep action shot, uploaded once
+   * the set ends. Absent until the upload completes, and absent entirely for
+   * an opponent on an app version that predates this feature.
+   */
+  photoUrl?: string | null;
 }
 
 /** The full duel document synced through Firestore. */

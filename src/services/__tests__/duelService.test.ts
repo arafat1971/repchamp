@@ -20,6 +20,7 @@ import {
   finishDuel,
   forceSettleAbandoned,
   joinDuel,
+  pushDuelPhoto,
   pushLiveState,
   seatFor,
   watchDuel,
@@ -183,11 +184,30 @@ jest.mock('@react-native-firebase/firestore', () => {
   return { __esModule: true, default: fn };
 });
 
+/** Records what was uploaded per path and returns a deterministic URL. */
+const mockStorage = { lastPutFile: null as string | null, lastPath: null as string | null };
+jest.mock('@react-native-firebase/storage', () => {
+  const fn = () => ({
+    ref: (path: string) => ({
+      async putFile(uri: string) {
+        mockStorage.lastPutFile = uri;
+        mockStorage.lastPath = path;
+      },
+      async getDownloadURL() {
+        return `https://cdn.example/${path}`;
+      },
+    }),
+  });
+  return { __esModule: true, default: fn };
+});
+
 beforeEach(() => {
   mockState.configured = true;
   mockStore.clear();
   mockSubs.clear();
   mockAutoId = 0;
+  mockStorage.lastPutFile = null;
+  mockStorage.lastPath = null;
 });
 
 const HOST = { uid: 'h', displayName: 'Hana', avatarUrl: null, level: 3 };
@@ -301,6 +321,26 @@ describe('pushLiveState', () => {
   it('returns true after a successful live write', async () => {
     const id = await openAndJoin();
     expect(await pushLiveState(id, 'host', { reps: 3, formScore: 80 })).toBe(true);
+  });
+});
+
+describe('pushDuelPhoto', () => {
+  it('uploads to the seat-scoped path and writes the download URL onto that seat', async () => {
+    const id = await openAndJoin();
+    expect(await pushDuelPhoto(id, 'guest', 'file:///tmp/action.jpg')).toBe(true);
+    expect(mockStorage.lastPutFile).toBe('file:///tmp/action.jpg');
+    expect(mockStorage.lastPath).toBe(`duelPhotos/${id}/guest.jpg`);
+    const d = mockStore.get(id!) as unknown as Duel;
+    expect(d.guest?.photoUrl).toBe(`https://cdn.example/duelPhotos/${id}/guest.jpg`);
+    // Host seat is untouched.
+    expect(d.host.photoUrl).toBeUndefined();
+  });
+
+  it('is a no-op when unconfigured', async () => {
+    const id = await openAndJoin();
+    mockState.configured = false;
+    expect(await pushDuelPhoto(id, 'host', 'file:///tmp/action.jpg')).toBe(false);
+    expect(mockStorage.lastPutFile).toBeNull();
   });
 });
 

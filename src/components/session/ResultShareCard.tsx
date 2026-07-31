@@ -30,6 +30,10 @@ export interface ResultShareCardProps {
   opponentName?: string;
   opponentReps?: number;
   won?: boolean;
+  /** Opponent/partner's uploaded action shot, once it syncs from their seat. */
+  opponentSnapshotUri?: string | null;
+  /** A live "together" set — both sides shown, no winner framing. */
+  cooperative?: boolean;
 }
 
 /*
@@ -66,6 +70,8 @@ export const ResultShareCard = forwardRef<View, ResultShareCardProps>(
       opponentName = 'Opponent',
       opponentReps = 0,
       won = true,
+      opponentSnapshotUri,
+      cooperative = false,
     },
     ref,
   ) {
@@ -73,8 +79,10 @@ export const ResultShareCard = forwardRef<View, ResultShareCardProps>(
     const displayForm = formScore !== undefined ? Math.round(formScore) : peakDepthPct;
     const userInitial = name ? name.trim().charAt(0).toUpperCase() : 'A';
     const oppInitial = opponentName ? opponentName.trim().charAt(0).toUpperCase() : 'O';
-    const isVersus = mode === 'versus';
+    const isVersus = mode === 'versus' && !cooperative;
+    const isTogether = mode === 'together' || cooperative;
     const durationLabel = `${Math.max(1, Math.round(durationSec))}s`;
+    const combinedReps = reps + opponentReps;
 
     return (
       <View ref={ref} collapsable={false} style={styles.wrap}>
@@ -103,17 +111,22 @@ export const ResultShareCard = forwardRef<View, ResultShareCardProps>(
                 {drew ? 'Draw' : won ? 'Victory' : 'Good effort'}
               </Text>
 
-              {/* Athletes */}
-              <View style={styles.versusRow}>
-                <View style={styles.versusCol}>
-                  <View style={[styles.avatarRing, won && !drew && styles.avatarRingWin]}>
-                    {avatarUri ? (
-                      <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
+              {/* Athletes — real action shots when both sides have synced,
+                  falling back to an initial per side independently so a slow
+                  or missing opponent upload never blocks the card. */}
+              <View style={styles.duelPhotoRow}>
+                <View style={styles.duelPhotoCol}>
+                  <View style={[styles.duelPhotoTile, won && !drew && styles.duelPhotoTileWin]}>
+                    {snapshotUri ? (
+                      <Image source={{ uri: snapshotUri }} style={styles.duelPhotoImg} contentFit="cover" />
+                    ) : avatarUri ? (
+                      <Image source={{ uri: avatarUri }} style={styles.duelPhotoImg} contentFit="cover" />
                     ) : (
-                      <View style={[styles.avatarFallback, styles.avatarFallbackAccent]}>
+                      <View style={[styles.duelPhotoFallback, styles.avatarFallbackAccent]}>
                         <Text style={styles.avatarInitialLight}>{userInitial}</Text>
                       </View>
                     )}
+                    <View style={styles.duelPhotoVignette} />
                   </View>
                   <Text style={styles.versusName} numberOfLines={1}>You</Text>
                   <Text style={[styles.versusScore, { color: won && !drew ? ACCENT : INK }]}>{reps}</Text>
@@ -126,13 +139,20 @@ export const ResultShareCard = forwardRef<View, ResultShareCardProps>(
                   )}
                 </View>
 
-                <Text style={styles.vsGlyph}>VS</Text>
+                <View style={styles.vsBadge}>
+                  <Text style={styles.vsGlyph}>VS</Text>
+                </View>
 
-                <View style={styles.versusCol}>
-                  <View style={[styles.avatarRing, !won && !drew && styles.avatarRingWin]}>
-                    <View style={styles.avatarFallback}>
-                      <Text style={styles.avatarInitialMuted}>{oppInitial}</Text>
-                    </View>
+                <View style={styles.duelPhotoCol}>
+                  <View style={[styles.duelPhotoTile, !won && !drew && styles.duelPhotoTileWin]}>
+                    {opponentSnapshotUri ? (
+                      <Image source={{ uri: opponentSnapshotUri }} style={styles.duelPhotoImg} contentFit="cover" />
+                    ) : (
+                      <View style={styles.duelPhotoFallback}>
+                        <Text style={styles.avatarInitialMuted}>{oppInitial}</Text>
+                      </View>
+                    )}
+                    <View style={styles.duelPhotoVignette} />
                   </View>
                   <Text style={styles.versusName} numberOfLines={1}>{opponentName}</Text>
                   <Text style={[styles.versusScore, { color: !won && !drew ? ACCENT : INK }]}>{opponentReps}</Text>
@@ -150,6 +170,58 @@ export const ResultShareCard = forwardRef<View, ResultShareCardProps>(
               <View style={styles.metaRow}>
                 <Text style={styles.metaLabel}>{exerciseLabel}</Text>
                 <Text style={styles.metaValue}>Most reps in {durationLabel}</Text>
+              </View>
+            </>
+          ) : isTogether ? (
+            <>
+              {/* Together sets have no loser — domain rule already refuses to
+                  compute a winner (see finishDuel's `cooperative` guard), so
+                  the card mirrors that: no VS glyph, no WINNER tag, just both
+                  athletes and the combined total. */}
+              <Text style={styles.resultKicker}>TRAINED TOGETHER</Text>
+              <Text style={[styles.resultTitle, { color: ACCENT }]}>Nice work</Text>
+
+              <View style={styles.duelPhotoRow}>
+                <View style={styles.duelPhotoCol}>
+                  <View style={styles.duelPhotoTile}>
+                    {snapshotUri ? (
+                      <Image source={{ uri: snapshotUri }} style={styles.duelPhotoImg} contentFit="cover" />
+                    ) : avatarUri ? (
+                      <Image source={{ uri: avatarUri }} style={styles.duelPhotoImg} contentFit="cover" />
+                    ) : (
+                      <View style={[styles.duelPhotoFallback, styles.avatarFallbackAccent]}>
+                        <Text style={styles.avatarInitialLight}>{userInitial}</Text>
+                      </View>
+                    )}
+                    <View style={styles.duelPhotoVignette} />
+                  </View>
+                  <Text style={styles.versusName} numberOfLines={1}>You</Text>
+                  <Text style={styles.versusScore}>{reps}</Text>
+                </View>
+
+                <View style={styles.togetherBadge}>
+                  <Text style={styles.togetherGlyph}>+</Text>
+                </View>
+
+                <View style={styles.duelPhotoCol}>
+                  <View style={styles.duelPhotoTile}>
+                    {opponentSnapshotUri ? (
+                      <Image source={{ uri: opponentSnapshotUri }} style={styles.duelPhotoImg} contentFit="cover" />
+                    ) : (
+                      <View style={styles.duelPhotoFallback}>
+                        <Text style={styles.avatarInitialMuted}>{oppInitial}</Text>
+                      </View>
+                    )}
+                    <View style={styles.duelPhotoVignette} />
+                  </View>
+                  <Text style={styles.versusName} numberOfLines={1}>{opponentName}</Text>
+                  <Text style={styles.versusScore}>{opponentReps}</Text>
+                </View>
+              </View>
+
+              <View style={styles.hero}>
+                <Text style={styles.heroNumber}>{combinedReps}</Text>
+                <Text style={styles.heroLabel}>COMBINED {exerciseLabel.toUpperCase()}</Text>
               </View>
             </>
           ) : (
@@ -414,35 +486,37 @@ const styles = StyleSheet.create({
   statValue: font('extrabold', 17, { color: ACCENT }),
   statLabel: font('bold', 9, { color: MUTED, letterSpacing: 0.8, marginTop: 3 }),
 
-  /* Versus */
+  /* Versus / together */
   resultKicker: font('extrabold', 11, { color: MUTED, letterSpacing: 3, marginBottom: 2 }),
   resultTitle: font('extrabold', 30, { letterSpacing: -0.5, marginBottom: 18 }),
-  versusRow: {
+  duelPhotoRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    justifyContent: 'space-around',
+    justifyContent: 'center',
+    gap: 10,
     width: '100%',
     marginBottom: 16,
   },
-  versusCol: { alignItems: 'center', flex: 1 },
-  avatarRing: {
-    width: 66,
-    height: 66,
-    borderRadius: 33,
+  duelPhotoCol: { alignItems: 'center', flex: 1 },
+  duelPhotoTile: {
+    width: '100%',
+    aspectRatio: 0.88,
+    borderRadius: 20,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: palette.slate900,
     borderWidth: 2,
     borderColor: BORDER,
-    overflow: 'hidden',
-    backgroundColor: SURFACE,
   },
-  avatarRingWin: { borderColor: ACCENT },
-  avatarImg: { width: '100%', height: '100%' },
-  avatarFallback: {
-    width: '100%',
-    height: '100%',
+  duelPhotoTileWin: { borderColor: ACCENT },
+  duelPhotoImg: { width: '100%', height: '100%' },
+  duelPhotoFallback: {
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: SURFACE,
   },
+  duelPhotoVignette: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.18)' },
   avatarFallbackAccent: { backgroundColor: ACCENT_SOFT },
   avatarInitialLight: font('extrabold', 24, { color: ACCENT }),
   avatarInitialMuted: font('extrabold', 24, { color: FAINT }),
@@ -458,7 +532,26 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   tagSpacer: { height: 21, marginTop: 4 },
-  vsGlyph: { ...font('extrabold', 16, { color: FAINT, letterSpacing: 1 }), marginTop: 24 },
+  vsBadge: {
+    marginTop: 44,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: ACCENT_SOFT,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vsGlyph: font('extrabold', 13, { color: palette.green700, letterSpacing: 1 }),
+  togetherBadge: {
+    marginTop: 44,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: ACCENT_SOFT,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  togetherGlyph: font('extrabold', 18, { color: palette.green700 }),
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',

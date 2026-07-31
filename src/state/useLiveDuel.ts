@@ -26,6 +26,7 @@ import { clampDuelRepJump } from '@/domain/fairPlay';
 import {
   fetchDuel,
   finishDuel,
+  pushDuelPhoto,
   pushLiveState,
   seatFor,
   watchDuel,
@@ -42,6 +43,8 @@ export interface LiveDuel {
   push: (reps: number, formScore: number) => void;
   /** Settle the duel when the set ends (clock out or forfeit). */
   finish: (reps: number, formScore: number, forfeited: boolean) => void;
+  /** Upload this athlete's captured action shot once the set ends. */
+  pushPhoto: (localUri: string) => void;
 }
 
 const INERT: LiveDuel = {
@@ -49,6 +52,7 @@ const INERT: LiveDuel = {
   matchStartedAtMs: null,
   push: () => {},
   finish: () => {},
+  pushPhoto: () => {},
 };
 
 /**
@@ -100,6 +104,7 @@ export function useLiveDuel(duelId: string | null | undefined): LiveDuel {
         const prev = useSessionStore.getState().opponentReps;
         useSessionStore.getState().setOpponentReps(Math.max(prev, other.reps));
         if (other.displayName) useSessionStore.getState().setOpponentName(other.displayName);
+        if (other.photoUrl) useSessionStore.getState().setOpponentSnapshotUri(other.photoUrl);
       }
       // Persist the remote uid so H2H history and rematch can address them.
       const otherUid = seat === 'host' ? duel.guestUid : duel.hostUid;
@@ -156,8 +161,24 @@ export function useLiveDuel(duelId: string | null | undefined): LiveDuel {
     [duelId, uid],
   );
 
+  const pushPhoto = useCallback(
+    (localUri: string) => {
+      if (!duelId || !uid) return;
+      void (async () => {
+        let seat = seatRef.current;
+        if (!seat) {
+          const duel = await fetchDuel(duelId);
+          seat = duel ? seatFor(duel, uid) : null;
+        }
+        if (!seat) return;
+        void pushDuelPhoto(duelId, seat, localUri);
+      })();
+    },
+    [duelId, uid],
+  );
+
   return useMemo(() => {
     if (!duelId || !uid) return INERT;
-    return { active: true, matchStartedAtMs, push, finish };
-  }, [duelId, uid, matchStartedAtMs, push, finish]);
+    return { active: true, matchStartedAtMs, push, finish, pushPhoto };
+  }, [duelId, uid, matchStartedAtMs, push, finish, pushPhoto]);
 }

@@ -16,7 +16,9 @@
 #   ./scripts/trace-reps.sh metro.log    # tail a captured Metro log
 #   ./scripts/trace-reps.sh              # explains how to capture one
 #
-# Requires POSE_TRACE = true in src/vision/usePoseSession.ts (the default).
+# Requires manually setting POSE_TRACE = true in src/vision/usePoseSession.ts —
+# it defaults to false, since each log measurably competes with inference for
+# the JS thread. Flip it back to false before shipping a build.
 set -euo pipefail
 
 FILTER='\[pose\]|\[RepChamp\]'

@@ -220,6 +220,35 @@ export function usePoseSession({
   const cameraFpsRef = useRef(TARGET_FPS);
   const [cameraFps, setCameraFps] = useState(TARGET_FPS);
 
+  /**
+   * Per-frame scratch buffers, pooled instead of allocated fresh every frame.
+   *
+   * `onFrame` used to `new` five buffers per call (crop, widened model input,
+   * output view, two keypoint arrays) on VisionCamera's dedicated frame thread.
+   * At ~30fps that is continuous GC pressure landing on the one thread ART must
+   * be able to suspend for a stop-the-world pause — on a Pixel 7a this produced
+   * a `SuspendAll timeout` SIGABRT during a live session. Reusing fixed-size
+   * buffers (sizes never change: `MODEL_INPUT_SIZE` and the 17-keypoint output
+   * are constants) removes that allocation without touching the maths.
+   *
+   * `cropSv`/`modelInputSv` are safe as a single reused shared value — they are
+   * read-then-discarded within the same synchronous `onFrame` call, nothing
+   * outside it retains a reference. `values`/`points` are different: `points`
+   * is handed to `posePoints.value` for the UI thread to read asynchronously,
+   * and `values` is handed to `scheduleOnRN`, which *queues* the JS-thread call
+   * rather than running it inline. A single shared buffer for those two could
+   * be overwritten by the next frame before a still-pending reader consumes the
+   * current one, so — same double-buffer trick as `PoseOverlay.tsx`'s
+   * `smoothA`/`smoothB` — each gets two alternating buffers and a flip flag.
+   */
+  const cropSv = useSharedValue<Uint8Array>(new Uint8Array(MODEL_INPUT_SIZE * MODEL_INPUT_SIZE * 3));
+  const modelInputSv = useSharedValue<Int32Array | Float32Array | null>(null);
+  const valuesA = useSharedValue<number[]>(new Array(51).fill(0));
+  const valuesB = useSharedValue<number[]>(new Array(51).fill(0));
+  const pointsA = useSharedValue<number[]>(new Array(51).fill(0));
+  const pointsB = useSharedValue<number[]>(new Array(51).fill(0));
+  const bridgeFlip = useSharedValue(0);
+
   const counterRef = useRef<RepCounter>(
     new RepCounter(definition, { requireFullDepth: competitive }),
   );
@@ -355,7 +384,10 @@ export function usePoseSession({
         const originY = Math.floor((frameHeight - crop) / 2);
         const redAt = layout === 'bgra' ? 2 : 0;
         const blueAt = layout === 'bgra' ? 0 : 2;
-        const input = new Uint8Array(size * size * 3);
+        // Pooled crop buffer — same fixed size (size*size*3) every call, so it
+        // is written in place instead of allocated fresh (see cropSv comment
+        // above for why this matters on the frame-processor thread).
+        const input = cropSv.value;
         for (let ty = 0; ty < size; ty++) {
           const sy = originY + Math.min(crop - 1, Math.floor(((ty + 0.5) * crop) / size));
           const rowStart = sy * rowStride;
@@ -371,12 +403,20 @@ export function usePoseSession({
 
         const tInferStart = performance.now();
         let modelBuffer: ArrayBuffer = input.buffer as ArrayBuffer;
-        if (inputDataType === 'int32') {
-          const widened = new Int32Array(input.length);
-          for (let i = 0; i < input.length; i++) widened[i] = input[i]!;
-          modelBuffer = widened.buffer as ArrayBuffer;
-        } else if (inputDataType === 'float32') {
-          const widened = new Float32Array(input.length);
+        if (inputDataType === 'int32' || inputDataType === 'float32') {
+          // Pooled widened buffer, lazily created once then reused — the model's
+          // declared input dtype never changes after the interpreter loads.
+          let widened = modelInputSv.value;
+          const needsInt32 = inputDataType === 'int32';
+          if (
+            !widened ||
+            widened.length !== input.length ||
+            (needsInt32 && !(widened instanceof Int32Array)) ||
+            (!needsInt32 && !(widened instanceof Float32Array))
+          ) {
+            widened = needsInt32 ? new Int32Array(input.length) : new Float32Array(input.length);
+            modelInputSv.value = widened;
+          }
           for (let i = 0; i < input.length; i++) widened[i] = input[i]!;
           modelBuffer = widened.buffer as ArrayBuffer;
         }
@@ -404,15 +444,26 @@ export function usePoseSession({
           );
           return;
         }
+        // `output` already IS a Float32Array-backed ArrayBuffer from Nitro —
+        // wrap without copying (a `new Float32Array(buffer)` view, not a fresh
+        // allocation of its contents).
         const tensor = new Float32Array(output);
 
         // Copy out of the model's buffer before it is reused by the next
         // inference, and simultaneously build the overlay buffer. MoveNet emits
         // (y, x, score); the overlay wants (x, y, score) in draw order, and the
         // preview is mirrored for the front lens so x is flipped to match.
-        // Fresh arrays for the JS bridge (async marshal) and for Reanimated.
-        const values: number[] = new Array(51);
-        const points: number[] = new Array(51);
+        //
+        // `values` crosses to JS via `scheduleOnRN`, which *queues* the call
+        // rather than running it inline, and `points` is read asynchronously
+        // off `posePoints.value` by the UI thread — so a single reused buffer
+        // for either risks the next frame overwriting one still being read.
+        // Double-buffer both and flip which half is written each frame, same
+        // as `PoseOverlay.tsx`'s `smoothA`/`smoothB` pattern.
+        const flip = bridgeFlip.value;
+        const values = flip === 0 ? valuesA.value : valuesB.value;
+        const points = flip === 0 ? pointsA.value : pointsB.value;
+        bridgeFlip.value = 1 - flip;
 
         /**
          * Keypoints come back in the square centre-crop's coordinate space,
@@ -461,6 +512,10 @@ export function usePoseSession({
           now - lastJsPushSv.value >= FRAMING_JS_INTERVAL_MS
         ) {
           lastJsPushSv.value = now;
+          // `scheduleOnRN` serializes its arguments synchronously before
+          // returning (`__serializer(args)` in react-native-worklets), so
+          // `values`'s current contents are captured here — safe to pass the
+          // pooled array directly without an extra copy.
           scheduleOnRN(
             handleTensor,
             values,
@@ -492,6 +547,13 @@ export function usePoseSession({
       lastJsPushSv,
       inferEveryN,
       frameTick,
+      cropSv,
+      modelInputSv,
+      valuesA,
+      valuesB,
+      pointsA,
+      pointsB,
+      bridgeFlip,
     ],
   );
 

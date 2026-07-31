@@ -186,56 +186,6 @@ export default function ResultScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settleKey, recordSession, authReady, authUid]);
 
-  if (!session.config) {
-    return <Redirect href="/(tabs)" />;
-  }
-
-  const { mode, target, opponentId, exercise, opponentName } = session.config;
-  const opponent = getOpponent(opponentId);
-  const definition = getExercise(exercise);
-  const opponentLabel = (opponentName || opponent?.name || 'Opponent').toUpperCase();
-  const userName = displayName ? displayName.split(' ')[0] : 'Athlete';
-  const formScore = session.formReport?.score ?? 0;
-  const fullDepthReps = session.formReport?.fullDepthReps ?? session.reps;
-  /** Mean peak depth across counted reps (0–100). Honest — not a faked floor. */
-  const peakDepth =
-    session.repRecords.length > 0
-      ? Math.round(
-          (session.repRecords.reduce((sum, r) => sum + r.peakDepth, 0) /
-            session.repRecords.length) *
-            100,
-        )
-      : 0;
-  const aiVerified = session.reps > 0 && session.formReport != null;
-
-  const title =
-    mode === 'practice'
-      ? `Unstoppable, ${userName}`
-      : mode === 'solo'
-        ? session.won
-          ? `Target cleared, ${userName}`
-          : `Great hustle, ${userName}`
-        : session.drew
-          ? `Dead heat, ${userName}`
-          : session.won
-            ? `Victory, ${userName}`
-            : `Battle finished, ${userName}`;
-
-  const subtitle =
-    mode === 'practice'
-      ? 'Every rep counts. You built real momentum today!'
-      : mode === 'solo'
-        ? session.won
-          ? session.formReport
-            ? `${fullDepthReps} of ${session.reps} reps at full depth. Your streak is on fire!`
-            : 'Target cleared! Your streak is on fire!'
-          : 'Solid effort! Push a little harder on the next set.'
-        : session.drew
-          ? `Tied with ${opponentLabel} — rematch to settle it.`
-          : session.won
-            ? `You defeated ${opponentLabel}!`
-            : `Close match against ${opponentLabel}! Rematch now?`;
-
   const leaveResult = (navigate: () => void) => {
     const cfg = useSessionStore.getState().config;
     const duelId = cfg?.duelId;
@@ -319,8 +269,59 @@ export default function ResultScreen() {
       return true;
     });
     return () => sub.remove();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // leaveResult reads fresh state via .getState() internally, so it's safe
+    // to omit here — it never closes over stale values.
   }, [router]);
+
+  if (!session.config) {
+    return <Redirect href="/(tabs)" />;
+  }
+
+  const { mode, target, opponentId, exercise, opponentName } = session.config;
+  const opponent = getOpponent(opponentId);
+  const definition = getExercise(exercise);
+  const opponentLabel = (opponentName || opponent?.name || 'Opponent').toUpperCase();
+  const userName = displayName ? displayName.split(' ')[0] : 'Athlete';
+  const formScore = session.formReport?.score ?? 0;
+  const fullDepthReps = session.formReport?.fullDepthReps ?? session.reps;
+  /** Mean peak depth across counted reps (0–100). Honest — not a faked floor. */
+  const peakDepth =
+    session.repRecords.length > 0
+      ? Math.round(
+          (session.repRecords.reduce((sum, r) => sum + r.peakDepth, 0) /
+            session.repRecords.length) *
+            100,
+        )
+      : 0;
+  const aiVerified = session.reps > 0 && session.formReport != null;
+
+  const title =
+    mode === 'practice'
+      ? `Unstoppable, ${userName}`
+      : mode === 'solo'
+        ? session.won
+          ? `Target cleared, ${userName}`
+          : `Great hustle, ${userName}`
+        : session.drew
+          ? `Dead heat, ${userName}`
+          : session.won
+            ? `Victory, ${userName}`
+            : `Battle finished, ${userName}`;
+
+  const subtitle =
+    mode === 'practice'
+      ? 'Every rep counts. You built real momentum today!'
+      : mode === 'solo'
+        ? session.won
+          ? session.formReport
+            ? `${fullDepthReps} of ${session.reps} reps at full depth. Your streak is on fire!`
+            : 'Target cleared! Your streak is on fire!'
+          : 'Solid effort! Push a little harder on the next set.'
+        : session.drew
+          ? `Tied with ${opponentLabel} — rematch to settle it.`
+          : session.won
+            ? `You defeated ${opponentLabel}!`
+            : `Close match against ${opponentLabel}! Rematch now?`;
 
   const rematch = () => {
     // Live human duel — challenge setup with their uid when we have it.

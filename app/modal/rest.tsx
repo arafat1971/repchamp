@@ -55,7 +55,7 @@ export default function RestDayScreen() {
         {MOBILITY.map((item) => (
           <PressableScale
             key={item.id}
-            onPress={() => router.push({ pathname: '/modal/mobility' as any, params: { id: item.id } })}
+            onPress={() => router.push({ pathname: '/modal/mobility', params: { id: item.id } })}
             accessibilityRole="button"
             accessibilityLabel={item.title}
           >

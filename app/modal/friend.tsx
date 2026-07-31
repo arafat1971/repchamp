@@ -122,7 +122,7 @@ export default function FriendProfileScreen() {
     router.push({
       pathname: '/modal/report-user',
       params: { target: friend.id, name: displayName },
-    } as never);
+    });
   };
 
   const onBlock = () => {

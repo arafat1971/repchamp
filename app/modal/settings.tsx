@@ -368,7 +368,7 @@ export default function SettingsScreen() {
         <LinkRow
           emoji="🚫"
           label="Blocked users"
-          onPress={() => router.push('/modal/blocked' as never)}
+          onPress={() => router.push('/modal/blocked')}
         />
         {isPurchasesConfigured() ? (
           <>

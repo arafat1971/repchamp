@@ -693,7 +693,7 @@ const styles = StyleSheet.create({
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   aiTag: {
     backgroundColor: palette.green50,
-    borderRadius: 6,
+    borderRadius: radius.xs,
     paddingHorizontal: 4,
     paddingVertical: 4,
     alignSelf: 'flex-start',

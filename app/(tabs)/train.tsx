@@ -362,12 +362,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.25)',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: radius.sm,
   },
   tileIconChip: {
     width: 54,
     height: 54,
-    borderRadius: 16,
+    borderRadius: radius.lg,
     backgroundColor: 'rgba(255,255,255,0.92)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.white,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: radius.md,
     ...shadow.card,
   },
   aiRow: {

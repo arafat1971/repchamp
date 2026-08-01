@@ -371,7 +371,7 @@ const styles = StyleSheet.create({
   avatarRing: {
     width: 96,
     height: 96,
-    borderRadius: 30,
+    borderRadius: radius['6xl'],
     padding: 4,
     backgroundColor: palette.green50,
     borderWidth: 2,
@@ -380,7 +380,7 @@ const styles = StyleSheet.create({
   avatar: {
     width: '100%',
     height: '100%',
-    borderRadius: 24,
+    borderRadius: radius['4xl'],
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -439,7 +439,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.green50,
     borderWidth: 1,
     borderColor: '#bfeccb',
-    borderRadius: 20,
+    borderRadius: radius['2xl'],
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
@@ -519,7 +519,7 @@ const styles = StyleSheet.create({
   proLogoBadge: {
     width: 42,
     height: 42,
-    borderRadius: 13,
+    borderRadius: radius.md,
     backgroundColor: palette.green50,
     alignItems: 'center',
     justifyContent: 'center',
@@ -530,7 +530,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.green50,
     paddingVertical: 4,
     paddingHorizontal: 12,
-    borderRadius: 14,
+    borderRadius: radius.md,
   },
   proButton: {
     backgroundColor: palette.green500,

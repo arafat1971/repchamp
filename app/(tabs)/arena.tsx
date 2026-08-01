@@ -480,7 +480,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.green50,
     borderWidth: 1,
     borderColor: '#bfeccb',
-    borderRadius: 5,
+    borderRadius: radius.xs,
     paddingHorizontal: 4,
     paddingVertical: 4,
   },

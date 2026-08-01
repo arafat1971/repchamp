@@ -40,7 +40,7 @@ import { useLiveActivityCount } from '@/state/useLiveActivityCount';
 import { useSelfPlayer } from '@/state/useSelfPlayer';
 import type { ExerciseId } from '@/vision/exercises';
 import { font } from '@/theme/typography';
-import { gradients, palette, shadow } from '@/theme/tokens';
+import { gradients, palette, shadow , radius} from '@/theme/tokens';
 import { showDialog } from '@/state/useDialog';
 
 /** Push-ups is the featured daily challenge; mirrors `app/modal/daily.tsx`. */
@@ -897,7 +897,7 @@ const styles = StyleSheet.create({
   },
   avatar: {
     flex: 1,
-    borderRadius: 22,
+    borderRadius: radius['2xl'],
     backgroundColor: palette.white,
     alignItems: 'center',
     justifyContent: 'center',
@@ -910,7 +910,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.green50,
     borderWidth: 1,
     borderColor: '#bfeccb',
-    borderRadius: 8,
+    borderRadius: radius.sm,
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
@@ -921,7 +921,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.amber50,
     borderWidth: 1,
     borderColor: '#fcd34d',
-    borderRadius: 8,
+    borderRadius: radius.sm,
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
@@ -999,7 +999,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(146,64,14,0.12)',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 7,
+    borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: 'rgba(180,83,9,0.35)',
   },
@@ -1025,13 +1025,13 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 4,
   },
-  statCardInner: { flex: 1, padding: 16, borderRadius: 18 },
+  statCardInner: { flex: 1, padding: 16, borderRadius: radius.lg },
   miniHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  tierChip: { backgroundColor: palette.green50, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 7 },
+  tierChip: { backgroundColor: palette.green50, paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.sm },
   statAccentDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: palette.green500, marginTop: 4 },
   weekValue: { flexDirection: 'row', alignItems: 'baseline', marginTop: 8 },
   weekBars: { flexDirection: 'row', gap: 4, marginTop: 8 },
-  weekBar: { flex: 1, height: 6, borderRadius: 4 },
+  weekBar: { flex: 1, height: 6, borderRadius: radius.xs },
   leagueRow: { flexDirection: 'row', alignItems: 'center', gap: 0, marginTop: 4, marginBottom: 0 },
   medalIcon: { width: 66, height: 44, marginRight: -8, marginLeft: -6, marginTop: -4 },
   trophyWrapper: {
@@ -1061,7 +1061,7 @@ const styles = StyleSheet.create({
   quickTileWrap: { width: '47%', flexGrow: 1 },
   quickTile: {
     height: 130,
-    borderRadius: 20,
+    borderRadius: radius['2xl'],
     padding: 16,
     justifyContent: 'space-between',
     overflow: 'hidden',
@@ -1085,7 +1085,7 @@ const styles = StyleSheet.create({
   quickEmojiBubble: {
     width: 54,
     height: 54,
-    borderRadius: 18,
+    borderRadius: radius.lg,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1095,7 +1095,7 @@ const styles = StyleSheet.create({
   quickIconBubble: {
     width: 58,
     height: 58,
-    borderRadius: 18,
+    borderRadius: radius.lg,
     borderWidth: 1,
     backgroundColor: 'rgba(255,255,255,0.95)',
     alignItems: 'center',
@@ -1121,12 +1121,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     padding: 12,
-    borderRadius: 18,
+    borderRadius: radius.lg,
   },
   rowIcon: {
     width: 46,
     height: 46,
-    borderRadius: 13,
+    borderRadius: radius.md,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1154,7 +1154,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.green50,
     borderWidth: 1,
     borderColor: '#bfeccb',
-    borderRadius: 5,
+    borderRadius: radius.xs,
     paddingHorizontal: 4,
     paddingVertical: 4,
   },
@@ -1191,7 +1191,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     padding: 12,
-    borderRadius: 18,
+    borderRadius: radius.lg,
     backgroundColor: palette.white,
     borderWidth: 1,
     borderColor: palette.border,
@@ -1200,7 +1200,7 @@ const styles = StyleSheet.create({
   moreIcon: {
     width: 46,
     height: 46,
-    borderRadius: 14,
+    borderRadius: radius.md,
     backgroundColor: palette.green50,
     borderWidth: 1,
     borderColor: '#bbf7d0',
@@ -1232,7 +1232,7 @@ const styles = StyleSheet.create({
   },
   leagueXpFill: {
     height: '100%',
-    borderRadius: 4,
+    borderRadius: radius.xs,
     backgroundColor: '#d97706',
   },
   dualRace: { marginTop: 12, gap: 8 },
@@ -1244,8 +1244,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(15,23,42,0.06)',
     overflow: 'hidden',
   },
-  dualFillGreen: { height: '100%', backgroundColor: '#22c55e', borderRadius: 6 },
-  dualFillSlate: { height: '100%', backgroundColor: '#94a3b8', borderRadius: 6 },
+  dualFillGreen: { height: '100%', backgroundColor: '#22c55e', borderRadius: radius.xs },
+  dualFillSlate: { height: '100%', backgroundColor: '#94a3b8', borderRadius: radius.xs },
   quickTileTop: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   deltaPill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 },
 });

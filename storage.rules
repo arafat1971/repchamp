@@ -14,18 +14,16 @@ service firebase.storage {
       allow delete: if request.auth != null && request.auth.uid == uid;
     }
 
-    // One action-shot photo per seat per duel — the athlete's own captured
-    // frame from a versus/together set, shown to their opponent/partner on
-    // the shared result card. Path shape pins the seat; the write is further
-    // scoped to whichever uid actually holds that seat on the live duel doc,
-    // so a guest can never overwrite the host's photo or vice versa.
+    // Action shots from the removed duel/together photo-share feature.
+    //
+    // Writes are gone: nothing in the app uploads here any more. Delete is
+    // deliberately kept so `deleteAccount` can still erase photos uploaded
+    // while the feature was live — those are real photographs of real
+    // athletes, and the deletion promise has to keep covering them.
+    // Read stays for the same reason (delete-after-resolve paths).
     match /duelPhotos/{duelId}/{seat}.jpg {
       allow read: if request.auth != null;
-      allow write: if request.auth != null
-        && seat in ['host', 'guest']
-        && request.auth.uid == firestore.get(/databases/(default)/documents/duels/$(duelId)).data[seat].uid
-        && request.resource.size < 3 * 1024 * 1024   // 3 MB
-        && request.resource.contentType.matches('image/(jpeg|jpg|png|webp)');
+      allow write: if false;
       allow delete: if request.auth != null
         && seat in ['host', 'guest']
         && request.auth.uid == firestore.get(/databases/(default)/documents/duels/$(duelId)).data[seat].uid;

@@ -18,7 +18,6 @@
  */
 
 import firestore from '@react-native-firebase/firestore';
-import storage from '@react-native-firebase/storage';
 
 import { clampDuelReps, clampFormScore } from '@/domain/fairPlay';
 import { isFirebaseConfigured } from '@/lib/firebase';
@@ -190,32 +189,6 @@ export async function pushLiveState(
     return true;
   } catch {
     // Offline / App Check / transient — drop this tick; the next push retries.
-    return false;
-  }
-}
-
-/**
- * Upload this athlete's captured action-shot for a finished duel/together set
- * and write the resulting download URL onto their own seat.
- *
- * Fire only once, after the set ends — the local snapshot changes on every
- * rep, but only the final frame is worth the round trip. Best-effort: a failed
- * upload just leaves the opponent without a photo, which the share card
- * already tolerates. No-op when unconfigured.
- */
-export async function pushDuelPhoto(
-  duelId: string,
-  seat: DuelSeat,
-  localUri: string,
-): Promise<boolean> {
-  if (!isFirebaseConfigured()) return false;
-  try {
-    const ref = storage().ref(`duelPhotos/${duelId}/${seat}.jpg`);
-    await ref.putFile(localUri, { contentType: 'image/jpeg' });
-    const url = await ref.getDownloadURL();
-    await duelDoc(duelId).update({ [`${seat}.photoUrl`]: url });
-    return true;
-  } catch {
     return false;
   }
 }

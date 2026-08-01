@@ -5,10 +5,11 @@ derived from an audit of what the code **actually** collects — accurate declar
 avoid rejection. Re-check if you add features (e.g. real analytics, ads, location).
 
 Key fact to get right: **the camera/video feed is processed entirely on-device and is
-never uploaded or recorded as video.** The avatar photo the user picks, workout stats,
-and — as of the duel/together photo-share feature — one still action shot per live
-duel/together set (shown only to that set's opponent/partner) leave the device.
-Declare accordingly.
+never uploaded or recorded as video.** The only image that leaves the device is the
+avatar photo the user picks; workout stats leave too. Declare accordingly.
+
+The duel/together action-shot share was **removed** — no session frame is uploaded any
+more. Photos still answers **Yes** because of the avatar.
 
 ---
 
@@ -21,13 +22,15 @@ Declare accordingly.
 ## 3. Do you provide a way for users to request that their data is deleted?
 **Yes.** In-app: Settings → Your Data → **Delete my account**. It erases the profile,
 leaderboard row, matchmaking ticket, friend and block lists, push token, the shared couple
-record, the avatar, and the athlete's own duel/together action shots. Also provide the
+record, the avatar, and any duel/together action shots left over from the removed
+photo-share feature. Also provide the
 support email arafathossain455@gmail.com for requests.
 
 Two things worth knowing if you are asked to substantiate this:
 - The deletion **reports failure** rather than silently claiming success — if any erasure is
   rejected it throws, names what survived, and the athlete can retry.
-- The opponent's action shot in a shared duel is deliberately **not** deleted: it is their
+- Deletion still sweeps `duelPhotos/` because photos uploaded while that feature was live
+  remain in Storage. The opponent's shot is deliberately **not** deleted: it is their
   photograph, not the deleting athlete's.
 
 ---
@@ -51,14 +54,13 @@ purpose + optionality as noted.
 ### Photos and videos
 | Data | Collected | Purpose | Optional? |
 |---|---|---|---|
-| **Photos** (profile avatar the user picks; one action-shot still per live duel/together set, shown only to that set's opponent/partner) | Yes | App functionality (profile picture; shared result card in duel/together modes) | Optional (solo/practice sessions never upload a photo) |
+| **Photos** (profile avatar the user picks) | Yes | App functionality (profile picture) | Optional (no session ever uploads a camera frame) |
 | **Videos** | **No** | The camera feed is processed on-device for rep counting and is never uploaded or recorded as video | — |
 
-> Still answer **No** to collecting videos — that hasn't changed. But the Photos row now
-> also covers the duel/together action shot, so it can no longer be scoped to "avatar only."
-> In the app's Data-safety narrative and store listing, state clearly: "Workout video is
-> processed on your device and never leaves your phone. In live duels and together sessions,
-> one still photo per set is shared with your opponent or partner on the result card."
+> Answer **No** to collecting videos. The Photos row is scoped to the avatar only — the
+> duel/together action shot was removed, so no camera frame is uploaded in any mode. In
+> the store listing, state clearly: "Workout video is processed on your device and never
+> leaves your phone."
 
 ### App activity / app info and performance
 | Data | Collected | Purpose | Optional? |
@@ -105,13 +107,20 @@ purpose + optionality as noted.
 
 ## Companion narrative for the store listing (recommended)
 > RepChamp counts your reps using pose detection that runs entirely on your device. Your
-> camera feed is never recorded as video or uploaded. In live duels and together sessions,
-> one still action photo per set is shared with your opponent or partner on the result
-> card — solo and practice sets never share a photo. We store your profile, workout stats,
+> camera feed is never recorded, uploaded, or shared — in any mode. The only photo that
+> leaves your device is the profile picture you choose. We store your profile, workout stats,
 > and (if you pair) your shared couple data to sync across devices and power leaderboards.
 > You can export or delete all of it anytime in Settings.
 
 ---
+
+## Change log
+
+**2026-08-01 — duel/together action-shot share removed.** The app no longer captures or
+uploads any camera frame. Photos remains **Yes** (the avatar), but its scope narrowed to
+`avatars/{uid}.jpg` alone. `duelPhotos/` is delete-only in `storage.rules`, kept solely so
+account deletion still erases photos uploaded while the feature was live. **Re-submit the
+Data safety form** if the previous, broader answer was already filed.
 
 ## Field-by-field answers (2026-08-01)
 
@@ -125,8 +134,8 @@ Verified against the code, not from memory. Every claim below traces to a specif
 | Name | Collected, **not** shared. Required. App functionality | `displayName` on the profile doc |
 | Email address | Collected, **not** shared. Optional | Only for Google sign-in; anonymous accounts have none |
 | User IDs | Collected, **not** shared. Required. App functionality + Analytics | Auth uid; PostHog ties events to it |
-| **Photos** | Collected, **not** shared. Optional | Two paths only: the avatar the user picks (`avatars/{uid}.jpg`) and one action shot per live duel/together set (`duelPhotos/{duelId}/{seat}.jpg`) |
-| **Videos** | **Not collected** | The camera feed is analysed on-device by MoveNet and never recorded or uploaded. Still true — the action shot is a single frame, not video |
+| **Photos** | Collected, **not** shared. Optional | One path only: the avatar the user picks (`avatars/{uid}.jpg`). The duel action shot was removed; `duelPhotos/` is now delete-only, retained so account deletion can erase photos uploaded while it was live |
+| **Videos** | **Not collected** | The camera feed is analysed on-device by MoveNet and never recorded or uploaded |
 | App interactions | Collected, **not** shared. Required. Analytics | 37 `track()` call sites; event names only, no free text |
 | Crash logs / diagnostics | Collected, **not** shared. Required | Sentry |
 | Purchase history | Collected, **not** shared. Required | RevenueCat entitlement state |
@@ -134,13 +143,12 @@ Verified against the code, not from memory. Every claim below traces to a specif
 
 ### The two answers that most often get flagged
 
-**Photos = Yes.** It is tempting to answer No because the app is a rep counter, but a real
-photograph of the athlete leaves the device in duel and together modes. Answering No here
-while shipping that feature is the kind of mismatch Play rejects for.
+**Photos = Yes**, still — the avatar the user picks is uploaded to Storage. Answering No
+because "it's just an avatar" is the kind of mismatch Play rejects for. What changed is the
+*scope*: no camera frame is uploaded in any mode now that the action-shot share is gone.
 
-**Videos = No** is still correct and should not be changed. The distinction that matters: the
-camera *stream* is processed frame-by-frame on-device and discarded; only one still frame is
-ever uploaded, and only in multiplayer modes.
+**Videos = No** is correct and unchanged: the camera stream is processed frame-by-frame
+on-device and discarded.
 
 ### Data sharing
 

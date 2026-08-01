@@ -77,10 +77,16 @@ export async function exportAccountData(uid: string): Promise<Record<string, unk
 /**
  * Erase this athlete's duel action shots from Storage.
  *
+ * The feature that produced these was removed — nothing uploads here any
+ * more, and `storage.rules` now denies writes. This deletion path is kept on
+ * purpose: photos uploaded while the feature was live are real photographs of
+ * real athletes, still sitting in Storage, and the deletion promise has to go
+ * on covering them. Remove this only once that prefix is known to be empty.
+ *
  * These are keyed `duelPhotos/{duelId}/{seat}.jpg` rather than by uid, so they
  * cannot be found without first resolving which duels the athlete sat in — and
- * `closeOpenDuels` only looks at pending and active ones, while a photo is
- * uploaded when a set *finishes*. Deleting the profile therefore used to leave
+ * `closeOpenDuels` only looks at pending and active ones, while a photo was
+ * uploaded when a set *finished*. Deleting the profile therefore used to leave
  * real photographs of the athlete behind, which is not a deletion we can
  * honestly claim.
  *

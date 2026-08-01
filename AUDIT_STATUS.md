@@ -62,11 +62,13 @@ original bug and confirming the test fails.
   ring and framing brackets rendering, clean teardown on exit. **Zero `SuspendAll` / SIGABRT /
   ANR signatures**, which is the scenario that used to abort within ~90s before the
   VisionCamera 5.2.0 / Nitro 0.36.4 upgrade.
-- **Share-card action photo — verified in a live session.** The full trace ran clean on a real
-  rep: `rep 1 — attempting` → `encoded photo 1080x2400` → `composite captured -> file://…` →
-  `stored for rep 1`. Composite took 0.98s and 1.15s across two runs against a 5s budget, so
-  the raise from the original 2s was warranted — those would have been uncomfortably close.
-  The `requestAnimationFrame` that never fired off-screen is genuinely fixed.
+- **Share-card action photo — feature removed (2026-08-01).** It was verified working on
+  device first (`rep 1 — attempting` → `encoded photo 1080x2400` → `composite captured` →
+  `stored`, 0.98s/1.15s against the 5s budget), then removed at the user's request. The
+  result card now falls back to the avatar, then initials. `duelPhotos/` is delete-only in
+  `storage.rules`, and `deleteDuelPhotos` is deliberately retained so account deletion still
+  erases photos uploaded while the feature was live. `DATA_SAFETY.md` updated to match —
+  Photos stays **Yes** for the avatar, but no camera frame is uploaded in any mode.
 
 Earlier "blank screenshot" failures were the device screen being off, not a secure-surface
 block — `screencap` works normally when the phone is awake.

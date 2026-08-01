@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AppState,
   BackHandler,
-  Platform,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -13,9 +12,6 @@ import {
 import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
 import { useCameraPermission, type CameraRef } from 'react-native-vision-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { captureRef } from 'react-native-view-shot';
-
-import type { CanvasRef } from '@shopify/react-native-skia';
 
 import { CameraDenied } from '@/components/session/CameraDenied';
 import { CameraStage, StatusChip } from '@/components/session/CameraStage';
@@ -45,7 +41,6 @@ import {
   successHaptic,
 } from '@/lib/feedback';
 import { track } from '@/lib/analytics';
-import { arrayBufferToBase64 } from '@/lib/base64';
 import { touchPresence } from '@/services/userService';
 import { defaultDuration, useSessionStore } from '@/state/sessionStore';
 import { useCouple } from '@/state/useCouple';
@@ -69,23 +64,10 @@ import { palette } from '@/theme/tokens';
 /** Framing confidence that counts as "body locked". */
 const CALIBRATION_LOCK = 0.55;
 
-/**
- * Trace the share-card capture.
- *
- * The capture has several ways to give up — the preview not being ready, the
- * hidden composite layers never painting, a rejected screenshot — and every
- * one of them used to return null silently, so a broken share card looked
- * identical to one that was never attempted. Dev-only: this is diagnostic
- * scaffolding, not something a shipped build should log.
- */
-function captureDebug(message: string): void {
-  if (__DEV__) console.log(`[RepChamp] action shot: ${message}`);
-}
-
 export default function SessionScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { width, height } = useWindowDimensions();
+  const { height } = useWindowDimensions();
   const params = useLocalSearchParams<{
     exercise?: string;
     mode?: string;
@@ -199,29 +181,6 @@ export default function SessionScreen() {
   const startSession = useSessionStore((s) => s.start);
   const cameraStageRef = useRef<View>(null);
   const cameraRef = useRef<CameraRef>(null);
-  // Skia canvas ref for the live skeleton overlay — snapshotted alone
-  // (transparent background) so it can be composited onto a real camera
-  // photo for the share card. See `captureActionShot` below for why: on
-  // Android, screenshotting `cameraStageRef` directly comes back with the
-  // camera area solid black (the preview renders through a SurfaceView, a
-  // separate compositing surface no view-shot library can capture), while
-  // this sibling Skia canvas — an ordinary view — captures fine.
-  const poseOverlayRef = useRef<CanvasRef>(null);
-  // Hidden off-canvas container the camera photo + skeleton PNG are stacked
-  // into right before the composite is captured — same off-screen-render
-  // trick `result.tsx` already uses for the share card itself.
-  const compositeRef = useRef<View>(null);
-  const [compositeLayers, setCompositeLayers] = useState<{ photoUri: string; skeletonUri: string } | null>(null);
-  /** Fires once both hidden composite layers below have painted. */
-  const onLayerLoadedRef = useRef<() => void>(() => {});
-  // An action shot is grabbed on every completed rep (camera + pose line
-  // live) so the share card ends up with the *last* rep's frame rather than
-  // an early one — recaptured, not latched once. `snapshotInFlightRef` guards
-  // against overlapping capture calls when reps land faster than a capture
-  // round-trips; `lastSnapshotAtRef` throttles the retry rate.
-  const snapshotInFlightRef = useRef(false);
-  const lastSnapshotAtRef = useRef(0);
-  const SNAPSHOT_THROTTLE_MS = 500;
 
   // The pre-set camera tutorial shows once, then never again. Seeding local
   // state from the persisted flag means dismissing it hides it instantly this
@@ -319,9 +278,6 @@ export default function SessionScreen() {
       opponentId: mode === 'versus' && !duelId ? opponentId : null,
       duelId,
     });
-    // Fresh session — allow new action shots to be captured.
-    snapshotInFlightRef.current = false;
-    lastSnapshotAtRef.current = 0;
     coupleCreditedRef.current = false;
     coupleCreditInFlightRef.current = false;
     handedOffRef.current = false;
@@ -346,134 +302,6 @@ export default function SessionScreen() {
     return stopSpeaking;
   }, [exercise, mode, duration, target, opponentId, startSession, duelId]);
 
-  /**
-   * Captures a real camera photo, layers the current skeleton pose on top,
-   * and stores the composite as the share-card action shot.
-   *
-   * Android's default camera preview renders through a `SurfaceView` — a
-   * separate compositing surface that a `react-native-view-shot` screenshot
-   * of `cameraStageRef` cannot capture, coming back solid black behind
-   * whatever else is drawn there (the skeleton, being an ordinary Skia
-   * canvas, captures fine on its own). Switching the preview to a
-   * screenshot-friendly `TextureView` mode was tried and reverted: it made
-   * the *live* preview visibly flicker, which is worse than a broken share
-   * card. This instead uses VisionCamera's own `takeSnapshot()` — built for
-   * exactly this — to get a real camera bitmap without touching the preview
-   * mode at all, then composites it with a Skia snapshot of the skeleton
-   * canvas (also captured on its own, transparent background) in a hidden
-   * off-canvas view before screenshotting the pair together.
-   *
-   * `takeSnapshot()` is Android-only; iOS's preview already captures
-   * correctly via `captureRef(cameraStageRef, ...)` directly (its
-   * `AVCaptureVideoPreviewLayer`-backed view isn't a separate surface the
-   * same way), so iOS keeps the simpler direct path.
-   */
-  const captureActionShot = useCallback(async (): Promise<string | null> => {
-    if (Platform.OS !== 'android') {
-      if (!cameraStageRef.current) return null;
-      return captureRef(cameraStageRef, { format: 'jpg', quality: 0.85 });
-    }
-
-    if (!cameraRef.current || !poseOverlayRef.current) {
-      captureDebug(
-        `refs missing (camera=${!!cameraRef.current} overlay=${!!poseOverlayRef.current})`,
-      );
-      return null;
-    }
-
-    try {
-      // `takeSnapshot()` rejects when the preview isn't ready yet (e.g. the
-      // very first rep of a cold session), so everything below runs inside
-      // the try — an early throw must still hit the cleanup in `finally`,
-      // otherwise a stale hidden layer and handler leak into the next rep.
-      const [photoImage, skeletonSnapshot] = await Promise.all([
-        cameraRef.current.takeSnapshot(),
-        Promise.resolve(poseOverlayRef.current.makeImageSnapshot()),
-      ]);
-      // Encode in memory rather than via `saveToTemporaryFileAsync`. That
-      // wrote a full-resolution JPEG into the app cache on every capture with
-      // nothing ever reclaiming it — and since this now runs on *every rep*,
-      // a single long set would have left a pile of orphaned files behind.
-      // There is no delete API on the nitro Image and no filesystem module in
-      // the project, so not touching the disk at all is the fix.
-      const encoded = await photoImage.toEncodedImageDataAsync('jpg', 85);
-      const photoUri = `data:image/jpeg;base64,${arrayBufferToBase64(encoded.buffer)}`;
-      const skeletonUri = `data:image/png;base64,${skeletonSnapshot.encodeToBase64()}`;
-      captureDebug(
-        `encoded photo ${photoImage.width}x${photoImage.height} ` +
-          `(${Math.round(encoded.buffer.byteLength / 1024)}KB) ` +
-          `skeleton ${Math.round(skeletonUri.length / 1024)}KB`,
-      );
-
-      // Mount both layers into the hidden composite view, wait for them to
-      // paint, then screenshot the pair. `compositeRef` is deliberately not
-      // checked before this point — the view only mounts as a result of the
-      // state write below.
-      return await new Promise<string | null>((resolve) => {
-        let loaded = 0;
-        let settled = false;
-        const finish = (uri: string | null) => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(bail);
-          resolve(uri);
-        };
-        // A layer that never loads must not hang the capture (and with it the
-        // in-flight latch) forever.
-        //
-        // 2s was too tight: the skeleton layer is a full-screen lossless PNG
-        // that traces showed at 450-530KB — thirty times the photo's 16KB,
-        // since it is mostly transparency — and decoding it took ~1.6s on a
-        // Pixel 7a. That left almost no headroom on a slower device or a
-        // busier frame.
-        const bail = setTimeout(() => {
-          captureDebug(`composite timed out after 5s (layers loaded: ${loaded}/2)`);
-          finish(null);
-        }, 5000);
-
-        onLayerLoadedRef.current = () => {
-          loaded += 1;
-          if (loaded < 2) return;
-          // Give the native side one beat to finish laying the layers out
-          // before screenshotting them.
-          //
-          // This used to use `requestAnimationFrame`, which never fired: RN
-          // drives it from the JS frame loop, and this composite is parked
-          // off-screen where it produces no frames, so the callback simply
-          // never ran and the capture always hit its 2s timeout — with both
-          // layers reported loaded, which is what gave the bug away. A plain
-          // timeout does not depend on anything being drawn.
-          setTimeout(() => {
-            if (!compositeRef.current) {
-              captureDebug('composite view unmounted before capture');
-              finish(null);
-              return;
-            }
-            captureRef(compositeRef, { format: 'jpg', quality: 0.85 })
-              .then((uri) => {
-                captureDebug(`composite captured -> ${uri.slice(0, 48)}`);
-                finish(uri);
-              })
-              .catch((error) => {
-                captureDebug(`composite captureRef failed: ${String(error)}`);
-                finish(null);
-              });
-          }, 32);
-        };
-        setCompositeLayers({ photoUri, skeletonUri });
-      });
-    } catch (error) {
-      // Previously swallowed entirely by the bare `finally`, which made a
-      // failed capture indistinguishable from one that never ran.
-      captureDebug(`failed: ${String(error)}`);
-      return null;
-    } finally {
-      // Drop the layers again so the hidden view (and its two full-screen
-      // bitmaps) doesn't sit in memory between reps.
-      onLayerLoadedRef.current = () => {};
-      setCompositeLayers(null);
-    }
-  }, []);
 
   /* ---------------------------------------------------------------- *
    * Pose pipeline
@@ -496,38 +324,10 @@ export default function SessionScreen() {
         if (completedRep.index === 1) {
           track('first_rep_counted', { exercise });
         }
-        // Grab an action shot for the share card on every rep, not just the
-        // first: the camera preview and pose-line overlay are both gone the
-        // instant the set ends and the camera releases, so whichever frame we
-        // hold when that happens is what ships. Recapturing each rep (throttled
-        // so overlapping captures can't queue up) means the stored photo
-        // naturally ends up being the *last* completed rep's frame.
-        const now = Date.now();
-        if (
-          !snapshotInFlightRef.current &&
-          now - lastSnapshotAtRef.current >= SNAPSHOT_THROTTLE_MS
-        ) {
-          snapshotInFlightRef.current = true;
-          captureDebug(`rep ${completedRep.index} — attempting`);
-          captureActionShot()
-            .then((uri) => {
-              if (!uri) return;
-              lastSnapshotAtRef.current = Date.now();
-              useSessionStore.getState().setCapturedSnapshotUri(uri);
-              captureDebug(`stored for rep ${completedRep.index}`);
-            })
-            .catch(() => {
-              // Capture can fail (e.g. the preview isn't ready yet); allow a
-              // later rep to try again rather than giving up on the shot.
-            })
-            .finally(() => {
-              snapshotInFlightRef.current = false;
-            });
-        }
       }
       useSessionStore.getState().applyPose({ depth, tracking, completedRep, formCue });
     },
-    [exercise, captureActionShot],
+    [exercise],
   );
 
   /**
@@ -826,21 +626,6 @@ export default function SessionScreen() {
     if (live.active) {
       const form = s0.formReport?.score ?? 0;
       live.finish(s0.reps, form, forfeitedRef.current);
-      // Push the final captured frame once, now that we know it won't be
-      // overwritten by another rep — uploading on every rep like the local
-      // capture does would be pure waste since only the last one survives.
-      if (s0.capturedSnapshotUri) {
-        live.pushPhoto(s0.capturedSnapshotUri);
-      }
-    }
-
-    // Best-effort late snapshot while the camera is still mounted.
-    if (!useSessionStore.getState().capturedSnapshotUri) {
-      void captureActionShot()
-        .then((uri) => {
-          if (uri) useSessionStore.getState().setCapturedSnapshotUri(uri);
-        })
-        .catch(() => {});
     }
 
     // Navigation waits for the clip when recording is on. With recording off
@@ -850,7 +635,7 @@ export default function SessionScreen() {
     void stopRecording().finally(() => {
       router.replace('/session/result');
     });
-  }, [phase, router, stopRecording, live, exercise, mode, captureActionShot]);
+  }, [phase, router, stopRecording, live, exercise, mode]);
 
   // Cold-start auth: finish handoff can run while `live` is still inert.
   useEffect(() => {
@@ -858,33 +643,7 @@ export default function SessionScreen() {
     const s0 = useSessionStore.getState();
     const form = s0.formReport?.score ?? 0;
     live.finish(s0.reps, form, forfeitedRef.current);
-    if (s0.capturedSnapshotUri) {
-      live.pushPhoto(s0.capturedSnapshotUri);
-    }
   }, [phase, live, duelId]);
-  // Guarantee an action shot for the share card even on a zero-rep set: a short
-  // delay after the set goes live (athlete framed, camera + pose line on screen)
-  // grabs one frame. The rep-completion capture above is preferred and runs
-  // first when reps happen; this is the safety net so the share stage is never
-  // empty when the camera worked.
-  useEffect(() => {
-    if (phase !== 'active' || useSessionStore.getState().capturedSnapshotUri) return;
-    const t = setTimeout(() => {
-      if (snapshotInFlightRef.current || useSessionStore.getState().capturedSnapshotUri) {
-        return;
-      }
-      snapshotInFlightRef.current = true;
-      captureActionShot()
-        .then((uri) => {
-          if (uri) useSessionStore.getState().setCapturedSnapshotUri(uri);
-        })
-        .catch(() => {})
-        .finally(() => {
-          snapshotInFlightRef.current = false;
-        });
-    }, 1600);
-    return () => clearTimeout(t);
-  }, [phase, captureActionShot]);
 
   const giveUp = useCallback(() => {
     stopSpeaking();
@@ -972,7 +731,6 @@ export default function SessionScreen() {
             keypoint buffer so it tracks at the camera's frame rate. */}
         {cameraReady ? (
           <PoseOverlay
-            ref={poseOverlayRef}
             pose={posePoints}
             frame={poseFrame}
             color={accent}
@@ -1116,33 +874,6 @@ export default function SessionScreen() {
         </PressableScale>
       ) : null}
 
-      {/* Hidden compositing surface for the share-card action shot (Android).
-          Parked off-canvas so it never flashes on screen: the camera photo
-          from `takeSnapshot()` goes down first, the transparent skeleton PNG
-          on top, and the pair is screenshotted together. See
-          `captureActionShot` for why the live stage can't be captured
-          directly. Mounted only while a capture is in flight. */}
-      {compositeLayers ? (
-        <View
-          ref={compositeRef}
-          collapsable={false}
-          pointerEvents="none"
-          style={[styles.composite, { width, height }]}
-        >
-          <Image
-            source={{ uri: compositeLayers.photoUri }}
-            style={StyleSheet.absoluteFill}
-            contentFit="cover"
-            onLoadEnd={() => onLayerLoadedRef.current()}
-          />
-          <Image
-            source={{ uri: compositeLayers.skeletonUri }}
-            style={StyleSheet.absoluteFill}
-            contentFit="fill"
-            onLoadEnd={() => onLayerLoadedRef.current()}
-          />
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -1162,9 +893,6 @@ function FramingBrackets({ accent }: { accent: string }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.camGreenBottom },
-  /* Off-canvas compositing surface — rendered (so view-shot can read it) but
-     never visible. Same trick the result screen uses for its share card. */
-  composite: { position: 'absolute', left: -10000, top: 0 },
   center: { alignItems: 'center', justifyContent: 'center' },
   logoWrap: {
     position: 'absolute',

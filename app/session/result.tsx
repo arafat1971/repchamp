@@ -21,7 +21,6 @@ import {
   isLiveSettleArmed,
   wasLiveSettleBanked,
 } from '@/services/liveResultSettle';
-import { watchOpponent } from '@/services/duelService';
 import { useProfileStore, selectStreak } from '@/state/profileStore';
 import { useIsPro } from '@/state/proStore';
 import { useAuthStore } from '@/state/authStore';
@@ -274,23 +273,6 @@ export default function ResultScreen() {
     // to omit here — it never closes over stale values.
   }, [router]);
 
-  // A duel/together opponent's photo can finish uploading a few seconds after
-  // this screen mounts (their `finish()` fires independently of ours). Keep
-  // listening for as long as their photo hasn't arrived, so a same-order-of-
-  // seconds late upload still lands on the card while the athlete is looking
-  // at it — `useLiveDuel`'s subscription doesn't run here, this is a fresh
-  // route mount, so it has to resubscribe rather than inherit that one.
-  useEffect(() => {
-    const duelId = session.config?.duelId;
-    if (!duelId || !authUid || session.opponentSnapshotUri) return;
-    const unsub = watchOpponent(duelId, authUid, (opponent) => {
-      if (opponent?.photoUrl) {
-        useSessionStore.getState().setOpponentSnapshotUri(opponent.photoUrl);
-      }
-    });
-    return unsub;
-  }, [session.config?.duelId, authUid, session.opponentSnapshotUri]);
-
   if (!session.config) {
     return <Redirect href="/(tabs)" />;
   }
@@ -419,7 +401,6 @@ export default function ResultScreen() {
           ref={shareCardRef}
           name={displayName}
           avatarUri={avatarUri}
-          snapshotUri={session.capturedSnapshotUri}
           reps={session.reps}
           exerciseLabel={definition.label}
           exerciseId={exercise}
@@ -435,7 +416,6 @@ export default function ResultScreen() {
           opponentName={opponentLabel}
           opponentReps={session.opponentReps}
           won={session.won}
-          opponentSnapshotUri={session.opponentSnapshotUri}
           cooperative={mode === 'together'}
         />
       </View>
@@ -496,8 +476,7 @@ export default function ResultScreen() {
           <ResultShareCard
             name={displayName}
             avatarUri={avatarUri}
-            snapshotUri={session.capturedSnapshotUri}
-            reps={session.reps}
+              reps={session.reps}
             exerciseLabel={definition.label}
             exerciseId={exercise}
             streak={streak}
@@ -512,8 +491,7 @@ export default function ResultScreen() {
             opponentName={opponentLabel}
             opponentReps={session.opponentReps}
             won={session.won}
-            opponentSnapshotUri={session.opponentSnapshotUri}
-            cooperative={mode === 'together'}
+              cooperative={mode === 'together'}
           />
         </Animated.View>
       </ScrollView>

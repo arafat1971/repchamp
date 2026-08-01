@@ -10,7 +10,6 @@ import { palette, radius } from '@/theme/tokens';
 export interface ResultShareCardProps {
   name: string;
   avatarUri?: string | null;
-  snapshotUri?: string | null;
   reps: number;
   exerciseLabel: string;
   exerciseId?: string;
@@ -30,8 +29,6 @@ export interface ResultShareCardProps {
   opponentName?: string;
   opponentReps?: number;
   won?: boolean;
-  /** Opponent/partner's uploaded action shot, once it syncs from their seat. */
-  opponentSnapshotUri?: string | null;
   /** A live "together" set — both sides shown, no winner framing. */
   cooperative?: boolean;
 }
@@ -54,7 +51,6 @@ export const ResultShareCard = forwardRef<View, ResultShareCardProps>(
     {
       name,
       avatarUri,
-      snapshotUri,
       reps,
       exerciseLabel,
       exerciseId = 'push',
@@ -70,7 +66,6 @@ export const ResultShareCard = forwardRef<View, ResultShareCardProps>(
       opponentName = 'Opponent',
       opponentReps = 0,
       won = true,
-      opponentSnapshotUri,
       cooperative = false,
     },
     ref,
@@ -111,15 +106,12 @@ export const ResultShareCard = forwardRef<View, ResultShareCardProps>(
                 {drew ? 'Draw' : won ? 'Victory' : 'Good effort'}
               </Text>
 
-              {/* Athletes — real action shots when both sides have synced,
-                  falling back to an initial per side independently so a slow
-                  or missing opponent upload never blocks the card. */}
+              {/* Athletes — the local avatar when set, an initial per side
+                  otherwise. */}
               <View style={styles.duelPhotoRow}>
                 <View style={styles.duelPhotoCol}>
                   <View style={[styles.duelPhotoTile, won && !drew && styles.duelPhotoTileWin]}>
-                    {snapshotUri ? (
-                      <Image source={{ uri: snapshotUri }} style={styles.duelPhotoImg} contentFit="cover" />
-                    ) : avatarUri ? (
+                    {avatarUri ? (
                       <Image source={{ uri: avatarUri }} style={styles.duelPhotoImg} contentFit="cover" />
                     ) : (
                       <View style={[styles.duelPhotoFallback, styles.avatarFallbackAccent]}>
@@ -145,13 +137,9 @@ export const ResultShareCard = forwardRef<View, ResultShareCardProps>(
 
                 <View style={styles.duelPhotoCol}>
                   <View style={[styles.duelPhotoTile, !won && !drew && styles.duelPhotoTileWin]}>
-                    {opponentSnapshotUri ? (
-                      <Image source={{ uri: opponentSnapshotUri }} style={styles.duelPhotoImg} contentFit="cover" />
-                    ) : (
-                      <View style={styles.duelPhotoFallback}>
-                        <Text style={styles.avatarInitialMuted}>{oppInitial}</Text>
-                      </View>
-                    )}
+                    <View style={styles.duelPhotoFallback}>
+                      <Text style={styles.avatarInitialMuted}>{oppInitial}</Text>
+                    </View>
                     <View style={styles.duelPhotoVignette} />
                   </View>
                   <Text style={styles.versusName} numberOfLines={1}>{opponentName}</Text>
@@ -184,9 +172,7 @@ export const ResultShareCard = forwardRef<View, ResultShareCardProps>(
               <View style={styles.duelPhotoRow}>
                 <View style={styles.duelPhotoCol}>
                   <View style={styles.duelPhotoTile}>
-                    {snapshotUri ? (
-                      <Image source={{ uri: snapshotUri }} style={styles.duelPhotoImg} contentFit="cover" />
-                    ) : avatarUri ? (
+                    {avatarUri ? (
                       <Image source={{ uri: avatarUri }} style={styles.duelPhotoImg} contentFit="cover" />
                     ) : (
                       <View style={[styles.duelPhotoFallback, styles.avatarFallbackAccent]}>
@@ -205,13 +191,9 @@ export const ResultShareCard = forwardRef<View, ResultShareCardProps>(
 
                 <View style={styles.duelPhotoCol}>
                   <View style={styles.duelPhotoTile}>
-                    {opponentSnapshotUri ? (
-                      <Image source={{ uri: opponentSnapshotUri }} style={styles.duelPhotoImg} contentFit="cover" />
-                    ) : (
-                      <View style={styles.duelPhotoFallback}>
-                        <Text style={styles.avatarInitialMuted}>{oppInitial}</Text>
-                      </View>
-                    )}
+                    <View style={styles.duelPhotoFallback}>
+                      <Text style={styles.avatarInitialMuted}>{oppInitial}</Text>
+                    </View>
                     <View style={styles.duelPhotoVignette} />
                   </View>
                   <Text style={styles.versusName} numberOfLines={1}>{opponentName}</Text>
@@ -234,9 +216,7 @@ export const ResultShareCard = forwardRef<View, ResultShareCardProps>(
 
               {/* AI pose stage */}
               <View style={styles.stage}>
-                {snapshotUri ? (
-                  <Image source={{ uri: snapshotUri }} style={styles.stagePhoto} contentFit="cover" />
-                ) : avatarUri ? (
+                {avatarUri ? (
                   <Image source={{ uri: avatarUri }} style={styles.stagePhoto} contentFit="cover" blurRadius={10} />
                 ) : (
                   <View style={styles.stageEmpty} />

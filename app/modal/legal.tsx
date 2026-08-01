@@ -43,21 +43,11 @@ export default function LegalScreen() {
       <Card style={styles.card}>
         <Para>
           RepChamp counts your reps and checks your form using pose estimation
-          that runs entirely on your device. The camera feed itself is never
-          recorded or sent anywhere — solo and practice sets never leave your
-          phone.
+          that runs entirely on your device. The camera feed is never recorded,
+          uploaded, or shared — in any mode, including live duels and together
+          sets. No image from your camera ever leaves your phone. The only photo
+          we store is the profile picture you choose yourself.
         </Para>
-
-        <Section title="Duel and together photos">
-          <Para>
-            If you play a live duel or a together set, one action photo captured
-            during your set — a still of the camera view with your pose line
-            drawn on it, not a recording — is uploaded so your opponent or
-            partner can see it on the shared result card, and theirs is shown to
-            you the same way. This is the only case where an image of you leaves
-            your phone; it never happens in solo or practice mode.
-          </Para>
-        </Section>
 
         <Section title="What we store">
           <Para>

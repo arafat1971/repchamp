@@ -56,6 +56,8 @@ export function HeroCarousel({ slides }: { slides: readonly HeroSlide[] }) {
   const scrollRef = useRef<ScrollView>(null);
   /** Epoch ms of the last touch; autoplay resumes only after the quiet window. */
   const lastTouchRef = useRef(0);
+  /** True between touch-down and the scroll settling, so the sync effect defers. */
+  const draggingRef = useRef(false);
   const safeSlides = slides.length > 0 ? slides : [];
   const count = safeSlides.length;
 
@@ -64,21 +66,43 @@ export function HeroCarousel({ slides }: { slides: readonly HeroSlide[] }) {
   // an out-of-range index costs an extra render and fights React's own rules.
   const safeIndex = index < count ? index : 0;
 
+  /*
+   * Autoplay advances from the clamped index.
+   *
+   * The updater reads current state, so it stays correct without a ref — and
+   * clamping inside it matters: the slide set shrinks when a duel resolves, and
+   * advancing from a now-out-of-range index would put the dots and the card on
+   * different slides. The scroll is issued after, not from inside the updater,
+   * which React only promises to run as a pure computation.
+   */
   useEffect(() => {
     if (count <= 1) return;
     const id = setInterval(() => {
       if (Date.now() - lastTouchRef.current < RESUME_AFTER_TOUCH_MS) return;
       setIndex((i) => {
-        const next = (i + 1) % count;
-        scrollRef.current?.scrollTo({ x: next * pageW, animated: true });
-        return next;
+        const from = i < count ? i : 0;
+        return (from + 1) % count;
       });
     }, INTERVAL_MS);
     return () => clearInterval(id);
-  }, [count, pageW]);
+  }, [count]);
+
+  /*
+   * Follow the index with the scroll position.
+   *
+   * Skipped while the athlete is touching the card. The index also changes when
+   * *they* swipe (onMomentumScrollEnd reports where it landed), and re-issuing
+   * a scrollTo for a position the card already reached would fight a gesture
+   * still in flight — the card is where they put it, so leave it there.
+   */
+  useEffect(() => {
+    if (draggingRef.current) return;
+    scrollRef.current?.scrollTo({ x: safeIndex * pageW, animated: true });
+  }, [safeIndex, pageW]);
 
   const onScrollEnd = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      draggingRef.current = false;
       const next = Math.round(e.nativeEvent.contentOffset.x / pageW);
       setIndex(Math.max(0, Math.min(count - 1, next)));
     },
@@ -87,6 +111,7 @@ export function HeroCarousel({ slides }: { slides: readonly HeroSlide[] }) {
 
   const markTouched = useCallback(() => {
     lastTouchRef.current = Date.now();
+    draggingRef.current = true;
   }, []);
 
   if (count === 0) return null;
@@ -96,10 +121,11 @@ export function HeroCarousel({ slides }: { slides: readonly HeroSlide[] }) {
       <ScrollView
         ref={scrollRef}
         horizontal
-        pagingEnabled
-        // The card is inset from the screen edge, so a page is narrower than the
-        // window. snapToInterval pages on that width instead of the viewport,
-        // which is what keeps a slide centred rather than drifting per page.
+        // Deliberately NOT `pagingEnabled`: that snaps to multiples of the
+        // viewport, and a page here is narrower than the screen (the card is
+        // inset by the gutter). The two disagree by the gutter on every page,
+        // so a slide drifts 40dp further off by page 2 and 120dp by page 4.
+        // snapToInterval pages on the real slide width instead.
         snapToInterval={pageW}
         snapToAlignment="start"
         decelerationRate="fast"

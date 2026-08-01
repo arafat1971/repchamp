@@ -492,7 +492,9 @@ export default function TabsLayout() {
           }}
         />
       </Tabs>
-      <TrainFab bottomPosition={tabBarHeight + 10} />
+      {/* +25 rather than +10 — lifts the FAB 15pt clear of the tab bar so it
+          reads as floating above it rather than sitting on its edge. */}
+      <TrainFab bottomPosition={tabBarHeight + 25} />
     </View>
   );
 }
@@ -539,7 +541,9 @@ const styles = StyleSheet.create({
   },
   fabContainer: {
     position: 'absolute',
-    right: 18,
+    // 23, not 18: nudged 5pt further in from the right edge so the disc clears
+    // the rounded corner of the tab bar behind it.
+    right: 23,
     alignItems: 'flex-end',
     zIndex: 999,
     elevation: 10,
@@ -579,7 +583,9 @@ const styles = StyleSheet.create({
   },
   fabMenu: {
     position: 'absolute',
-    right: 18,
+    // Matches fabContainer's right inset — the menu is anchored to the button,
+    // so the two must move together or the sheet sits 5pt off the disc.
+    right: 23,
     alignItems: 'flex-end',
   },
   fabMenuItem: {

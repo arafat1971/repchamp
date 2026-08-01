@@ -163,7 +163,7 @@ export default function ArenaScreen() {
       </StaggerIn>
 
       {/* ── Hero: live 1v1 duel with a personal face-off ── */}
-      <StaggerIn index={1} style={{ marginTop: 18 }}>
+      <StaggerIn index={1} style={{ marginTop: 16 }}>
         <PressableScale
           onPress={() => router.push('/modal/opponent-picker')}
           accessibilityRole="button"
@@ -212,7 +212,7 @@ export default function ArenaScreen() {
         </PressableScale>
       </StaggerIn>
 
-      <StaggerIn index={2} style={{ marginTop: 14 }}>
+      <StaggerIn index={2} style={{ marginTop: 12 }}>
         <WeeklyChallengeCard />
       </StaggerIn>
 
@@ -222,7 +222,7 @@ export default function ArenaScreen() {
           onPress={() => router.push('/modal/leaderboard')}
           accessibilityRole="button"
           accessibilityLabel="Open the weekly leaderboard"
-          style={{ marginTop: 14 }}
+          style={{ marginTop: 12 }}
         >
           <Card style={styles.boardCard}>
             <View style={styles.boardHeader}>
@@ -300,7 +300,7 @@ export default function ArenaScreen() {
           onPress={() => router.push('/modal/daily')}
           accessibilityRole="button"
           accessibilityLabel="Daily challenge"
-          style={{ marginTop: 14 }}
+          style={{ marginTop: 12 }}
         >
           <Card style={styles.dailyCard}>
             <View style={styles.dailyIcon}>
@@ -323,7 +323,7 @@ export default function ArenaScreen() {
 
 const styles = StyleSheet.create({
   header: {
-    marginTop: 14,
+    marginTop: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -331,19 +331,19 @@ const styles = StyleSheet.create({
   leaguePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
+    gap: 8,
     backgroundColor: palette.green50,
     borderWidth: 1,
     borderColor: palette.green200,
     borderRadius: radius.pill,
-    paddingVertical: 6,
+    paddingVertical: 4,
     paddingHorizontal: 12,
   },
   leagueDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: palette.green500 },
   leaguePillText: font('extrabold', 12, { color: palette.green700 }),
 
   /* Hero */
-  heroCard: { borderRadius: radius['6xl'], padding: 22, overflow: 'hidden' },
+  heroCard: { borderRadius: radius['6xl'], padding: 20, overflow: 'hidden' },
   heroTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -356,11 +356,11 @@ const styles = StyleSheet.create({
   liveWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
+    gap: 8,
     backgroundColor: 'rgba(0,0,0,0.18)',
     borderRadius: radius.pill,
     paddingVertical: 4,
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
   },
   liveDotWrap: { width: 8, height: 8, alignItems: 'center', justifyContent: 'center' },
   liveRing: {
@@ -385,10 +385,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 18,
+    gap: 16,
     marginTop: 20,
   },
-  vsSide: { alignItems: 'center', gap: 7 },
+  vsSide: { alignItems: 'center', gap: 8 },
   heroAvatar: {
     width: 52,
     height: 52,
@@ -418,7 +418,7 @@ const styles = StyleSheet.create({
   vsChip: {
     backgroundColor: palette.white,
     borderRadius: radius.pill,
-    paddingVertical: 5,
+    paddingVertical: 4,
     paddingHorizontal: 12,
     ...shadow.card,
   },
@@ -439,14 +439,14 @@ const styles = StyleSheet.create({
   heroCtaArrow: font('extrabold', 16, { color: palette.green600 }),
 
   /* Leaderboard */
-  boardCard: { padding: 18 },
+  boardCard: { padding: 16 },
   boardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 12,
   },
-  boardTitle: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  boardTitle: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   trophyChip: {
     width: 30,
     height: 30,
@@ -460,7 +460,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingVertical: 9,
+    paddingVertical: 8,
     paddingHorizontal: 8,
     borderRadius: radius.lg,
   },
@@ -474,27 +474,27 @@ const styles = StyleSheet.create({
   },
   medalText: font('extrabold', 13),
   boardName: { ...font('extrabold', 14, { color: palette.ink }) },
-  boardNameWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  boardNameWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 },
   boardXp: font('extrabold', 13.5, { color: palette.ink }),
   aiPill: {
     backgroundColor: palette.green50,
     borderWidth: 1,
     borderColor: '#bfeccb',
     borderRadius: 5,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
   },
   youRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingVertical: 10,
+    paddingVertical: 8,
     paddingHorizontal: 8,
     borderRadius: radius.lg,
     backgroundColor: palette.green50,
     borderWidth: 1.5,
     borderColor: palette.green200,
-    marginTop: 6,
+    marginTop: 4,
   },
   youRankWrap: { width: 28, alignItems: 'center' },
   youRank: font('extrabold', 14, { color: palette.green600 }),
@@ -507,7 +507,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   boardFooter: {
-    marginTop: 14,
+    marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: palette.divider,

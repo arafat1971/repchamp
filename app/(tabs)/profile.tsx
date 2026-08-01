@@ -260,7 +260,7 @@ export default function ProfileScreen() {
                   <Path d="M18 20V10M12 20V4M6 20v-6" stroke={palette.green700} strokeWidth={2.5} strokeLinecap="round" fill="none" />
                 </Svg>
               </View>
-              <Text style={font('extrabold', 16, { color: palette.ink, marginTop: 10 })}>
+              <Text style={font('extrabold', 16, { color: palette.ink, marginTop: 8 })}>
                 No stats yet
               </Text>
               <Text style={[text.captionMd, { textAlign: 'center', marginTop: 4 }]}>
@@ -354,7 +354,7 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  settingsRow: { alignItems: 'flex-end', marginTop: 8, marginBottom: 2 },
+  settingsRow: { alignItems: 'flex-end', marginTop: 8, marginBottom: 4 },
   settingsButton: {
     width: 40,
     height: 40,
@@ -372,7 +372,7 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     borderRadius: 30,
-    padding: 3,
+    padding: 4,
     backgroundColor: palette.green50,
     borderWidth: 2,
     borderColor: palette.green200,
@@ -399,22 +399,22 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   name: { ...font('extrabold', 22, { color: palette.ink }) },
-  handle: { ...font('bold', 13, { color: palette.grey550 }), marginTop: 2 },
+  handle: { ...font('bold', 13, { color: palette.grey550 }), marginTop: 4 },
   rankPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
+    gap: 8,
     marginTop: 12,
     backgroundColor: palette.green50,
     borderWidth: 1,
     borderColor: palette.green200,
     borderRadius: radius.pill,
-    paddingVertical: 6,
-    paddingHorizontal: 13,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
   },
   rankDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: palette.green500 },
   rankPillText: font('extrabold', 12.5, { color: palette.green700 }),
-  xpBlock: { alignSelf: 'stretch', marginTop: 18 },
+  xpBlock: { alignSelf: 'stretch', marginTop: 16 },
   xpLabelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -435,13 +435,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   emptyStatsCta: {
-    marginTop: 14,
+    marginTop: 12,
     backgroundColor: palette.green50,
     borderWidth: 1,
     borderColor: '#bfeccb',
     borderRadius: 20,
     paddingHorizontal: 16,
-    paddingVertical: 9,
+    paddingVertical: 8,
   },
 
   /* Stat grid */
@@ -458,7 +458,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   statValue: { ...font('extrabold', 24, { color: palette.ink }) },
-  statLabel: { ...font('bold', 12, { color: palette.grey550 }), marginTop: 2 },
+  statLabel: { ...font('bold', 12, { color: palette.grey550 }), marginTop: 4 },
 
   /* Achievements */
   sectionHeader: {
@@ -500,7 +500,7 @@ const styles = StyleSheet.create({
   badgeDotLocked: { backgroundColor: palette.grey500 },
   badgeLabel: {
     ...font('extrabold', 10.5, { color: palette.ink }),
-    marginTop: 10,
+    marginTop: 8,
     textAlign: 'center',
   },
 
@@ -510,7 +510,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     padding: 16,
-    marginTop: 22,
+    marginTop: 20,
     borderRadius: radius['2xl'],
     backgroundColor: palette.white,
     borderWidth: 1,
@@ -528,13 +528,13 @@ const styles = StyleSheet.create({
   proLogo: { width: 27, height: 27 },
   proBadge: {
     backgroundColor: palette.green50,
-    paddingVertical: 6,
+    paddingVertical: 4,
     paddingHorizontal: 12,
     borderRadius: 14,
   },
   proButton: {
     backgroundColor: palette.green500,
-    paddingVertical: 10,
+    paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: radius.lg,
   },

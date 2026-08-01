@@ -204,7 +204,7 @@ export default function FriendsScreen() {
   return (
     <Screen>
       <StaggerIn index={0}>
-        <Text style={[text.h1, { marginTop: 14, marginBottom: 16 }]}>Friends</Text>
+        <Text style={[text.h1, { marginTop: 12, marginBottom: 16 }]}>Friends</Text>
         <View style={styles.searchBar}>
           <View style={styles.searchIcon}>
             <View style={styles.searchGlass} />
@@ -271,7 +271,7 @@ export default function FriendsScreen() {
                 online
               />
               <Text style={[styles.onlineName, { color: palette.ink }]}>{o.name}</Text>
-              <AiTag style={{ marginTop: 1, alignSelf: 'center' }} />
+              <AiTag style={{ marginTop: 4, alignSelf: 'center' }} />
             </PressableScale>
           ))}
 
@@ -297,7 +297,7 @@ export default function FriendsScreen() {
                 online
               />
               <Text style={[styles.onlineName, { color: palette.ink }]}>{p.name.split(' ')[0]}</Text>
-              <AiTag style={{ marginTop: 1, alignSelf: 'center' }} />
+              <AiTag style={{ marginTop: 4, alignSelf: 'center' }} />
             </PressableScale>
           ))}
         </View>
@@ -309,7 +309,7 @@ export default function FriendsScreen() {
           <Card style={{ padding: 8 }}>
             {newAthletes.slice(0, 8).map((a, index) => (
               <View key={a.uid}>
-                {index > 0 ? <Divider style={{ marginHorizontal: 10 }} /> : null}
+                {index > 0 ? <Divider style={{ marginHorizontal: 8 }} /> : null}
                 <View style={styles.friendRow}>
                   <View style={styles.friendInfo}>
                     <Avatar
@@ -350,7 +350,7 @@ export default function FriendsScreen() {
           <Card style={{ padding: 8 }}>
             {seed.phantomFriends.map((p, index) => (
               <View key={p.id}>
-                {index > 0 ? <Divider style={{ marginHorizontal: 10 }} /> : null}
+                {index > 0 ? <Divider style={{ marginHorizontal: 8 }} /> : null}
                 <View style={styles.friendRow}>
                   <View style={styles.friendInfo}>
                     <Avatar
@@ -403,7 +403,7 @@ export default function FriendsScreen() {
 
             return (
               <View key={o.id}>
-                {index > 0 ? <Divider style={{ marginHorizontal: 10 }} /> : null}
+                {index > 0 ? <Divider style={{ marginHorizontal: 8 }} /> : null}
                 <View style={styles.friendRow}>
                   <PressableScale
                     onPress={() => router.push({ pathname: '/modal/friend', params: { id: o.id } })}
@@ -488,7 +488,7 @@ export default function FriendsScreen() {
           <Card style={{ padding: 8 }}>
             {filteredCloud.map((f, index) => (
               <View key={f.uid}>
-                {index > 0 ? <Divider style={{ marginHorizontal: 10 }} /> : null}
+                {index > 0 ? <Divider style={{ marginHorizontal: 8 }} /> : null}
                 <View style={styles.cloudRow}>
                   <PressableScale
                     onPress={() =>
@@ -605,13 +605,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: palette.white,
     borderRadius: radius.xl,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderWidth: 1,
     borderColor: palette.border,
     marginBottom: 4,
   },
-  searchIcon: { width: 16, height: 16, marginRight: 10 },
+  searchIcon: { width: 16, height: 16, marginRight: 8 },
   searchGlass: {
     position: 'absolute',
     top: 0,
@@ -637,8 +637,8 @@ const styles = StyleSheet.create({
     ...font('semibold', 13, { color: palette.ink }),
     padding: 0,
   },
-  onlineRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginBottom: 26 },
-  onlineItem: { alignItems: 'center', gap: 6, width: 64 },
+  onlineRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginBottom: 24 },
+  onlineItem: { alignItems: 'center', gap: 4, width: 64 },
   addCircle: {
     width: 58,
     height: 58,
@@ -655,32 +655,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingVertical: 11,
-    paddingHorizontal: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
   },
   cloudRow: {
-    paddingVertical: 11,
-    paddingHorizontal: 10,
-    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    gap: 8,
   },
   skeletonRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingVertical: 11,
-    paddingHorizontal: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
   },
   friendInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
   duelButton: {
     backgroundColor: palette.green500,
-    paddingVertical: 9,
+    paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: radius.lg,
   },
-  actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   actionPill: {
     backgroundColor: palette.green500,
-    paddingVertical: 7,
+    paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: radius.lg,
   },
@@ -690,12 +690,12 @@ const styles = StyleSheet.create({
   actionPillMuted: {
     backgroundColor: palette.border,
   },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   aiTag: {
     backgroundColor: palette.green50,
     borderRadius: 6,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
     alignSelf: 'flex-start',
   },
   aiTagText: font('extrabold', 8.5, { color: palette.green700, letterSpacing: 0.3 }),

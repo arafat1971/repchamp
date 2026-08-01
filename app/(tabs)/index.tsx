@@ -276,7 +276,7 @@ export default function HomeScreen() {
       </StaggerIn>
 
       {couple.paired ? (
-        <StaggerIn index={1} style={{ marginTop: 14 }}>
+        <StaggerIn index={1} style={{ marginTop: 12 }}>
           <CoupleStrip
             me={couple.me}
             partner={couple.partner}
@@ -347,11 +347,11 @@ export default function HomeScreen() {
                 <Image source={MEDAL_BRONZE} style={styles.medalIconSmall} contentFit="contain" />
                 <Text style={font('bold', 16, { color: palette.ink })}>{leagueProgress.title}</Text>
               </View>
-              <Text style={font('bold', 14, { color: '#b45309', marginTop: 2 })}>
+              <Text style={font('bold', 14, { color: '#b45309', marginTop: 4 })}>
                 <CountUp value={weeklyXp} style={font('bold', 14, { color: '#b45309' })} /> XP
               </Text>
               <LeagueXpBar fill={leagueProgress.fill} />
-              <Text style={font('regular', 10.5, { color: '#a16207', marginTop: 6 })} numberOfLines={1}>
+              <Text style={font('regular', 10.5, { color: '#a16207', marginTop: 4 })} numberOfLines={1}>
                 {leagueProgress.nextLeague
                   ? `${leagueProgress.xpToNext.toLocaleString()} XP until ${leagueProgress.nextLeague.name}`
                   : 'Top league — hold the crown'}
@@ -708,7 +708,7 @@ function DualChallengeBars({
               <Text style={font('bold', 8, { color: palette.green700 })}>AI</Text>
             </View>
           </View>
-          <Text style={font('regular', 11, { color: palette.grey500, marginTop: 2 })}>
+          <Text style={font('regular', 11, { color: palette.grey500, marginTop: 4 })}>
             Exhibition · tap to start yours
           </Text>
         </View>
@@ -716,7 +716,7 @@ function DualChallengeBars({
           <View style={styles.demoBadge}>
             <Text style={font('bold', 10, { color: palette.slate500, letterSpacing: 0.6 })}>DEMO</Text>
           </View>
-          <Text style={font('regular', 11, { color: palette.slate500, marginTop: 3 })}>{timeLeft} left</Text>
+          <Text style={font('regular', 11, { color: palette.slate500, marginTop: 4 })}>{timeLeft} left</Text>
         </View>
       </View>
 
@@ -830,12 +830,12 @@ function QuickTile({
         <Text style={font('semibold', 15, { color: palette.ink, marginTop: 8 })} numberOfLines={1}>
           {label}
         </Text>
-        <Text style={font('regular', 11, { color: palette.grey600, marginTop: 6 })}>Today's Best</Text>
+        <Text style={font('regular', 11, { color: palette.grey600, marginTop: 4 })}>Today's Best</Text>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
           <CountUp value={stats.todayBest} duration={800} style={font('bold', 22, { color: accent })} />
           <Text style={font('regular', 12, { color: palette.grey500 })}>reps</Text>
         </View>
-        <Text style={font('regular', 11, { color: palette.grey500, marginTop: 2 })}>
+        <Text style={font('regular', 11, { color: palette.grey500, marginTop: 4 })}>
           Last {stats.lastBest} reps
         </Text>
       </LinearGradient>
@@ -892,7 +892,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    padding: 2,
+    padding: 4,
     ...shadow.brand,
   },
   avatar: {
@@ -912,18 +912,18 @@ const styles = StyleSheet.create({
     borderColor: '#bfeccb',
     borderRadius: 8,
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 4,
   },
   streakChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
+    gap: 4,
     backgroundColor: palette.amber50,
     borderWidth: 1,
     borderColor: '#fcd34d',
     borderRadius: 8,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   headerActions: {
     flexDirection: 'row',
@@ -932,7 +932,7 @@ const styles = StyleSheet.create({
     gap: 8,
     // Nudged down so the icon optically centres against the name row rather
     // than the smaller greeting above it.
-    marginTop: 6,
+    marginTop: 4,
   },
   /** Single-purpose circular control — one icon, one action. */
   /**
@@ -978,12 +978,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  streakInline: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  liveCountInline: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 },
+  streakInline: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  liveCountInline: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
   liveDotSmall: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: palette.green500 },
 
   // Stat cards
-  row: { flexDirection: 'row', gap: 12, marginTop: 18, alignItems: 'stretch' },
+  row: { flexDirection: 'row', gap: 12, marginTop: 16, alignItems: 'stretch' },
   rowTight: { flexDirection: 'row', gap: 12 },
   weekCard: {
     backgroundColor: palette.white,
@@ -997,8 +997,8 @@ const styles = StyleSheet.create({
   },
   tierChipBronze: {
     backgroundColor: 'rgba(146,64,14,0.12)',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 7,
     borderWidth: 1,
     borderColor: 'rgba(180,83,9,0.35)',
@@ -1025,14 +1025,14 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 4,
   },
-  statCardInner: { flex: 1, padding: 15, borderRadius: 18 },
+  statCardInner: { flex: 1, padding: 16, borderRadius: 18 },
   miniHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  tierChip: { backgroundColor: palette.green50, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 },
+  tierChip: { backgroundColor: palette.green50, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 7 },
   statAccentDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: palette.green500, marginTop: 4 },
   weekValue: { flexDirection: 'row', alignItems: 'baseline', marginTop: 8 },
-  weekBars: { flexDirection: 'row', gap: 5, marginTop: 10 },
+  weekBars: { flexDirection: 'row', gap: 4, marginTop: 8 },
   weekBar: { flex: 1, height: 6, borderRadius: 4 },
-  leagueRow: { flexDirection: 'row', alignItems: 'center', gap: 0, marginTop: 2, marginBottom: 0 },
+  leagueRow: { flexDirection: 'row', alignItems: 'center', gap: 0, marginTop: 4, marginBottom: 0 },
   medalIcon: { width: 66, height: 44, marginRight: -8, marginLeft: -6, marginTop: -4 },
   trophyWrapper: {
     position: 'absolute',
@@ -1056,7 +1056,7 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   // Consistent section rhythm — iOS groups content with generous, even gaps
   // rather than varying margins per section.
-  sectionSpacing: { marginTop: 28, marginBottom: 14 },
+  sectionSpacing: { marginTop: 28, marginBottom: 12 },
   quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   quickTileWrap: { width: '47%', flexGrow: 1 },
   quickTile: {
@@ -1069,7 +1069,7 @@ const styles = StyleSheet.create({
   quickTileNew: {
     minHeight: 168,
     borderRadius: 20,
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: 'rgba(15,23,42,0.06)',
@@ -1119,8 +1119,8 @@ const styles = StyleSheet.create({
   rowCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    padding: 14,
+    gap: 12,
+    padding: 12,
     borderRadius: 18,
   },
   rowIcon: {
@@ -1138,7 +1138,7 @@ const styles = StyleSheet.create({
   challengeCard: {
     borderWidth: 1,
     borderColor: '#bbf7d0',
-    padding: 18,
+    padding: 16,
     borderRadius: 22,
     overflow: 'hidden',
     shadowColor: '#16a34a',
@@ -1148,15 +1148,15 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   challengeRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  challengeSubRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 1 },
+  challengeSubRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
   /** Matches the Arena leaderboard's AI badge so labelling is consistent. */
   aiPill: {
     backgroundColor: palette.green50,
     borderWidth: 1,
     borderColor: '#bfeccb',
     borderRadius: 5,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
   },
   vsAvatars: { flexDirection: 'row', alignItems: 'center' },
   vsAvatar: {
@@ -1177,20 +1177,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#f4f4f5',
     borderWidth: 1,
     borderColor: palette.border,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 999,
   },
   fireIcon: { width: 34, height: 34 },
-  matchProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14 },
+  matchProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
   matchProgressBar: { flex: 1, height: 12, borderRadius: 6, backgroundColor: palette.green50, overflow: 'hidden' },
 
   // More — clean action rows
   moreCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    padding: 14,
+    gap: 12,
+    padding: 12,
     borderRadius: 18,
     backgroundColor: palette.white,
     borderWidth: 1,
@@ -1209,18 +1209,18 @@ const styles = StyleSheet.create({
   },
   moreIconImg: { width: 24, height: 24 },
   moreTitle: font('extrabold', 15, { color: palette.ink }),
-  moreSub: { ...font('semibold', 12, { color: palette.slate500 }), marginTop: 2 },
+  moreSub: { ...font('semibold', 12, { color: palette.slate500 }), marginTop: 4 },
   morePill: {
     backgroundColor: palette.green50,
-    paddingHorizontal: 9,
+    paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
   },
   morePillText: font('extrabold', 11, { color: palette.green700 }),
-  moreChevron: { ...font('extrabold', 22, { color: palette.slate400 }), marginLeft: 2 },
+  moreChevron: { ...font('extrabold', 22, { color: palette.slate400 }), marginLeft: 4 },
 
   greetingHook: { ...font('regular', 12, { color: palette.grey600 }) },
-  greetingBonus: { ...font('regular', 11, { color: palette.green700, marginTop: 3 }) },
+  greetingBonus: { ...font('regular', 11, { color: palette.green700, marginTop: 4 }) },
   weekBarTall: { flex: 1, height: 10, borderRadius: 5 },
   medalIconSmall: { width: 42, height: 32, marginRight: -4, marginLeft: -4 },
   leagueXpTrack: {
@@ -1235,7 +1235,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#d97706',
   },
-  dualRace: { marginTop: 14, gap: 10 },
+  dualRace: { marginTop: 12, gap: 8 },
   dualRaceRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   dualTrack: {
     flex: 1,
@@ -1247,6 +1247,6 @@ const styles = StyleSheet.create({
   dualFillGreen: { height: '100%', backgroundColor: '#22c55e', borderRadius: 6 },
   dualFillSlate: { height: '100%', backgroundColor: '#94a3b8', borderRadius: 6 },
   quickTileTop: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  deltaPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
+  deltaPill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 },
 });
 

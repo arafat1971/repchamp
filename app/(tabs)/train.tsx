@@ -86,8 +86,8 @@ export default function TrainScreen() {
   return (
     <Screen>
       <StaggerIn index={0}>
-        <Text style={[text.h1, { marginTop: 14 }]}>Train</Text>
-        <Text style={[text.body, { marginBottom: 18, marginTop: 6 }]}>
+        <Text style={[text.h1, { marginTop: 12 }]}>Train</Text>
+        <Text style={[text.body, { marginBottom: 16, marginTop: 4 }]}>
           Practice solo — no targets, just reps.
         </Text>
       </StaggerIn>
@@ -346,7 +346,7 @@ function AiGlyph() {
 }
 
 const styles = StyleSheet.create({
-  tileRow: { flexDirection: 'row', gap: 12, marginBottom: 14 },
+  tileRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
   practiceTile: {
     height: 175,
     borderRadius: radius['4xl'],
@@ -360,8 +360,8 @@ const styles = StyleSheet.create({
   },
   pbBadge: {
     backgroundColor: 'rgba(255,255,255,0.25)',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 8,
   },
   tileIconChip: {
@@ -381,8 +381,8 @@ const styles = StyleSheet.create({
   },
   startPill: {
     backgroundColor: palette.white,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 12,
     ...shadow.card,
   },
@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    padding: 18,
+    padding: 16,
     borderRadius: radius['3xl'],
   },
   coupleBody: {
@@ -427,8 +427,8 @@ const styles = StyleSheet.create({
   },
   couplePickIcon: { width: 20, height: 20 },
   couplePickText: font('extrabold', 14, { color: palette.ink }),
-  roadmapCard: { padding: 18 },
-  roadmapHeader: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 16 },
+  roadmapCard: { padding: 16 },
+  roadmapHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
   roadmap: { flexDirection: 'row', alignItems: 'center' },
   roadmapSegment: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   roadmapLine: { flex: 1, height: 4 },

@@ -21,7 +21,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { text } from '@/theme/typography';
-import { gradients, palette, radius, shadow, type Gradient } from '@/theme/tokens';
+import { gradients, palette, radius, shadow, space, type Gradient } from '@/theme/tokens';
 import { lightImpactHaptic } from '@/lib/feedback';
 
 export { Skeleton, SkeletonCircle } from './Skeleton';
@@ -490,11 +490,11 @@ const styles = StyleSheet.create({
   },
   statEmoji: {
     fontSize: 20,
-    marginBottom: 6,
+    marginBottom: space.sm,
   },
   statLabel: {
     ...text.caption,
-    marginTop: 2,
+    marginTop: space.xs,
   },
   progressTrack: {
     width: '100%',
@@ -511,8 +511,8 @@ const styles = StyleSheet.create({
     borderColor: palette.canvas,
   },
   badge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: space.md,
+    paddingVertical: space.xs,
     borderRadius: radius.md,
     alignSelf: 'flex-start',
   },

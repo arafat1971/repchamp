@@ -412,7 +412,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   aiDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: ACCENT },
-  aiPillText: font('extrabold', 9, { color: palette.green700, letterSpacing: 1 }),
+  aiPillText: font('extrabold', 9.5, { color: palette.green700, letterSpacing: 1 }),
 
   /* Hero (solo) */
   hero: { alignItems: 'center', marginBottom: 16 },
@@ -450,7 +450,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: palette.green400 },
-  stageTagText: font('extrabold', 9, { color: palette.white, letterSpacing: 0.8 }),
+  stageTagText: font('extrabold', 9.5, { color: palette.white, letterSpacing: 0.8 }),
 
   /* Stats (solo) */
   statsRow: { flexDirection: 'row', gap: 8, width: '100%', marginBottom: 16 },
@@ -464,7 +464,7 @@ const styles = StyleSheet.create({
     borderColor: BORDER,
   },
   statValue: font('extrabold', 17, { color: ACCENT }),
-  statLabel: font('bold', 9, { color: MUTED, letterSpacing: 0.8, marginTop: 4 }),
+  statLabel: font('bold', 9.5, { color: MUTED, letterSpacing: 0.8, marginTop: 4 }),
 
   /* Versus / together */
   resultKicker: font('extrabold', 11, { color: MUTED, letterSpacing: 3, marginBottom: 4 }),
@@ -503,7 +503,7 @@ const styles = StyleSheet.create({
   versusName: font('extrabold', 13, { color: INK, marginTop: 8, maxWidth: 100 }),
   versusScore: font('extrabold', 30, { marginTop: 4 }),
   winnerTag: {
-    ...font('extrabold', 9, { color: palette.green700, letterSpacing: 1 }),
+    ...font('extrabold', 9.5, { color: palette.green700, letterSpacing: 1 }),
     backgroundColor: ACCENT_SOFT,
     paddingHorizontal: 8,
     paddingVertical: 4,

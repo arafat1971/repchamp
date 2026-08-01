@@ -401,7 +401,7 @@ const styles = StyleSheet.create({
   },
   heroBadgeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: palette.green500 },
   heroBadgeText: {
-    ...font('extrabold', 9, { color: palette.green700 }),
+    ...font('extrabold', 9.5, { color: palette.green700 }),
     letterSpacing: 1.5,
   },
   heroVsRow: {
@@ -467,7 +467,7 @@ const styles = StyleSheet.create({
   },
   configItem: { flex: 1, alignItems: 'center', gap: 4, paddingHorizontal: 4 },
   configLabel: {
-    ...font('extrabold', 9, { color: palette.slate400 }),
+    ...font('extrabold', 9.5, { color: palette.slate400 }),
     letterSpacing: 1,
   },
   configValue: font('extrabold', 14.5, { color: palette.slate900 }),
@@ -523,7 +523,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: radius.sm,
   },
-  proBadgeText: { ...font('extrabold', 8, { color: palette.amber900 }), letterSpacing: 0.6 },
+  proBadgeText: { ...font('extrabold', 9.5, { color: palette.amber900 }), letterSpacing: 0.6 },
   selectedDot: {
     position: 'absolute',
     top: 8,
@@ -570,9 +570,9 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   durationValue: font('extrabold', 16, { color: palette.ink }),
-  durationDesc: font('bold', 9, { color: palette.grey500 }),
+  durationDesc: font('bold', 9.5, { color: palette.grey500 }),
   durationValueSelected: font('extrabold', 16, { color: palette.white }),
-  durationDescSelected: font('bold', 9, { color: 'rgba(255,255,255,0.85)' }),
+  durationDescSelected: font('bold', 9.5, { color: 'rgba(255,255,255,0.85)' }),
 
   /* ── Start Button ── */
   startBtn: {

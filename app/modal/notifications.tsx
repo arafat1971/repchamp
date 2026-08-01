@@ -405,7 +405,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   newPillText: {
-    ...font('extrabold', 8, { color: palette.green700 }),
+    ...font('extrabold', 9.5, { color: palette.green700 }),
     letterSpacing: 0.6,
   },
   chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 12 },

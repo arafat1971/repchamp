@@ -577,7 +577,7 @@ function BellButton({ pendingDuels, onPress }: { pendingDuels: number; onPress: 
       </Animated.Text>
       {pendingDuels > 0 ? (
         <PopOnChange trigger={pendingDuels} style={styles.bellDot}>
-          <Text style={font('bold', 9, { color: palette.white })}>
+          <Text style={font('bold', 9.5, { color: palette.white })}>
             {pendingDuels > 9 ? '9+' : pendingDuels}
           </Text>
         </PopOnChange>
@@ -709,7 +709,7 @@ function DualChallengeBars({
               {name1} vs {name2}
             </Text>
             <View style={styles.aiPill}>
-              <Text style={font('bold', 8, { color: palette.green700 })}>AI</Text>
+              <Text style={font('bold', 9.5, { color: palette.green700 })}>AI</Text>
             </View>
           </View>
           <Text style={font('regular', 11, { color: palette.grey500, marginTop: 4 })}>

@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
   stats: { flexDirection: 'row', gap: 16 },
   stat: { alignItems: 'flex-end', minWidth: 36 },
   statValue: font('extrabold', 18, { color: palette.ink }),
-  statLabel: { ...font('bold', 8, { color: palette.grey500 }), letterSpacing: 1, marginTop: 4 },
+  statLabel: { ...font('bold', 9.5, { color: palette.grey500 }), letterSpacing: 1, marginTop: 4 },
   headline: {
     ...font('semibold', 13, { color: palette.grey600 }),
     lineHeight: 18,
@@ -254,8 +254,8 @@ const styles = StyleSheet.create({
   milestoneLabel: font('bold', 10, { color: palette.grey500 }),
   week: { flexDirection: 'row', gap: 4, justifyContent: 'space-between' },
   dayCol: { alignItems: 'center', gap: 4, flex: 1 },
-  dayLabel: font('bold', 9, { color: palette.grey400 }),
-  dayLabelToday: font('extrabold', 9, { color: palette.ink }),
+  dayLabel: font('bold', 9.5, { color: palette.grey400 }),
+  dayLabelToday: font('extrabold', 9.5, { color: palette.ink }),
   dot: {
     width: '100%',
     height: 12,

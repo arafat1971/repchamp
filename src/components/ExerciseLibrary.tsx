@@ -95,6 +95,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     borderRadius: radius.sm,
   },
-  lockText: { ...font('extrabold', 9, { color: palette.amber900 }), letterSpacing: 1 },
+  lockText: { ...font('extrabold', 9.5, { color: palette.amber900 }), letterSpacing: 1 },
   label: font('extrabold', 14, { color: palette.ink }),
 });

@@ -254,7 +254,7 @@ export default function ArenaScreen() {
                   </Text>
                   {'isAI' in row && row.isAI ? (
                     <View style={styles.aiPill}>
-                      <Text style={font('extrabold', 8, { color: palette.green700 })}>AI</Text>
+                      <Text style={font('extrabold', 9.5, { color: palette.green700 })}>AI</Text>
                     </View>
                   ) : null}
                 </View>

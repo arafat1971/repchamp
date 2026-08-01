@@ -591,7 +591,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.green600,
     borderColor: palette.green700,
   },
-  planBadgeText: font('extrabold', 9, { color: palette.green700 }),
+  planBadgeText: font('extrabold', 9.5, { color: palette.green700 }),
   planSubtitle: { ...text.caption, marginTop: 4 },
   radio: {
     width: 24,

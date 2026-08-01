@@ -166,7 +166,7 @@ export function ProgrammeCard() {
                 colors={['#f59e0b', '#f97316']}
                 style={styles.proTag}
               >
-                <Text style={font('extrabold', 9, { color: palette.white })}>PRO</Text>
+                <Text style={font('extrabold', 9.5, { color: palette.white })}>PRO</Text>
               </LinearGradient>
             ) : null}
           </View>

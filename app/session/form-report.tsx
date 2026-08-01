@@ -45,7 +45,7 @@ export default function FormReportScreen() {
           trackColor="rgba(255,255,255,0.25)"
         >
           <Text style={font('extrabold', 26, { color: palette.white })}>{report.score}</Text>
-          <Text style={font('bold', 9, { color: 'rgba(255,255,255,0.8)' })}>/100</Text>
+          <Text style={font('bold', 9.5, { color: 'rgba(255,255,255,0.8)' })}>/100</Text>
         </ProgressRing>
         <View style={{ flex: 1 }}>
           <Text style={font('extrabold', 18, { color: palette.white })}>{report.grade}</Text>

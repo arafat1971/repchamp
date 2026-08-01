@@ -270,12 +270,12 @@ const styles = StyleSheet.create({
     textShadowRadius: 10,
   },
   versusSub: {
-    ...font('extrabold', 8.5, { color: palette.green300 }),
+    ...font('extrabold', 9.5, { color: palette.green300 }),
     letterSpacing: 2.4,
     marginTop: 4,
   },
   scoreLabel: {
-    ...font('bold', 9, { color: 'rgba(255,255,255,0.5)' }),
+    ...font('bold', 9.5, { color: 'rgba(255,255,255,0.5)' }),
     letterSpacing: 1,
   },
 
@@ -329,7 +329,7 @@ const styles = StyleSheet.create({
   duelNameThem: { ...font('bold', 10, { color: 'rgba(255,255,255,0.7)' }), marginTop: 4 },
   duelCenter: { alignItems: 'center', paddingHorizontal: 4 },
   duelTimeLabel: {
-    ...font('bold', 9, { color: 'rgba(255,255,255,0.5)' }),
+    ...font('bold', 9.5, { color: 'rgba(255,255,255,0.5)' }),
     letterSpacing: 2.5,
   },
   duelClock: { ...font('extrabold', 22, { color: palette.white }), lineHeight: 24 },
@@ -420,7 +420,7 @@ const styles = StyleSheet.create({
   },
   depthFill: { width: '100%', borderRadius: radius.xs },
   depthLabel: {
-    ...font('extrabold', 8, { color: 'rgba(255,255,255,0.6)' }),
+    ...font('extrabold', 9.5, { color: 'rgba(255,255,255,0.6)' }),
     letterSpacing: 1,
     marginTop: 4,
   },
@@ -439,7 +439,7 @@ const styles = StyleSheet.create({
   },
   trackingDot: { width: 7, height: 7, borderRadius: 3.5 },
   trackingText: {
-    ...font('extrabold', 9, { color: palette.green300 }),
+    ...font('extrabold', 9.5, { color: palette.green300 }),
     letterSpacing: 0.8,
   },
   cue: {

@@ -1646,7 +1646,7 @@ function Challenge({ username, onNext }: { username: string; onNext: () => void 
             <Text style={font('extrabold', 28, { color: rival.color })}>{rival.initial}</Text>
           </View>
           <View style={styles.aiTag}>
-            <Text style={font('extrabold', 8, { color: palette.green700 })}>AI</Text>
+            <Text style={font('extrabold', 9.5, { color: palette.green700 })}>AI</Text>
           </View>
           <Text style={styles.rivalName}>{rival.name}</Text>
           <Text style={styles.rivalPace}>{rival.repsPerMinute}/min</Text>
@@ -2179,7 +2179,7 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   heroBadgeLabel: {
-    ...font('bold', 8, { color: palette.grey600 }),
+    ...font('bold', 9.5, { color: palette.grey600 }),
     letterSpacing: 0.5,
   },
   centeredCopy: { textAlign: 'center', marginTop: 8, maxWidth: 300, alignSelf: 'center' },

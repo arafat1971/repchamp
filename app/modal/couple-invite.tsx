@@ -820,7 +820,7 @@ const styles = StyleSheet.create({
   },
   myName: font('extrabold', 15, { color: 'rgba(255,255,255,0.9)' }),
   bondLabel: {
-    ...font('extrabold', 9, { color: 'rgba(255,255,255,0.6)' }),
+    ...font('extrabold', 9.5, { color: 'rgba(255,255,255,0.6)' }),
     letterSpacing: 2,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.3)',
@@ -842,7 +842,7 @@ const styles = StyleSheet.create({
   bigStatCol: { flex: 1, alignItems: 'center', gap: 4 },
   bigStatNumber: font('extrabold', 26, { color: palette.white }),
   bigStatLabel: {
-    ...font('bold', 8, { color: 'rgba(255,255,255,0.7)' }),
+    ...font('bold', 9.5, { color: 'rgba(255,255,255,0.7)' }),
     letterSpacing: 1,
   },
   bigStatDivider: {
@@ -932,7 +932,7 @@ const styles = StyleSheet.create({
   },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendText: font('bold', 9, { color: palette.grey500 }),
+  legendText: font('bold', 9.5, { color: palette.grey500 }),
 
   /* ── Badges ── */
   sectionTitle: {
@@ -960,7 +960,7 @@ const styles = StyleSheet.create({
   },
   badgeLocked: { opacity: 0.35 },
   badgeEmoji: { fontSize: 24 },
-  badgeTitle: { ...font('extrabold', 9, { color: palette.ink }), letterSpacing: 0.3 },
+  badgeTitle: { ...font('extrabold', 9.5, { color: palette.ink }), letterSpacing: 0.3 },
   badgeEarnedDot: {
     position: 'absolute',
     top: 6,

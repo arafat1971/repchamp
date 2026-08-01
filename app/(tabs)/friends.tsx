@@ -698,5 +698,5 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     alignSelf: 'flex-start',
   },
-  aiTagText: font('extrabold', 8.5, { color: palette.green700, letterSpacing: 0.3 }),
+  aiTagText: font('extrabold', 9.5, { color: palette.green700, letterSpacing: 0.3 }),
 });

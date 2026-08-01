@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.5)',
     textShadowRadius: 12,
   },
-  sub: { ...font('extrabold', 9, { color: palette.green300 }), letterSpacing: 2, marginTop: 4 },
+  sub: { ...font('extrabold', 9.5, { color: palette.green300 }), letterSpacing: 2, marginTop: 4 },
   scoreBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
     ...font('extrabold', 10, { color: 'rgba(255,255,255,0.6)' }),
     letterSpacing: 1,
   },
-  clockLabel: { ...font('bold', 9, { color: 'rgba(255,255,255,0.5)' }), letterSpacing: 1 },
+  clockLabel: { ...font('bold', 9.5, { color: 'rgba(255,255,255,0.5)' }), letterSpacing: 1 },
   combinedWrap: { position: 'absolute', top: '34%', left: 0, right: 0, alignItems: 'center' },
   combinedLabel: {
     ...font('bold', 12, { color: 'rgba(255,255,255,0.7)' }),
@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
     borderRadius: radius['2xl'],
   },
   trackingDot: { width: 7, height: 7, borderRadius: 3.5 },
-  trackingText: { ...font('extrabold', 9, { color: palette.green300 }), letterSpacing: 0.8 },
+  trackingText: { ...font('extrabold', 9.5, { color: palette.green300 }), letterSpacing: 0.8 },
   cue: {
     position: 'absolute',
     alignSelf: 'center',

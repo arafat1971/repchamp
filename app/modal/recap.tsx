@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
   coupleStats: { flexDirection: 'row', justifyContent: 'space-between' },
   coupleValue: font('extrabold', 20, { color: palette.white }),
   coupleLabel: {
-    ...font('bold', 8, { color: 'rgba(255,255,255,0.8)' }),
+    ...font('bold', 9.5, { color: 'rgba(255,255,255,0.8)' }),
     letterSpacing: 0.8,
     marginTop: 4,
   },

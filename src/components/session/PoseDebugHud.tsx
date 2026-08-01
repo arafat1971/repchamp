@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
     zIndex: 50,
   },
   row: { flexDirection: 'row', alignItems: 'center' },
-  label: { ...font('bold', 9, { color: 'rgba(255,255,255,0.55)' }), letterSpacing: 1 },
+  label: { ...font('bold', 9.5, { color: 'rgba(255,255,255,0.55)' }), letterSpacing: 1 },
   value: { ...font('extrabold', 12, { color: palette.white }), marginLeft: 4 },
   track: {
     height: 6,

@@ -131,37 +131,94 @@ export const gradients = {
   gold: [palette.amber200, palette.amber500] as const,
 } as const;
 
+/**
+ * Corner radius.
+ *
+ * The scale used to step by 2 at the top (14/16/18/20/22/24/26/28). Nobody can
+ * see a 2pt difference, so authors picked whichever key sounded right and cards
+ * drifted apart between screens — the single biggest reason the app read as
+ * inconsistent. There were also ~120 hardcoded radii sitting alongside the
+ * tokens, in every value from 3 to 22.
+ *
+ * Steps are now visibly distinct. Keys are kept so nothing breaks; the
+ * near-duplicates collapse onto the step they were closest to, which is what
+ * makes two cards styled by different authors finally match.
+ */
 export const radius = {
+  /** Inline chips, badges, small tags. */
   xs: 4,
+  /** Inputs, small controls. */
   sm: 8,
+  /** Default control radius. */
   md: 12,
-  lg: 14,
+  /** Standard card. */
+  lg: 16,
   xl: 16,
-  '2xl': 18,
+  /** Large surface — hero, sheet, modal. */
+  '2xl': 20,
   '3xl': 20,
-  '4xl': 22,
+  /** Extra-large hero surface. */
+  '4xl': 24,
   '5xl': 24,
-  '6xl': 26,
+  '6xl': 28,
   '7xl': 28,
   pill: 999,
 } as const;
 
+/**
+ * Spacing — a true 4pt grid.
+ *
+ * Both Apple and Google lay out on multiples of 4, and the eye reads a broken
+ * grid as sloppiness long before it can name the cause. The previous scale
+ * stepped 4/6/8/10/12/14 — half of it off-grid, with 2pt gaps nothing can
+ * distinguish — so nobody adopted it (it had zero imports) and 1121 spacing
+ * values were hardcoded instead, 565 of them off the grid entirely.
+ *
+ * The keys are unchanged so existing call sites keep compiling; the values
+ * snap to the nearest grid step. Prefer the semantic aliases below.
+ */
 export const spacing = {
   '0': 0,
   '1': 4,
-  '2': 6,
+  '2': 8,
   '3': 8,
-  '4': 10,
+  '4': 12,
   '5': 12,
-  '6': 14,
+  '6': 16,
   '7': 16,
-  '8': 18,
+  '8': 20,
   '9': 20,
-  '10': 22,
+  '10': 24,
   '11': 24,
-  '12': 26,
+  '12': 28,
   '14': 32,
   '16': 40,
+} as const;
+
+/**
+ * Named steps, which is what call sites should reach for.
+ *
+ * A number in a stylesheet says nothing about intent; `space.card` says the
+ * next person should not "improve" it to 18. Sized so adjacent steps are
+ * actually tellable apart — the old scale's 2pt increments were not.
+ */
+export const space = {
+  /** Hairline gap — icon to its label. */
+  xs: 4,
+  /** Tight — chips, inline rows. */
+  sm: 8,
+  /** Default gap between related elements. */
+  md: 12,
+  /** Standard card padding and screen gutter. */
+  card: 16,
+  /** Between cards in a list. */
+  lg: 20,
+  /** Between sections on a screen. */
+  xl: 24,
+  /** Major break — above a section heading. */
+  '2xl': 32,
+  /** Hero / empty-state breathing room. */
+  '3xl': 40,
 } as const;
 
 /**

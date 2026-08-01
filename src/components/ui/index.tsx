@@ -37,6 +37,9 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
  * Standard screen container. `scroll` mirrors the prototype's `.scr .pad`
  * wrapper — 20pt gutters and enough bottom padding to clear the tab bar.
  */
+/** Horizontal screen gutter. Safe-area insets are added to this, not swapped in. */
+const SCREEN_GUTTER = 20;
+
 export function Screen({
   children,
   scroll = true,
@@ -61,8 +64,11 @@ export function Screen({
   const padding = {
     paddingTop: insets.top + 8,
     paddingBottom: 148 + insets.bottom,
-    paddingLeft: insets.left,
-    paddingRight: insets.right,
+    // Added to the 20pt gutter, never replacing it: these are 0 on a portrait
+    // phone, so assigning them flattened the gutter and every card bled off
+    // both edges. Only landscape/notched displays report a non-zero value.
+    paddingLeft: SCREEN_GUTTER + insets.left,
+    paddingRight: SCREEN_GUTTER + insets.right,
   };
 
   if (!scroll) {
@@ -435,7 +441,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.canvas,
   },
   screenContent: {
-    paddingHorizontal: 20,
+    // Horizontal padding lives on `Screen` so it can fold in safe-area insets.
   },
   card: {
     backgroundColor: palette.white,

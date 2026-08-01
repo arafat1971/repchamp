@@ -42,7 +42,8 @@ export default function LegalScreen() {
       <Eyebrow style={styles.eyebrow}>PRIVACY POLICY</Eyebrow>
       <Card style={styles.card}>
         <Para>
-          RepChamp counts your reps and checks your form using pose estimation
+          Fitness Duel: RepChamp counts your reps and checks your form using
+          pose estimation
           that runs entirely on your device. The camera feed is never recorded,
           uploaded, or shared — in any mode, including live duels and together
           sets. No image from your camera ever leaves your phone. The only photo
@@ -102,7 +103,7 @@ export default function LegalScreen() {
       <Card style={styles.card}>
         <Section title="Fitness disclaimer">
           <Para>
-            RepChamp is a fitness tool, not medical advice. Rep counts and form
+            Fitness Duel: RepChamp is a fitness tool, not medical advice. Rep counts and form
             cues are estimates from on-device pose detection and can be wrong.
             Train within your ability, warm up, and stop if you feel pain or
             dizziness. Consult a professional before starting a new exercise

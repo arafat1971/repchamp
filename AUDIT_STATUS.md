@@ -62,6 +62,21 @@ original bug and confirming the test fails.
   ring and framing brackets rendering, clean teardown on exit. **Zero `SuspendAll` / SIGABRT /
   ANR signatures**, which is the scenario that used to abort within ~90s before the
   VisionCamera 5.2.0 / Nitro 0.36.4 upgrade.
+- **One unexplained SIGSEGV — 08:17, not reproduced since.** A single `signal 11
+  (SEGV_ACCERR)` on the JS thread (`mqt_v_js`), crashing in
+  `MountingCoordinator::pullTransaction` → `FabricUIManagerBinding::schedulerDidFinishTransaction`
+  → `ShadowTree::commit`. That is a Fabric shadow-tree commit fault inside RN's renderer, a
+  different failure from the `SuspendAll` deadlock the dependency upgrade fixed.
+
+  Landed on a build carrying the neon-overlay rework (between `25f5d04` 08:11 and `cf16fa9`
+  08:27), which makes the overlay a plausible but **unproven** suspect — the Skia canvas is
+  the one thing newly committing per frame. The logcat ring buffer had already rolled past
+  the preceding minute by the time it was investigated, so the trigger was not recoverable.
+
+  Not seen again: the crashed process (6416) was replaced by 7380, which has since run two
+  clean camera sessions (48s and 30s, both with matched CONNECT/DISCONNECT) and **zero**
+  crash signatures. Worth re-checking if it recurs — if it does, capture logcat immediately
+  rather than after the fact.
 - **Share-card action photo — feature removed (2026-08-01).** It was verified working on
   device first (`rep 1 — attempting` → `encoded photo 1080x2400` → `composite captured` →
   `stored`, 0.98s/1.15s against the 5s budget), then removed at the user's request. The

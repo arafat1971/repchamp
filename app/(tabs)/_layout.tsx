@@ -2,7 +2,7 @@ import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect, Tabs, usePathname, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Image as RNImage,
   Modal,
@@ -29,6 +29,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { useProfileStore } from '@/state/profileStore';
+import { useIncomingDuelCount } from '@/state/useIncomingDuelCount';
+import { buildFabModel } from '@/domain/fabActions';
+import { dayKey } from '@/domain/progression';
+import type { ExerciseId } from '@/vision/exercises';
 import { useIsPro } from '@/state/proStore';
 import { canStartExercise } from '@/domain/pro';
 import { font, fontFamily } from '@/theme/typography';
@@ -180,6 +184,10 @@ type FabAction = {
   label: string;
   emoji: string;
   onPress: () => void;
+  /** Not on this athlete's plan — say so before they tap into a paywall. */
+  locked?: boolean;
+  /** Already trained today; still offered, just not the obvious next pick. */
+  doneToday?: boolean;
 };
 
 /**
@@ -240,6 +248,12 @@ const FLEX_ASSET_IS_REAL =
  */
 const FLEX_ART_INSET_SCALE = 1.48;
 
+/** Movements the FAB offers, in authored order — the ranking reorders them. */
+const FAB_EXERCISES: readonly ExerciseId[] = ['push', 'squat', 'situp'];
+/** Mirrors app/(tabs)/index.tsx and app/modal/daily.tsx. */
+const FAB_DAILY_EXERCISE: ExerciseId = 'push';
+const FAB_DAILY_TARGET = 25;
+
 function FlexMark({ size }: { size: number }) {
   if (!FLEX_ASSET_IS_REAL) {
     // Back to white: the disc is dark again, and the 600-weight green this
@@ -268,6 +282,26 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
   const focused = pathname === '/train';
   const isPro = useIsPro();
   const [open, setOpen] = useState(false);
+
+  const sessions = useProfileStore((st) => st.sessions);
+  const pendingDuels = useIncomingDuelCount();
+  const today = dayKey();
+  const dailyBest = sessions
+    .filter((x) => x.day === today && x.exercise === FAB_DAILY_EXERCISE)
+    .reduce((best, x) => Math.max(best, x.reps), 0);
+
+  const fab = useMemo(
+    () =>
+      buildFabModel({
+        sessions,
+        today,
+        isPro,
+        candidates: FAB_EXERCISES,
+        pendingDuels,
+        daily: { exercise: FAB_DAILY_EXERCISE, done: dailyBest >= FAB_DAILY_TARGET },
+      }),
+    [sessions, today, isPro, pendingDuels, dailyBest],
+  );
 
   const entered = useSharedValue(0);
   const breathe = useSharedValue(1);
@@ -334,34 +368,61 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
     transform: [{ rotate: `${interpolate(spin.value, [0, 1], [0, 45])}deg` }],
   }));
 
+  /** Labels and glyphs for the movements the FAB can start. */
+  const META: Record<string, { label: string; emoji: string }> = {
+    push: { label: 'Push-ups', emoji: '💪' },
+    squat: { label: 'Squats', emoji: '🦵' },
+    situp: { label: 'Sit-Ups', emoji: '🧘' },
+  };
+
+  const startExercise = (exercise: ExerciseId) => {
+    if (!canStartExercise(isPro, exercise)) {
+      router.push({ pathname: '/modal/paywall', params: { source: 'exercise-library' } });
+      return;
+    }
+    router.push({ pathname: '/session', params: { exercise, mode: 'practice' } });
+  };
+
+  // Built from the ranked model rather than hardcoded, so the order follows
+  // what the athlete actually trains and locked rows say so up front.
   const actions: FabAction[] = [
-    {
-      label: 'Push-ups',
-      emoji: '💪',
-      onPress: () => router.push({ pathname: '/session', params: { exercise: 'push', mode: 'practice' } }),
-    },
-    {
-      label: 'Squats',
-      emoji: '🦵',
-      onPress: () => router.push({ pathname: '/session', params: { exercise: 'squat', mode: 'practice' } }),
-    },
-    {
-      label: 'Sit-Ups',
-      emoji: '🧘',
-      onPress: () => {
-        if (!canStartExercise(isPro, 'situp')) {
-          router.push({ pathname: '/modal/paywall', params: { source: 'exercise-library' } });
-          return;
-        }
-        router.push({ pathname: '/session', params: { exercise: 'situp', mode: 'practice' } });
-      },
-    },
+    ...fab.order.map((row) => {
+      const meta = META[row.exercise] ?? { label: row.exercise, emoji: '🏃' };
+      return {
+        label: meta.label,
+        emoji: meta.emoji,
+        locked: row.locked,
+        doneToday: row.doneToday,
+        onPress: () => startExercise(row.exercise),
+      };
+    }),
     {
       label: 'Custom Workout',
       emoji: '🏋️',
       onPress: () => router.navigate('/train'),
     },
   ];
+
+  /**
+   * One tap runs the obvious thing when there is one; otherwise it opens the
+   * menu, which is still the default. Long-press always opens the menu, so the
+   * full list is never more than a hold away even when the shortcut fires.
+   */
+  const onFabPress = () => {
+    selectionHaptic();
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    const p = fab.primary;
+    if (!p) {
+      setOpen(true);
+      return;
+    }
+    if (p.kind === 'duel') router.push('/(tabs)/friends');
+    else if (p.kind === 'daily') router.push('/modal/daily');
+    else startExercise(p.exercise);
+  };
 
   const close = () => setOpen(false);
 
@@ -392,9 +453,21 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
                   accessibilityRole="button"
                   accessibilityLabel={action.label}
                 >
-                  <Text style={font('semibold', 15, { color: palette.ink, flex: 1 })}>{action.label}</Text>
+                  <Text
+                    style={font('semibold', 15, {
+                      color: action.locked ? palette.grey500 : palette.ink,
+                      flex: 1,
+                    })}
+                  >
+                    {action.label}
+                  </Text>
+                  {action.doneToday ? (
+                    <Text style={font('bold', 11, { color: palette.green600, marginRight: 8 })}>
+                      ✓ today
+                    </Text>
+                  ) : null}
                   <View style={styles.fabMenuEmoji}>
-                    <Text style={{ fontSize: 18 }}>{action.emoji}</Text>
+                    <Text style={{ fontSize: 18 }}>{action.locked ? '🔒' : action.emoji}</Text>
                   </View>
                 </TouchableOpacity>
               </Animated.View>
@@ -407,10 +480,12 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
         <Animated.View style={glowStyle}>
           <TouchableOpacity
             activeOpacity={0.85}
-            onPress={() => {
+            onPress={onFabPress}
+            onLongPress={() => {
               selectionHaptic();
-              setOpen((v) => !v);
+              setOpen(true);
             }}
+            delayLongPress={280}
             accessibilityRole="button"
             accessibilityLabel={open ? 'Close workout menu' : 'Start workout'}
             style={styles.fabButton}
@@ -436,6 +511,15 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
                 )}
               </Animated.View>
             </LinearGradient>
+            {/* Count of things waiting — a duel invite, an unclaimed daily.
+                Hidden while the menu is open, where it would sit over the ×. */}
+            {fab.badgeCount > 0 && !open ? (
+              <View style={styles.fabBadge} pointerEvents="none">
+                <Text style={font('extrabold', 10.5, { color: '#ffffff' })}>
+                  {fab.badgeCount > 9 ? '9+' : fab.badgeCount}
+                </Text>
+              </View>
+            ) : null}
           </TouchableOpacity>
         </Animated.View>
       </Animated.View>
@@ -547,6 +631,22 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     zIndex: 999,
     elevation: 10,
+  },
+  fabBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    backgroundColor: palette.red500,
+    alignItems: 'center',
+    justifyContent: 'center',
+    // Rides on the disc, so it needs the same rim treatment to read as a badge
+    // rather than a stray dot overlapping the button.
+    borderWidth: 2,
+    borderColor: palette.canvas,
   },
   fabButton: {
     width: 58,

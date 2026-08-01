@@ -62,9 +62,11 @@ original bug and confirming the test fails.
   ring and framing brackets rendering, clean teardown on exit. **Zero `SuspendAll` / SIGABRT /
   ANR signatures**, which is the scenario that used to abort within ~90s before the
   VisionCamera 5.2.0 / Nitro 0.36.4 upgrade.
-- **Share-card action photo — still unverified.** The capture only runs on a *completed rep*,
-  so it needs a person in frame; with the phone on a desk, MoveNet never detects a body and
-  calibration stalls (correct behaviour). This one cannot be verified without a real set.
+- **Share-card action photo — verified in a live session.** The full trace ran clean on a real
+  rep: `rep 1 — attempting` → `encoded photo 1080x2400` → `composite captured -> file://…` →
+  `stored for rep 1`. Composite took 0.98s and 1.15s across two runs against a 5s budget, so
+  the raise from the original 2s was warranted — those would have been uncomfortably close.
+  The `requestAnimationFrame` that never fired off-screen is genuinely fixed.
 
 Earlier "blank screenshot" failures were the device screen being off, not a secure-surface
 block — `screencap` works normally when the phone is awake.

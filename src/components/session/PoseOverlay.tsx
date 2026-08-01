@@ -30,26 +30,48 @@ const DRAW_THRESHOLD = 0.3;
  * Skeleton bone stroke width (px). Every glow pass is expressed as an offset
  * from this, so widening the core widens the whole treatment with it.
  */
-const BONE_STROKE_WIDTH = 8;
+const BONE_STROKE_WIDTH = 5;
 
 /**
  * Joint marker radius. Kept comfortably wider than half the bone stroke so
  * joints still read as distinct nodes rather than bulges in the line.
  */
-const JOINT_RADIUS = 11;
+const JOINT_RADIUS = 8;
 
 /**
- * How far past the wrist / ankle to extend the limb line toward fingers / toes.
- * MoveNet stops at wrist and ankle; extending along the limb direction makes
- * the silhouette reach the hands and feet without inventing noisy keypoints.
+ * How far past the ankle to extend the leg line toward the toes.
+ * MoveNet stops at the ankle; extending along the shin direction makes the
+ * silhouette reach the feet without inventing noisy keypoints.
  */
-const HAND_EXTEND = 0.46;
 const FOOT_EXTEND = 0.5;
 
-/** Proximal → distal pairs used to grow hands and feet. */
+/**
+ * Splayed finger lines fanned out past each wrist.
+ *
+ * MoveNet has no finger keypoints — the model stops at the wrist — so these
+ * are drawn, not tracked. Three short strokes fanned around the forearm's own
+ * direction read as a hand at a glance while staying honest about what is
+ * actually known: they can only ever point where the arm points. Kept short
+ * relative to the forearm so an unreliable wrist cannot fling a long spike
+ * across the frame.
+ */
+const FINGER_SPREAD_DEG = 22;
+const FINGER_ANGLES = [-FINGER_SPREAD_DEG, 0, FINGER_SPREAD_DEG] as const;
+const FINGER_LENGTH = 0.3;
+
+/** Wrist joints that get a drawn hand, paired with the elbow that aims it. */
+const HANDS: readonly (readonly [number, number])[] = [
+  [KEYPOINT_INDEX.leftElbow, KEYPOINT_INDEX.leftWrist],
+  [KEYPOINT_INDEX.rightElbow, KEYPOINT_INDEX.rightWrist],
+];
+
+/**
+ * Proximal → distal pairs grown past the joint to reach the extremity.
+ *
+ * Only feet now: the wrists get the fanned hand above instead, and drawing
+ * both would put a stray line straight through the middle finger.
+ */
 const LIMB_TIPS: readonly (readonly [number, number, number])[] = [
-  [KEYPOINT_INDEX.leftElbow, KEYPOINT_INDEX.leftWrist, HAND_EXTEND],
-  [KEYPOINT_INDEX.rightElbow, KEYPOINT_INDEX.rightWrist, HAND_EXTEND],
   [KEYPOINT_INDEX.leftKnee, KEYPOINT_INDEX.leftAnkle, FOOT_EXTEND],
   [KEYPOINT_INDEX.rightKnee, KEYPOINT_INDEX.rightAnkle, FOOT_EXTEND],
 ];
@@ -224,6 +246,41 @@ export const PoseOverlay = forwardRef<CanvasRef, PoseOverlayProps>(function Pose
       path.lineTo(tip.x, tip.y);
     }
 
+    // Fan a small hand off each wrist. Rotating the forearm vector by a few
+    // degrees each way costs two multiplies per finger and keeps the hand
+    // pointing wherever the arm actually points.
+    for (const [elbow, wrist] of HANDS) {
+      const es = p[elbow * 3 + 2] as number;
+      const ws = p[wrist * 3 + 2] as number;
+      if (es < DRAW_THRESHOLD || ws < DRAW_THRESHOLD) continue;
+
+      const ex = p[elbow * 3] as number;
+      const ey = p[elbow * 3 + 1] as number;
+      const wx = p[wrist * 3] as number;
+      const wy = p[wrist * 3 + 1] as number;
+
+      // Forearm direction, normalised so finger length is independent of how
+      // long the arm appears at this camera distance.
+      const vx = wx - ex;
+      const vy = wy - ey;
+      const len = Math.sqrt(vx * vx + vy * vy);
+      if (len < 0.01) continue;
+      const ux = vx / len;
+      const uy = vy / len;
+
+      const origin = toScreen(wx, wy);
+      for (const deg of FINGER_ANGLES) {
+        const rad = (deg * Math.PI) / 180;
+        const cos = Math.cos(rad);
+        const sin = Math.sin(rad);
+        const rx = ux * cos - uy * sin;
+        const ry = ux * sin + uy * cos;
+        const end = toScreen(wx + rx * len * FINGER_LENGTH, wy + ry * len * FINGER_LENGTH);
+        path.moveTo(origin.x, origin.y);
+        path.lineTo(end.x, end.y);
+      }
+    }
+
     return path;
   }, [smoothed, frame, screenW, screenH, bones]);
 
@@ -264,70 +321,92 @@ export const PoseOverlay = forwardRef<CanvasRef, PoseOverlayProps>(function Pose
   return (
     <Canvas ref={ref} style={StyleSheet.absoluteFill} pointerEvents="none">
       <Group opacity={opacity}>
+        {/* Neon is built the way a real tube is: saturated colour bleeding
+            outward from a white-hot core. The wide passes carry the colour at
+            high opacity — a faint halo reads as a drop shadow instead — and
+            the core on top is nearly white, which is what sells it as light
+            being emitted rather than a coloured line. */}
         {!LIGHT_OVERLAY ? (
           <>
-            {/* Outer halo — wide and soft, gives the skeleton a real "glowing"
-                silhouette rather than a hard-edged line with a shadow. */}
+            {/* Outer bloom — the wide atmospheric spill. */}
             <Path
               path={skeleton}
               style="stroke"
-              strokeWidth={BONE_STROKE_WIDTH + 14}
+              strokeWidth={BONE_STROKE_WIDTH + 20}
               strokeCap="round"
               strokeJoin="round"
               color={color}
-              opacity={0.18}
+              opacity={0.3}
             >
-              <BlurMask blur={18} style="normal" />
+              <BlurMask blur={22} style="normal" />
             </Path>
-            {/* Mid pass — fills in the halo so it reads as dense light, not a ring. */}
+            {/* Mid pass — fills the bloom so it reads as dense light. */}
             <Path
               path={skeleton}
               style="stroke"
-              strokeWidth={BONE_STROKE_WIDTH + 7}
+              strokeWidth={BONE_STROKE_WIDTH + 10}
               strokeCap="round"
               strokeJoin="round"
               color={color}
-              opacity={0.32}
+              opacity={0.55}
             >
-              <BlurMask blur={9} style="normal" />
+              <BlurMask blur={11} style="normal" />
             </Path>
-            {/* Inner bloom — tight blur right against the core stroke. */}
+            {/* Tight saturated sheath hugging the core — this is the band that
+                actually reads as the tube's colour. */}
             <Path
               path={skeleton}
               style="stroke"
-              strokeWidth={BONE_STROKE_WIDTH + 2}
+              strokeWidth={BONE_STROKE_WIDTH + 4}
               strokeCap="round"
               strokeJoin="round"
               color={color}
-              opacity={0.8}
+              opacity={0.95}
             >
-              <BlurMask blur={4} style="normal" />
+              <BlurMask blur={3} style="normal" />
             </Path>
           </>
         ) : (
-          // Android: one cheap blur pass beats zero glow and stays well within
-          // budget on mid-range Mali/Adreno SoCs (a single BlurMask is far
-          // lighter than the two-to-three pass iOS treatment above).
-          <Path
-            path={skeleton}
-            style="stroke"
-            strokeWidth={BONE_STROKE_WIDTH + 6}
-            strokeCap="round"
-            strokeJoin="round"
-            color={color}
-            opacity={0.4}
-          >
-            <BlurMask blur={7} style="normal" />
-          </Path>
+          // Android: two passes rather than three. A single flat blur cannot
+          // give both spill and saturation, and the mid-range Mali/Adreno
+          // budget that ruled out the full treatment still affords one more
+          // cheap pass at this stroke width.
+          <>
+            <Path
+              path={skeleton}
+              style="stroke"
+              strokeWidth={BONE_STROKE_WIDTH + 12}
+              strokeCap="round"
+              strokeJoin="round"
+              color={color}
+              opacity={0.38}
+            >
+              <BlurMask blur={12} style="normal" />
+            </Path>
+            <Path
+              path={skeleton}
+              style="stroke"
+              strokeWidth={BONE_STROKE_WIDTH + 4}
+              strokeCap="round"
+              strokeJoin="round"
+              color={color}
+              opacity={0.9}
+            >
+              <BlurMask blur={3} style="normal" />
+            </Path>
+          </>
         )}
 
+        {/* White-hot filament. Pure white rather than the old tinted white:
+            against a saturated sheath this is what makes the line look lit
+            from within. */}
         <Path
           path={skeleton}
           style="stroke"
           strokeWidth={BONE_STROKE_WIDTH}
           strokeCap="round"
           strokeJoin="round"
-          color="#eaffef"
+          color="#ffffff"
         />
 
         <Joints

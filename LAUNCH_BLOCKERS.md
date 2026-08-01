@@ -1,9 +1,8 @@
-# Launch blockers — one console task
+# Launch blockers — all clear, one form left to submit
 
-Everything code-side is done and verified. What remains needs your Google
-account, so it is the last thing standing between the current build and a Play
-Store release. It fails silently — nothing crashes, so it does not show up in
-testing unless you look for it.
+Both console blockers are resolved. Firebase Storage was solved in code (no paid
+plan needed); the RevenueCat products were created and confirmed on device on
+2026-08-02. What remains is the Data Safety form, which only you can submit.
 
 Verified against the code on 2026-08-01 — every id below is what the app
 actually asks for, not what a doc once said.
@@ -23,47 +22,24 @@ Avatars never render above ~96pt in this app, so 192px is still retina-sharp.
 **You do not need to enable Storage or upgrade to Blaze.** The free Spark tier
 covers this.
 
-## 2. No RevenueCat products — the paywall is empty
+## 2. ~~RevenueCat products~~ — done (2026-08-02)
 
-**Symptom:** the paywall shows no plans and earns nothing. Logcat carries the
-exact cause:
+Subscriptions created and activated in Play Console, imported into RevenueCat,
+attached to the `pro` entitlement and added to the `current` offering.
 
-> `PurchasesError(code=ConfigurationError, underlyingErrorMessage=You have
-> configured the SDK with a Play Store API key, but there are no Play Store
-> products registered in the RevenueCat dashboard for your offerings.`
+Verified from the device: the `ConfigurationError` that fired on every launch
+("no Play Store products registered in the RevenueCat dashboard for your
+offerings") no longer appears in logcat at all. The SDK is finding the offering.
 
-The Android SDK key in `app.json` is valid and the SDK configures fine — only
-the dashboard products are missing. `fetchOffering` returns null rather than
-throwing, so the app degrades quietly instead of crashing.
+Two things that still need a human eye:
 
-### What the code expects — these ids must match exactly
-| Thing | Value |
-|---|---|
-| Package name | `gg.repchamp.app` |
-| Entitlement id | `pro` |
-| Offering | the one marked **current** |
-| Products | `rc_pro_monthly`, `rc_pro_annual` |
-
-The entitlement id is asserted in `src/domain/pro.ts` (`PRO_ENTITLEMENT`), and
-`fetchOffering` prefers the dashboard's `current` offering, falling back to any
-offering that still has packages.
-
-### Fix
-1. **Play Console** → Monetise → Subscriptions → create `rc_pro_monthly` and
-   `rc_pro_annual` (a 7-day trial on the annual plan is optional), then
-   **activate** both. Inactive products do not appear in an offering.
-2. **RevenueCat** → Products → import from Play → attach both to the **`pro`**
-   entitlement.
-3. **RevenueCat** → Offerings → create/confirm the **`current`** offering and
-   add both packages to it.
-4. Relaunch the app. The ConfigurationError should be gone and both plans
-   should render with localised prices.
-
-> iOS is deliberately unconfigured — `extra.revenueCatApple` is empty, so
-> `isPurchasesConfigured()` is false there and purchases report "Billing is not
-> set up yet." That is the Android-first decision, not a defect.
-
----
+- **The paywall has not been seen rendering.** No error is strong evidence but
+  not proof — open Profile → Upgrade, or tap a locked exercise, and check both
+  plans show with localised prices. Blank prices usually mean the base plans are
+  still propagating through Google's billing API, which can take a few hours.
+- **A real purchase cannot be tested from a sideloaded build.** That needs a
+  licence tester account (Play Console → Setup → Licence testing) and a build
+  installed from a Play track — which is what the `.aab` is for.
 
 ## 3. Play Data Safety form — needs submitting by hand
 

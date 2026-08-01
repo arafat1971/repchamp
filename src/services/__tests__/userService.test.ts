@@ -92,18 +92,16 @@ function mockDocRef(col: string, id: string) {
   };
 }
 
-/** Records what was uploaded and returns a deterministic download URL. */
-const mockStorage = { lastPutFile: null as string | null };
-function mockStorageRef(path: string) {
-  return {
-    async putFile(uri: string) {
-      mockStorage.lastPutFile = uri;
-    },
-    async getDownloadURL() {
-      return `https://cdn.example/${path}`;
-    },
-  };
-}
+/**
+ * Stands in for expo-image-manipulator. Records the resize it was asked for and
+ * returns a base64 payload of a controllable size, so the tests can drive both
+ * the happy path and the too-large guard.
+ */
+const mockManip = {
+  lastUri: null as string | null,
+  lastResize: null as { width: number; height: number } | null,
+  base64Length: 4096,
+};
 
 jest.mock('@/lib/firebase', () => ({
   isFirebaseConfigured: () => mockState.configured,
@@ -150,10 +148,17 @@ jest.mock('@react-native-firebase/firestore', () => {
   return { __esModule: true, default: fn };
 });
 
-jest.mock('@react-native-firebase/storage', () => {
-  const fn = () => ({ ref: (path: string) => mockStorageRef(path) });
-  return { __esModule: true, default: fn };
-});
+jest.mock('expo-image-manipulator', () => ({
+  SaveFormat: { JPEG: 'jpeg' },
+  manipulateAsync: async (
+    uri: string,
+    actions: { resize?: { width: number; height: number } }[],
+  ) => {
+    mockManip.lastUri = uri;
+    mockManip.lastResize = actions[0]?.resize ?? null;
+    return { base64: 'a'.repeat(mockManip.base64Length) };
+  },
+}));
 
 beforeEach(() => {
   mockState.configured = true;
@@ -163,7 +168,9 @@ beforeEach(() => {
   for (const key of Object.keys(mockStore)) {
     if (key !== 'users' && key !== 'leaderboard') delete mockStore[key];
   }
-  mockStorage.lastPutFile = null;
+  mockManip.lastUri = null;
+  mockManip.lastResize = null;
+  mockManip.base64Length = 4096;
 });
 
 const PROFILE: Omit<CloudProfile, 'updatedAt'> = {
@@ -465,17 +472,39 @@ describe('removeScore', () => {
 });
 
 describe('uploadAvatar', () => {
-  it('uploads the local file and returns its download URL', async () => {
+  it('downscales the picked photo and returns it as a data uri', async () => {
     const url = await uploadAvatar('u1', 'file:///tmp/me.jpg');
-    expect(mockStorage.lastPutFile).toBe('file:///tmp/me.jpg');
-    expect(url).toBe('https://cdn.example/avatars/u1.jpg');
+    expect(mockManip.lastUri).toBe('file:///tmp/me.jpg');
+    expect(mockManip.lastResize).toEqual({ width: 192, height: 192 });
+    expect(url.startsWith('data:image/jpeg;base64,')).toBe(true);
   });
 
   it('returns the original uri unchanged when unconfigured', async () => {
     mockState.configured = false;
     const url = await uploadAvatar('u1', 'file:///tmp/me.jpg');
     expect(url).toBe('file:///tmp/me.jpg');
-    expect(mockStorage.lastPutFile).toBeNull();
+    expect(mockManip.lastUri).toBeNull();
+  });
+
+  it('leaves an already-encoded or remote avatar alone', async () => {
+    expect(await uploadAvatar('u1', 'https://cdn.example/a.jpg')).toBe(
+      'https://cdn.example/a.jpg',
+    );
+    expect(await uploadAvatar('u1', 'data:image/jpeg;base64,AAAA')).toBe(
+      'data:image/jpeg;base64,AAAA',
+    );
+    expect(mockManip.lastUri).toBeNull();
+  });
+
+  /*
+   * A payload over the ceiling would fail the *whole* profile write, taking XP
+   * and personal bests with it, so the local uri is kept instead — the athlete
+   * loses a synced photo rather than their progress.
+   */
+  it('keeps the local uri when the encoded image is too large to store', async () => {
+    mockManip.base64Length = 128 * 1024;
+    const url = await uploadAvatar('u1', 'file:///tmp/huge.jpg');
+    expect(url).toBe('file:///tmp/huge.jpg');
   });
 });
 

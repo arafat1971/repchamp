@@ -15,8 +15,9 @@
  *   - `matchmaking/{uid}`             open-queue ticket (may not exist)
  *   - `duels/{id}`                    pending / active matches
  *   - `couples/{coupleId}`            the shared bond — deleted whole
- *   - Storage `avatars/{uid}`         profile image (may not exist)
- *   - Storage `duelPhotos/{duelId}/`  action shots from live duels / together sets
+ *
+ * Nothing lives in Firebase Storage: that needs a paid plan, so the avatar is a
+ * base64 field on the profile document and goes with it.
  *
  * As with every service here, all operations no-op when Firebase isn't
  * configured — a local-only user has nothing in the cloud to export or erase,
@@ -25,7 +26,6 @@
 
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
-import storage from '@react-native-firebase/storage';
 
 import { seatOf, type Duel } from '@/domain/duel';
 import { isFirebaseConfigured } from '@/lib/firebase';
@@ -74,57 +74,6 @@ export async function exportAccountData(uid: string): Promise<Record<string, unk
  * Cancel pending invites and forfeit active seats so a deleting athlete does
  * not leave partners stuck in a live set against a ghost uid.
  */
-/**
- * Erase this athlete's duel action shots from Storage.
- *
- * The feature that produced these was removed — nothing uploads here any
- * more, and `storage.rules` now denies writes. This deletion path is kept on
- * purpose: photos uploaded while the feature was live are real photographs of
- * real athletes, still sitting in Storage, and the deletion promise has to go
- * on covering them. Remove this only once that prefix is known to be empty.
- *
- * These are keyed `duelPhotos/{duelId}/{seat}.jpg` rather than by uid, so they
- * cannot be found without first resolving which duels the athlete sat in — and
- * `closeOpenDuels` only looks at pending and active ones, while a photo was
- * uploaded when a set *finished*. Deleting the profile therefore used to leave
- * real photographs of the athlete behind, which is not a deletion we can
- * honestly claim.
- *
- * Best-effort by design: a missing object is the normal case (most duels have
- * no photo), and a transient failure here must not strand the athlete on a
- * half-deleted account when everything identifying them is already gone.
- */
-async function deleteDuelPhotos(uid: string): Promise<void> {
-  const db = firestore();
-  try {
-    const [asHost, asGuest] = await Promise.all([
-      db.collection('duels').where('hostUid', '==', uid).limit(100).get(),
-      db.collection('duels').where('guestUid', '==', uid).limit(100).get(),
-    ]);
-
-    const targets: string[] = [];
-    for (const snap of [asHost, asGuest]) {
-      for (const doc of snap.docs) {
-        const duel = doc.data() as Duel;
-        // Only the seat this athlete occupied — the opponent's shot is theirs.
-        const seat = duel.hostUid === uid ? 'host' : 'guest';
-        targets.push(`duelPhotos/${doc.id}/${seat}.jpg`);
-      }
-    }
-
-    await Promise.all(
-      targets.map((path) =>
-        storage()
-          .ref(path)
-          .delete()
-          .catch(() => undefined),
-      ),
-    );
-  } catch {
-    // Offline / missing index — the identifying data is already gone.
-  }
-}
-
 /** Cancel pending invites and forfeit active seats for this uid. */
 export async function closeOpenDuels(uid: string): Promise<void> {
   const db = firestore();
@@ -191,7 +140,7 @@ export async function closeOpenDuels(uid: string): Promise<void> {
  * authenticated* (rules authorise by owner/member), and only then is the auth
  * user removed. The couple doc is deleted whole — the same `leaveCouple`
  * semantics — because a bond with one erased partner is not a state the app
- * models. Avatar removal is best-effort.
+ * models.
  *
  * Throws when Auth delete needs a recent login so the UI can ask the athlete to
  * re-authenticate — cloud data is already erased in that case. Safe to call
@@ -266,14 +215,9 @@ export async function deleteAccount(uid: string): Promise<void> {
     );
   }
 
-  try {
-    await storage().ref(`avatars/${uid}.jpg`).delete();
-  } catch {
-    // No avatar (object-not-found) or a transient error — not worth failing the
-    // whole deletion over; the profile doc that referenced it is already gone.
-  }
-
-  await deleteDuelPhotos(uid);
+  // No separate avatar erase: the image is a base64 field on the profile
+  // document, so `userRef.delete()` above already removed it. Firebase Storage
+  // needs a paid plan and this app no longer uses it at all.
 
   const current = auth().currentUser;
   if (!current || current.uid !== uid) return;

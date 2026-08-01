@@ -1,49 +1,27 @@
-# Launch blockers — two console tasks
+# Launch blockers — one console task
 
-Everything code-side is done and verified. These two need your Google/Firebase
-logins, so they are the only things standing between the current build and a
-Play Store release. Both are silent failures: nothing crashes, so neither shows
-up in testing unless you look for it.
+Everything code-side is done and verified. What remains needs your Google
+account, so it is the last thing standing between the current build and a Play
+Store release. It fails silently — nothing crashes, so it does not show up in
+testing unless you look for it.
 
 Verified against the code on 2026-08-01 — every id below is what the app
 actually asks for, not what a doc once said.
 
 ---
 
-## 1. Firebase Storage is not provisioned
+## 1. ~~Firebase Storage~~ — solved in code, nothing to do
 
-**Symptom:** avatars work for the athlete who picked them and are invisible to
-everyone else. Friends, the leaderboard and duel opponents all see initials.
+Storage needs the paid Blaze plan, and avatars were the only thing using it, so
+the app no longer uses Storage at all.
 
-**Why:** no Storage bucket exists on `repchamp-14f78`. `uploadAvatar` throws,
-`syncAvatar` catches it and falls back to the local `file://` path, and
-`isCloudSafeAvatarUrl` then rejects anything that is not `https://` — so
-`avatarUrl: null` is what reaches Firestore. Every layer handles the failure
-"correctly", which is exactly why it stayed invisible.
+The picked photo is downscaled to 192x192 and stored as a base64 data URI on the
+profile document — about 6 KB against Firestore's 1 MiB per-document limit.
+Avatars never render above ~96pt in this app, so 192px is still retina-sharp.
+`storage.rules` and its `firebase.json` entry are gone.
 
-Confirmed two ways: `firebase deploy --only storage` fails with "Firebase
-Storage has not been set up on project", and a REST probe of the Storage API
-returns **404** for both `repchamp-14f78.firebasestorage.app` and the legacy
-`repchamp-14f78.appspot.com`.
-
-**The client is already correct** — `android/app/google-services.json` names
-`repchamp-14f78.firebasestorage.app`. No code or config change is needed.
-
-### Fix
-1. https://console.firebase.google.com/project/repchamp-14f78/storage
-2. **Get started** → accept the default rules → pick a region.
-   Choose the region nearest your users; **it cannot be changed later**.
-3. Then publish the repo's rules (they are stricter than the default):
-
-```bash
-firebase deploy --only storage --project repchamp-14f78
-```
-
-`storage.rules` allows an athlete to write only `avatars/{their-own-uid}.jpg`,
-and leaves `duelPhotos/` delete-only so account deletion can still erase shots
-uploaded while that feature existed.
-
----
+**You do not need to enable Storage or upgrade to Blaze.** The free Spark tier
+covers this.
 
 ## 2. No RevenueCat products — the paywall is empty
 

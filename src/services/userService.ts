@@ -12,7 +12,7 @@
  */
 
 import firestore from '@react-native-firebase/firestore';
-import storage from '@react-native-firebase/storage';
+import * as ImageManipulator from 'expo-image-manipulator';
 
 import { isFirebaseConfigured } from '@/lib/firebase';
 import {
@@ -21,7 +21,7 @@ import {
 } from '@/domain/cloudProgress';
 import { normalizeUsername, sanitizeDisplayName } from '@/domain/input';
 import { clampWeeklyXp } from '@/domain/fairPlay';
-import { isCloudSafeAvatarUrl } from '@/domain/safety';
+import { isCloudSafeAvatarUrl, MAX_AVATAR_DATA_URI_BYTES } from '@/domain/safety';
 import { isoWeekKey } from '@/domain/weeklyChallenge';
 import type { ProgrammeProgress } from '@/domain/programme';
 import type { ExerciseId } from '@/vision/exercises';
@@ -334,28 +334,62 @@ export async function removeScore(uid: string): Promise<void> {
 }
 
 /**
- * Upload a local avatar image (file:// or content:// uri) to Storage and return
- * the HTTPS download URL. Returns the original uri unchanged when unconfigured
- * so the local avatar keeps working offline.
+ * Avatar edge, in pixels.
  *
- * Declares JPEG content-type so Storage rules accept the write. Callers should
- * crop/compress before upload (ImagePicker quality ~0.8).
+ * The app never renders an avatar above ~96pt, so 192 is already retina-sharp
+ * at 2x and comfortably so at 3x. It is also what keeps the encoded payload
+ * near 6 KB — small enough to ride on the profile document.
  */
-export async function uploadAvatar(uid: string, localUri: string): Promise<string> {
+const AVATAR_EDGE = 192;
+
+/**
+ * Turn a picked photo into something that can live on the profile document.
+ *
+ * This used to upload to Firebase Storage and return a download URL. Storage
+ * requires the paid Blaze plan, and avatars were the only thing in the whole
+ * app that used it — so instead of putting a bill between an athlete and their
+ * profile picture, the image is downscaled to `AVATAR_EDGE` and returned as a
+ * base64 data URI, which Firestore stores inline.
+ *
+ * The size discipline matters. Firestore caps a document at 1 MiB including
+ * every other field, so the resize is not an optimisation — a full-resolution
+ * phone photo would fail the write and take the whole profile with it.
+ *
+ * Returns the original uri unchanged when Firebase is unconfigured, or when it
+ * is already a remote/encoded value, so the local avatar keeps working offline.
+ */
+export async function uploadAvatar(_uid: string, localUri: string): Promise<string> {
   if (!isFirebaseConfigured()) return localUri;
-  if (!localUri || localUri.startsWith('https://')) return localUri;
-  const ref = storage().ref(`avatars/${uid}.jpg`);
-  await ref.putFile(localUri, { contentType: 'image/jpeg' });
-  return ref.getDownloadURL();
+  if (!localUri) return localUri;
+  if (localUri.startsWith('https://') || localUri.startsWith('data:image/')) return localUri;
+
+  const result = await ImageManipulator.manipulateAsync(
+    localUri,
+    [{ resize: { width: AVATAR_EDGE, height: AVATAR_EDGE } }],
+    { compress: 0.75, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+  );
+  if (!result.base64) return localUri;
+
+  const dataUri = `data:image/jpeg;base64,${result.base64}`;
+  // Guard the ceiling here as well as in `isCloudSafeAvatarUrl`: a caller that
+  // skipped the resize would otherwise fail the whole profile write, and
+  // keeping the local uri costs the athlete nothing but a cloud-synced photo.
+  return dataUri.length <= MAX_AVATAR_DATA_URI_BYTES ? dataUri : localUri;
 }
 
-/** Delete the stored avatar object (best-effort) so a moderated/removed photo clears. */
+/**
+ * Clear a stored avatar so a moderated or removed photo stops being served.
+ *
+ * The avatar now lives on the profile document rather than in Storage, so
+ * clearing it is a field write. Best-effort: the caller is usually mid-delete
+ * and a failure here must not strand the rest of the erasure.
+ */
 export async function deleteAvatar(uid: string): Promise<void> {
   if (!isFirebaseConfigured()) return;
   try {
-    await storage().ref(`avatars/${uid}.jpg`).delete();
+    await usersCol().doc(uid).set({ avatarUrl: null }, { merge: true });
   } catch {
-    // Missing object is fine.
+    // Already gone, or offline — the profile delete that follows covers it.
   }
 }
 

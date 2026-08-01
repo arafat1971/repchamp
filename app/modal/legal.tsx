@@ -61,8 +61,9 @@ export default function LegalScreen() {
 
         <Section title="Who processes it">
           <Para>
-            Account and progress data is stored in Google Firebase (Firestore,
-            Authentication, and Storage for your avatar). Anonymous product
+            Account and progress data is stored in Google Firebase (Firestore
+            and Authentication) — your profile picture is saved with the rest of
+            your profile, not as a separate file. Anonymous product
             analytics — which screens are used, not who you are — is processed by
             PostHog. Subscriptions are handled by RevenueCat and the Apple App
             Store or Google Play. Crash diagnostics, when enabled, are processed by
@@ -74,9 +75,9 @@ export default function LegalScreen() {
           <Para>
             You can export a copy of everything we hold about you, or permanently
             delete your account and all associated data, at any time from
-            Settings → Account. Deleting your account erases your profile,
-            leaderboard entry, matchmaking ticket, and shared couple record, and
-            removes your avatar from storage.
+            Settings → Account. Deleting your account erases your profile —
+            including your picture, which is stored on it — along with your
+            leaderboard entry, matchmaking ticket, and shared couple record.
           </Para>
         </Section>
 

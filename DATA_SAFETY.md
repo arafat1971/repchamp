@@ -134,7 +134,7 @@ Verified against the code, not from memory. Every claim below traces to a specif
 | Name | Collected, **not** shared. Required. App functionality | `displayName` on the profile doc |
 | Email address | Collected, **not** shared. Optional | Only for Google sign-in; anonymous accounts have none |
 | User IDs | Collected, **not** shared. Required. App functionality + Analytics | Auth uid; PostHog ties events to it |
-| **Photos** | Collected, **not** shared. Optional | One path only: the avatar the user picks (`avatars/{uid}.jpg`). The duel action shot was removed; `duelPhotos/` is now delete-only, retained so account deletion can erase photos uploaded while it was live |
+| **Photos** | Collected, **not** shared. Optional | The avatar the user picks, downscaled to 192x192 and stored as a base64 field on `users/{uid}`. No Firebase Storage, no separate image host — deleting the profile deletes the photo |
 | **Videos** | **Not collected** | The camera feed is analysed on-device by MoveNet and never recorded or uploaded |
 | App interactions | Collected, **not** shared. Required. Analytics | 37 `track()` call sites; event names only, no free text |
 | Crash logs / diagnostics | Collected, **not** shared. Required | Sentry |

@@ -73,10 +73,35 @@ export function safeUsernameError(raw: string): string | null {
   return null;
 }
 
-/** Only HTTPS remote avatars (or empty) belong on the public cloud profile. */
+/**
+ * Largest avatar payload allowed on a profile document.
+ *
+ * Firestore caps a document at 1 MiB *including* every other field, so this
+ * leaves generous room for the rest of the profile. A 192x192 JPEG encodes to
+ * roughly 6 KB, so anything approaching this ceiling means the resize step was
+ * skipped — reject it rather than risk a write that fails for the whole doc.
+ */
+export const MAX_AVATAR_DATA_URI_BYTES = 64 * 1024;
+
+/**
+ * Whether this value may be written to the world-readable profile.
+ *
+ * Two shapes are allowed. An `https://` URL covers avatars hosted anywhere
+ * remote. A self-contained `data:image/...;base64,` URI covers the current
+ * scheme, where the picked photo is downscaled and stored on the profile doc
+ * itself — Firebase Storage needs a paid plan, and avatars are the only thing
+ * that ever used it.
+ *
+ * A bare `file://` path is still refused: it points at one device's sandbox, so
+ * publishing it shows every *other* athlete a broken image.
+ */
 export function isCloudSafeAvatarUrl(url: string | null | undefined): boolean {
   if (!url) return true;
-  return url.startsWith('https://');
+  if (url.startsWith('https://')) return true;
+  if (url.startsWith('data:image/')) {
+    return url.includes(';base64,') && url.length <= MAX_AVATAR_DATA_URI_BYTES;
+  }
+  return false;
 }
 
 /** Rate-limit windows used by the client before hitting Firestore. */

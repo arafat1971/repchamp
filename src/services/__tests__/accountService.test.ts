@@ -58,7 +58,6 @@ jest.mock('@react-native-firebase/firestore', () => {
   return { __esModule: true, default: fn };
 });
 
-/** Storage object paths deleted this run. */
 const storageDeleted: string[] = [];
 
 jest.mock('@react-native-firebase/storage', () => {
@@ -124,29 +123,16 @@ describe('deleteAccount', () => {
     expect(deleted).toHaveLength(0);
   });
 
-  it('erases the profile photo', async () => {
-    await deleteAccount('ada');
-    expect(storageDeleted).toContain('avatars/ada.jpg');
-  });
-
-  it('erases duel action shots, which are keyed by duel rather than by uid', async () => {
-    // Regression: only avatars were deleted, so real photographs of the
-    // athlete taken during live duels survived their account deletion.
-    duelRows['duel-1'] = { hostUid: 'ada', guestUid: 'bob', status: 'finished' };
-    duelRows['duel-2'] = { hostUid: 'cara', guestUid: 'ada', status: 'finished' };
-
+  /*
+   * The avatar is a base64 field on the profile document now — Firebase Storage
+   * needs a paid plan, so the app stopped using it entirely. Deleting the
+   * profile is what erases the photo, and that is what this asserts rather than
+   * a separate Storage call that no longer happens.
+   */
+  it('erases the profile photo along with the profile document', async () => {
     await deleteAccount('ada');
 
-    expect(storageDeleted).toContain('duelPhotos/duel-1/host.jpg');
-    expect(storageDeleted).toContain('duelPhotos/duel-2/guest.jpg');
-  });
-
-  it('leaves the opponent’s photo alone', async () => {
-    // Their shot is their data, and the rules would reject the write anyway.
-    duelRows['duel-1'] = { hostUid: 'ada', guestUid: 'bob', status: 'finished' };
-
-    await deleteAccount('ada');
-
-    expect(storageDeleted).not.toContain('duelPhotos/duel-1/guest.jpg');
+    // The avatar rides on this document, so its deletion is the photo's.
+    expect(deleted).toContain('users/ada');
   });
 });

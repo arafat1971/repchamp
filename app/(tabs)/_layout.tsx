@@ -460,7 +460,7 @@ export default function TabsLayout() {
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: '#16a34a',
-          tabBarInactiveTintColor: palette.grey500,
+          tabBarInactiveTintColor: '#475569',
           tabBarStyle: [
             styles.tabBar,
             {
@@ -472,9 +472,9 @@ export default function TabsLayout() {
           tabBarItemStyle: styles.tabItem,
           tabBarBackground: () =>
             Platform.OS === 'ios' ? (
-              <BlurView intensity={92} tint="dark" style={StyleSheet.absoluteFill} />
+              <BlurView intensity={92} tint="light" style={StyleSheet.absoluteFill} />
             ) : (
-              <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(22,27,24,0.97)' }]} />
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.97)' }]} />
             ),
         }}
       >
@@ -501,10 +501,10 @@ const styles = StyleSheet.create({
     left: 12,
     right: 12,
     bottom: 0,
-    backgroundColor: Platform.OS === 'android' ? 'rgba(22,27,24,0.95)' : 'rgba(22,27,24,0.82)',
+    backgroundColor: Platform.OS === 'android' ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.82)',
     borderTopWidth: 0,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(0,0,0,0.06)',
     borderRadius: 28,
     marginBottom: 4,
     elevation: 8,

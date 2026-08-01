@@ -20,10 +20,10 @@ export function HomeAmbient() {
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       <LinearGradient
-        // From tokens, not literals. These were '#ffffff'/'#FAFFFB'/'#F4FFF6',
-        // which kept the whole home screen light after the canvas went dark and
-        // turned every label on top of it near-invisible.
-        colors={[palette.canvas, palette.white, palette.canvas]}
+        // Tokens rather than literals, so a future theme change reaches this
+        // gradient too. It used to hardcode '#ffffff'/'#FAFFFB'/'#F4FFF6',
+        // which meant the screen stayed light no matter what the canvas did.
+        colors={[palette.white, palette.canvas, palette.canvas]}
         locations={[0, 0.45, 1]}
         style={StyleSheet.absoluteFill}
       />

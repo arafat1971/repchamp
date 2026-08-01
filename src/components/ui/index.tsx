@@ -246,22 +246,12 @@ export function IconButton({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
-      // The chip is drawn at 40pt, under the 44pt minimum both Apple's HIG and
-      // Material specify for a touch target. Widening the visual would unbalance
-      // the header rows it sits in, so the *tappable* area is extended instead —
-      // 2pt on each side brings it to 44x44 with no pixel moving on screen.
-      // This is the back control on every modal and duel screen, so the 4pt
-      // shortfall was costing missed taps app-wide.
-      hitSlop={ICON_BUTTON_HIT_SLOP}
       style={[styles.iconButton, style]}
     >
       <Text style={styles.iconButtonGlyph}>{glyph}</Text>
     </PressableScale>
   );
 }
-
-/** Pads the 40pt icon chip out to the 44pt minimum touch target. */
-const ICON_BUTTON_HIT_SLOP = { top: 2, bottom: 2, left: 2, right: 2 } as const;
 
 /* ------------------------------------------------------------------ *
  * Data display
@@ -472,8 +462,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconButton: {
-    width: 40,
-    height: 40,
+    // 44, not 40: the accessibility node reports the *element* bounds, so a
+    // hitSlop-padded 40pt chip still audits as 40 even though the tap lands.
+    // Measured on device (uiautomator) at exactly 40.0x40.0dp before this.
+    width: 44,
+    height: 44,
     borderRadius: radius.lg,
     backgroundColor: palette.white,
     alignItems: 'center',

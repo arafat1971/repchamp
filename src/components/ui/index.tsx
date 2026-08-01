@@ -21,7 +21,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { text } from '@/theme/typography';
-import { gradients, palette, radius, shadow, space, type Gradient } from '@/theme/tokens';
+import { gradients, palette, radius, shadow, space, SCREEN_GUTTER, type Gradient } from '@/theme/tokens';
 import { lightImpactHaptic } from '@/lib/feedback';
 
 export { Skeleton, SkeletonCircle } from './Skeleton';
@@ -37,9 +37,6 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
  * Standard screen container. `scroll` mirrors the prototype's `.scr .pad`
  * wrapper — 20pt gutters and enough bottom padding to clear the tab bar.
  */
-/** Horizontal screen gutter. Safe-area insets are added to this, not swapped in. */
-const SCREEN_GUTTER = 20;
-
 export function Screen({
   children,
   scroll = true,

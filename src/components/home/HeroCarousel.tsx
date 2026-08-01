@@ -1,9 +1,15 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from 'react-native';
 import Animated, {
-  FadeIn,
-  FadeOut,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -11,7 +17,7 @@ import Animated, {
 
 import { PressableScale } from '@/components/ui';
 import { font } from '@/theme/typography';
-import { palette, radius, shadow } from '@/theme/tokens';
+import { palette, radius, shadow, SCREEN_GUTTER } from '@/theme/tokens';
 
 export type HeroSlide = {
   id: string;
@@ -25,61 +31,117 @@ export type HeroSlide = {
 };
 
 const INTERVAL_MS = 8000;
+/** Autoplay stays off this long after a swipe, so it never fights the athlete. */
+const RESUME_AFTER_TOUCH_MS = 10000;
+// Gutter comes from tokens so the page width always matches what `Screen` pads
+// by; a local copy would silently mis-snap if either side changed.
 
 /**
- * Rotating home hero — game events cycle every 8s so the top of the screen
- * always feels alive (Train Together, Daily, Friend Online, Arena, Quick Match).
+ * Rotating home hero.
+ *
+ * This used to cross-fade on a timer with no gesture at all: the dots were
+ * decoration, and the card could not be swiped even though it looked like a
+ * carousel. It is now a real paged ScrollView — drag it, and it snaps.
+ *
+ * Autoplay is kept, because the top of the screen should still feel alive for
+ * someone who never touches it, but it always loses to the athlete: any touch
+ * cancels the pending advance, and it stays off for `RESUME_AFTER_TOUCH_MS`
+ * after the last interaction rather than yanking the card away mid-read.
  */
 export function HeroCarousel({ slides }: { slides: readonly HeroSlide[] }) {
+  const { width: screenW } = useWindowDimensions();
+  const pageW = Math.max(1, screenW - SCREEN_GUTTER * 2);
+
   const [index, setIndex] = useState(0);
-  /** Pause autoplay while the athlete holds the card so taps don't feel jumpy. */
-  const [paused, setPaused] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+  /** Epoch ms of the last touch; autoplay resumes only after the quiet window. */
+  const lastTouchRef = useRef(0);
   const safeSlides = slides.length > 0 ? slides : [];
+  const count = safeSlides.length;
+
+  // Clamp rather than reset in an effect: the slide set changes when a duel
+  // arrives or the couple pairs, and writing state from an effect to correct
+  // an out-of-range index costs an extra render and fights React's own rules.
+  const safeIndex = index < count ? index : 0;
 
   useEffect(() => {
-    if (safeSlides.length <= 1 || paused) return;
+    if (count <= 1) return;
     const id = setInterval(() => {
-      setIndex((i) => (i + 1) % safeSlides.length);
+      if (Date.now() - lastTouchRef.current < RESUME_AFTER_TOUCH_MS) return;
+      setIndex((i) => {
+        const next = (i + 1) % count;
+        scrollRef.current?.scrollTo({ x: next * pageW, animated: true });
+        return next;
+      });
     }, INTERVAL_MS);
     return () => clearInterval(id);
-  }, [safeSlides.length, paused]);
+  }, [count, pageW]);
 
-  const slide = safeSlides[index] ?? safeSlides[0];
-  if (!slide) return null;
+  const onScrollEnd = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const next = Math.round(e.nativeEvent.contentOffset.x / pageW);
+      setIndex(Math.max(0, Math.min(count - 1, next)));
+    },
+    [count, pageW],
+  );
+
+  const markTouched = useCallback(() => {
+    lastTouchRef.current = Date.now();
+  }, []);
+
+  if (count === 0) return null;
 
   return (
     <View>
-      <Animated.View key={slide.id} entering={FadeIn.duration(420)} exiting={FadeOut.duration(280)}>
-        <PressableScale
-          onPress={slide.onPress}
-          onPressIn={() => setPaused(true)}
-          onPressOut={() => setPaused(false)}
-          accessibilityRole="button"
-          accessibilityLabel={slide.cta}
-        >
-          <LinearGradient colors={slide.colors} style={[styles.card, shadow.brand]}>
-            <View style={styles.top}>
-              <Text style={styles.eyebrow}>{slide.eyebrow}</Text>
-              <Text style={styles.emoji}>{slide.emoji}</Text>
-            </View>
-            <Text style={styles.title}>{slide.title}</Text>
-            <Text style={styles.body}>{slide.body}</Text>
-            <View style={styles.ctaRow}>
-              <View style={styles.ctaGlass}>
-                <Text style={styles.ctaText}>{slide.cta}</Text>
-                <View style={styles.ctaArrow}>
-                  <Text style={font('bold', 12, { color: palette.green700 })}>→</Text>
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        pagingEnabled
+        // The card is inset from the screen edge, so a page is narrower than the
+        // window. snapToInterval pages on that width instead of the viewport,
+        // which is what keeps a slide centred rather than drifting per page.
+        snapToInterval={pageW}
+        snapToAlignment="start"
+        decelerationRate="fast"
+        disableIntervalMomentum
+        showsHorizontalScrollIndicator={false}
+        onScrollBeginDrag={markTouched}
+        onTouchStart={markTouched}
+        onMomentumScrollEnd={onScrollEnd}
+        scrollEventThrottle={16}
+      >
+        {safeSlides.map((slide) => (
+          <View key={slide.id} style={{ width: pageW }}>
+            <PressableScale
+              onPress={slide.onPress}
+              accessibilityRole="button"
+              accessibilityLabel={slide.cta}
+            >
+              <LinearGradient colors={slide.colors} style={[styles.card, shadow.brand]}>
+                <View style={styles.top}>
+                  <Text style={styles.eyebrow}>{slide.eyebrow}</Text>
+                  <Text style={styles.emoji}>{slide.emoji}</Text>
                 </View>
-              </View>
-            </View>
-          </LinearGradient>
-        </PressableScale>
-      </Animated.View>
+                <Text style={styles.title}>{slide.title}</Text>
+                <Text style={styles.body}>{slide.body}</Text>
+                <View style={styles.ctaRow}>
+                  <View style={styles.ctaGlass}>
+                    <Text style={styles.ctaText}>{slide.cta}</Text>
+                    <View style={styles.ctaArrow}>
+                      <Text style={font('bold', 12, { color: palette.green700 })}>→</Text>
+                    </View>
+                  </View>
+                </View>
+              </LinearGradient>
+            </PressableScale>
+          </View>
+        ))}
+      </ScrollView>
 
-      {safeSlides.length > 1 ? (
+      {count > 1 ? (
         <View style={styles.dots}>
           {safeSlides.map((s, i) => (
-            <Dot key={s.id} active={i === index} />
+            <Dot key={s.id} active={i === safeIndex} />
           ))}
         </View>
       ) : null}

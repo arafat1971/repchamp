@@ -218,6 +218,13 @@ export const spacing = {
  * next person should not "improve" it to 18. Sized so adjacent steps are
  * actually tellable apart — the old scale's 2pt increments were not.
  */
+/**
+ * Horizontal screen gutter. `Screen` pads by this, and the hero carousel sizes
+ * its pages to `screenWidth - 2 * gutter` so a slide snaps flush with the cards
+ * beneath it. Both read this constant — duplicating the number let them drift.
+ */
+export const SCREEN_GUTTER = 20;
+
 export const space = {
   /** Hairline gap — icon to its label. */
   xs: 4,

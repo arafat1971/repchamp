@@ -121,6 +121,12 @@ export function HeroCarousel({ slides }: { slides: readonly HeroSlide[] }) {
       <ScrollView
         ref={scrollRef}
         horizontal
+        // Android hands a nested scroll to the parent unless the child opts in,
+        // so without this the vertical Screen ScrollView swallowed every
+        // horizontal drag and the card never paged. directionalLockEnabled
+        // keeps a slightly-diagonal swipe on one axis instead of scrolling both.
+        nestedScrollEnabled
+        directionalLockEnabled
         // Deliberately NOT `pagingEnabled`: that snaps to multiples of the
         // viewport, and a page here is narrower than the screen (the card is
         // inset by the gutter). The two disagree by the gutter on every page,

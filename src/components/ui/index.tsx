@@ -81,6 +81,9 @@ export function Screen({
       style={[styles.screen, style]}
       contentContainerStyle={[styles.screenContent, padding, contentStyle]}
       showsVerticalScrollIndicator={false}
+      // Lets a horizontal child (the home hero carousel) keep its own gesture
+      // rather than having this vertical scroll claim it.
+      directionalLockEnabled
     >
       {children}
     </ScrollView>

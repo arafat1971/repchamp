@@ -19,6 +19,7 @@ import {
   currentWeekKey,
   fetchExpoPushToken,
   fetchProfile,
+  checkUsername,
   isUsernameAvailable,
   publishScore,
   removeScore,
@@ -29,7 +30,7 @@ import {
   type CloudProfile,
 } from '../userService';
 
-const mockState = { configured: true };
+const mockState = { configured: true, queryThrows: false };
 
 /** collection -> (id -> doc data). users and leaderboard are both in play. */
 const mockStore: {
@@ -117,6 +118,8 @@ function mockQuery(col: string, filters: [string, unknown][], limit: number | nu
       return mockQuery(col, filters, n);
     },
     async get() {
+      // Simulates a transient Firestore failure (offline, App Check, rules).
+      if (mockState.queryThrows) throw new Error('firestore unavailable');
       let docs = [...mockCol(col).entries()].filter(([, data]) =>
         filters.every(([f, v]) => data[f] === v),
       );
@@ -154,6 +157,7 @@ jest.mock('@react-native-firebase/storage', () => {
 
 beforeEach(() => {
   mockState.configured = true;
+  mockState.queryThrows = false;
   mockStore.users.clear();
   mockStore.leaderboard.clear();
   for (const key of Object.keys(mockStore)) {
@@ -208,6 +212,34 @@ describe('upsertProfile', () => {
     expect(d.updatedAt).toBe('<ts>');
     expect(typeof d.createdAt).toBe('number');
     expect(typeof d.lastActiveAt).toBe('number');
+  });
+
+  /*
+   * Regression: two `@champion` profiles reached production because a failed
+   * availability lookup was reported as "available", so the collision guard
+   * below it never fired. An unverifiable name must fall back, not be taken
+   * on trust.
+   */
+  it('does not claim a username it could not verify', async () => {
+    mockStore.users.set('someone_else', { username: 'hana' });
+    mockState.queryThrows = true;
+
+    await upsertProfile(PROFILE);
+
+    const written = mockStore.users.get('u1')!;
+    expect(written.username).not.toBe('hana');
+    expect(written.username).toBe('hana_u1');
+    // The other athlete keeps their handle.
+    expect(mockStore.users.get('someone_else')!.username).toBe('hana');
+  });
+
+  it('keeps the athlete existing cloud handle when the lookup fails', async () => {
+    mockStore.users.set('u1', { username: 'hana_original' });
+    mockState.queryThrows = true;
+
+    await upsertProfile(PROFILE);
+
+    expect(mockStore.users.get('u1')!.username).toBe('hana_original');
   });
 
   it('merges — a field another device wrote survives the upsert', async () => {
@@ -285,6 +317,29 @@ describe('isUsernameAvailable', () => {
   it('is true when only the excluded uid owns the name', async () => {
     mockStore.users.set('me', { username: 'mine' });
     expect(await isUsernameAvailable('mine', 'me')).toBe(true);
+  });
+
+  // Onboarding keeps letting people through on a failed lookup — blocking
+  // there would trap an offline athlete on the username step.
+  it('stays true when the lookup fails', async () => {
+    mockState.queryThrows = true;
+    expect(await isUsernameAvailable('anything', 'me')).toBe(true);
+  });
+});
+
+describe('checkUsername', () => {
+  it('separates free, taken and unknown', async () => {
+    expect(await checkUsername('fresh_name')).toBe('free');
+
+    mockStore.users.set('other', { username: 'taken' });
+    expect(await checkUsername('taken', 'me')).toBe('taken');
+
+    mockState.queryThrows = true;
+    expect(await checkUsername('taken', 'me')).toBe('unknown');
+  });
+
+  it('reports an empty name as taken rather than free', async () => {
+    expect(await checkUsername('   ')).toBe('taken');
   });
 });
 

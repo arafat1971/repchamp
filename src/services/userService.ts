@@ -103,23 +103,50 @@ export async function fetchExpoPushToken(uid: string): Promise<string | null> {
 }
 
 /**
- * True when no other profile currently claims this username.
- * Client mitigation until a `usernames/{name}` reservation exists server-side.
+ * Whether this username is free, as far as we can tell.
+ *
+ * `'unknown'` is distinct from `'free'` on purpose. The lookup used to report
+ * a failed query as available, which quietly defeated `upsertProfile`'s
+ * collision guard: one transient error and a second athlete wrote the same
+ * handle. Two `@champion` profiles in production came from exactly this.
+ *
+ * Callers decide what an unknown result means, because the safe answer
+ * differs. Onboarding must not strand someone offline, so it lets them
+ * through; the cloud write must not hand out a taken handle, so it treats
+ * unknown as taken and falls back to a uid-suffixed name.
+ *
+ * Client mitigation until a `usernames/{name}` reservation exists
+ * server-side — this narrows the window, it does not close it. Two devices
+ * querying at once still both see "free".
+ */
+export type UsernameAvailability = 'free' | 'taken' | 'unknown';
+
+export async function checkUsername(
+  username: string,
+  excludeUid?: string,
+): Promise<UsernameAvailability> {
+  if (!isFirebaseConfigured()) return 'free';
+  const name = normalizeUsername(username);
+  if (!name) return 'taken';
+  try {
+    const snap = await usersCol().where('username', '==', name).limit(5).get();
+    return snap.docs.every((d) => d.id === excludeUid) ? 'free' : 'taken';
+  } catch {
+    return 'unknown';
+  }
+}
+
+/**
+ * True when the name is free *or* we could not check.
+ *
+ * Kept for onboarding, where blocking on a failed lookup would trap an
+ * offline athlete on the username step with no way forward.
  */
 export async function isUsernameAvailable(
   username: string,
   excludeUid?: string,
 ): Promise<boolean> {
-  if (!isFirebaseConfigured()) return true;
-  const name = normalizeUsername(username);
-  if (!name) return false;
-  try {
-    const snap = await usersCol().where('username', '==', name).limit(5).get();
-    return snap.docs.every((d) => d.id === excludeUid);
-  } catch {
-    // Offline — don't block local onboarding; upsert will reconcile later.
-    return true;
-  }
+  return (await checkUsername(username, excludeUid)) !== 'taken';
 }
 
 /** Prefer the higher personal best per exercise across devices. */
@@ -157,8 +184,11 @@ export async function upsertProfile(
     const ref = usersCol().doc(profile.uid);
     const existing = await ref.get();
     const cloud = existing.exists() ? (existing.data() as Partial<CloudProfile>) : null;
-    // Never steal another athlete's handle on sync.
-    if (!(await isUsernameAvailable(username, profile.uid))) {
+    // Never steal another athlete's handle on sync. `unknown` counts as taken
+    // here: writing a possibly-duplicate handle is worse than falling back to
+    // the athlete's existing one (or a suffixed variant), which a later
+    // successful sync can still correct.
+    if ((await checkUsername(username, profile.uid)) !== 'free') {
       username =
         (typeof cloud?.username === 'string' && cloud.username) ||
         `${username.slice(0, 16)}_${profile.uid.slice(0, 4)}`;

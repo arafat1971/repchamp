@@ -238,13 +238,13 @@ const FLEX_ASSET_IS_REAL =
  * If the artwork is swapped again, re-measure: a near-square mark can take a
  * larger value, a wide one cannot.
  */
-const FLEX_ART_INSET_SCALE = 1.08;
+const FLEX_ART_INSET_SCALE = 1.48;
 
 function FlexMark({ size }: { size: number }) {
   if (!FLEX_ASSET_IS_REAL) {
-    // Vector fallback sits on a light disc now, so it needs the brand green
-    // rather than the white it used against the old green circle.
-    return <MuscleIcon size={size - 6} color="#16a34a" />;
+    // Back to white: the disc is dark again, and the 600-weight green this
+    // used against the light disc would nearly disappear on it.
+    return <MuscleIcon size={size - 6} color="#ffffff" />;
   }
   const drawn = size * FLEX_ART_INSET_SCALE;
   return (
@@ -415,13 +415,15 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
             accessibilityLabel={open ? 'Close workout menu' : 'Start workout'}
             style={styles.fabButton}
           >
-            {/* Closed: a light disc so the full-colour flex mark reads at its
-                own colours — orange-on-green fought itself and looked like a
-                sticker. The brand green stays in the glow ring, the border and
-                the open state, so the FAB still reads as *the* green action.
+            {/* Closed: a near-black disc. The full-colour flex mark keeps its
+                own colours against it, and black separates the button from the
+                pale tab bar far more sharply than the light disc did — the FAB
+                is the primary action and should not blend into its own bar.
+                Not pure #000: a hair of lift keeps the gradient readable and
+                stops it looking like a hole punched in the UI.
                 Open: flips to the green gradient, where a white × belongs. */}
             <LinearGradient
-              colors={open ? ['#4ade80', '#15803d'] : ['#ffffff', '#f1f6f2']}
+              colors={open ? ['#4ade80', '#15803d'] : ['#1C2320', '#0C110F']}
               start={{ x: 0.15, y: 0 }}
               end={{ x: 0.9, y: 1 }}
               style={[styles.fabCircle, !open && styles.fabCircleClosed]}
@@ -565,10 +567,10 @@ const styles = StyleSheet.create({
     // padding, so clip it to the circle rather than let it bleed past the rim.
     overflow: 'hidden',
   },
-  /* Closed state is a light disc, so a white rim would vanish — the brand
-     green moves to the border to keep the FAB reading as the primary action. */
+  /* Closed state is a dark disc: the brand green rim now has real contrast to
+     sit against, so it reads as a deliberate ring rather than an outline. */
   fabCircleClosed: {
-    borderColor: '#16a34a',
+    borderColor: '#22c55e',
     borderWidth: 2.5,
   },
   fabScrim: {

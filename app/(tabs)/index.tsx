@@ -779,15 +779,33 @@ function QuickTile({
    * invites a set, which is the action the card exists to prompt.
    */
   const notStartedToday = stats.todayBest === 0;
+  /*
+   * A day still in progress is not a worse day.
+   *
+   * Today's best only becomes a fair comparison once the athlete has had a
+   * real go at it. One rep in against a finished six-rep day is not a 5-rep
+   * regression, but that is what a bare subtraction says — and it says it in
+   * red, on the tile whose job is to get them to start. Worse, the number
+   * climbs toward zero as they train, so it shrinks while they improve.
+   *
+   * Below half of the last day's best, the tile shows how far there is left
+   * to go instead. That is the same information stated as a target rather
+   * than a deficit, and it turns back into a real +/- delta as soon as the
+   * comparison is worth making.
+   */
+  const chasing = !notStartedToday && stats.lastBest > 0 && stats.todayBest * 2 < stats.lastBest;
   const deltaLabel = notStartedToday
     ? 'Start set'
-    : stats.delta > 0
-      ? `+${stats.delta}`
-      : stats.delta < 0
-        ? `${stats.delta}`
-        : 'Even';
-  // Neutral while unstarted — red on a day with no reps yet reads as failure.
-  const deltaPositive = notStartedToday || stats.delta >= 0;
+    : chasing
+      ? `${stats.lastBest - stats.todayBest} to go`
+      : stats.delta > 0
+        ? `+${stats.delta}`
+        : stats.delta < 0
+          ? `${stats.delta}`
+          : 'Even';
+  // Red is earned only by a genuine shortfall on a day with a real attempt in
+  // it — not by having barely started.
+  const deltaPositive = notStartedToday || chasing || stats.delta >= 0;
 
   return (
     <PressableScale

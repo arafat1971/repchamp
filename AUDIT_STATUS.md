@@ -68,10 +68,24 @@ original bug and confirming the test fails.
   → `ShadowTree::commit`. That is a Fabric shadow-tree commit fault inside RN's renderer, a
   different failure from the `SuspendAll` deadlock the dependency upgrade fixed.
 
-  Landed on a build carrying the neon-overlay rework (between `25f5d04` 08:11 and `cf16fa9`
-  08:27), which makes the overlay a plausible but **unproven** suspect — the Skia canvas is
-  the one thing newly committing per frame. The logcat ring buffer had already rolled past
-  the preceding minute by the time it was investigated, so the trigger was not recoverable.
+  The logcat ring buffer had already rolled past the preceding minute by the time it was
+  investigated, so the trigger was not directly recoverable.
+
+  **The overlay was the first suspect and is now the weaker one.** Reading the code rules it
+  out fairly well: every Skia value is driven through `useDerivedValue`, so the canvas
+  mutates its own scene graph on the UI thread and never commits to the Fabric shadow tree
+  per frame. Its double-buffered smoothing was also checked by simulation — the read and
+  write buffers never alias, on the seeding frame or after.
+
+  **The likelier cause was the share-card compositor, which is already gone.** That was the
+  one thing mounting and unmounting two full-screen `<Image>` layers through React state on
+  *every rep* — exactly the churn a `pullTransaction` fault points at. It was added at 22:57
+  the previous night, was live when the crash hit at 08:17, and was removed at 08:40 in
+  `8183f89`. That is consistent with the crash, but it is circumstantial: the trigger was
+  never captured, so this is the best available explanation rather than a confirmed
+  diagnosis.
+
+  A persistent logcat monitor is armed to catch a recurrence with the buffer intact.
 
   Not seen again: the crashed process (6416) was replaced by 7380, which has since run two
   clean camera sessions (48s and 30s, both with matched CONNECT/DISCONNECT) and **zero**

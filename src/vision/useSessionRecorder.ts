@@ -98,10 +98,15 @@ export function useSessionRecorder({
             clearInterval(poll);
             return;
           }
-          console.log(
-            `[rec] isRecording=${r.isRecording} dur=${r.recordedDuration.toFixed(1)}s ` +
-              `size=${r.recordedFileSize}B`,
-          );
+          // Guarded like every other trace here: this one polls every 2s for
+          // the whole set, so in a release build it was the only recorder log
+          // still writing to logcat.
+          if (__DEV__) {
+            console.log(
+              `[rec] isRecording=${r.isRecording} dur=${r.recordedDuration.toFixed(1)}s ` +
+                `size=${r.recordedFileSize}B`,
+            );
+          }
         }, 2000);
         pollRef.current = poll;
       }

@@ -226,14 +226,19 @@ const FLEX_ASSET_IS_REAL =
  * `resolveAssetSource` reports the canvas (1024²), not the opaque content, and
  * both the old and current marks share that canvas while differing in shape.
  * Measured for the current duo mark, whose content is 866×560 (1.55:1
- * landscape, 85% of the canvas width) — at the previous 1.3 it rendered ~64pt
- * wide inside a 58pt circle and the round clip cut off both outer arms. 0.9
- * lands it ~44pt wide with margin to spare.
+ * landscape, 85% of the canvas width). At 1.3 it rendered ~64pt wide inside a
+ * 58pt circle and the round clip cut both outer arms off; 0.9 was the safe
+ * correction but overshot, leaving the mark ~44pt in a 58pt circle with a ring
+ * of dead space around it — small enough to read as an icon that failed to
+ * load rather than the primary action.
+ *
+ * 1.08 splits the difference: the 1.55:1 mark lands ~52pt wide, filling the
+ * circle without the arms reaching the clip.
  *
  * If the artwork is swapped again, re-measure: a near-square mark can take a
- * value above 1, a wide one cannot.
+ * larger value, a wide one cannot.
  */
-const FLEX_ART_INSET_SCALE = 0.9;
+const FLEX_ART_INSET_SCALE = 1.08;
 
 function FlexMark({ size }: { size: number }) {
   if (!FLEX_ASSET_IS_REAL) {

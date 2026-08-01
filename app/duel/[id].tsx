@@ -498,6 +498,6 @@ const styles = StyleSheet.create({
     borderColor: palette.red100,
     ...shadow.card,
   },
-  cancelDot: { width: 8, height: 8, borderRadius: 2, backgroundColor: palette.red500 },
+  cancelDot: { width: 8, height: 8, borderRadius: radius.xs, backgroundColor: palette.red500 },
   cancelLabel: font('extrabold', 15, { color: palette.red500 }),
 });

@@ -5,7 +5,7 @@ import { Camera } from 'react-native-vision-camera';
 import type { CameraDevice, CameraOutput } from 'react-native-vision-camera';
 
 import { text } from '@/theme/typography';
-import { palette } from '@/theme/tokens';
+import { palette, radius } from '@/theme/tokens';
 
 /**
  * Frames per second requested from the camera (analysis stream).
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingVertical: 8,
     paddingHorizontal: 16,
-    borderRadius: 22,
+    borderRadius: radius['2xl'],
   },
   chipDot: {
     width: 8,

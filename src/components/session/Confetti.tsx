@@ -9,7 +9,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { palette } from '@/theme/tokens';
+import { palette, radius } from '@/theme/tokens';
 
 const COLORS = [
   palette.amber400,
@@ -97,6 +97,6 @@ const styles = StyleSheet.create({
     top: 0,
     width: 10,
     height: 14,
-    borderRadius: 2,
+    borderRadius: radius.xs,
   },
 });

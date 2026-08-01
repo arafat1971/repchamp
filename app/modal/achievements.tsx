@@ -133,10 +133,10 @@ const styles = StyleSheet.create({
   },
   track: {
     height: 6,
-    borderRadius: 4,
+    borderRadius: radius.xs,
     backgroundColor: palette.divider,
     marginTop: 8,
     overflow: 'hidden',
   },
-  fill: { height: '100%', borderRadius: 4 },
+  fill: { height: '100%', borderRadius: radius.xs },
 });

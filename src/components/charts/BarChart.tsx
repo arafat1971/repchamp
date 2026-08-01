@@ -9,7 +9,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { font } from '@/theme/typography';
-import { palette } from '@/theme/tokens';
+import { palette, radius } from '@/theme/tokens';
 
 /**
  * A compact iOS-style animated bar chart — bars grow up from the baseline on
@@ -99,6 +99,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, width: '100%' },
   barCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', height: '100%' },
   barTrack: { flex: 1, justifyContent: 'flex-end', width: '100%', alignItems: 'center' },
-  bar: { width: '72%', borderRadius: 7, minHeight: 6 },
+  bar: { width: '72%', borderRadius: radius.sm, minHeight: 6 },
   label: { ...font('bold', 10, { color: palette.grey600 }), marginTop: 8 },
 });

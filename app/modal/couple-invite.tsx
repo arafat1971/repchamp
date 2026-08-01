@@ -861,7 +861,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.25)',
     overflow: 'hidden',
   },
-  levelFill: { height: '100%', borderRadius: 4, backgroundColor: palette.white },
+  levelFill: { height: '100%', borderRadius: radius.xs, backgroundColor: palette.white },
 
   riskBanner: {
     flexDirection: 'row',
@@ -1072,7 +1072,7 @@ const styles = StyleSheet.create({
   unpairIconBar: {
     width: 16,
     height: 3,
-    borderRadius: 2,
+    borderRadius: radius.xs,
     backgroundColor: palette.red500,
   },
   unpairTextCol: { flex: 1 },

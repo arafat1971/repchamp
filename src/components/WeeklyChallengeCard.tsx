@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
   eyebrow: { ...font('extrabold', 10, { color: 'rgba(255,255,255,0.85)' }), letterSpacing: 1.5 },
   countdown: {
     backgroundColor: 'rgba(0,0,0,0.2)',
-    borderRadius: 20,
+    borderRadius: radius['2xl'],
     paddingHorizontal: 8,
     paddingVertical: 4,
   },

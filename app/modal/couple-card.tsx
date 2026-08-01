@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
   captureWrap: { backgroundColor: 'transparent', alignSelf: 'center' },
   card: {
     width: 340,
-    borderRadius: 32,
+    borderRadius: radius['6xl'],
     paddingVertical: 28,
     paddingHorizontal: 24,
     alignItems: 'center',
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   brandGroup: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  logo: { width: 24, height: 24, borderRadius: 7, overflow: 'hidden' },
+  logo: { width: 24, height: 24, borderRadius: radius.sm, overflow: 'hidden' },
   brandTitle: font('extrabold', 14, { color: palette.ink, letterSpacing: 2 }),
   tag: {
     flexDirection: 'row',
@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
   tagDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: palette.green500 },
   tagText: { ...font('extrabold', 9.5, { color: palette.green700 }), letterSpacing: 1 },
   avatars: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatarRing: { borderRadius: 40, borderWidth: 2.5, borderColor: palette.green500, padding: 4 },
+  avatarRing: { borderRadius: radius['6xl'], borderWidth: 2.5, borderColor: palette.green500, padding: 4 },
   plusBadge: {
     width: 30,
     height: 30,

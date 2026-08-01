@@ -40,7 +40,7 @@ import { useLiveActivityCount } from '@/state/useLiveActivityCount';
 import { useSelfPlayer } from '@/state/useSelfPlayer';
 import type { ExerciseId } from '@/vision/exercises';
 import { font } from '@/theme/typography';
-import { gradients, palette, shadow , radius} from '@/theme/tokens';
+import { gradients, palette, shadow, radius } from '@/theme/tokens';
 import { showDialog } from '@/state/useDialog';
 
 /** Push-ups is the featured daily challenge; mirrors `app/modal/daily.tsx`. */
@@ -460,7 +460,11 @@ export default function HomeScreen() {
                     </View>
                     <Image source={BADGE_VS} style={styles.vsBadge} contentFit="contain" />
                     <View style={[styles.vsAvatar, styles.vsAvatarThem]}>
-                      <Text style={{ fontSize: 22 }}>{hasPending ? '🔥' : '👋'}</Text>
+                      {/* A person, not a waving hand: the row reads as "you vs
+                          them", so the second seat should be another athlete.
+                          The flame stays for a pending challenge — that seat is
+                          a state, not a person. */}
+                      <Text style={{ fontSize: 24 }}>{hasPending ? '🔥' : '👩'}</Text>
                     </View>
                   </View>
                   <View style={{ flex: 1 }}>

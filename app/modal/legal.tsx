@@ -4,7 +4,7 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { Card, Eyebrow, PressableScale, Screen } from '@/components/ui';
 import { PRIVACY_URL, TERMS_URL, SUPPORT_EMAIL } from '@/lib/urls';
 import { font, text } from '@/theme/typography';
-import { palette } from '@/theme/tokens';
+import { palette, radius } from '@/theme/tokens';
 import { Linking, StyleSheet, Text, View } from 'react-native';
 
 /**
@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
   onlineLink: {
     alignSelf: 'flex-start',
     backgroundColor: palette.green50,
-    borderRadius: 12,
+    borderRadius: radius.md,
     paddingHorizontal: 12,
     paddingVertical: 8,
     marginBottom: 16,

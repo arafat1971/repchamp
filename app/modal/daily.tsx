@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.22)',
     paddingVertical: 4,
     paddingHorizontal: 12,
-    borderRadius: 20,
+    borderRadius: radius['2xl'],
   },
   heroCopy: {
     ...font('semibold', 13, { color: 'rgba(255,255,255,0.92)' }),

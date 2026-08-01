@@ -445,7 +445,7 @@ const styles = StyleSheet.create({
   emptyIcon: {
     width: 72,
     height: 72,
-    borderRadius: 24,
+    borderRadius: radius['4xl'],
     backgroundColor: palette.green50,
     borderWidth: 1,
     borderColor: palette.green200,
@@ -529,7 +529,7 @@ const styles = StyleSheet.create({
   vsBadge: {
     width: 36,
     height: 36,
-    borderRadius: 12,
+    borderRadius: radius.md,
     backgroundColor: palette.ink,
     alignItems: 'center',
     justifyContent: 'center',
@@ -560,13 +560,13 @@ const styles = StyleSheet.create({
   progressBlock: { alignSelf: 'stretch', marginTop: 16, gap: 8 },
   progressTrack: {
     height: 5,
-    borderRadius: 3,
+    borderRadius: radius.xs,
     backgroundColor: palette.border,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    borderRadius: 3,
+    borderRadius: radius.xs,
     backgroundColor: palette.green500,
   },
   progressMeta: {

@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(12,16,14,0.62)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.12)',
-    borderRadius: 22,
+    borderRadius: radius['2xl'],
     paddingVertical: 12,
     paddingHorizontal: 12,
     gap: 8,
@@ -418,7 +418,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     overflow: 'hidden',
   },
-  depthFill: { width: '100%', borderRadius: 5 },
+  depthFill: { width: '100%', borderRadius: radius.xs },
   depthLabel: {
     ...font('extrabold', 8, { color: 'rgba(255,255,255,0.6)' }),
     letterSpacing: 1,
@@ -435,7 +435,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(34,197,94,0.35)',
     paddingVertical: 4,
     paddingHorizontal: 12,
-    borderRadius: 20,
+    borderRadius: radius['2xl'],
   },
   trackingDot: { width: 7, height: 7, borderRadius: 3.5 },
   trackingText: {

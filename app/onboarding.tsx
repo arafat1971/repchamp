@@ -2138,7 +2138,7 @@ const styles = StyleSheet.create({
   backButton: {
     width: 30,
     height: 30,
-    borderRadius: 10,
+    borderRadius: radius.sm,
     backgroundColor: palette.white,
     alignItems: 'center',
     justifyContent: 'center',
@@ -2152,7 +2152,7 @@ const styles = StyleSheet.create({
   brandMark: {
     width: 32,
     height: 32,
-    borderRadius: 10,
+    borderRadius: radius.sm,
     overflow: 'hidden',
   },
   brandMarkImg: { width: 32, height: 32 },
@@ -2160,7 +2160,7 @@ const styles = StyleSheet.create({
   hero: {
     flex: 1,
     minHeight: 0,
-    borderRadius: 30,
+    borderRadius: radius['6xl'],
     marginTop: 12,
     backgroundColor: palette.inkSoft,
     overflow: 'hidden',
@@ -2175,7 +2175,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.white,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: 16,
+    borderRadius: radius.lg,
     ...shadow.card,
   },
   heroBadgeLabel: {
@@ -2225,14 +2225,14 @@ const styles = StyleSheet.create({
   },
   phoneScreen: {
     flex: 1,
-    borderRadius: 32,
+    borderRadius: radius['6xl'],
     overflow: 'hidden',
     backgroundColor: '#000',
   },
 
   // Value screens
   valueEyebrow: {
-    borderRadius: 20,
+    borderRadius: radius['2xl'],
     paddingHorizontal: 12,
     paddingVertical: 4,
     marginBottom: 12,
@@ -2246,7 +2246,7 @@ const styles = StyleSheet.create({
   valuePointIcon: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: radius.md,
     backgroundColor: palette.green50,
     alignItems: 'center',
     justifyContent: 'center',
@@ -2301,7 +2301,7 @@ const styles = StyleSheet.create({
   },
   chartTrendPill: {
     backgroundColor: palette.green50,
-    borderRadius: 20,
+    borderRadius: radius['2xl'],
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
@@ -2474,7 +2474,7 @@ const styles = StyleSheet.create({
   },
   coachCue: {
     backgroundColor: palette.white,
-    borderRadius: 20,
+    borderRadius: radius['2xl'],
     paddingHorizontal: 12,
     paddingVertical: 8,
     ...shadow.card,
@@ -2502,13 +2502,13 @@ const styles = StyleSheet.create({
   weekBarTrack: { height: 88, justifyContent: 'flex-end', alignItems: 'center', width: '100%' },
   weekBar: {
     width: '68%',
-    borderRadius: 7,
+    borderRadius: radius.sm,
     backgroundColor: palette.green400,
     minHeight: 4,
   },
   // The opening day is the one they act on today, so it carries the brand colour.
   weekBarFirst: { backgroundColor: palette.green600 },
-  weekRestDash: { width: '52%', height: 3, borderRadius: 2, backgroundColor: palette.divider },
+  weekRestDash: { width: '52%', height: 3, borderRadius: radius.xs, backgroundColor: palette.divider },
   weekDayLabel: { ...font('bold', 9.5, { color: palette.grey600 }), marginTop: 8 },
   weekDayLabelFirst: { ...font('extrabold', 9.5, { color: palette.green700 }), letterSpacing: 0.4 },
   weekTotalRow: {
@@ -2530,7 +2530,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     backgroundColor: palette.green50,
-    borderRadius: 20,
+    borderRadius: radius['2xl'],
     paddingHorizontal: 12,
     paddingVertical: 8,
     maxWidth: 150,
@@ -2717,7 +2717,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.green50,
     paddingVertical: 4,
     paddingHorizontal: 12,
-    borderRadius: 20,
+    borderRadius: radius['2xl'],
   },
   versusRow: {
     flexDirection: 'row',
@@ -2740,7 +2740,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.green50,
     borderWidth: 1,
     borderColor: '#bfeccb',
-    borderRadius: 5,
+    borderRadius: radius.xs,
     paddingHorizontal: 4,
     paddingVertical: 4,
     marginTop: 4,
@@ -2810,7 +2810,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.green500,
     paddingVertical: 4,
     paddingHorizontal: 12,
-    borderRadius: 12,
+    borderRadius: radius.md,
     width: 96,
     alignItems: 'center',
   },

@@ -59,7 +59,7 @@ import { buildFormReport } from '@/vision/formScore';
 import type { RepRecord } from '@/vision/repCounter';
 import { usePoseSession } from '@/vision/usePoseSession';
 import { font, text } from '@/theme/typography';
-import { palette } from '@/theme/tokens';
+import { palette, radius } from '@/theme/tokens';
 
 /** Framing confidence that counts as "body locked". */
 const CALIBRATION_LOCK = 0.55;
@@ -907,7 +907,7 @@ const styles = StyleSheet.create({
   // any camera content without relying on a bare drop shadow.
   logoBadge: {
     backgroundColor: 'rgba(9,14,11,0.28)',
-    borderRadius: 16,
+    borderRadius: radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255,255,255,0.18)',
     paddingHorizontal: 8,
@@ -954,7 +954,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingVertical: 12,
     paddingHorizontal: 24,
-    borderRadius: 18,
+    borderRadius: radius.lg,
     backgroundColor: 'rgba(255,255,255,0.16)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
@@ -984,7 +984,7 @@ const styles = StyleSheet.create({
     right: 20,
     backgroundColor: 'rgba(9,14,11,0.85)',
     padding: 12,
-    borderRadius: 16,
+    borderRadius: radius.lg,
   },
   modelBannerText: {
     ...text.caption,

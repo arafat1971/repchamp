@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { font } from '@/theme/typography';
-import { palette } from '@/theme/tokens';
+import { palette, radius } from '@/theme/tokens';
 
 /**
  * Dev-only diagnostic strip for validating the pose pipeline on a real body.
@@ -74,7 +74,7 @@ const styles = StyleSheet.create({
     right: 12,
     bottom: 8,
     backgroundColor: 'rgba(9,14,11,0.82)',
-    borderRadius: 10,
+    borderRadius: radius.sm,
     paddingHorizontal: 8,
     paddingVertical: 8,
     zIndex: 50,

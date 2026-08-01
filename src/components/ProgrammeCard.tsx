@@ -19,7 +19,7 @@ import { isPurchasesConfigured } from '@/services/purchases';
 import { selectProgramme, useProfileStore } from '@/state/profileStore';
 import { useEffectivePro } from '@/state/proStore';
 import { font } from '@/theme/typography';
-import { palette, shadow } from '@/theme/tokens';
+import { palette, shadow, radius } from '@/theme/tokens';
 
 /* ── Animated sub-components ─────────────────────────────────────────── */
 
@@ -326,7 +326,7 @@ export function ProgrammeCard() {
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 24,
+    borderRadius: radius['4xl'],
     padding: 20,
     overflow: 'hidden',
     borderWidth: 1,
@@ -354,7 +354,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.18)',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: radius.md,
   },
   badgeDot: {
     width: 6,
@@ -370,7 +370,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
   },
   proTag: {
-    borderRadius: 8,
+    borderRadius: radius.sm,
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
@@ -482,7 +482,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)',
     paddingVertical: 8,
     paddingHorizontal: 16,
-    borderRadius: 22,
+    borderRadius: radius['2xl'],
     marginTop: 12,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.3)',

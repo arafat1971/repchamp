@@ -519,7 +519,7 @@ const styles = StyleSheet.create({
   toggleTrack: {
     width: 50,
     height: 30,
-    borderRadius: 16,
+    borderRadius: radius.lg,
     // Load-bearing, deliberately off-grid: 24pt thumb + 3pt each side = 30pt,
     // exactly the track height. At 4 the thumb overflows and clips.
     padding: 3,

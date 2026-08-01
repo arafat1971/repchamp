@@ -411,7 +411,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   heroPlayerCol: { alignItems: 'center', gap: 8, flex: 1 },
-  heroAvatarImage: { width: "100%", height: "100%", borderRadius: 45 },
+  heroAvatarImage: { width: "100%", height: "100%", borderRadius: radius['6xl'] },
   avatarInitial: font("extrabold", 32, { color: palette.slate500 }),
   // The unknown rival: a lighter glyph so the "?" reads as a placeholder
   // waiting to be filled rather than a real initial.
@@ -504,7 +504,7 @@ const styles = StyleSheet.create({
   exerciseIconWrap: {
     width: 56,
     height: 56,
-    borderRadius: 18,
+    borderRadius: radius.lg,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
@@ -521,7 +521,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.amber200,
     paddingHorizontal: 4,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: radius.sm,
   },
   proBadgeText: { ...font('extrabold', 8, { color: palette.amber900 }), letterSpacing: 0.6 },
   selectedDot: {

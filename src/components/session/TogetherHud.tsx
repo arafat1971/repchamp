@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(34,197,94,0.92)',
     paddingVertical: 4,
     paddingHorizontal: 12,
-    borderRadius: 20,
+    borderRadius: radius['2xl'],
   },
   syncText: { ...font('extrabold', 11, { color: '#062012' }), letterSpacing: 1.2 },
   waiting: {
@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(34,197,94,0.35)',
     paddingVertical: 4,
     paddingHorizontal: 12,
-    borderRadius: 20,
+    borderRadius: radius['2xl'],
   },
   trackingDot: { width: 7, height: 7, borderRadius: 3.5 },
   trackingText: { ...font('extrabold', 9, { color: palette.green300 }), letterSpacing: 0.8 },

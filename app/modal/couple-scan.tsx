@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
   reticle: {
     width: 220,
     height: 220,
-    borderRadius: 24,
+    borderRadius: radius['4xl'],
     borderWidth: 3,
     borderColor: 'rgba(255,255,255,0.85)',
   },

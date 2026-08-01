@@ -379,7 +379,7 @@ const styles = StyleSheet.create({
 
   card: {
     width: 340,
-    borderRadius: 32,
+    borderRadius: radius['6xl'],
     paddingVertical: 24,
     paddingHorizontal: 20,
     alignItems: 'center',
@@ -400,7 +400,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   brandGroup: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  logo: { width: 24, height: 24, borderRadius: 7, overflow: 'hidden' },
+  logo: { width: 24, height: 24, borderRadius: radius.sm, overflow: 'hidden' },
   brandTitle: font('extrabold', 14, { color: INK, letterSpacing: 2 }),
   aiPill: {
     flexDirection: 'row',
@@ -427,7 +427,7 @@ const styles = StyleSheet.create({
   stage: {
     width: 296,
     height: 160,
-    borderRadius: 22,
+    borderRadius: radius['2xl'],
     overflow: 'hidden',
     position: 'relative',
     backgroundColor: palette.slate900,
@@ -458,7 +458,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: SURFACE,
     paddingVertical: 12,
-    borderRadius: 18,
+    borderRadius: radius.lg,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: BORDER,
@@ -481,7 +481,7 @@ const styles = StyleSheet.create({
   duelPhotoTile: {
     width: '100%',
     aspectRatio: 0.88,
-    borderRadius: 20,
+    borderRadius: radius['2xl'],
     overflow: 'hidden',
     position: 'relative',
     backgroundColor: palette.slate900,
@@ -540,7 +540,7 @@ const styles = StyleSheet.create({
     backgroundColor: SURFACE,
     borderWidth: 1,
     borderColor: BORDER,
-    borderRadius: 18,
+    borderRadius: radius.lg,
     paddingHorizontal: 16,
     paddingVertical: 12,
     marginBottom: 16,

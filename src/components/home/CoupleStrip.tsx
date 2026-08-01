@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.border,
     overflow: 'hidden',
   },
-  milestoneFill: { height: '100%', borderRadius: 2 },
+  milestoneFill: { height: '100%', borderRadius: radius.xs },
   milestoneLabel: font('bold', 10, { color: palette.grey500 }),
   week: { flexDirection: 'row', gap: 4, justifyContent: 'space-between' },
   dayCol: { alignItems: 'center', gap: 4, flex: 1 },

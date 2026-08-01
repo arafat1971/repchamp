@@ -196,14 +196,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.22)',
     paddingVertical: 8,
     paddingHorizontal: 16,
-    borderRadius: 22,
+    borderRadius: radius['2xl'],
   },
   heroChip: {
     alignSelf: 'flex-start',
     backgroundColor: 'rgba(255,255,255,0.22)',
     paddingVertical: 4,
     paddingHorizontal: 12,
-    borderRadius: 20,
+    borderRadius: radius['2xl'],
   },
   heroCopy: {
     ...font('semibold', 13, { color: 'rgba(255,255,255,0.9)' }),
@@ -221,6 +221,6 @@ const styles = StyleSheet.create({
   },
   chart: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, height: 130 },
   chartColumn: { flex: 1, height: '100%', alignItems: 'center', justifyContent: 'flex-end', gap: 8 },
-  chartBar: { width: '100%', borderRadius: 8 },
+  chartBar: { width: '100%', borderRadius: radius.sm },
   empty: { textAlign: 'center', marginTop: 20 },
 });

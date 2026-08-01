@@ -200,6 +200,6 @@ const styles = StyleSheet.create({
   timerValue: { ...font('extrabold', 48, { color: palette.white }), lineHeight: 54 },
   timerLabel: { ...font('bold', 12, { color: 'rgba(255,255,255,0.8)' }), marginTop: 4, marginBottom: 16 },
   track: { width: '100%', height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.25)', overflow: 'hidden' },
-  fill: { height: '100%', borderRadius: 4, backgroundColor: palette.white },
+  fill: { height: '100%', borderRadius: radius.xs, backgroundColor: palette.white },
   stopButton: { height: 54, borderRadius: radius.xl, backgroundColor: palette.white, alignItems: 'center', justifyContent: 'center', ...shadow.card },
 });

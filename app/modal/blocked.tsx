@@ -9,7 +9,7 @@ import { fetchBlockedUsers, unblockUser, type BlockedUser } from '@/services/saf
 import { useAuthStore } from '@/state/authStore';
 import { showDialog } from '@/state/useDialog';
 import { font, text } from '@/theme/typography';
-import { palette } from '@/theme/tokens';
+import { palette, radius } from '@/theme/tokens';
 
 /** Manage blocked athletes — unblock restores discoverability / friend adds. */
 export default function BlockedUsersScreen() {
@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
   unblock: {
     paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: 10,
+    borderRadius: radius.sm,
     backgroundColor: palette.green50,
   },
 });

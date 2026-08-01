@@ -200,7 +200,7 @@ function Row({ row }: { row: BoardRow }) {
         <Text style={[styles.rank, { color: palette.white }]}>{row.rank}</Text>
         <View style={styles.youAvatar}>
           {avatarUri ? (
-            <Image source={{ uri: avatarUri }} style={{ width: '100%', height: '100%', borderRadius: 19 }} contentFit="cover" />
+            <Image source={{ uri: avatarUri }} style={{ width: '100%', height: '100%', borderRadius: radius['2xl'] }} contentFit="cover" />
           ) : (
             <Text style={font('extrabold', 15, { color: palette.white })}>{row.initial}</Text>
           )}
@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
   leagueBadge: {
     width: 52,
     height: 52,
-    borderRadius: 18,
+    borderRadius: radius.lg,
     backgroundColor: 'rgba(255,255,255,0.18)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.3)',

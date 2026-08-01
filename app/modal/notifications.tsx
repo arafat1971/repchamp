@@ -393,14 +393,14 @@ const styles = StyleSheet.create({
   inviteTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   avatarRing: {
     padding: 4,
-    borderRadius: 27,
+    borderRadius: radius['6xl'],
     borderWidth: 2,
     borderColor: palette.green500,
   },
   inviteNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   newPill: {
     backgroundColor: palette.green50,
-    borderRadius: 6,
+    borderRadius: radius.xs,
     paddingHorizontal: 4,
     paddingVertical: 4,
   },
@@ -411,7 +411,7 @@ const styles = StyleSheet.create({
   chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 12 },
   metaChip: {
     backgroundColor: palette.canvas,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     paddingHorizontal: 8,
     paddingVertical: 4,
   },

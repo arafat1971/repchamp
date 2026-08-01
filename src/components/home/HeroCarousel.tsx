@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
   },
   dot: {
     height: 7,
-    borderRadius: 4,
+    borderRadius: radius.xs,
     backgroundColor: palette.green500,
   },
 });

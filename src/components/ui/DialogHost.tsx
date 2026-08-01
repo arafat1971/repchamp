@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 340,
     backgroundColor: palette.white,
-    borderRadius: 28,
+    borderRadius: radius['6xl'],
     paddingHorizontal: 24,
     paddingTop: 24,
     paddingBottom: 20,
@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
   badge: {
     width: 56,
     height: 56,
-    borderRadius: 20,
+    borderRadius: radius['2xl'],
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,

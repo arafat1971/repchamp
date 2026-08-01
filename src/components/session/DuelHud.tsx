@@ -344,7 +344,7 @@ const styles = StyleSheet.create({
   duelBarDivider: {
     width: 3,
     height: '100%',
-    backgroundColor: '#ffffff',
+    backgroundColor: palette.white,
     shadowColor: '#ffffff',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,

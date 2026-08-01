@@ -1141,7 +1141,7 @@ const styles = StyleSheet.create({
   // Live Challenges
   challengeCard: {
     borderWidth: 1,
-    borderColor: '#bbf7d0',
+    borderColor: palette.green700,
     padding: 16,
     borderRadius: 22,
     overflow: 'hidden',
@@ -1207,7 +1207,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     backgroundColor: palette.green50,
     borderWidth: 1,
-    borderColor: '#bbf7d0',
+    borderColor: palette.green700,
     alignItems: 'center',
     justifyContent: 'center',
   },

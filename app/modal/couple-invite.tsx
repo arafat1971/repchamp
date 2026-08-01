@@ -551,7 +551,7 @@ export default function CoupleInviteScreen() {
         <>
           <Animated.View entering={FadeInDown.duration(500)} style={styles.waitingHero}>
             <LinearGradient
-              colors={['#f0fdf4', '#dcfce7', '#bbf7d0']}
+              colors={[palette.tintGreenTop, palette.tintGreenBottom, palette.green700]}
               style={styles.waitingGradient}
             >
               <Animated.View style={qrPulseStyle}>
@@ -1088,7 +1088,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 16,
     borderWidth: 1,
-    borderColor: '#bbf7d0',
+    borderColor: palette.green700,
   },
   waitingCode: {
     ...font('extrabold', 40, { color: '#059669' }),

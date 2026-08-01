@@ -605,7 +605,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   rewardChipGold: {
-    backgroundColor: '#fff7ed',
+    backgroundColor: palette.amber50,
     borderWidth: 1,
     borderColor: '#f59e0b',
     paddingHorizontal: 12,

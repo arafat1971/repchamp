@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
   },
   eyebrow: { marginBottom: 12 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
-  earnedRow: { borderWidth: 1, borderColor: '#bbf7d0' },
+  earnedRow: { borderWidth: 1, borderColor: palette.green700 },
   icon: {
     width: 48,
     height: 48,
@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   earnedIcon: {
-    backgroundColor: '#dcfce7',
+    backgroundColor: palette.tintGreenBottom,
     borderWidth: 1,
     borderColor: '#86efac',
   },

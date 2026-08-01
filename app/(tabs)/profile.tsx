@@ -480,7 +480,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   badgeEarnedWrap: {
-    backgroundColor: '#dcfce7',
+    backgroundColor: palette.tintGreenBottom,
     borderWidth: 1.5,
     borderColor: '#4ade80',
   },

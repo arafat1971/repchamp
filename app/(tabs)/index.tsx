@@ -333,25 +333,25 @@ export default function HomeScreen() {
           style={{ flex: 1 }}
         >
           <LinearGradient
-            colors={['#fff7ed', '#ffedd5', '#fde68a']}
+            colors={['#241A06', '#2E2208', '#3A2B0C']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={[styles.statCard, styles.leagueCard]}
           >
             <View style={styles.statCardInner}>
               <View style={styles.miniHeader}>
-                <Text style={font('bold', 12, { color: '#92400e' })}>League</Text>
+                <Text style={font('bold', 12, { color: palette.amber200 })}>League</Text>
                 <Text style={{ fontSize: 16 }}>{leagueProgress.league.emoji}</Text>
               </View>
               <View style={styles.leagueRow}>
                 <Image source={MEDAL_BRONZE} style={styles.medalIconSmall} contentFit="contain" />
                 <Text style={font('bold', 16, { color: palette.ink })}>{leagueProgress.title}</Text>
               </View>
-              <Text style={font('bold', 14, { color: '#b45309', marginTop: 4 })}>
-                <CountUp value={weeklyXp} style={font('bold', 14, { color: '#b45309' })} /> XP
+              <Text style={font('bold', 14, { color: palette.amber200, marginTop: 4 })}>
+                <CountUp value={weeklyXp} style={font('bold', 14, { color: palette.amber200 })} /> XP
               </Text>
               <LeagueXpBar fill={leagueProgress.fill} />
-              <Text style={font('regular', 10.5, { color: '#a16207', marginTop: 4 })} numberOfLines={1}>
+              <Text style={font('regular', 10.5, { color: palette.amber100Text, marginTop: 4 })} numberOfLines={1}>
                 {leagueProgress.nextLeague
                   ? `${leagueProgress.xpToNext.toLocaleString()} XP until ${leagueProgress.nextLeague.name}`
                   : 'Top league — hold the crown'}
@@ -380,7 +380,7 @@ export default function HomeScreen() {
           label="Push-Ups"
           image={IC_PUSHUP}
           accent="#16a34a"
-          tint={['#f0fdf4', '#dcfce7']}
+          tint={[palette.tintGreenTop, palette.tintGreenBottom]}
           stats={pushStats}
           onPress={() => router.push({ pathname: '/session', params: { exercise: 'push', mode: 'practice' } })}
         />
@@ -388,7 +388,7 @@ export default function HomeScreen() {
           label="Squats"
           image={IC_SQUAT}
           accent="#7c3aed"
-          tint={['#faf5ff', '#f3e8ff']}
+          tint={[palette.tintPurpleTop, palette.tintPurpleBottom]}
           stats={squatStats}
           onPress={() => router.push({ pathname: '/session', params: { exercise: 'squat', mode: 'practice' } })}
         />
@@ -415,7 +415,7 @@ export default function HomeScreen() {
           }
         >
           <LinearGradient
-            colors={['#f0fdf4', '#dcfce7']}
+            colors={[palette.tintGreenTop, palette.tintGreenBottom]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.challengeCard}
@@ -471,7 +471,7 @@ export default function HomeScreen() {
                     <Text style={font('semibold', 14.5, { color: palette.ink })}>
                       {hasPending ? 'Challenge waiting' : 'Start a challenge'}
                     </Text>
-                    <Text style={font('regular', 12, { color: '#15803d' })}>
+                    <Text style={font('regular', 12, { color: palette.green400 })}>
                       {hasPending
                         ? `${pendingDuels} rival${pendingDuels > 1 ? 's' : ''} waiting on you`
                         : 'Duel a rival and climb the ranks'}
@@ -705,7 +705,7 @@ function DualChallengeBars({
         <View style={{ flex: 1 }}>
           <Text style={font('semibold', 14.5, { color: palette.ink })}>{title}</Text>
           <View style={styles.challengeSubRow}>
-            <Text style={font('regular', 12, { color: '#15803d' })}>
+            <Text style={font('regular', 12, { color: palette.green400 })}>
               {name1} vs {name2}
             </Text>
             <View style={styles.aiPill}>
@@ -827,8 +827,8 @@ function QuickTile({
               <Text style={{ fontSize: 22 }}>{emoji}</Text>
             )}
           </View>
-          <View style={[styles.deltaPill, { backgroundColor: deltaPositive ? '#dcfce7' : '#fee2e2' }]}>
-            <Text style={font('bold', 11, { color: deltaPositive ? '#15803d' : '#b91c1c' })}>{deltaLabel}</Text>
+          <View style={[styles.deltaPill, { backgroundColor: deltaPositive ? palette.tintGreenBottom : palette.tintDangerBg }]}>
+            <Text style={font('bold', 11, { color: deltaPositive ? palette.green400 : palette.red400 })}>{deltaLabel}</Text>
           </View>
         </View>
         <Text style={font('semibold', 15, { color: palette.ink, marginTop: 8 })} numberOfLines={1}>
@@ -991,7 +991,7 @@ const styles = StyleSheet.create({
   rowTight: { flexDirection: 'row', gap: 12 },
   weekCard: {
     backgroundColor: palette.white,
-    borderColor: '#bbf7d0',
+    borderColor: palette.green700,
     borderWidth: 1.5,
   },
   leagueCard: {

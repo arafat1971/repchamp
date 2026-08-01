@@ -275,7 +275,7 @@ export default function DuelNewScreen() {
                 ]}
               >
                 <LinearGradient
-                  colors={selected ? ex.soft : ['#f8fafc', '#eef2f6']}
+                  colors={selected ? ex.soft : [palette.divider, palette.track]}
                   start={{ x: 0.2, y: 0 }}
                   end={{ x: 0.85, y: 1 }}
                   style={[
@@ -380,9 +380,9 @@ const styles = StyleSheet.create({
     padding: 24,
     marginBottom: 8,
     gap: 24,
-    backgroundColor: '#ffffff',
+    backgroundColor: palette.white,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: palette.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
@@ -421,7 +421,7 @@ const styles = StyleSheet.create({
     height: 90,
     borderRadius: 45,
     borderWidth: 3,
-    backgroundColor: '#f8fafc',
+    backgroundColor: palette.divider,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -436,7 +436,7 @@ const styles = StyleSheet.create({
   // Rival — neutral until matched, so it never fights the brand accent.
   heroAvatarRingRival: {
     borderColor: '#cbd5e1',
-    backgroundColor: '#f8fafc',
+    backgroundColor: palette.divider,
   },
   heroPlayerName: {
     ...font('extrabold', 14, { color: palette.slate900 }),

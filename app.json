@@ -6,7 +6,7 @@
     "version": "2.0.0",
     "scheme": "repchamp",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "icon": "./assets/icon.png",
     "ios": {
@@ -34,7 +34,8 @@
       "adaptiveIcon": {
         "backgroundColor": "#8AC53E",
         "foregroundImage": "./assets/adaptive-icon.png"
-      }
+      },
+      "backgroundColor": "#0B0F0D"
     },
     "plugins": [
       "expo-router",

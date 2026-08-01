@@ -29,9 +29,11 @@ export const palette = {
   purple900: '#5b21b6',
 
   // Accent amber / orange
-  amber50: '#fef3c7',
-  amber100: '#fde68a',
+  amber50: '#2A1F08',
+  amber100: '#3A2B0C',
   amber200: '#fcd34d',
+  /** Muted warm text for the dark league surface. */
+  amber100Text: '#D8B879',
   amber300: '#fbbf24',
   amber400: '#fde047',
   amber500: '#F59E0B',
@@ -59,29 +61,43 @@ export const palette = {
   rose100: '#fecdd3',
 
   // Neutrals
-  ink: '#0F1512',
-  inkSoft: '#1f2a24',
-  slate400: '#94a3b8',
-  slate500: '#64748b',
-  slate600: '#475569',
-  slate700: '#334155',
-  slate800: '#1e293b',
-  slate900: '#0f172a',
-  slate200: '#e2e8f0',
+  ink: '#ECF1ED',
+  inkSoft: '#C7D0CA',
+  slate400: '#93A0A6',
+  slate500: '#A3AFB5',
+  slate600: '#B3BEC3',
+  slate700: '#C3CDD1',
+  slate800: '#D3DBDE',
+  slate900: '#E3E9EB',
+  slate200: '#2A332D',
 
-  grey400: '#c3ccc5',
-  grey450: '#b0b8b1',
-  grey500: '#9aa39d',
-  grey550: '#94a29a',
-  grey600: '#8a938c',
-  border: '#e6eae4',
-  borderStrong: '#d4dad4',
-  divider: '#f0f2ef',
-  dividerSoft: '#eef1ee',
-  track: '#eaeee9',
-  canvas: '#F6F7F5',
-  white: '#ffffff',
+  grey400: '#8A948D',
+  grey450: '#98A29B',
+  grey500: '#A7B1AA',
+  grey550: '#9AA49D',
+  grey600: '#A2ACA5',
+  border: '#252D28',
+  borderStrong: '#333C36',
+  divider: '#1E2521',
+  dividerSoft: '#1A211D',
+  track: '#222A26',
+  canvas: '#0B0F0D',
+  white: '#161B18',
   black: '#000000',
+
+  /*
+   * Tinted card surfaces for the dark canvas.
+   *
+   * The Quick Start / challenge tiles used literal pastels ('#f0fdf4',
+   * '#dcfce7', '#faf5ff', '#f3e8ff'). Those are near-white, so on a dark canvas
+   * they blew out and took their own dark labels with them. These keep the same
+   * hue at a luminance that belongs on this background.
+   */
+  tintGreenTop: '#12241A',
+  tintGreenBottom: '#173021',
+  tintPurpleTop: '#1B1626',
+  tintPurpleBottom: '#241C33',
+  tintDangerBg: '#2A1618',
 
   // Camera / duel surfaces
   camGreenTop: '#1c2a22',

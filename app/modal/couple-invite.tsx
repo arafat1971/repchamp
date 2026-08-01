@@ -440,7 +440,7 @@ export default function CoupleInviteScreen() {
                 <Text style={styles.legendText}>{partner.displayName.split(' ')[0]}</Text>
               </View>
               <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: '#e2e8f0' }]} />
+                <View style={[styles.legendDot, { backgroundColor: palette.track }]} />
                 <Text style={styles.legendText}>None</Text>
               </View>
             </View>
@@ -888,7 +888,7 @@ const styles = StyleSheet.create({
     padding: 16,
     marginTop: 12,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: palette.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -920,7 +920,7 @@ const styles = StyleSheet.create({
   calendarDotBoth: { backgroundColor: '#22c55e' },
   calendarDotMe: { backgroundColor: '#86efac' },
   calendarDotPartner: { backgroundColor: '#cbd5e1' },
-  calendarDotNone: { backgroundColor: '#f1f5f9' },
+  calendarDotNone: { backgroundColor: palette.divider },
   calendarLegend: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -928,7 +928,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
+    borderTopColor: palette.divider,
   },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
@@ -949,7 +949,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     backgroundColor: palette.white,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: palette.border,
     borderRadius: radius['2xl'],
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -978,7 +978,7 @@ const styles = StyleSheet.create({
     height: 52,
     borderRadius: radius['2xl'],
     borderWidth: 1.5,
-    borderColor: '#e2e8f0',
+    borderColor: palette.border,
     backgroundColor: palette.white,
     alignItems: 'center',
     justifyContent: 'center',

@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
+
+import { palette } from '@/theme/tokens';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -12,13 +14,16 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 /**
  * Soft live canvas behind Home — vertical green wash + a handful of
- * drifting circles at ~5% opacity so the screen never feels flat white.
+ * drifting circles at ~5% opacity so the screen never feels flat.
  */
 export function HomeAmbient() {
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       <LinearGradient
-        colors={['#ffffff', '#FAFFFB', '#F4FFF6']}
+        // From tokens, not literals. These were '#ffffff'/'#FAFFFB'/'#F4FFF6',
+        // which kept the whole home screen light after the canvas went dark and
+        // turned every label on top of it near-invisible.
+        colors={[palette.canvas, palette.white, palette.canvas]}
         locations={[0, 0.45, 1]}
         style={StyleSheet.absoluteFill}
       />

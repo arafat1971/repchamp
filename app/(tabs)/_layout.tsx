@@ -454,6 +454,7 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
                   accessibilityLabel={action.label}
                 >
                   <Text
+                    numberOfLines={1}
                     style={font('semibold', 15, {
                       color: action.locked ? palette.grey500 : palette.ink,
                       flex: 1,
@@ -692,7 +693,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    minWidth: 200,
+    // 236, not 200: the row gained a "✓ today" tag, and at the old width the
+    // label lost its flex fight with it and wrapped mid-word ("Push-u / ps").
+    minWidth: 236,
     backgroundColor: palette.white,
     paddingVertical: 12,
     paddingHorizontal: 16,

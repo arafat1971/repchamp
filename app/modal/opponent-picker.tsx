@@ -94,8 +94,8 @@ export default function OpponentPickerScreen() {
         </LinearGradient>
       </PressableScale>
 
-      <Eyebrow style={{ marginTop: 22, marginBottom: 10 }}>CHALLENGE A FRIEND</Eyebrow>
-      <View style={{ gap: 10 }}>
+      <Eyebrow style={{ marginTop: 20, marginBottom: 8 }}>CHALLENGE A FRIEND</Eyebrow>
+      <View style={{ gap: 8 }}>
         {allOpponents.map((opponent) => {
           const tint = TINTS[opponent.id] ?? {
             background: (opponent as any).borderColor ?? palette.green50,
@@ -143,8 +143,8 @@ const styles = StyleSheet.create({
   quickMatch: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    padding: 18,
+    gap: 12,
+    padding: 16,
     borderRadius: radius['4xl'],
   },
   quickIcon: {
@@ -158,16 +158,16 @@ const styles = StyleSheet.create({
   opponentRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 12,
     backgroundColor: palette.white,
     borderRadius: radius['2xl'],
-    padding: 14,
+    padding: 12,
     ...shadow.card,
   },
   duelPill: {
     backgroundColor: palette.green50,
     paddingVertical: 8,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     borderRadius: radius.lg,
   },
 });

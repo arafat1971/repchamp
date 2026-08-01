@@ -463,7 +463,7 @@ const styles = StyleSheet.create({
   },
   stage: {
     borderRadius: radius['4xl'],
-    paddingTop: 18,
+    paddingTop: 16,
     paddingBottom: 20,
     paddingHorizontal: 20,
     marginTop: 4,
@@ -483,9 +483,9 @@ const styles = StyleSheet.create({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: radius.pill,
     backgroundColor: palette.green50,
     borderWidth: 1,
@@ -511,7 +511,7 @@ const styles = StyleSheet.create({
     height: 120,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 6,
+    marginTop: 4,
   },
   radarRing: {
     position: 'absolute',
@@ -523,7 +523,7 @@ const styles = StyleSheet.create({
   vsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 12,
     zIndex: 1,
   },
   vsBadge: {
@@ -549,7 +549,7 @@ const styles = StyleSheet.create({
   opponentSlotMark: font('extrabold', 18, { color: palette.grey450 }),
   searching: {
     ...font('extrabold', 18, { color: palette.ink }),
-    marginTop: 10,
+    marginTop: 8,
     textAlign: 'center',
   },
   timer: {
@@ -557,7 +557,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: 'center',
   },
-  progressBlock: { alignSelf: 'stretch', marginTop: 18, gap: 8 },
+  progressBlock: { alignSelf: 'stretch', marginTop: 16, gap: 8 },
   progressTrack: {
     height: 5,
     borderRadius: 3,
@@ -582,19 +582,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 10,
-    paddingVertical: 10,
+    gap: 8,
+    paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: radius.xl,
     backgroundColor: palette.green50,
     borderWidth: 1,
     borderColor: palette.green100,
   },
-  readyPill: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  readyPill: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   readyDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: palette.green500 },
   readyText: font('bold', 11, { color: palette.green700 }),
   selfName: { ...font('extrabold', 12, { color: palette.ink }), flexShrink: 1 },
-  footer: { marginTop: 20, gap: 6 },
+  footer: { marginTop: 20, gap: 4 },
   footerHint: {
     ...font('semibold', 12.5, { color: palette.grey600 }),
     textAlign: 'center',
@@ -604,7 +604,7 @@ const styles = StyleSheet.create({
   },
   textCancel: {
     alignSelf: 'center',
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: 20,
     marginTop: 4,
   },

@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
   body: {
     flex: 1,
     justifyContent: 'center',
-    paddingHorizontal: 26,
+    paddingHorizontal: 24,
   },
   heroEmoji: { fontSize: 52, textAlign: 'center', marginBottom: 12 },
   title: {
@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
     ...font('semibold', 14, { color: 'rgba(255,255,255,0.75)' }),
     textAlign: 'center',
     marginTop: 8,
-    marginBottom: 26,
+    marginBottom: 24,
     paddingHorizontal: 8,
     lineHeight: 21,
   },
@@ -112,12 +112,12 @@ const styles = StyleSheet.create({
   stepRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 12,
     backgroundColor: 'rgba(255,255,255,0.08)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.12)',
     borderRadius: radius['2xl'],
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: 16,
   },
   stepNum: {
@@ -131,10 +131,10 @@ const styles = StyleSheet.create({
   stepNumLabel: font('extrabold', 14, { color: palette.white }),
   stepBody: font('semibold', 15, { color: palette.white }),
   back: {
-    marginTop: 18,
+    marginTop: 16,
     alignSelf: 'center',
     paddingVertical: 12,
-    paddingHorizontal: 26,
+    paddingHorizontal: 24,
   },
   backLabel: {
     ...text.button,

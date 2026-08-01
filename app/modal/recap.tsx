@@ -65,7 +65,7 @@ export default function WeeklyRecapScreen() {
         <View style={styles.heroChip}>
           <Text style={font('extrabold', 10, { color: palette.white })}>{formatRange()}</Text>
         </View>
-        <Text style={font('extrabold', 27, { color: palette.white, marginTop: 14 })}>
+        <Text style={font('extrabold', 27, { color: palette.white, marginTop: 12 })}>
           {totalReps > 0 ? 'Your week in reps' : 'A fresh week awaits'}
         </Text>
         <Text style={styles.heroCopy}>
@@ -189,19 +189,19 @@ const styles = StyleSheet.create({
   coupleLabel: {
     ...font('bold', 8, { color: 'rgba(255,255,255,0.8)' }),
     letterSpacing: 0.8,
-    marginTop: 2,
+    marginTop: 4,
   },
   shareRow: {
     alignSelf: 'flex-start',
     backgroundColor: 'rgba(255,255,255,0.22)',
-    paddingVertical: 9,
+    paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 22,
   },
   heroChip: {
     alignSelf: 'flex-start',
     backgroundColor: 'rgba(255,255,255,0.22)',
-    paddingVertical: 5,
+    paddingVertical: 4,
     paddingHorizontal: 12,
     borderRadius: 20,
   },
@@ -212,14 +212,14 @@ const styles = StyleSheet.create({
   },
   grid: { gap: 12, marginBottom: 16 },
   gridRow: { flexDirection: 'row', gap: 12 },
-  chartCard: { padding: 18 },
+  chartCard: { padding: 16 },
   chartHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 16,
   },
-  chart: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, height: 130 },
+  chart: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, height: 130 },
   chartColumn: { flex: 1, height: '100%', alignItems: 'center', justifyContent: 'flex-end', gap: 8 },
   chartBar: { width: '100%', borderRadius: 8 },
   empty: { textAlign: 'center', marginTop: 20 },

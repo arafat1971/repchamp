@@ -80,7 +80,7 @@ export default function MobilityScreen() {
       <Card style={styles.hero}>
         <Text style={styles.heroEmoji}>{activity.emoji}</Text>
         <Text style={text.cardTitle}>{activity.title}</Text>
-        <Text style={[text.caption, { marginTop: 6, textAlign: 'center' }]}>{activity.description}</Text>
+        <Text style={[text.caption, { marginTop: 4, textAlign: 'center' }]}>{activity.description}</Text>
       </Card>
 
       <View style={styles.tips}>
@@ -188,10 +188,10 @@ function TimedFlow({ activity, onDone }: { activity: TimedActivity; onDone: () =
 const styles = StyleSheet.create({
   hero: { alignItems: 'center', padding: 24, marginBottom: 16 },
   heroEmoji: { fontSize: 52, marginBottom: 8 },
-  tips: { gap: 10, marginBottom: 24 },
-  tipRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  tips: { gap: 8, marginBottom: 24 },
+  tipRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   tipDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: palette.green500 },
-  modes: { flexDirection: 'row', gap: 10 },
+  modes: { flexDirection: 'row', gap: 8 },
   modeCard: { flex: 1, alignItems: 'center', gap: 4, padding: 16, borderRadius: radius['3xl'] },
   modeDuel: { backgroundColor: palette.green600 },
   modeSolo: { backgroundColor: palette.amber500 },

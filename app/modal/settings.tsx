@@ -454,9 +454,9 @@ function LinkRow({
 }
 
 const styles = StyleSheet.create({
-  eyebrow: { marginBottom: 10 },
-  group: { paddingHorizontal: 16, marginBottom: 22 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
+  eyebrow: { marginBottom: 8 },
+  group: { paddingHorizontal: 16, marginBottom: 20 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
   syncDot: { width: 10, height: 10, borderRadius: 5 },
   logOut: {
     height: 52,

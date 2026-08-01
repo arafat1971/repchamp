@@ -182,7 +182,7 @@ export default function FriendProfileScreen() {
         <Text
           style={font('extrabold', 11, {
             color: displayOnline ? palette.green500 : palette.grey600,
-            marginTop: 6,
+            marginTop: 4,
           })}
         >
           {displayOnline ? '● Active' : 'Offline'}
@@ -212,11 +212,11 @@ export default function FriendProfileScreen() {
 
       {duels.length > 0 ? (
         <>
-          <Eyebrow style={{ marginBottom: 10 }}>RECENT DUELS</Eyebrow>
-          <Card style={{ padding: 8, marginBottom: 22 }}>
+          <Eyebrow style={{ marginBottom: 8 }}>RECENT DUELS</Eyebrow>
+          <Card style={{ padding: 8, marginBottom: 20 }}>
             {duels.slice(0, 5).map((duel, index) => (
               <View key={duel.id}>
-                {index > 0 ? <Divider style={{ marginHorizontal: 10 }} /> : null}
+                {index > 0 ? <Divider style={{ marginHorizontal: 8 }} /> : null}
                 <View style={styles.duelRow}>
                   <View style={styles.duelIcon}>
                     <Text style={{ fontSize: 16 }}>{duel.exercise === 'squat' ? '🦵' : '💪'}</Text>
@@ -273,8 +273,8 @@ export default function FriendProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  identity: { alignItems: 'center', paddingBottom: 10 },
-  h2h: { borderRadius: radius['4xl'], padding: 18, marginVertical: 18 },
+  identity: { alignItems: 'center', paddingBottom: 8 },
+  h2h: { borderRadius: radius['4xl'], padding: 16, marginVertical: 16 },
   h2hLabel: {
     ...font('extrabold', 10, { color: palette.green300 }),
     letterSpacing: 1.5,
@@ -286,10 +286,10 @@ const styles = StyleSheet.create({
   h2hHeadline: {
     ...font('bold', 11, { color: 'rgba(255,255,255,0.75)' }),
     textAlign: 'center',
-    marginTop: 10,
+    marginTop: 8,
   },
   statRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
-  duelRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingHorizontal: 10 },
+  duelRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 8 },
   duelIcon: {
     width: 34,
     height: 34,
@@ -302,8 +302,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 28,
-    marginTop: 18,
+    marginTop: 16,
     marginBottom: 8,
   },
-  safetyBtn: { paddingVertical: 10, paddingHorizontal: 12 },
+  safetyBtn: { paddingVertical: 8, paddingHorizontal: 12 },
 });

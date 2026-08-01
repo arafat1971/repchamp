@@ -99,8 +99,8 @@ export default function CoupleJoinScreen() {
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, padding: 24 },
-  title: { ...font('extrabold', 20, { color: palette.ink }), marginTop: 10 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24 },
+  title: { ...font('extrabold', 20, { color: palette.ink }), marginTop: 8 },
   body: { textAlign: 'center' },
   button: {
     marginTop: 16,
@@ -111,5 +111,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cancel: { marginTop: 20, paddingVertical: 10, paddingHorizontal: 16 },
+  cancel: { marginTop: 20, paddingVertical: 8, paddingHorizontal: 16 },
 });

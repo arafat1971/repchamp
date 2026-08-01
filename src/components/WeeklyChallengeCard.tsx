@@ -94,13 +94,13 @@ const styles = StyleSheet.create({
   countdown: {
     backgroundColor: 'rgba(0,0,0,0.2)',
     borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   countdownText: { ...font('extrabold', 9.5, { color: palette.white }), letterSpacing: 0.8 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12 },
   title: { ...font('extrabold', 22, { color: palette.white }) },
-  blurb: { ...font('bold', 12, { color: 'rgba(255,255,255,0.9)' }), marginTop: 6, lineHeight: 18 },
+  blurb: { ...font('bold', 12, { color: 'rgba(255,255,255,0.9)' }), marginTop: 4, lineHeight: 18 },
   progressRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

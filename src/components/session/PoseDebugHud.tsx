@@ -48,9 +48,9 @@ export function PoseDebugHud({
       <View style={styles.row}>
         <Text style={styles.label}>DEPTH</Text>
         <Text style={styles.value}>{depth.toFixed(2)}</Text>
-        <Text style={[styles.label, { marginLeft: 10 }]}>REPS</Text>
+        <Text style={[styles.label, { marginLeft: 8 }]}>REPS</Text>
         <Text style={styles.value}>{reps}</Text>
-        <Text style={[styles.label, { marginLeft: 10 }]}>TRACK</Text>
+        <Text style={[styles.label, { marginLeft: 8 }]}>TRACK</Text>
         <Text style={[styles.value, { color: tracking ? palette.green400 : palette.red500 }]}>
           {tracking ? 'OK' : 'LOST'}
         </Text>
@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
     bottom: 8,
     backgroundColor: 'rgba(9,14,11,0.82)',
     borderRadius: 10,
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 8,
     zIndex: 50,
   },
@@ -86,7 +86,7 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
     backgroundColor: 'rgba(255,255,255,0.18)',
-    marginTop: 6,
+    marginTop: 4,
     overflow: 'visible',
   },
   fill: { height: 6, borderRadius: 3, backgroundColor: palette.green400 },

@@ -178,9 +178,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.85)',
   },
   joiningText: { ...font('extrabold', 15, { color: palette.white }), marginTop: 12 },
-  hint: { textAlign: 'center', marginTop: 14 },
+  hint: { textAlign: 'center', marginTop: 12 },
   manual: {
-    marginTop: 14,
+    marginTop: 12,
     height: 52,
     borderRadius: radius['2xl'],
     borderWidth: 1,

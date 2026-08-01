@@ -171,7 +171,7 @@ export default function AddFriendScreen() {
       </Card>
 
       <Card style={styles.search}>
-        <Svg width={17} height={17} viewBox="0 0 24 24" style={{ marginLeft: 1 }}>
+        <Svg width={17} height={17} viewBox="0 0 24 24" style={{ marginLeft: 4 }}>
           <Path
             d="M9 17H7A5 5 0 0 1 7 7h2M15 7h2a5 5 0 1 1 0 10h-2M8 12h8"
             stroke={palette.grey450}
@@ -237,7 +237,7 @@ export default function AddFriendScreen() {
         </PressableScale>
       </LinearGradient>
 
-      <Eyebrow style={{ marginTop: 24, marginBottom: 10 }}>SUGGESTED FOR YOU</Eyebrow>
+      <Eyebrow style={{ marginTop: 24, marginBottom: 8 }}>SUGGESTED FOR YOU</Eyebrow>
       <Card style={{ padding: 8 }}>
         {suggestionsList.length === 0 ? (
           <Text style={[text.caption, { padding: 16, textAlign: 'center' }]}>
@@ -250,7 +250,7 @@ export default function AddFriendScreen() {
         ) : (
           visible.map((person, index) => (
             <View key={person.id}>
-              {index > 0 ? <Divider style={{ marginHorizontal: 10 }} /> : null}
+              {index > 0 ? <Divider style={{ marginHorizontal: 8 }} /> : null}
               <View style={styles.row}>
                 <Avatar
                   initial={person.initial}
@@ -292,8 +292,8 @@ const styles = StyleSheet.create({
   search: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    padding: 14,
+    gap: 8,
+    padding: 12,
     borderRadius: radius.xl,
     marginBottom: 20,
   },
@@ -321,8 +321,8 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, ...font('semibold', 14, { color: palette.ink }) },
   searchAdd: {
     backgroundColor: palette.green500,
-    paddingVertical: 7,
-    paddingHorizontal: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: radius.md,
   },
   inviteCard: { borderRadius: radius['4xl'], padding: 20 },
@@ -341,14 +341,14 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.5)',
     borderRadius: radius.lg,
     paddingVertical: 12,
-    paddingHorizontal: 14,
-    marginTop: 14,
+    paddingHorizontal: 12,
+    marginTop: 12,
   },
   linkText: { flex: 1, ...font('bold', 13, { color: palette.white }) },
   copyButton: {
     backgroundColor: palette.white,
     paddingVertical: 8,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     borderRadius: radius.md,
   },
   shareButton: {
@@ -359,11 +359,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 12,
   },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingHorizontal: 10 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 8 },
   addButton: {
     backgroundColor: palette.green500,
-    paddingVertical: 9,
-    paddingHorizontal: 18,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
     borderRadius: radius.lg,
   },
   addedButton: { backgroundColor: palette.green50 },

@@ -911,7 +911,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255,255,255,0.18)',
     paddingHorizontal: 8,
-    paddingVertical: 5,
+    paddingVertical: 4,
   },
   logo: {
     // The mark is a 3:2 landscape image, so give it a wider box than tall to
@@ -948,10 +948,10 @@ const styles = StyleSheet.create({
   calibrateHint: {
     ...text.caption,
     color: 'rgba(255,255,255,0.75)',
-    marginTop: 14,
+    marginTop: 12,
   },
   startAnyway: {
-    marginTop: 18,
+    marginTop: 16,
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 18,
@@ -983,7 +983,7 @@ const styles = StyleSheet.create({
     left: 20,
     right: 20,
     backgroundColor: 'rgba(9,14,11,0.85)',
-    padding: 14,
+    padding: 12,
     borderRadius: 16,
   },
   modelBannerText: {

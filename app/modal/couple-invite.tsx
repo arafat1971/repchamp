@@ -522,7 +522,7 @@ export default function CoupleInviteScreen() {
             </PressableScale>
           </Animated.View>
 
-          <Divider style={{ marginVertical: 22 }} />
+          <Divider style={{ marginVertical: 20 }} />
 
           {/* ── Manage bond (professional danger action) ── */}
           <Text style={styles.manageLabel}>MANAGE BOND</Text>
@@ -620,7 +620,7 @@ export default function CoupleInviteScreen() {
             }}
             accessibilityRole="button"
             accessibilityLabel="Cancel couple invite"
-            style={{ marginTop: 14, alignItems: 'center', paddingVertical: 10 }}
+            style={{ marginTop: 12, alignItems: 'center', paddingVertical: 8 }}
           >
             <Text style={font('semibold', 14, { color: palette.slate500 })}>
               Cancel invite
@@ -743,7 +743,7 @@ export default function CoupleInviteScreen() {
 }
 
 const styles = StyleSheet.create({
-  muted: { padding: 14, marginBottom: 16 },
+  muted: { padding: 12, marginBottom: 16 },
   loading: { paddingVertical: 40, alignItems: 'center' },
 
   /* ── PAIRED STATE ── */
@@ -816,7 +816,7 @@ const styles = StyleSheet.create({
   namesPairRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
   myName: font('extrabold', 15, { color: 'rgba(255,255,255,0.9)' }),
   bondLabel: {
@@ -826,7 +826,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.3)',
     borderRadius: 6,
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 4,
   },
   partnerName: font('extrabold', 15, { color: 'rgba(255,255,255,0.9)' }),
 
@@ -851,7 +851,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)',
   },
 
-  levelBlock: { width: '100%', gap: 6 },
+  levelBlock: { width: '100%', gap: 4 },
   levelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
   levelName: font('extrabold', 13, { color: palette.white }),
   levelNext: { ...font('bold', 11, { color: 'rgba(255,255,255,0.8)' }) },
@@ -869,7 +869,7 @@ const styles = StyleSheet.create({
     gap: 8,
     backgroundColor: 'rgba(239,68,68,0.2)',
     borderRadius: radius.xl,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     width: '100%',
   },
@@ -885,8 +885,8 @@ const styles = StyleSheet.create({
   calendarCard: {
     backgroundColor: palette.white,
     borderRadius: radius['3xl'],
-    padding: 18,
-    marginTop: 14,
+    padding: 16,
+    marginTop: 12,
     borderWidth: 1,
     borderColor: '#e2e8f0',
     shadowColor: '#000',
@@ -899,16 +899,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 14,
+    marginBottom: 12,
   },
   calendarTitle: font('extrabold', 14, { color: palette.ink }),
   calendarHint: font('bold', 10, { color: palette.grey500 }),
   calendarRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 6,
+    gap: 4,
   },
-  calendarDayCol: { alignItems: 'center', gap: 6, flex: 1 },
+  calendarDayCol: { alignItems: 'center', gap: 4, flex: 1 },
   calendarDayLabel: font('bold', 10, { color: palette.grey500 }),
   calendarDot: {
     width: 32,
@@ -925,7 +925,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 16,
-    marginTop: 14,
+    marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#f1f5f9',
@@ -937,16 +937,16 @@ const styles = StyleSheet.create({
   /* ── Badges ── */
   sectionTitle: {
     ...font('extrabold', 14, { color: palette.ink }),
-    marginTop: 18,
-    marginBottom: 10,
+    marginTop: 16,
+    marginBottom: 8,
   },
-  badgeShelf: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  badgeShelf: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   badge: {
     width: '30%',
     flexGrow: 1,
     alignItems: 'center',
     gap: 4,
-    paddingVertical: 14,
+    paddingVertical: 12,
     backgroundColor: palette.white,
     borderWidth: 1,
     borderColor: '#e2e8f0',
@@ -995,14 +995,14 @@ const styles = StyleSheet.create({
     borderRadius: radius['2xl'],
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 22,
+    paddingHorizontal: 20,
     shadowColor: '#22c55e',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 4,
   },
-  hint: { marginTop: 14, textAlign: 'center' },
+  hint: { marginTop: 12, textAlign: 'center' },
   bold: font('extrabold', 13, { color: palette.ink }),
 
   /* ── Pairing status header ── */
@@ -1015,8 +1015,8 @@ const styles = StyleSheet.create({
     borderColor: palette.border,
     borderRadius: radius['3xl'],
     paddingVertical: 12,
-    paddingHorizontal: 14,
-    marginBottom: 14,
+    paddingHorizontal: 12,
+    marginBottom: 12,
     ...shadow.card,
   },
   statusAvatars: { flexDirection: 'row', alignItems: 'center' },
@@ -1034,13 +1034,13 @@ const styles = StyleSheet.create({
   statusAvatarInitial: font('extrabold', 15, { color: palette.green600 }),
   statusTextCol: { flex: 1 },
   statusName: font('extrabold', 15, { color: palette.ink }),
-  statusMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  statusMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
   statusDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: palette.green500 },
   statusMeta: font('medium', 12, { color: palette.slate500 }),
   statusTag: {
     backgroundColor: palette.green50,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: radius.pill,
   },
   statusTagText: font('extrabold', 10, { color: palette.green700, letterSpacing: 1 }),
@@ -1048,17 +1048,17 @@ const styles = StyleSheet.create({
   /* ── Manage bond / unpair ── */
   manageLabel: {
     ...font('extrabold', 10, { color: palette.slate400, letterSpacing: 1.5 }),
-    marginBottom: 10,
+    marginBottom: 8,
   },
   unpairCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 12,
     backgroundColor: palette.white,
     borderWidth: 1,
     borderColor: palette.red100,
     borderRadius: radius['2xl'],
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: 16,
   },
   unpairIcon: {
@@ -1077,7 +1077,7 @@ const styles = StyleSheet.create({
   },
   unpairTextCol: { flex: 1 },
   unpairTitle: font('extrabold', 14, { color: palette.red500 }),
-  unpairSub: { ...font('medium', 11.5, { color: palette.slate500 }), marginTop: 2, lineHeight: 16 },
+  unpairSub: { ...font('medium', 11.5, { color: palette.slate500 }), marginTop: 4, lineHeight: 16 },
   unpairChevron: font('extrabold', 22, { color: palette.red400 }),
 
   /* ── WAITING STATE ── */
@@ -1108,14 +1108,14 @@ const styles = StyleSheet.create({
     borderRadius: radius['4xl'],
     padding: 28,
     alignItems: 'center',
-    marginBottom: 18,
+    marginBottom: 16,
     gap: 12,
   },
   pitchAvatarRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   pitchAvatarMe: {
     width: 64,
@@ -1167,8 +1167,8 @@ const styles = StyleSheet.create({
     gap: 4,
     backgroundColor: 'rgba(255,255,255,0.2)',
     borderRadius: radius.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   featurePillDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: 'rgba(255,255,255,0.85)' },
   featurePillText: font('bold', 10, { color: palette.white }),
@@ -1184,10 +1184,10 @@ const styles = StyleSheet.create({
     backgroundColor: palette.ink,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 10,
+    marginTop: 8,
     marginBottom: 12,
   },
-  joinRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
+  joinRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
   input: {
     flex: 1,
     height: 52,
@@ -1199,7 +1199,7 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
   joinButton: {
-    paddingHorizontal: 22,
+    paddingHorizontal: 20,
     height: 52,
     borderRadius: radius['2xl'],
     backgroundColor: palette.ink,
@@ -1210,13 +1210,13 @@ const styles = StyleSheet.create({
   bonusBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
     backgroundColor: '#fffbeb',
     borderWidth: 1,
     borderColor: '#fcd34d',
     borderRadius: radius['2xl'],
-    padding: 14,
-    marginBottom: 14,
+    padding: 12,
+    marginBottom: 12,
   },
   bonusText: { ...font('bold', 12.5, { color: palette.amber900 }), flex: 1, lineHeight: 17 },
 });

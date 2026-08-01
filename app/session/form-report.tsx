@@ -124,7 +124,7 @@ export default function FormReportScreen() {
         <Text style={{ fontSize: 22 }}>💡</Text>
         <View style={{ flex: 1 }}>
           <Text style={font('extrabold', 13, { color: palette.ink })}>Coaching tip</Text>
-          <Text style={font('semibold', 12, { color: '#476b56', marginTop: 2 })}>
+          <Text style={font('semibold', 12, { color: '#476b56', marginTop: 4 })}>
             {report.tip}
           </Text>
         </View>
@@ -156,12 +156,12 @@ function LegendDot({ color, label }: { color: string; label: string }) {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16, marginTop: 6 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16, marginTop: 4 },
   scoreCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 18,
-    padding: 22,
+    gap: 16,
+    padding: 20,
     borderRadius: radius['5xl'],
   },
   scoreSummary: {
@@ -169,12 +169,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
     maxWidth: 150,
   },
-  section: { padding: 18, marginTop: 16 },
+  section: { padding: 16, marginTop: 16 },
   metricHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 7,
+    marginBottom: 8,
   },
   metricTrack: {
     height: 8,
@@ -183,16 +183,16 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   metricFill: { height: '100%', borderRadius: 5 },
-  chart: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 96, marginTop: 14 },
+  chart: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 96, marginTop: 12 },
   barColumn: { flex: 1, height: '100%', justifyContent: 'flex-end' },
   bar: { width: '100%', borderRadius: 4, minHeight: 4 },
   legend: { flexDirection: 'row', gap: 16, marginTop: 12 },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   legendSwatch: { width: 10, height: 10, borderRadius: 3 },
   tipCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 12,
     padding: 16,
     marginTop: 16,
     backgroundColor: palette.green50,

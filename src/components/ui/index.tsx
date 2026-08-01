@@ -520,6 +520,8 @@ const styles = StyleSheet.create({
     width: 50,
     height: 30,
     borderRadius: 16,
+    // Load-bearing, deliberately off-grid: 24pt thumb + 3pt each side = 30pt,
+    // exactly the track height. At 4 the thumb overflows and clips.
     padding: 3,
     justifyContent: 'center',
   },

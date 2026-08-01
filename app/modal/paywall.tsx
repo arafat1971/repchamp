@@ -474,8 +474,8 @@ const styles = StyleSheet.create({
 
   hero: {
     borderRadius: radius['6xl'],
-    paddingHorizontal: 22,
-    paddingTop: 22,
+    paddingHorizontal: 20,
+    paddingTop: 20,
     paddingBottom: 20,
     overflow: 'hidden',
   },
@@ -494,7 +494,7 @@ const styles = StyleSheet.create({
   heroProTag: {
     backgroundColor: 'rgba(255,255,255,0.95)',
     paddingHorizontal: 12,
-    paddingVertical: 5,
+    paddingVertical: 4,
     borderRadius: radius.pill,
   },
   heroProTagText: {
@@ -507,28 +507,28 @@ const styles = StyleSheet.create({
   },
   heroCopy: {
     ...font('semibold', 13.5, { color: 'rgba(255,255,255,0.9)' }),
-    marginTop: 6,
+    marginTop: 4,
     lineHeight: 19,
   },
   trialPill: {
     alignSelf: 'flex-start',
-    marginTop: 14,
+    marginTop: 12,
     backgroundColor: 'rgba(255,255,255,0.2)',
     borderRadius: radius.pill,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 4,
   },
   trialPillText: font('extrabold', 12, { color: palette.white }),
   trustRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginTop: 14,
+    marginTop: 12,
   },
   trustText: font('semibold', 12, { color: 'rgba(255,255,255,0.85)' }),
   trustDot: font('semibold', 12, { color: 'rgba(255,255,255,0.45)' }),
 
-  benefits: { marginTop: 18, gap: 12 },
+  benefits: { marginTop: 16, gap: 12 },
   benefit: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   benefitIcon: {
     width: 28,
@@ -537,23 +537,23 @@ const styles = StyleSheet.create({
     backgroundColor: palette.green500,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 1,
+    marginTop: 4,
   },
   benefitCheck: font('extrabold', 14, { color: palette.white }),
   benefitTitle: font('extrabold', 14.5, { color: palette.ink }),
   benefitDetail: {
     ...text.caption,
-    marginTop: 1,
+    marginTop: 4,
     lineHeight: 17,
   },
 
   plansLabel: {
     ...font('extrabold', 11, { color: palette.grey550 }),
     letterSpacing: 1.2,
-    marginTop: 22,
-    marginBottom: 10,
+    marginTop: 20,
+    marginBottom: 8,
   },
-  plans: { gap: 10, paddingTop: 8 },
+  plans: { gap: 8, paddingTop: 8 },
 
   plan: {
     flexDirection: 'row',
@@ -584,7 +584,7 @@ const styles = StyleSheet.create({
     borderColor: palette.green200,
     borderRadius: 6,
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     zIndex: 2,
   },
   planBadgeFeatured: {
@@ -592,7 +592,7 @@ const styles = StyleSheet.create({
     borderColor: palette.green700,
   },
   planBadgeText: font('extrabold', 9, { color: palette.green700 }),
-  planSubtitle: { ...text.caption, marginTop: 2 },
+  planSubtitle: { ...text.caption, marginTop: 4 },
   radio: {
     width: 24,
     height: 24,
@@ -609,14 +609,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: palette.border,
     padding: 16,
-    gap: 6,
+    gap: 4,
   },
   statusTitle: font('extrabold', 15, { color: palette.ink }),
   statusBody: { ...text.caption, lineHeight: 18 },
   loadingBox: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
+    gap: 8,
     paddingVertical: 28,
   },
   loadingLabel: font('semibold', 13, { color: palette.grey600 }),
@@ -633,7 +633,7 @@ const styles = StyleSheet.create({
     ...text.caption,
     color: palette.grey450,
     textAlign: 'center',
-    marginBottom: 6,
+    marginBottom: 4,
     paddingHorizontal: 8,
   },
   footerLinks: {
@@ -643,7 +643,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     marginTop: 4,
   },
-  footerLinkHit: { paddingVertical: 10, paddingHorizontal: 8 },
+  footerLinkHit: { paddingVertical: 8, paddingHorizontal: 8 },
   footerLink: font('bold', 12.5, { color: palette.grey600 }),
   footerSep: font('bold', 12.5, { color: palette.grey450 }),
 });

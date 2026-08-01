@@ -54,7 +54,7 @@ export function EmptyState({
           style={font('medium', 13, {
             color: palette.grey600,
             textAlign: 'center',
-            marginTop: 6,
+            marginTop: 4,
             lineHeight: 19,
           })}
         >
@@ -104,11 +104,11 @@ const styles = StyleSheet.create({
     paddingVertical: 28,
     paddingHorizontal: 24,
   },
-  glyph: { fontSize: 32, marginBottom: 10 },
+  glyph: { fontSize: 32, marginBottom: 8 },
   action: {
-    marginTop: 14,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
+    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: radius.pill,
     backgroundColor: palette.green50,
   },

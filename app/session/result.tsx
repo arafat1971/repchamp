@@ -654,6 +654,6 @@ const styles = StyleSheet.create({
   doneLinkButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 6,
+    paddingVertical: 4,
   },
 });

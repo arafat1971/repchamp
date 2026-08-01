@@ -350,9 +350,9 @@ const styles = StyleSheet.create({
   badgePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
     backgroundColor: 'rgba(255,255,255,0.18)',
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
   },
@@ -372,7 +372,7 @@ const styles = StyleSheet.create({
   proTag: {
     borderRadius: 8,
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
   },
   dayCount: {
     ...font('extrabold', 13, { color: 'rgba(255,255,255,0.85)' }),
@@ -380,7 +380,7 @@ const styles = StyleSheet.create({
   contentRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 14,
+    marginTop: 12,
     gap: 16,
   },
   title: {
@@ -389,7 +389,7 @@ const styles = StyleSheet.create({
   },
   body: {
     ...font('semibold', 12, { color: 'rgba(255,255,255,0.8)' }),
-    marginTop: 6,
+    marginTop: 4,
     lineHeight: 17,
   },
   targetNumber: {
@@ -406,7 +406,7 @@ const styles = StyleSheet.create({
   },
   emojiStack: {
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
   },
 
   // CTA
@@ -417,7 +417,7 @@ const styles = StyleSheet.create({
     gap: 8,
     backgroundColor: 'rgba(255,255,255,0.25)',
     paddingLeft: 16,
-    paddingRight: 6,
+    paddingRight: 4,
     paddingVertical: 8,
     borderRadius: 24,
     marginTop: 16,
@@ -448,8 +448,8 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 18,
-    paddingTop: 14,
+    marginTop: 16,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.18)',
     gap: 0,
@@ -480,10 +480,10 @@ const styles = StyleSheet.create({
   ghostPill: {
     alignSelf: 'flex-start',
     backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingVertical: 10,
-    paddingHorizontal: 18,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
     borderRadius: 22,
-    marginTop: 14,
+    marginTop: 12,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.3)',
   },

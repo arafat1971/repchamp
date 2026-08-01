@@ -60,12 +60,12 @@ export default function ReportUserScreen() {
     <Screen>
       <ModalHeader title="Report user" subtitle={`About ${name}`} />
 
-      <Text style={[text.body, { marginBottom: 14 }]}>
+      <Text style={[text.body, { marginBottom: 12 }]}>
         Reports are confidential. Choose the closest reason — false reports may lead to limits on
         your account.
       </Text>
 
-      <View style={{ gap: 10 }}>
+      <View style={{ gap: 8 }}>
         {REPORT_REASONS.map((r) => {
           const selected = reason === r.id;
           return (
@@ -83,7 +83,7 @@ export default function ReportUserScreen() {
         })}
       </View>
 
-      <Card style={{ marginTop: 16, padding: 14 }}>
+      <Card style={{ marginTop: 16, padding: 12 }}>
         <Text style={font('bold', 12, { color: palette.grey600, marginBottom: 8 })}>
           Optional details
         </Text>
@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: palette.border,
     borderRadius: radius.xl,
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: 16,
     backgroundColor: palette.white,
   },

@@ -466,7 +466,7 @@ function Welcome({ onNext, onTryNow }: { onNext: () => void; onTryNow: () => voi
         </Floating>
       </View>
 
-      <View style={{ alignItems: 'center', marginTop: 14 }}>
+      <View style={{ alignItems: 'center', marginTop: 12 }}>
         <Text style={[text.h1, { fontSize: 25 }]}>Your phone counts.{'\n'}You just move.</Text>
         <Text style={[text.body, styles.centeredCopy]}>
           Point the camera at yourself and every clean rep is counted — because your form is
@@ -475,7 +475,7 @@ function Welcome({ onNext, onTryNow }: { onNext: () => void; onTryNow: () => voi
       </View>
 
       {/* Get started = full onboarding. Google is optional. Try now skips setup. */}
-      <View style={{ gap: 11, marginTop: 16 }}>
+      <View style={{ gap: 12, marginTop: 16 }}>
         <PrimaryButton
           label="Get started"
           onPress={onNext}
@@ -639,7 +639,7 @@ function ValueScreen({
         {visual}
       </Animated.View>
 
-      <View style={{ gap: 12, marginBottom: 22 }}>
+      <View style={{ gap: 12, marginBottom: 20 }}>
         {points.map((p, i) => (
           <StaggerIn key={p.title} index={i} step={90}>
             <View style={styles.valuePoint}>
@@ -745,7 +745,7 @@ function Username({
         3–20 characters. Letters, numbers, and underscores only.
       </Text>
       {error ? (
-        <Text style={font('extrabold', 13, { color: palette.red500, marginTop: 10 })}>
+        <Text style={font('extrabold', 13, { color: palette.red500, marginTop: 8 })}>
           {error}
         </Text>
       ) : null}
@@ -877,7 +877,7 @@ function Frequency({
   return (
     <View style={[styles.step, styles.stepPadded]}>
       <Text style={text.h1}>How many days{'\n'}can you actually commit?</Text>
-      <Text style={[text.body, { marginTop: 10 }]}>
+      <Text style={[text.body, { marginTop: 8 }]}>
         Be honest — a goal you hit beats a goal you admire. You can change it later.
       </Text>
 
@@ -966,7 +966,7 @@ function QuestionStep<T extends string>({
         <Text style={[text.body, styles.centeredCopy]}>{body}</Text>
       </Animated.View>
 
-      <View style={{ gap: 12, marginTop: 26 }}>
+      <View style={{ gap: 12, marginTop: 24 }}>
         {options.map((option, i) => (
           <StaggerIn key={option.id} index={i} step={80}>
             <PressableScale
@@ -1072,7 +1072,7 @@ function YourPlan({
         </LinearGradient>
       </View>
 
-      <View style={{ gap: 12, marginTop: 18 }}>
+      <View style={{ gap: 12, marginTop: 16 }}>
         <StaggerIn index={0} step={90}>
           <View style={styles.valuePoint}>
             <View style={styles.valuePointIcon}>
@@ -1483,7 +1483,7 @@ function CoupleMode({ onNext }: { onNext: () => void }) {
         </LinearGradient>
       </View>
 
-      <View style={{ gap: 12, marginBottom: 18 }}>
+      <View style={{ gap: 12, marginBottom: 16 }}>
         {[
           { icon: '📱', title: 'Two phones, one set', sub: "See each other's reps live" },
           { icon: '👋', title: 'Nudge them', sub: 'A tap sends a push to get them moving' },
@@ -1561,7 +1561,7 @@ function AiCoach({ onNext }: { onNext: () => void }) {
         </View>
       </View>
 
-      <View style={{ gap: 12, marginBottom: 18 }}>
+      <View style={{ gap: 12, marginBottom: 16 }}>
         {[
           { icon: '🎯', title: 'Form scored 0–100', sub: 'Range of motion, alignment, tempo' },
           { icon: '🔒', title: 'Video never leaves your phone', sub: 'Nothing is uploaded or recorded' },
@@ -1633,7 +1633,7 @@ function Challenge({ username, onNext }: { username: string; onNext: () => void 
       <View style={styles.challengeChip}>
         <Text style={font('extrabold', 11, { color: palette.green600 })}>FIRST RIVAL</Text>
       </View>
-      <Text style={[text.h1, { fontSize: 29, marginTop: 14, textAlign: 'center' }]}>
+      <Text style={[text.h1, { fontSize: 29, marginTop: 12, textAlign: 'center' }]}>
         {rival.name} is ready{'\n'}to race you
       </Text>
       <Text style={[text.body, styles.centeredCopy]}>
@@ -1840,7 +1840,7 @@ function Paywall({
           <Image source={TROPHY_GOLD} style={styles.paywallTrophy} contentFit="contain" />
         </Floating>
         {eyebrow ? (
-          <View style={[styles.valueEyebrow, { backgroundColor: palette.amber50, marginTop: 6 }]}>
+          <View style={[styles.valueEyebrow, { backgroundColor: palette.amber50, marginTop: 4 }]}>
             <Text style={styles.valueEyebrowText}>{eyebrow}</Text>
           </View>
         ) : null}
@@ -1850,7 +1850,7 @@ function Paywall({
         </Text>
       </Animated.View>
 
-      <View style={{ marginTop: 24, gap: 2 }}>
+      <View style={{ marginTop: 24, gap: 4 }}>
         {timeline.map((t, i) => (
           <StaggerIn key={t.title} index={i} step={110} style={styles.timelineRow}>
             <View style={{ alignItems: 'center' }}>
@@ -1866,7 +1866,7 @@ function Paywall({
                 />
               ) : null}
             </View>
-            <View style={{ flex: 1, paddingBottom: 14 }}>
+            <View style={{ flex: 1, paddingBottom: 12 }}>
               <Text style={font('extrabold', 16, { color: palette.ink })}>{t.title}</Text>
               <Text style={text.captionMd}>{t.body}</Text>
             </View>
@@ -2047,7 +2047,7 @@ function Offer({ onDone }: { onDone: () => void }) {
         <Text style={{ fontSize: 16, color: palette.ink }}>✕</Text>
       </Pressable>
 
-      <Text style={[text.h1, { fontSize: 27, textAlign: 'center', marginTop: 6 }]}>
+      <Text style={[text.h1, { fontSize: 27, textAlign: 'center', marginTop: 4 }]}>
         {showOffer ? 'Unlock everything' : "You're all set"}
       </Text>
 
@@ -2061,15 +2061,15 @@ function Offer({ onDone }: { onDone: () => void }) {
               style={styles.offerBadge}
             >
               <Text style={{ fontSize: 44 }}>👑</Text>
-              <Text style={font('extrabold', 18, { color: palette.white, marginTop: 2 })}>
+              <Text style={font('extrabold', 18, { color: palette.white, marginTop: 4 })}>
                 PRO
               </Text>
             </LinearGradient>
             {/* The store's own localised price string — never a hardcoded figure. */}
-            <Text style={font('extrabold', 22, { color: palette.ink, marginTop: 26 })}>
+            <Text style={font('extrabold', 22, { color: palette.ink, marginTop: 24 })}>
               {annual.product.priceString}
             </Text>
-            <Text style={[text.captionMd, { marginTop: 6, textAlign: 'center' }]}>
+            <Text style={[text.captionMd, { marginTop: 4, textAlign: 'center' }]}>
               {annual.product.description || 'Full access to every exercise and programme.'}
             </Text>
           </>
@@ -2111,7 +2111,7 @@ function Offer({ onDone }: { onDone: () => void }) {
             onPress={() => void onStart()}
             disabled={busy}
           />
-          <Text style={[text.captionMd, { textAlign: 'center', marginTop: 10 }]}>
+          <Text style={[text.captionMd, { textAlign: 'center', marginTop: 8 }]}>
             {annual ? renewDisclosure(annual) : null}
           </Text>
           <Pressable onPress={onDone} accessibilityRole="button" style={styles.skip}>
@@ -2146,7 +2146,7 @@ const styles = StyleSheet.create({
   },
   backGlyph: { fontSize: 15, color: palette.ink, lineHeight: 18 },
   stepWrap: { flex: 1 },
-  step: { flex: 1, paddingHorizontal: 22, paddingBottom: 26 },
+  step: { flex: 1, paddingHorizontal: 20, paddingBottom: 24 },
   stepPadded: { paddingTop: 40 },
   brandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   brandMark: {
@@ -2156,12 +2156,12 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   brandMarkImg: { width: 32, height: 32 },
-  tagline: { ...text.caption, fontSize: 13, textAlign: 'center', marginTop: 6 },
+  tagline: { ...text.caption, fontSize: 13, textAlign: 'center', marginTop: 4 },
   hero: {
     flex: 1,
     minHeight: 0,
     borderRadius: 30,
-    marginTop: 14,
+    marginTop: 12,
     backgroundColor: palette.inkSoft,
     overflow: 'hidden',
   },
@@ -2174,7 +2174,7 @@ const styles = StyleSheet.create({
     gap: 8,
     backgroundColor: palette.white,
     paddingVertical: 8,
-    paddingHorizontal: 13,
+    paddingHorizontal: 12,
     borderRadius: 16,
     ...shadow.card,
   },
@@ -2189,7 +2189,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 7,
+    gap: 8,
     marginBottom: 8,
   },
   liveDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: palette.green500 },
@@ -2234,7 +2234,7 @@ const styles = StyleSheet.create({
   valueEyebrow: {
     borderRadius: 20,
     paddingHorizontal: 12,
-    paddingVertical: 5,
+    paddingVertical: 4,
     marginBottom: 12,
   },
   valueEyebrowText: {
@@ -2285,37 +2285,37 @@ const styles = StyleSheet.create({
   chartCard: {
     width: '100%',
     maxWidth: 320,
-    padding: 18,
+    padding: 16,
     borderRadius: radius['4xl'],
   },
   chartHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   chartEyebrow: {
     ...font('extrabold', 10, { color: palette.grey600 }),
     letterSpacing: 1.6,
-    marginBottom: 2,
+    marginBottom: 4,
   },
   chartTrendPill: {
     backgroundColor: palette.green50,
     borderRadius: 20,
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 4,
   },
   chartAxis: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 6,
-    marginTop: 2,
+    paddingHorizontal: 4,
+    marginTop: 4,
   },
   chartAxisLabel: { ...font('bold', 9.5, { color: palette.grey450 }) },
   chartTrophy: { position: 'absolute', top: -30, right: -6, zIndex: 3 },
 
   // Personalised plan / projection / first-week screens
-  planVisual: { alignItems: 'center', justifyContent: 'center', marginTop: 26, marginBottom: 8 },
+  planVisual: { alignItems: 'center', justifyContent: 'center', marginTop: 24, marginBottom: 8 },
   planCard: { width: '100%', borderRadius: radius['4xl'], padding: 20 },
   planCardHead: {
     flexDirection: 'row',
@@ -2327,7 +2327,7 @@ const styles = StyleSheet.create({
     ...font('extrabold', 10.5, { color: 'rgba(255,255,255,0.85)' }),
     letterSpacing: 2,
   },
-  planWeekRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 6 },
+  planWeekRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 4 },
   planDay: {
     flex: 1,
     height: 42,
@@ -2346,30 +2346,30 @@ const styles = StyleSheet.create({
   projectionNote: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
     backgroundColor: palette.green50,
     borderRadius: radius.xl,
-    padding: 14,
+    padding: 12,
     marginTop: 4,
   },
   commitRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
     backgroundColor: palette.amber50,
     borderRadius: radius.xl,
-    padding: 13,
-    marginTop: 10,
+    padding: 12,
+    marginTop: 8,
   },
   paywallTrophy: { width: 104, height: 69 },
   commitFootnote: {
     ...text.caption,
     color: palette.grey450,
     textAlign: 'center',
-    marginTop: 10,
+    marginTop: 8,
   },
   // Question steps
-  questionRow: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16 },
+  questionRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 },
   questionRowActive: { borderColor: palette.green500, borderWidth: 1.5 },
   questionIcon: {
     width: 46,
@@ -2384,7 +2384,7 @@ const styles = StyleSheet.create({
   antidoteVisual: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 26,
+    marginTop: 24,
     position: 'relative',
   },
   boardMock: { width: '100%', maxWidth: 320, padding: 16, borderRadius: radius['4xl'] },
@@ -2392,12 +2392,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   boardMockRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
     paddingVertical: 8,
     paddingHorizontal: 8,
     borderRadius: radius.lg,
@@ -2433,14 +2433,14 @@ const styles = StyleSheet.create({
   },
 
   // Couple mode screen
-  coupleVisual: { alignItems: 'center', justifyContent: 'center', marginTop: 18, marginBottom: 4 },
+  coupleVisual: { alignItems: 'center', justifyContent: 'center', marginTop: 16, marginBottom: 4 },
   coupleCard: {
     width: '100%',
     borderRadius: radius['5xl'],
-    paddingVertical: 22,
+    paddingVertical: 20,
     alignItems: 'center',
   },
-  coupleFaces: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  coupleFaces: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   coupleFace: {
     width: 62,
     height: 62,
@@ -2476,7 +2476,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.white,
     borderRadius: 20,
     paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingVertical: 8,
     ...shadow.card,
   },
   coachCueTop: { position: 'absolute', top: 4, right: -10 },
@@ -2488,17 +2488,17 @@ const styles = StyleSheet.create({
     borderRadius: radius['4xl'],
     borderWidth: 1,
     borderColor: palette.border,
-    padding: 18,
-    marginTop: 18,
+    padding: 16,
+    marginTop: 16,
   },
   weekRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-    gap: 6,
+    gap: 4,
   },
   weekDay: { flex: 1, alignItems: 'center' },
-  weekDayValue: { ...font('extrabold', 12, { color: palette.ink }), marginBottom: 6 },
+  weekDayValue: { ...font('extrabold', 12, { color: palette.ink }), marginBottom: 4 },
   weekBarTrack: { height: 88, justifyContent: 'flex-end', alignItems: 'center', width: '100%' },
   weekBar: {
     width: '68%',
@@ -2509,18 +2509,18 @@ const styles = StyleSheet.create({
   // The opening day is the one they act on today, so it carries the brand colour.
   weekBarFirst: { backgroundColor: palette.green600 },
   weekRestDash: { width: '52%', height: 3, borderRadius: 2, backgroundColor: palette.divider },
-  weekDayLabel: { ...font('bold', 9.5, { color: palette.grey600 }), marginTop: 7 },
+  weekDayLabel: { ...font('bold', 9.5, { color: palette.grey600 }), marginTop: 8 },
   weekDayLabelFirst: { ...font('extrabold', 9.5, { color: palette.green700 }), letterSpacing: 0.4 },
   weekTotalRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: 16,
-    paddingTop: 14,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: palette.divider,
   },
-  weekTotalLeft: { gap: 1 },
+  weekTotalLeft: { gap: 4 },
   weekTotalLabel: {
     ...font('extrabold', 9.5, { color: palette.grey600 }),
     letterSpacing: 1.6,
@@ -2528,11 +2528,11 @@ const styles = StyleSheet.create({
   weekBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
     backgroundColor: palette.green50,
     borderRadius: 20,
-    paddingHorizontal: 11,
-    paddingVertical: 7,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     maxWidth: 150,
   },
 
@@ -2545,7 +2545,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: palette.border,
     padding: 16,
-    marginTop: 18,
+    marginTop: 16,
   },
   projectionHeader: {
     flexDirection: 'row',
@@ -2562,18 +2562,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
+    gap: 8,
   },
   authError: {
     ...font('bold', 12.5, { color: palette.red500 }),
     textAlign: 'center',
-    marginTop: 10,
+    marginTop: 8,
   },
   legal: {
     ...text.caption,
     color: palette.grey450,
     textAlign: 'center',
-    marginTop: 14,
+    marginTop: 12,
     lineHeight: 16,
   },
   legalLink: {
@@ -2583,7 +2583,7 @@ const styles = StyleSheet.create({
   exerciseTile: {
     flex: 1,
     borderRadius: radius['5xl'],
-    padding: 18,
+    padding: 16,
     height: 210,
     justifyContent: 'space-between',
   },
@@ -2591,11 +2591,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginTop: 22,
+    marginTop: 20,
     backgroundColor: palette.white,
     borderWidth: 1.5,
     borderRadius: radius['2xl'],
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     height: 60,
     ...shadow.card,
   },
@@ -2608,7 +2608,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 16,
     padding: 16,
-    marginTop: 22,
+    marginTop: 20,
   },
   photoAvatar: { width: 64, height: 64, borderRadius: 32 },
   photoPlaceholder: {
@@ -2623,11 +2623,11 @@ const styles = StyleSheet.create({
     marginTop: 16,
     backgroundColor: palette.green50,
     borderRadius: radius.xl,
-    padding: 18,
+    padding: 16,
   },
   skip: { alignItems: 'center', marginTop: 12, padding: 8 },
-  tryNow: { alignItems: 'center', marginTop: 14, paddingVertical: 6 },
-  goalRow: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16 },
+  tryNow: { alignItems: 'center', marginTop: 12, paddingVertical: 4 },
+  goalRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 },
   goalIcon: {
     width: 42,
     height: 42,
@@ -2654,7 +2654,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  frequencyCard: { padding: 26, marginTop: 24, borderRadius: radius['6xl'] },
+  frequencyCard: { padding: 24, marginTop: 24, borderRadius: radius['6xl'] },
   frequencyIcon: {
     width: 52,
     height: 52,
@@ -2663,7 +2663,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'center',
-    marginBottom: 14,
+    marginBottom: 12,
   },
   frequencyValue: {
     flexDirection: 'row',
@@ -2673,11 +2673,11 @@ const styles = StyleSheet.create({
   },
   dayPicker: {
     flexDirection: 'row',
-    marginTop: 22,
+    marginTop: 20,
     position: 'relative',
     backgroundColor: palette.divider,
     borderRadius: radius.lg,
-    padding: 3,
+    padding: 4,
   },
   /** Springs between the seven slots; width matches one slot of the row. */
   dayThumb: {
@@ -2700,7 +2700,7 @@ const styles = StyleSheet.create({
     gap: 12,
     backgroundColor: '#f1f7f2',
     borderRadius: radius.xl,
-    padding: 14,
+    padding: 12,
     marginTop: 20,
   },
   frequencyNoteIcon: {
@@ -2715,16 +2715,16 @@ const styles = StyleSheet.create({
   challengeChip: {
     alignSelf: 'center',
     backgroundColor: palette.green50,
-    paddingVertical: 6,
-    paddingHorizontal: 14,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
     borderRadius: 20,
   },
   versusRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 18,
-    marginVertical: 26,
+    gap: 16,
+    marginVertical: 24,
   },
   versusAvatar: {
     width: 74,
@@ -2733,7 +2733,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rivalCol: { alignItems: 'center', gap: 2 },
+  rivalCol: { alignItems: 'center', gap: 4 },
   // Matches the AI pill used on the Arena leaderboard, so a labelled partner
   // reads the same everywhere in the app.
   aiTag: {
@@ -2741,14 +2741,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#bfeccb',
     borderRadius: 5,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    marginTop: 6,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    marginTop: 4,
   },
   rivalName: { ...font('extrabold', 14, { color: palette.ink }), marginTop: 4 },
   rivalPace: { ...font('bold', 11, { color: palette.grey600 }) },
   declineButton: {
-    marginTop: 10,
+    marginTop: 8,
     height: 54,
     borderWidth: 1.5,
     borderColor: palette.border,
@@ -2764,8 +2764,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  buildList: { width: '100%', paddingHorizontal: 16, paddingVertical: 8, marginTop: 26 },
-  buildRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 15 },
+  buildList: { width: '100%', paddingHorizontal: 16, paddingVertical: 8, marginTop: 24 },
+  buildRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 16 },
   buildIcon: {
     width: 44,
     height: 44,
@@ -2781,7 +2781,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  timelineRow: { flexDirection: 'row', gap: 14 },
+  timelineRow: { flexDirection: 'row', gap: 12 },
   timelineDot: {
     width: 44,
     height: 44,
@@ -2793,11 +2793,11 @@ const styles = StyleSheet.create({
   planOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 12,
     borderWidth: 2,
     borderRadius: radius['2xl'],
     paddingVertical: 16,
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     backgroundColor: palette.white,
   },
   ribbon: {
@@ -2808,7 +2808,7 @@ const styles = StyleSheet.create({
     right: 0,
     marginHorizontal: 'auto',
     backgroundColor: palette.green500,
-    paddingVertical: 3,
+    paddingVertical: 4,
     paddingHorizontal: 12,
     borderRadius: 12,
     width: 96,
@@ -2817,7 +2817,7 @@ const styles = StyleSheet.create({
   noPayment: {
     ...font('extrabold', 13, { color: palette.ink }),
     textAlign: 'center',
-    marginVertical: 14,
+    marginVertical: 12,
   },
   closeButton: {
     width: 34,
@@ -2832,8 +2832,8 @@ const styles = StyleSheet.create({
   readyStats: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 10,
-    marginTop: 22,
+    gap: 8,
+    marginTop: 20,
   },
   readyStat: {
     alignItems: 'center',
@@ -2841,11 +2841,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: palette.border,
     borderRadius: radius['2xl'],
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: 16,
     minWidth: 96,
   },
-  readyStatLabel: { ...font('bold', 10.5, { color: palette.grey600 }), marginTop: 2 },
+  readyStatLabel: { ...font('bold', 10.5, { color: palette.grey600 }), marginTop: 4 },
   offerReadyBubble: {
     width: 176,
     height: 176,

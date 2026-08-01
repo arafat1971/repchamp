@@ -162,7 +162,7 @@ export default function LeaderboardScreen() {
         ) : (
           rows.map((row, index) => (
             <View key={row.id}>
-              {index > 0 ? <Divider style={{ marginHorizontal: 10 }} /> : null}
+              {index > 0 ? <Divider style={{ marginHorizontal: 8 }} /> : null}
               <Row row={row} />
             </View>
           ))
@@ -235,10 +235,10 @@ function Row({ row }: { row: BoardRow }) {
 const styles = StyleSheet.create({
   segmented: {
     flexDirection: 'row',
-    gap: 6,
+    gap: 4,
     backgroundColor: palette.track,
     borderRadius: radius.xl,
-    padding: 5,
+    padding: 4,
     marginBottom: 20,
   },
   segment: { flex: 1, height: 38, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
@@ -246,10 +246,10 @@ const styles = StyleSheet.create({
   leagueBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 12,
     borderRadius: radius['3xl'],
     paddingVertical: 16,
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     marginBottom: 20,
   },
   leagueBadge: {
@@ -263,13 +263,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   list: { padding: 8 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingHorizontal: 10 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 8 },
   rank: { ...font('extrabold', 14), width: 24 },
   youRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: 12,
     borderRadius: radius['2xl'],
     marginVertical: 4,

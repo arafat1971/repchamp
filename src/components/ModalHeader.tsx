@@ -33,7 +33,7 @@ export function ModalHeader({
         <Text style={text.h1} numberOfLines={1}>
           {title}
         </Text>
-        {subtitle ? <Text style={[text.captionMd, { marginTop: 2 }]}>{subtitle}</Text> : null}
+        {subtitle ? <Text style={[text.captionMd, { marginTop: 4 }]}>{subtitle}</Text> : null}
       </View>
     </View>
   );
@@ -44,7 +44,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginTop: 6,
-    marginBottom: 18,
+    marginTop: 4,
+    marginBottom: 16,
   },
 });

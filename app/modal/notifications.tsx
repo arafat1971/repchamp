@@ -92,7 +92,7 @@ export default function NotificationsScreen() {
       ) : null}
 
       <StaggerIn index={1}>
-        <Eyebrow style={{ marginBottom: 10 }}>INVITES</Eyebrow>
+        <Eyebrow style={{ marginBottom: 8 }}>INVITES</Eyebrow>
         {loading ? (
           <InviteSkeleton />
         ) : incoming.length > 0 ? (
@@ -179,8 +179,8 @@ export default function NotificationsScreen() {
       </StaggerIn>
 
       <StaggerIn index={2}>
-        <Eyebrow style={{ marginTop: 20, marginBottom: 10 }}>EARLIER</Eyebrow>
-        <View style={{ gap: 10 }}>
+        <Eyebrow style={{ marginTop: 20, marginBottom: 8 }}>EARLIER</Eyebrow>
+        <View style={{ gap: 8 }}>
           {lastSession ? (
           <NotificationRow
             glyph="trophy"
@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    padding: 18,
+    padding: 16,
     marginBottom: 16,
     backgroundColor: palette.canvas,
   },
@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
   inviteHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   inviteTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   avatarRing: {
-    padding: 3,
+    padding: 4,
     borderRadius: 27,
     borderWidth: 2,
     borderColor: palette.green500,
@@ -401,22 +401,22 @@ const styles = StyleSheet.create({
   newPill: {
     backgroundColor: palette.green50,
     borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
   },
   newPillText: {
     ...font('extrabold', 8, { color: palette.green700 }),
     letterSpacing: 0.6,
   },
-  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 12 },
+  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 12 },
   metaChip: {
     backgroundColor: palette.canvas,
     borderRadius: 8,
-    paddingHorizontal: 9,
+    paddingHorizontal: 8,
     paddingVertical: 4,
   },
   metaChipText: font('bold', 10.5, { color: palette.slate600 }),
-  inviteActions: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  inviteActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
   acceptButton: {
     flex: 1,
     height: 44,
@@ -433,7 +433,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
   rowMeta: {
     ...font('bold', 10, { color: palette.grey500 }),
     alignSelf: 'flex-start',

@@ -373,7 +373,7 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
                 key={action.label}
                 style={{
                   transform: [{ translateY: 0 }],
-                  marginBottom: 10,
+                  marginBottom: 8,
                 }}
               >
                 <TouchableOpacity
@@ -510,13 +510,13 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   tabItem: {
-    paddingVertical: 2,
+    paddingVertical: 4,
   },
   tabLabel: {
     fontFamily: fontFamily.bold,
     fontSize: 10,
     letterSpacing: -0.1,
-    marginTop: 1,
+    marginTop: 4,
   },
   iconWrapper: {
     alignItems: 'center',
@@ -581,7 +581,7 @@ const styles = StyleSheet.create({
     gap: 12,
     minWidth: 200,
     backgroundColor: '#ffffff',
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 18,
     borderWidth: 1,

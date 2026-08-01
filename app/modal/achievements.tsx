@@ -42,7 +42,7 @@ export default function AchievementsScreen() {
       {earned.length > 0 ? (
         <>
           <Eyebrow style={styles.eyebrow}>EARNED</Eyebrow>
-          <View style={{ gap: 10, marginBottom: 24 }}>
+          <View style={{ gap: 8, marginBottom: 24 }}>
             {earned.map((a) => (
               <AchievementRow key={a.id} achievement={a} />
             ))}
@@ -53,7 +53,7 @@ export default function AchievementsScreen() {
       {inProgress.length > 0 ? (
         <>
           <Eyebrow style={styles.eyebrow}>IN PROGRESS</Eyebrow>
-          <View style={{ gap: 10 }}>
+          <View style={{ gap: 8 }}>
             {inProgress.map((a) => (
               <AchievementRow key={a.id} achievement={a} />
             ))}
@@ -107,14 +107,14 @@ const styles = StyleSheet.create({
   summary: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 12,
     borderRadius: radius['4xl'],
-    paddingVertical: 18,
+    paddingVertical: 16,
     paddingHorizontal: 20,
-    marginBottom: 22,
+    marginBottom: 20,
   },
   eyebrow: { marginBottom: 12 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
   earnedRow: { borderWidth: 1, borderColor: '#bbf7d0' },
   icon: {
     width: 48,

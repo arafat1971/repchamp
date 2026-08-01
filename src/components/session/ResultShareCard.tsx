@@ -381,7 +381,7 @@ const styles = StyleSheet.create({
     width: 340,
     borderRadius: 32,
     paddingVertical: 24,
-    paddingHorizontal: 22,
+    paddingHorizontal: 20,
     alignItems: 'center',
     backgroundColor: palette.white,
     borderWidth: 1,
@@ -397,7 +397,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     width: '100%',
-    marginBottom: 18,
+    marginBottom: 16,
   },
   brandGroup: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   logo: { width: 24, height: 24, borderRadius: 7, overflow: 'hidden' },
@@ -405,23 +405,23 @@ const styles = StyleSheet.create({
   aiPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
     backgroundColor: ACCENT_SOFT,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: radius.pill,
   },
   aiDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: ACCENT },
   aiPillText: font('extrabold', 9, { color: palette.green700, letterSpacing: 1 }),
 
   /* Hero (solo) */
-  hero: { alignItems: 'center', marginBottom: 18 },
+  hero: { alignItems: 'center', marginBottom: 16 },
   heroNumber: {
     ...font('extrabold', 76, { color: INK }),
     lineHeight: 80,
     letterSpacing: -3,
   },
-  heroLabel: font('extrabold', 12, { color: MUTED, letterSpacing: 3, marginTop: 2 }),
+  heroLabel: font('extrabold', 12, { color: MUTED, letterSpacing: 3, marginTop: 4 }),
 
   /* Stage (solo) */
   stage: {
@@ -443,9 +443,9 @@ const styles = StyleSheet.create({
     left: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
     backgroundColor: 'rgba(0,0,0,0.55)',
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: radius.pill,
   },
@@ -453,7 +453,7 @@ const styles = StyleSheet.create({
   stageTagText: font('extrabold', 9, { color: palette.white, letterSpacing: 0.8 }),
 
   /* Stats (solo) */
-  statsRow: { flexDirection: 'row', gap: 8, width: '100%', marginBottom: 18 },
+  statsRow: { flexDirection: 'row', gap: 8, width: '100%', marginBottom: 16 },
   statPill: {
     flex: 1,
     backgroundColor: SURFACE,
@@ -464,16 +464,16 @@ const styles = StyleSheet.create({
     borderColor: BORDER,
   },
   statValue: font('extrabold', 17, { color: ACCENT }),
-  statLabel: font('bold', 9, { color: MUTED, letterSpacing: 0.8, marginTop: 3 }),
+  statLabel: font('bold', 9, { color: MUTED, letterSpacing: 0.8, marginTop: 4 }),
 
   /* Versus / together */
-  resultKicker: font('extrabold', 11, { color: MUTED, letterSpacing: 3, marginBottom: 2 }),
-  resultTitle: font('extrabold', 30, { letterSpacing: -0.5, marginBottom: 18 }),
+  resultKicker: font('extrabold', 11, { color: MUTED, letterSpacing: 3, marginBottom: 4 }),
+  resultTitle: font('extrabold', 30, { letterSpacing: -0.5, marginBottom: 16 }),
   duelPhotoRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'center',
-    gap: 10,
+    gap: 8,
     width: '100%',
     marginBottom: 16,
   },
@@ -501,12 +501,12 @@ const styles = StyleSheet.create({
   avatarInitialLight: font('extrabold', 24, { color: ACCENT }),
   avatarInitialMuted: font('extrabold', 24, { color: FAINT }),
   versusName: font('extrabold', 13, { color: INK, marginTop: 8, maxWidth: 100 }),
-  versusScore: font('extrabold', 30, { marginTop: 2 }),
+  versusScore: font('extrabold', 30, { marginTop: 4 }),
   winnerTag: {
     ...font('extrabold', 9, { color: palette.green700, letterSpacing: 1 }),
     backgroundColor: ACCENT_SOFT,
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: radius.pill,
     marginTop: 4,
     overflow: 'hidden',
@@ -543,7 +543,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    marginBottom: 18,
+    marginBottom: 16,
   },
   metaLabel: font('extrabold', 15, { color: INK }),
   metaValue: font('medium', 12, { color: MUTED }),
@@ -553,7 +553,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    gap: 10,
+    gap: 8,
     marginBottom: 12,
   },
   identityAvatar: {
@@ -574,7 +574,7 @@ const styles = StyleSheet.create({
     ...font('semibold', 13, { color: palette.slate600 }),
     alignSelf: 'flex-start',
     lineHeight: 19,
-    marginBottom: 18,
+    marginBottom: 16,
   },
 
   /* Footer */
@@ -588,11 +588,11 @@ const styles = StyleSheet.create({
     borderTopColor: BORDER,
   },
   footerBrand: font('extrabold', 13, { color: INK, letterSpacing: 2 }),
-  footerDomain: font('medium', 10, { color: MUTED, marginTop: 2 }),
+  footerDomain: font('medium', 10, { color: MUTED, marginTop: 4 }),
   cta: {
     backgroundColor: ACCENT,
-    paddingHorizontal: 18,
-    paddingVertical: 11,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderRadius: radius.pill,
   },
   ctaText: font('extrabold', 12, { color: palette.white, letterSpacing: 0.5 }),

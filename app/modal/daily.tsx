@@ -47,7 +47,7 @@ export default function DailyChallengeScreen() {
             RESETS IN {hoursUntilReset()}H
           </Text>
         </View>
-        <Text style={font('extrabold', 26, { color: palette.white, marginTop: 14 })}>
+        <Text style={font('extrabold', 26, { color: palette.white, marginTop: 12 })}>
           Beat {DAILY_TARGET} Push-ups
         </Text>
         <Text style={styles.heroCopy}>
@@ -70,7 +70,7 @@ export default function DailyChallengeScreen() {
           </Text>
         </View>
         <ProgressBar percent={percent} height={12} fillColors={gradients.brand} />
-        <Text style={font('bold', 12, { color: palette.green600, marginTop: 10 })}>
+        <Text style={font('bold', 12, { color: palette.green600, marginTop: 8 })}>
           {cleared
             ? 'Cleared today — nice work'
             : todaysBest === 0
@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
   heroChip: {
     alignSelf: 'flex-start',
     backgroundColor: 'rgba(255,255,255,0.22)',
-    paddingVertical: 5,
+    paddingVertical: 4,
     paddingHorizontal: 12,
     borderRadius: 20,
   },
@@ -109,11 +109,11 @@ const styles = StyleSheet.create({
     maxWidth: 230,
     marginTop: 4,
   },
-  heroStats: { flexDirection: 'row', gap: 20, marginTop: 18 },
+  heroStats: { flexDirection: 'row', gap: 20, marginTop: 16 },
   heroStatLabel: {
     ...font('bold', 10, { color: 'rgba(255,255,255,0.85)' }),
   },
-  progressCard: { padding: 18, marginTop: 16 },
+  progressCard: { padding: 16, marginTop: 16 },
   progressHeader: {
     flexDirection: 'row',
     alignItems: 'center',

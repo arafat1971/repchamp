@@ -29,7 +29,7 @@ export default function RestDayScreen() {
             🔥 STREAK SAFE TODAY
           </Text>
         </View>
-        <Text style={font('extrabold', 27, { color: palette.white, marginTop: 14 })}>
+        <Text style={font('extrabold', 27, { color: palette.white, marginTop: 12 })}>
           Take the day to recover
         </Text>
         <Text style={styles.heroCopy}>
@@ -50,8 +50,8 @@ export default function RestDayScreen() {
         <Badge label="Active" />
       </Card>
 
-      <Eyebrow style={{ marginBottom: 10 }}>OPTIONAL LIGHT MOBILITY</Eyebrow>
-      <View style={{ gap: 10 }}>
+      <Eyebrow style={{ marginBottom: 8 }}>OPTIONAL LIGHT MOBILITY</Eyebrow>
+      <View style={{ gap: 8 }}>
         {MOBILITY.map((item) => (
           <PressableScale
             key={item.id}
@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
   heroChip: {
     alignSelf: 'flex-start',
     backgroundColor: 'rgba(255,255,255,0.22)',
-    paddingVertical: 5,
+    paddingVertical: 4,
     paddingHorizontal: 12,
     borderRadius: 20,
   },
@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
     maxWidth: 250,
     marginTop: 4,
   },
-  streakCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 18, marginBottom: 16 },
+  streakCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, marginBottom: 16 },
   streakIcon: {
     width: 44,
     height: 44,
@@ -111,7 +111,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  mobilityRow: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14 },
+  mobilityRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
   mobilityIcon: {
     width: 48,
     height: 48,

@@ -261,7 +261,7 @@ export function DuelHud({
 const styles = StyleSheet.create({
   top: { position: 'absolute', left: 16, right: 16 },
 
-  duelWrap: { gap: 10 },
+  duelWrap: { gap: 8 },
   versusHeading: { alignItems: 'flex-start' },
   versusTitle: {
     ...font('extrabold', 15, { color: palette.white }),
@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
   versusSub: {
     ...font('extrabold', 8.5, { color: palette.green300 }),
     letterSpacing: 2.4,
-    marginTop: 2,
+    marginTop: 4,
   },
   scoreLabel: {
     ...font('bold', 9, { color: 'rgba(255,255,255,0.5)' }),
@@ -287,10 +287,10 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.12)',
     borderRadius: 22,
     paddingVertical: 12,
-    paddingHorizontal: 14,
-    gap: 10,
+    paddingHorizontal: 12,
+    gap: 8,
   },
-  duelRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  duelRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   duelAvatarMe: {
     width: 44,
     height: 44,
@@ -325,8 +325,8 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(59,130,246,0.55)',
     textShadowRadius: 14,
   },
-  duelNameMe: { ...font('bold', 10, { color: 'rgba(255,255,255,0.7)' }), marginTop: 1 },
-  duelNameThem: { ...font('bold', 10, { color: 'rgba(255,255,255,0.7)' }), marginTop: 1 },
+  duelNameMe: { ...font('bold', 10, { color: 'rgba(255,255,255,0.7)' }), marginTop: 4 },
+  duelNameThem: { ...font('bold', 10, { color: 'rgba(255,255,255,0.7)' }), marginTop: 4 },
   duelCenter: { alignItems: 'center', paddingHorizontal: 4 },
   duelTimeLabel: {
     ...font('bold', 9, { color: 'rgba(255,255,255,0.5)' }),
@@ -369,12 +369,12 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  pillHeading: { alignItems: 'center', marginBottom: 10 },
+  pillHeading: { alignItems: 'center', marginBottom: 8 },
   pillText: {
     ...font('extrabold', 10, { color: palette.white }),
     letterSpacing: 1.6,
     backgroundColor: 'rgba(255,255,255,0.16)',
-    paddingVertical: 5,
+    paddingVertical: 4,
     paddingHorizontal: 12,
     borderRadius: 20,
     overflow: 'hidden',
@@ -400,7 +400,7 @@ const styles = StyleSheet.create({
   repsLabel: {
     ...font('bold', 13, { color: 'rgba(255,255,255,0.7)' }),
     letterSpacing: 3.9,
-    marginBottom: 2,
+    marginBottom: 4,
   },
   repsValue: {
     ...font('extrabold', 150, { color: palette.white }),
@@ -422,19 +422,19 @@ const styles = StyleSheet.create({
   depthLabel: {
     ...font('extrabold', 8, { color: 'rgba(255,255,255,0.6)' }),
     letterSpacing: 1,
-    marginTop: 6,
+    marginTop: 4,
   },
   trackingChip: {
     position: 'absolute',
     right: 18,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
     backgroundColor: 'rgba(9,14,11,0.6)',
     borderWidth: 1,
     borderColor: 'rgba(34,197,94,0.35)',
-    paddingVertical: 6,
-    paddingHorizontal: 11,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
     borderRadius: 20,
   },
   trackingDot: { width: 7, height: 7, borderRadius: 3.5 },
@@ -446,7 +446,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     alignSelf: 'center',
     backgroundColor: 'rgba(34,197,94,0.92)',
-    paddingVertical: 9,
+    paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: radius.lg,
   },

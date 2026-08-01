@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.white,
     borderRadius: 28,
     paddingHorizontal: 24,
-    paddingTop: 26,
+    paddingTop: 24,
     paddingBottom: 20,
     alignItems: 'center',
     ...shadow.card,
@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     lineHeight: 20,
   },
-  actions: { alignSelf: 'stretch', marginTop: 22, gap: 10 },
+  actions: { alignSelf: 'stretch', marginTop: 20, gap: 8 },
   filledBtn: {
     height: 52,
     borderRadius: radius.pill,

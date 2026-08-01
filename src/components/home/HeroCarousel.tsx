@@ -183,7 +183,7 @@ export function buildHomeHeroSlides(input: {
 const styles = StyleSheet.create({
   card: {
     borderRadius: radius['4xl'],
-    padding: 22,
+    padding: 20,
     minHeight: 200,
     justifyContent: 'space-between',
     overflow: 'hidden',
@@ -192,12 +192,12 @@ const styles = StyleSheet.create({
   eyebrow: {
     ...font('bold', 10, { color: 'rgba(255,255,255,0.85)' }),
     letterSpacing: 2,
-    marginTop: 2,
+    marginTop: 4,
   },
   emoji: { fontSize: 36 },
   title: {
     ...font('bold', 26, { color: palette.white }),
-    marginTop: 14,
+    marginTop: 12,
     lineHeight: 30,
   },
   body: {
@@ -205,14 +205,14 @@ const styles = StyleSheet.create({
     marginTop: 8,
     lineHeight: 19,
   },
-  ctaRow: { marginTop: 18 },
+  ctaRow: { marginTop: 16 },
   ctaGlass: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     backgroundColor: 'rgba(255,255,255,0.22)',
-    paddingVertical: 10,
+    paddingVertical: 8,
     paddingLeft: 16,
     paddingRight: 8,
     borderRadius: 26,
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
   dots: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 6,
+    gap: 4,
     marginTop: 12,
   },
   dot: {

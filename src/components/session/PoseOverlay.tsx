@@ -494,11 +494,14 @@ function Joint({
 
   return (
     <Group>
-      {/* Soft halo behind the joint core — skipped on Android to keep the
-          per-joint draw cost flat (17 joints × extra blur pass adds up). */}
+      {/* Halo behind the joint core. Carried at the same weight as the bones'
+          saturated sheath — at the old 0.3 the joints read as dull beads on a
+          bright line now that the bones actually glow. Still skipped on
+          Android, where twelve joints times an extra blur pass is exactly the
+          per-frame cost the light overlay exists to avoid. */}
       {!LIGHT_OVERLAY ? (
-        <Circle cx={cx} cy={cy} r={glowR} color={color} opacity={0.3}>
-          <BlurMask blur={6} style="normal" />
+        <Circle cx={cx} cy={cy} r={glowR} color={color} opacity={0.55}>
+          <BlurMask blur={7} style="normal" />
         </Circle>
       ) : null}
       {!LIGHT_OVERLAY ? (
@@ -513,7 +516,14 @@ function Joint({
   );
 }
 
-/** Small tip dots at extrapolated finger / toe ends. */
+/**
+ * Small tip dots at the extrapolated toe ends.
+ *
+ * Counted off `LIMB_TIPS` rather than hardcoded: this rendered four dots back
+ * when the wrists were extended too, and kept rendering four after they moved
+ * to the fanned hand — the extra two read past the end of the array and parked
+ * themselves off-screen every frame.
+ */
 function TipDots({
   tips,
   color,
@@ -523,7 +533,7 @@ function TipDots({
 }) {
   return (
     <Group>
-      {Array.from({ length: 4 }, (_, i) => (
+      {LIMB_TIPS.map((_, i) => (
         <TipDot key={i} index={i} tips={tips} color={color} />
       ))}
     </Group>
@@ -541,7 +551,13 @@ function TipDot({
 }) {
   const cx = useDerivedValue(() => tips.value[index]?.x ?? -100, [tips]);
   const cy = useDerivedValue(() => tips.value[index]?.y ?? -100, [tips]);
-  const r = useDerivedValue(() => (tips.value[index] ? JOINT_RADIUS : 0), [tips]);
+  // Smaller than a real joint: a toe is extrapolated along the shin, not
+  // measured, and drawing it at full size claimed more confidence than the
+  // model actually has.
+  const r = useDerivedValue(
+    () => (tips.value[index] ? JOINT_RADIUS * 0.7 : 0),
+    [tips],
+  );
 
   return (
     <Circle

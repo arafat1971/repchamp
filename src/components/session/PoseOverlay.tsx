@@ -7,9 +7,8 @@ import {
   Skia,
   vec,
   RadialGradient,
-  type CanvasRef,
 } from '@shopify/react-native-skia';
-import { forwardRef, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Platform, StyleSheet, useWindowDimensions } from 'react-native';
 import {
   useDerivedValue,
@@ -132,19 +131,10 @@ export interface PoseOverlayProps {
  *
  * The glow is layered passes of the same geometry: a wide, softly blurred
  * halo, a mid pass that fills it in, a tight inner bloom, then a crisp core
- * stroke on top. Android renders a single cheap blur pass instead — enough
- * to read as glowing without the multi-pass cost on mid-range GPUs.
- *
- * Forwards its Skia `CanvasRef` so a caller can `makeImageSnapshot()` the
- * skeleton alone (transparent background, nothing else drawn here) — used by
- * the share-card capture to composite a real camera photo with the current
- * pose line, since VisionCamera's own `takeSnapshot()` only captures the
- * camera layer, not this sibling canvas.
+ * stroke on top. Android renders two passes instead of four — enough to read
+ * as glowing without the full multi-pass cost on mid-range GPUs.
  */
-export const PoseOverlay = forwardRef<CanvasRef, PoseOverlayProps>(function PoseOverlay(
-  { pose, frame, color, visible },
-  ref,
-) {
+export function PoseOverlay({ pose, frame, color, visible }: PoseOverlayProps) {
   const { width: screenW, height: screenH } = useWindowDimensions();
 
   // Bone indices resolved once — the topology never changes.
@@ -319,7 +309,7 @@ export const PoseOverlay = forwardRef<CanvasRef, PoseOverlayProps>(function Pose
   const opacity = useDerivedValue(() => (visible.value ? 1 : 0), [visible]);
 
   return (
-    <Canvas ref={ref} style={StyleSheet.absoluteFill} pointerEvents="none">
+    <Canvas style={StyleSheet.absoluteFill} pointerEvents="none">
       <Group opacity={opacity}>
         {/* Neon is built the way a real tube is: saturated colour bleeding
             outward from a white-hot core. The wide passes carry the colour at
@@ -421,7 +411,7 @@ export const PoseOverlay = forwardRef<CanvasRef, PoseOverlayProps>(function Pose
       </Group>
     </Canvas>
   );
-});
+}
 
 function Joints({
   pose,

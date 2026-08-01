@@ -767,14 +767,27 @@ function QuickTile({
   stats: { todayBest: number; lastBest: number; delta: number };
   onPress: () => void;
 }) {
-  const deltaLabel =
-    stats.todayBest === 0 && stats.lastBest === 0
-      ? 'Start set'
-      : stats.delta > 0
-        ? `+${stats.delta}`
-        : stats.delta < 0
-          ? `${stats.delta}`
-          : 'Even';
+  /*
+   * A day that has not been trained yet is not a regression.
+   *
+   * The delta is today's best minus the last training day's, so opening the
+   * app before training shows the whole of yesterday as a loss — a red "-32"
+   * for having not started. Worse, it kept counting *up* toward zero as reps
+   * came in, so the number shrank while the athlete improved.
+   *
+   * Only compare once today has reps to compare with. Until then the tile
+   * invites a set, which is the action the card exists to prompt.
+   */
+  const notStartedToday = stats.todayBest === 0;
+  const deltaLabel = notStartedToday
+    ? 'Start set'
+    : stats.delta > 0
+      ? `+${stats.delta}`
+      : stats.delta < 0
+        ? `${stats.delta}`
+        : 'Even';
+  // Neutral while unstarted — red on a day with no reps yet reads as failure.
+  const deltaPositive = notStartedToday || stats.delta >= 0;
 
   return (
     <PressableScale
@@ -792,8 +805,8 @@ function QuickTile({
               <Text style={{ fontSize: 22 }}>{emoji}</Text>
             )}
           </View>
-          <View style={[styles.deltaPill, { backgroundColor: stats.delta >= 0 ? '#dcfce7' : '#fee2e2' }]}>
-            <Text style={font('bold', 11, { color: stats.delta >= 0 ? '#15803d' : '#b91c1c' })}>{deltaLabel}</Text>
+          <View style={[styles.deltaPill, { backgroundColor: deltaPositive ? '#dcfce7' : '#fee2e2' }]}>
+            <Text style={font('bold', 11, { color: deltaPositive ? '#15803d' : '#b91c1c' })}>{deltaLabel}</Text>
           </View>
         </View>
         <Text style={font('semibold', 15, { color: palette.ink, marginTop: 8 })} numberOfLines={1}>

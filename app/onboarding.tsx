@@ -212,6 +212,8 @@ export default function OnboardingScreen() {
             onPress={back}
             accessibilityRole="button"
             accessibilityLabel="Go back"
+            // Drawn at 30pt; slop brings the tap area to the 44pt minimum.
+            hitSlop={7}
             style={styles.backButton}
           >
             <Text style={styles.backGlyph}>‹</Text>
@@ -2037,6 +2039,9 @@ function Offer({ onDone }: { onDone: () => void }) {
         onPress={onDone}
         accessibilityRole="button"
         accessibilityLabel="Close offer"
+        // Drawn at 34pt; slop brings the tap area to the 44pt minimum. This is
+        // the only way out of the offer step, so a missed tap reads as a trap.
+        hitSlop={5}
         style={styles.closeButton}
       >
         <Text style={{ fontSize: 16, color: palette.ink }}>✕</Text>

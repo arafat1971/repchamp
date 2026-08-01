@@ -49,8 +49,21 @@ export function Screen({
   contentStyle?: StyleProp<ViewStyle>;
 }) {
   const insets = useSafeAreaInsets();
-  // Extra bottom clearance so the floating Train FAB never covers the last tiles.
-  const padding = { paddingTop: insets.top + 8, paddingBottom: 148 };
+  /*
+   * Bottom clearance keeps the floating Train FAB off the last tiles. The 148
+   * was measured against the tab bar + FAB on a device with no home indicator,
+   * so on an iPhone with one the last row sat that much closer to the edge —
+   * `insets.bottom` is exactly the amount the system reserves there.
+   *
+   * Horizontal insets matter on iOS too: in landscape the notch eats one side,
+   * and content that ignores it is drawn under the sensor housing.
+   */
+  const padding = {
+    paddingTop: insets.top + 8,
+    paddingBottom: 148 + insets.bottom,
+    paddingLeft: insets.left,
+    paddingRight: insets.right,
+  };
 
   if (!scroll) {
     return (
@@ -233,12 +246,22 @@ export function IconButton({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
+      // The chip is drawn at 40pt, under the 44pt minimum both Apple's HIG and
+      // Material specify for a touch target. Widening the visual would unbalance
+      // the header rows it sits in, so the *tappable* area is extended instead —
+      // 2pt on each side brings it to 44x44 with no pixel moving on screen.
+      // This is the back control on every modal and duel screen, so the 4pt
+      // shortfall was costing missed taps app-wide.
+      hitSlop={ICON_BUTTON_HIT_SLOP}
       style={[styles.iconButton, style]}
     >
       <Text style={styles.iconButtonGlyph}>{glyph}</Text>
     </PressableScale>
   );
 }
+
+/** Pads the 40pt icon chip out to the 44pt minimum touch target. */
+const ICON_BUTTON_HIT_SLOP = { top: 2, bottom: 2, left: 2, right: 2 } as const;
 
 /* ------------------------------------------------------------------ *
  * Data display

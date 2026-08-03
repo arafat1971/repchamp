@@ -15,6 +15,11 @@ web-build/
 # Non-mobile project directories
 /website
 
+# Play Store artefacts. None of it is compiled into the app, and a downloaded
+# AAB alone is ~194 MB — it was silently riding along on every build upload,
+# which is most of what made the archive 276 MB.
+/store
+
 # System & Tooling
 .git/
 .DS_Store

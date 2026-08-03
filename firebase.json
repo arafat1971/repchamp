@@ -30,6 +30,10 @@
         "destination": "/couple-join.html"
       },
       {
+        "source": "/delete-account",
+        "destination": "/support.html"
+      },
+      {
         "source": "/@**",
         "destination": "/friend-invite.html"
       }

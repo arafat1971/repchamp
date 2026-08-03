@@ -834,7 +834,7 @@ function QuickTile({
         <Text style={font('semibold', 15, { color: palette.ink, marginTop: 8 })} numberOfLines={1}>
           {label}
         </Text>
-        <Text style={font('regular', 11, { color: palette.grey600, marginTop: 4 })}>Today's Best</Text>
+        <Text style={font('regular', 11, { color: palette.grey600, marginTop: 4 })}>Today&apos;s Best</Text>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
           <CountUp value={stats.todayBest} duration={800} style={font('bold', 22, { color: accent })} />
           <Text style={font('regular', 12, { color: palette.grey500 })}>reps</Text>

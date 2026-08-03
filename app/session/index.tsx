@@ -491,8 +491,20 @@ export default function SessionScreen() {
   /* ---------------------------------------------------------------- *
    * Duel clock + opponent
    * ---------------------------------------------------------------- */
+  /*
+   * The session clock reads `live` from a ref rather than closing over it, so
+   * the interval is not torn down and rebuilt on every render — restarting it
+   * mid-set would drift the wall-clock the duel settles against.
+   *
+   * The assignment lives in an effect, not in the render body. Writing a ref
+   * while rendering is what React's rules forbid (and lint flags): a render can
+   * be thrown away or replayed, so the write is not guaranteed to correspond to
+   * what actually committed.
+   */
   const liveRef = useRef(live);
-  liveRef.current = live;
+  useEffect(() => {
+    liveRef.current = live;
+  }, [live]);
 
   // New session — clear the clock latch so the next Go! starts clean.
   useEffect(() => {

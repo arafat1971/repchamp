@@ -77,6 +77,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
+    "check-signing": "bash scripts/check-signing.sh",
     "fetch-model": "bash scripts/fetch-model.sh",
     "generate-sounds": "node scripts/generate-sounds.js",
     "postinstall": "node scripts/generate-sounds.js && (test -f assets/models/movenet.tflite || bash scripts/fetch-model.sh || echo '[repchamp] WARNING: pose model not fetched — run: npm run fetch-model (required before building the app)')",

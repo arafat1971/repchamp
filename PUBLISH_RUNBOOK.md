@@ -129,6 +129,29 @@ safety valve), so the app is fully usable but earns nothing.
 Add debug + EAS/Play SHA-1 / SHA-256 to Firebase Android app settings — see
 `FIREBASE_SETUP.md` §3. Without fingerprints, Google Sign-In fails on release builds.
 
+Check before shipping rather than finding out on a device:
+
+```bash
+npm run check-signing
+```
+
+That compares the local debug keystores against `google-services.json`. To
+check what actually signed a build — the case that matters, because EAS signs
+with its own keystore — pass the file:
+
+```bash
+npm run check-signing -- path/to/build.apk
+```
+
+It prints the fingerprint in the colon-separated form Firebase's field wants,
+so a missing one can be pasted straight in.
+
+Worth knowing why this exists: a missing fingerprint fails at *runtime*, not
+at build time. The app shows "Google Sign-In isn't set up for this build" and
+nothing anywhere names the fingerprint it wanted — the only way to find it is
+to pull the APK and read its certificate with `apksigner` (`keytool` cannot:
+a v2/v3-signed APK has no `META-INF` certificate to read).
+
 ### 7. (Optional, recommended) real Sentry DSN
 Replace the `sentryDsn` placeholder in `app.json` with your project's DSN so you get
 production crash reports. Builds already pass `SENTRY_DISABLE_AUTO_UPLOAD=true` via

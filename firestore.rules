@@ -43,13 +43,24 @@ service cloud.firestore {
           && (!('displayName' in request.resource.data)
               || (request.resource.data.displayName is string
                   && request.resource.data.displayName.size() <= 40))
+          // Avatars are inlined as base64 data URIs, not URLs: Storage needs
+          // the paid Blaze plan, so `uploadAvatar` downscales to 192x192 and
+          // writes the bytes onto this document instead. This rule still
+          // demanded `https://` under 500 bytes, which every real avatar
+          // failed — so photos stayed local and never reached other devices.
+          //
+          // The ceiling matches MAX_AVATAR_DATA_URI_BYTES in domain/safety.ts.
+          // It has to stay well under Firestore's 1 MiB per-document limit,
+          // because this field shares the document with XP and personal bests
+          // and an oversized write would fail all of it, not just the photo.
           && (!('avatarUrl' in request.resource.data)
               || request.resource.data.avatarUrl == null
               || (request.resource.data.avatarUrl is string
-                  && request.resource.data.avatarUrl.size() <= 500
+                  && request.resource.data.avatarUrl.size() <= 65536
                   && (
                     request.resource.data.avatarUrl.size() == 0
                     || request.resource.data.avatarUrl.matches('https://.*')
+                    || request.resource.data.avatarUrl.matches('data:image/[a-z]+;base64,.*')
                   )))
           && (!('lastActiveAt' in request.resource.data)
               || request.resource.data.lastActiveAt is number)

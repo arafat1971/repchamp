@@ -65,3 +65,7 @@ assets/sounds/*.wav
 
 # Local credential backups / placeholders
 *.placeholder.bak
+
+# Build artifacts downloaded from EAS. Large, regenerable from the build URL,
+# and permanent once committed — a 194 MB blob stays in history forever.
+store/aab/

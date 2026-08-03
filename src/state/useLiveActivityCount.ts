@@ -13,10 +13,7 @@ export function useLiveActivityCount(): number {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
-    if (!uid) {
-      setCount(0);
-      return;
-    }
+    if (!uid) return;
     let cancelled = false;
 
     const refresh = () => {
@@ -39,5 +36,9 @@ export function useLiveActivityCount(): number {
     };
   }, [uid]);
 
-  return count;
+  /* Signed out shows nothing without an effect having to zero the state.
+     Clearing it in the effect meant a render with the previous athlete's
+     count still on screen, then a second render to correct it — a stale badge
+     for a frame, and the cascading-render the lint rule is about. */
+  return uid ? count : 0;
 }

@@ -24,12 +24,11 @@ export function useAcceleratedModel(source: ModelSource): AcceleratedModel {
 
   useEffect(() => {
     let cancelled = false;
-    const hit = getCachedPoseModel();
-    if (hit?.state === 'loaded') {
-      setResult(hit);
-      return;
-    }
 
+    /* `ensurePoseModel` returns the cached model immediately when it has one,
+       so the warm path needs no separate synchronous branch here — it used to
+       have one, which set state the initialiser had already read from the same
+       cache a moment earlier and cost an extra render for nothing. */
     void ensurePoseModel(source).then((next) => {
       if (!cancelled) setResult(next);
     });

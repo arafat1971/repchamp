@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -28,7 +29,22 @@ export type HeroSlide = {
   cta: string;
   colors: readonly [string, string];
   onPress: () => void;
+  /**
+   * Photo behind the card, instead of a flat gradient.
+   *
+   * The gradient still renders underneath as a scrim, so the copy keeps its
+   * contrast while the image loads and wherever the artwork is pale. Slides
+   * without one are unchanged.
+   */
+  image?: number;
+  /** Two-word footnote row under the CTA, e.g. "⚡ Live reps". */
+  chips?: readonly string[];
 };
+
+/* The couple photo with the pose skeleton drawn over it — the one image that
+   shows what the app does *and* who it is for, which is why the lead card
+   gets it and the others stay on flat gradients. Shared with onboarding. */
+const COUPLE_HERO = require('../../../assets/couple-hero.png');
 
 const INTERVAL_MS = 8000;
 /** Autoplay stays off this long after a swipe, so it never fights the athlete. */
@@ -150,9 +166,34 @@ export function HeroCarousel({ slides }: { slides: readonly HeroSlide[] }) {
               accessibilityLabel={slide.cta}
             >
               <LinearGradient colors={slide.colors} style={[styles.card, shadow.brand]}>
+                {slide.image ? (
+                  <>
+                    {/* Anchored right so the couple sits beside the copy rather
+                        than behind it — the left half stays a readable panel. */}
+                    <Image
+                      source={slide.image}
+                      style={styles.photo}
+                      contentFit="cover"
+                      contentPosition="right center"
+                      transition={220}
+                      accessible={false}
+                    />
+                    {/* Scrim over the photo's left side. Without it the white
+                        title sits on whatever the artwork happens to be, and
+                        this one is bright green where the text begins. */}
+                    <LinearGradient
+                      colors={['rgba(4,28,16,0.92)', 'rgba(4,28,16,0.55)', 'rgba(4,28,16,0)']}
+                      start={{ x: 0, y: 0.5 }}
+                      end={{ x: 1, y: 0.5 }}
+                      style={StyleSheet.absoluteFill}
+                      pointerEvents="none"
+                    />
+                  </>
+                ) : null}
+
                 <View style={styles.top}>
                   <Text style={styles.eyebrow}>{slide.eyebrow}</Text>
-                  <Text style={styles.emoji}>{slide.emoji}</Text>
+                  {slide.image ? null : <Text style={styles.emoji}>{slide.emoji}</Text>}
                 </View>
                 <Text style={styles.title}>{slide.title}</Text>
                 <Text style={styles.body}>{slide.body}</Text>
@@ -164,6 +205,15 @@ export function HeroCarousel({ slides }: { slides: readonly HeroSlide[] }) {
                     </View>
                   </View>
                 </View>
+                {slide.chips?.length ? (
+                  <View style={styles.chipRow}>
+                    {slide.chips.map((chip) => (
+                      <Text key={chip} style={styles.chip} numberOfLines={1}>
+                        {chip}
+                      </Text>
+                    ))}
+                  </View>
+                ) : null}
               </LinearGradient>
             </PressableScale>
           </View>
@@ -222,9 +272,13 @@ export function buildHomeHeroSlides(input: {
         : 'Train Together',
       body: input.paired
         ? 'One shared streak. Live reps side by side.'
-        : 'A shared streak that only survives if you both show up.',
-      cta: input.paired ? 'Train together' : 'Invite partner',
-      colors: ['#166534', '#22c55e'] as const,
+        : 'One shared streak.\nEvery single day.',
+      cta: input.paired ? 'Train together' : 'Start Together',
+      colors: ['#0b3d22', '#166534'] as const,
+      image: COUPLE_HERO,
+      // Only for the unpaired card: these are the pitch for pairing, and a
+      // paired athlete has already bought it.
+      chips: input.paired ? undefined : (['⚡ Live reps', '🎁 Free week for two'] as const),
       onPress: input.onTrainTogether,
     },
     {
@@ -282,6 +336,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     overflow: 'hidden',
   },
+  /* Fills the card behind the copy. The card clips it via `overflow: hidden`,
+     so it takes the same rounded corners without repeating the radius here. */
+  photo: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  /* Footnotes under the CTA — "⚡ Live reps". Wraps rather than truncating the
+     row, because a longer translation should drop to a second line instead of
+     silently losing a benefit. */
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 12 },
+  chip: font('bold', 12, { color: 'rgba(255,255,255,0.92)' }),
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   eyebrow: {
     ...font('bold', 10, { color: 'rgba(255,255,255,0.85)' }),

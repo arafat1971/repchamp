@@ -34,6 +34,10 @@
         "destination": "/support.html"
       },
       {
+        "source": "/delete-data",
+        "destination": "/support.html"
+      },
+      {
         "source": "/@**",
         "destination": "/friend-invite.html"
       }

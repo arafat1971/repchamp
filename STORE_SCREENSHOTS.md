@@ -1,7 +1,14 @@
 # Play Store screenshots — capture guide
 
 Play needs **2 minimum, 8 maximum** phone screenshots, 16:9 or 9:16, each side
-between 320px and 3840px. A Pixel 7a screenshot (1080×2400) qualifies as-is.
+between 320px and 3840px.
+
+> **A raw Pixel 7a capture does not qualify.** Play also requires the long side
+> to be at most **twice** the short side, and a Pixel 7a grab is 1080×2400 —
+> 2.22×, so it is rejected. Run captures through
+> `scripts/caption-screenshots.py`, which composites them onto a compliant
+> 1080×1920 canvas. That is also the minimum size Play requires for
+> eligibility on its featured surfaces, so it is worth hitting exactly.
 
 These have to be captured on a real device running the app — nobody can
 generate them from the repo, because the whole point is showing the pose
@@ -32,11 +39,37 @@ Before capturing:
 - **Full battery, clean status bar.** Or crop the status bar off entirely —
   Play allows it and it looks deliberate.
 
-Capture with power + volume-down, then pull them off:
+**Clean the status bar** with Android's demo mode — it pins a tidy 9:30 clock,
+full battery and full signal, and hides notification icons:
 
 ```bash
-adb pull /sdcard/Pictures/Screenshots ./store/screenshots-raw
+adb shell settings put global sysui_demo_allowed 1 && adb shell am broadcast -a com.android.systemui.demo -e command enter && adb shell am broadcast -a com.android.systemui.demo -e command clock -e hhmm 0930 && adb shell am broadcast -a com.android.systemui.demo -e command battery -e level 100 -e plugged false && adb shell am broadcast -a com.android.systemui.demo -e command network -e wifi show -e level 4 && adb shell am broadcast -a com.android.systemui.demo -e command notifications -e visible false
 ```
+
+Undo it afterwards with:
+
+```bash
+adb shell am broadcast -a com.android.systemui.demo -e command exit
+```
+
+Capture each screen straight to the repo — this avoids the phone's own
+screenshot compression and the round trip through Photos:
+
+```bash
+adb exec-out screencap -p > store/screenshots-raw/01.png
+```
+
+Name them `01.png` … `05.png` in listing order; the caption script maps them
+to captions by that order.
+
+Then composite:
+
+```bash
+/usr/bin/python3 scripts/caption-screenshots.py
+```
+
+That writes `store/screenshots/` at a Play-compliant 1080×1920 with branded
+caption bands and a device surround. Upload those, not the raw captures.
 
 ---
 

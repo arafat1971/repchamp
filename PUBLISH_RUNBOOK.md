@@ -84,6 +84,33 @@ Screenshots move install conversion more than any other single thing in the
 listing, so this is worth finishing properly. Shot list and staging notes:
 `STORE_SCREENSHOTS.md`.
 
+### 4b. Deploy Firestore rules whenever they change
+
+Editing `firestore.rules` changes nothing until it is deployed — the file in
+the repo and the rules the server enforces are separate things, and a client
+written against the local file will simply be denied.
+
+```bash
+npx firebase-tools deploy --only firestore:rules --project repchamp-14f78
+```
+
+Check the output. `uploading rules` means it shipped; `already up to date,
+skipping upload` means the server already had it and the problem you are
+chasing is somewhere else.
+
+Dry-run first when the change is non-trivial — it compiles without touching
+the live project:
+
+```bash
+npx firebase-tools deploy --only firestore:rules --project repchamp-14f78 --dry-run
+```
+
+Two rules bugs have already shipped this way, both silent: avatars were
+rejected because the rule still demanded `https://` URLs after the app moved
+to inlined data URIs, and the duel QR could not be read because an open invite
+matched neither `isPlayer()` nor `isTarget()`. Neither surfaced as an error a
+user could act on — one was a missing photo, the other a permission denial.
+
 ### 5. RevenueCat products (unblocks revenue + activates the paywall)
 Until this is done the hard paywall stays **dormant** by design (the billing-configured
 safety valve), so the app is fully usable but earns nothing.

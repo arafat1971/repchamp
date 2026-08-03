@@ -9,7 +9,7 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { PressableScale, Screen } from '@/components/ui';
 import { duelExerciseOptions, parseDuelExercise } from '@/domain/duelExercises';
 import { canStartWorkout } from '@/domain/paywallGate';
-import { assertClientRateLimit, isBlockedEither } from '@/services/safetyService';
+import { assertClientRateLimit, isBlockedByMe } from '@/services/safetyService';
 import { useAuthStore } from '@/state/authStore';
 import { useProfileStore } from '@/state/profileStore';
 import { useEffectivePro } from '@/state/proStore';
@@ -134,7 +134,7 @@ export default function DuelNewScreen() {
 
     void (async () => {
       try {
-        if (await isBlockedEither(myUid, target)) {
+        if (await isBlockedByMe(myUid, target)) {
           showDialog({
             title: 'Unavailable',
             message: 'You can’t challenge this athlete.',

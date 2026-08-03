@@ -32,7 +32,7 @@ import {
   seatOf,
 } from '@/domain/duel';
 import { parseInviteKind, type InviteKind } from '@/domain/presence';
-import { isBlockedEither } from '@/services/safetyService';
+import { isBlockedByMe } from '@/services/safetyService';
 
 const DUELS = 'duels';
 
@@ -127,7 +127,7 @@ export async function joinDuel(
   const peek = await ref.get();
   if (peek.exists()) {
     const hostUid = (peek.data() as Duel).hostUid;
-    if (hostUid && (await isBlockedEither(input.uid, hostUid))) {
+    if (hostUid && (await isBlockedByMe(input.uid, hostUid))) {
       throw new Error('You can’t join this challenge.');
     }
   }
@@ -469,7 +469,7 @@ export async function fetchIncomingDuels(uid: string, limit = 10): Promise<Incom
     // Drop challenges from anyone either side has blocked.
     const visible: IncomingDuel[] = [];
     for (const d of incoming) {
-      if (await isBlockedEither(uid, d.hostUid)) continue;
+      if (await isBlockedByMe(uid, d.hostUid)) continue;
       visible.push(d);
     }
     return visible;

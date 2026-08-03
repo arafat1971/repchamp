@@ -25,7 +25,7 @@ import {
 import {
   assertClientRateLimit,
   commitClientRateLimit,
-  isBlockedEither,
+  isBlockedByMe,
 } from '@/services/safetyService';
 
 const COUPLES = 'couples';
@@ -167,7 +167,7 @@ export async function joinCoupleByCode(
   const peek = await ref.get();
   if (peek.exists()) {
     const hostUid = (peek.data() as Couple).memberUids[0];
-    if (hostUid && hostUid !== input.uid && (await isBlockedEither(input.uid, hostUid))) {
+    if (hostUid && hostUid !== input.uid && (await isBlockedByMe(input.uid, hostUid))) {
       throw new Error('You can’t join this couple.');
     }
   }

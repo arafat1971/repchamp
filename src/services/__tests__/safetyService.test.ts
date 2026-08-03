@@ -22,6 +22,10 @@ const mockState = {
   duels: [] as Record<string, unknown>[],
   /** Couple docs the queries return. */
   couples: [] as Record<string, unknown>[],
+  /** Doc paths that exist, as `collection/doc`. Everything else is absent. */
+  existing: [] as string[],
+  /** Every path `get()` was called on, so reads can be asserted. */
+  reads: [] as string[],
 };
 
 const mockStore = new Map<string, string>();
@@ -53,7 +57,9 @@ jest.mock('@react-native-firebase/firestore', () => {
         mockState.written.push(path);
       },
       async get() {
-        return { exists: () => false, data: () => undefined };
+        mockState.reads.push(path);
+        const found = mockState.existing.includes(path);
+        return { exists: () => found, data: () => (found ? {} : undefined) };
       },
       collection: (name: string) => collectionRef(`${path}/${name}`),
     };
@@ -113,6 +119,7 @@ import {
   blockUser,
   commitClientRateLimit,
   createReport,
+  isBlockedByMe,
   takeClientRateLimit,
 } from '../safetyService';
 
@@ -124,6 +131,8 @@ beforeEach(() => {
   mockState.reportThrows = false;
   mockState.duels = [];
   mockState.couples = [];
+  mockState.existing = [];
+  mockState.reads = [];
   mockStore.clear();
 });
 
@@ -234,5 +243,44 @@ describe('blockUser', () => {
     await blockUser('ada', 'bob');
 
     expect(mockState.deleted.some((p) => p.startsWith('duels/'))).toBe(false);
+  });
+});
+
+/*
+ * The read here is not just a lookup, it is the one read the rules permit.
+ * Block lists are owner-only in `firestore.rules`, so checking whether the
+ * *other* athlete blocked me is denied — and that denial threw before the
+ * caller's real work ran, breaking Friends ("Could not add"), duel joins,
+ * matchmaking and couple pairing all at once. None of those suites caught it
+ * because every one of them mocks this module.
+ */
+describe('isBlockedByMe', () => {
+  it('reports a block I made', async () => {
+    mockState.existing = ['users/ada/blocks/bob'];
+    expect(await isBlockedByMe('ada', 'bob')).toBe(true);
+  });
+
+  it('reports no block when my list is empty', async () => {
+    expect(await isBlockedByMe('ada', 'bob')).toBe(false);
+  });
+
+  it('never reads the other athlete list, which the rules deny', async () => {
+    mockState.existing = ['users/bob/blocks/ada'];
+
+    expect(await isBlockedByMe('ada', 'bob')).toBe(false);
+    expect(mockState.reads).toEqual(['users/ada/blocks/bob']);
+  });
+
+  it('short-circuits on self and on missing ids without reading', async () => {
+    expect(await isBlockedByMe('ada', 'ada')).toBe(false);
+    expect(await isBlockedByMe('', 'bob')).toBe(false);
+    expect(await isBlockedByMe('ada', '')).toBe(false);
+    expect(mockState.reads).toEqual([]);
+  });
+
+  it('reports no block when Firebase is unconfigured', async () => {
+    mockState.configured = false;
+    mockState.existing = ['users/ada/blocks/bob'];
+    expect(await isBlockedByMe('ada', 'bob')).toBe(false);
   });
 });

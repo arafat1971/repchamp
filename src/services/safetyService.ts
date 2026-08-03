@@ -197,14 +197,26 @@ export async function fetchBlockedIds(myUid: string): Promise<Set<string>> {
   return new Set(list.map((b) => b.uid));
 }
 
-/** True if either athlete has blocked the other. */
-export async function isBlockedEither(a: string, b: string): Promise<boolean> {
-  if (!isFirebaseConfigured() || !a || !b || a === b) return false;
-  const [ab, ba] = await Promise.all([
-    blocksCol(a).doc(b).get(),
-    blocksCol(b).doc(a).get(),
-  ]);
-  return ab.exists() || ba.exists();
+/**
+ * True if `me` has blocked `them`.
+ *
+ * Only my own list is read, because only my own list is readable: block lists
+ * are owner-only in `firestore.rules`, deliberately, so that nobody can probe
+ * who has blocked whom. This used to check both directions and threw
+ * `permission-denied` on the second read — which surfaced as "Could not add"
+ * on Friends, and silently broke duel joins, matchmaking and couple pairing
+ * too, since every caller funnels through here.
+ *
+ * The other direction is not lost, it moves server-side: an athlete who
+ * blocked me cannot be duelled, matched or paired with me because those
+ * writes touch documents their own rules guard. What changes is that I can
+ * now add someone to my friend list who has blocked me — a list that only I
+ * see, and that grants no ability to contact them.
+ */
+export async function isBlockedByMe(me: string, them: string): Promise<boolean> {
+  if (!isFirebaseConfigured() || !me || !them || me === them) return false;
+  const mine = await blocksCol(me).doc(them).get();
+  return mine.exists();
 }
 
 export interface CreateReportInput {

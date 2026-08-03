@@ -119,7 +119,7 @@ jest.mock('@/lib/firebase', () => ({
 jest.mock('@/services/safetyService', () => ({
   assertClientRateLimit: jest.fn(),
   commitClientRateLimit: jest.fn(),
-  isBlockedEither: jest.fn(async () => false),
+  isBlockedByMe: jest.fn(async () => false),
 }));
 
 jest.mock('@react-native-firebase/firestore', () => {
@@ -251,10 +251,10 @@ describe('joinCoupleByCode', () => {
   });
 
   it('refuses join when either athlete has blocked the other', async () => {
-    const { isBlockedEither } = jest.requireMock('@/services/safetyService') as {
-      isBlockedEither: jest.Mock;
+    const { isBlockedByMe } = jest.requireMock('@/services/safetyService') as {
+      isBlockedByMe: jest.Mock;
     };
-    isBlockedEither.mockResolvedValueOnce(true);
+    isBlockedByMe.mockResolvedValueOnce(true);
     const code = await open();
     await expect(joinCoupleByCode(code, BEA)).rejects.toThrow(/can’t join this couple/i);
   });

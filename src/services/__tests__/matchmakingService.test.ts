@@ -94,11 +94,11 @@ jest.mock('@/lib/firebase', () => ({
 }));
 
 jest.mock('@/services/safetyService', () => ({
-  isBlockedEither: jest.fn(async () => false),
+  isBlockedByMe: jest.fn(async () => false),
 }));
 
 jest.mock('@/services/safetyService', () => ({
-  isBlockedEither: jest.fn(async () => false),
+  isBlockedByMe: jest.fn(async () => false),
 }));
 
 jest.mock('@react-native-firebase/firestore', () => {

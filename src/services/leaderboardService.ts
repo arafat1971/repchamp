@@ -23,7 +23,7 @@ import {
   assertClientRateLimit,
   commitClientRateLimit,
   fetchBlockedIds,
-  isBlockedEither,
+  isBlockedByMe,
 } from '@/services/safetyService';
 import { currentWeekKey } from '@/services/userService';
 
@@ -176,7 +176,7 @@ export async function addFriendByUsername(
   }
   const friendDoc = candidates[0]!;
 
-  if (await isBlockedEither(myUid, friendDoc.id)) {
+  if (await isBlockedByMe(myUid, friendDoc.id)) {
     throw new Error('You can’t add this athlete.');
   }
 

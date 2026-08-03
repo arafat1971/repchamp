@@ -33,7 +33,7 @@ import {
   canPair,
   makeTicket,
 } from '@/domain/matchmaking';
-import { isBlockedEither } from '@/services/safetyService';
+import { isBlockedByMe } from '@/services/safetyService';
 
 const QUEUE = 'matchmaking';
 const DUELS = 'duels';
@@ -127,7 +127,7 @@ export async function tryPair(seeker: QueueInput): Promise<string | null> {
     // Skip anyone either side has blocked — Quick Match must honor the block list.
     const candidates: QueueTicket[] = [];
     for (const t of formatCandidates) {
-      if (await isBlockedEither(seeker.uid, t.uid)) continue;
+      if (await isBlockedByMe(seeker.uid, t.uid)) continue;
       candidates.push(t);
     }
     if (candidates.length === 0) return null;

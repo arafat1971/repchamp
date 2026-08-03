@@ -31,6 +31,12 @@ import Svg, { Circle, Path } from 'react-native-svg';
 import { useProfileStore } from '@/state/profileStore';
 import { useIncomingDuelCount } from '@/state/useIncomingDuelCount';
 import { buildFabModel } from '@/domain/fabActions';
+import {
+  markFabHintShown,
+  markFabHintUsed,
+  parseFabHint,
+  shouldShowFabHint,
+} from '@/domain/fabHint';
 import { dayKey } from '@/domain/progression';
 import type { ExerciseId } from '@/vision/exercises';
 import { useIsPro } from '@/state/proStore';
@@ -38,6 +44,7 @@ import { canStartExercise } from '@/domain/pro';
 import { font, fontFamily } from '@/theme/typography';
 import { palette } from '@/theme/tokens';
 import { selectionHaptic } from '@/lib/feedback';
+import { storage } from '@/lib/storage';
 
 /** Matches the shape React Navigation passes to `tabBarIcon`. */
 type IconProps = { color: ColorValue; focused: boolean; size: number };
@@ -253,6 +260,10 @@ const FAB_EXERCISES: readonly ExerciseId[] = ['push', 'squat', 'situp'];
 /** Mirrors app/(tabs)/index.tsx and app/modal/daily.tsx. */
 const FAB_DAILY_EXERCISE: ExerciseId = 'push';
 const FAB_DAILY_TARGET = 25;
+/** Where the "Hold for more" teaching state lives. See `@/domain/fabHint`. */
+const FAB_HINT_KEY = 'fab.hint.v1';
+/** Clears the 58pt FAB disc plus its border and a little breathing room. */
+const FAB_HINT_OFFSET = 68;
 
 function FlexMark({ size }: { size: number }) {
   if (!FLEX_ASSET_IS_REAL) {
@@ -282,6 +293,29 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
   const focused = pathname === '/train';
   const isPro = useIsPro();
   const [open, setOpen] = useState(false);
+
+  /* Read straight from MMKV in the initialiser rather than in an effect: the
+     read is synchronous, so the first frame already knows whether to show the
+     pill and it never flashes in on an athlete who has retired it.
+
+     Only `used` needs to be state — it hides the pill mid-session, so it has
+     to re-render. The impression count is decided once per mount and never
+     read again this session, so writing it through state would only trigger a
+     cascading render for a value nothing rerenders on. */
+  const [hintVisible, setHintVisible] = useState(() =>
+    shouldShowFabHint(parseFabHint(storage.getString(FAB_HINT_KEY))),
+  );
+  const showHint = !open && hintVisible;
+
+  /* Count this launch's impression once, not on every re-render of the tab
+     bar — the layout re-renders on navigation, which would burn the whole
+     allowance in a single session. */
+  useEffect(() => {
+    if (!hintVisible) return;
+    const stored = parseFabHint(storage.getString(FAB_HINT_KEY));
+    storage.set(FAB_HINT_KEY, JSON.stringify(markFabHintShown(stored)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount
+  }, []);
 
   const sessions = useProfileStore((st) => st.sessions);
   const pendingDuels = useIncomingDuelCount();
@@ -408,6 +442,17 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
    * menu, which is still the default. Long-press always opens the menu, so the
    * full list is never more than a hold away even when the shortcut fires.
    */
+  /* Every route into the menu goes through here, so discovering it retires the
+     hint whichever way the athlete got in — hold, accessibility action, or a
+     tap with no primary action to shortcut to. Callers own the haptic, since
+     onFabPress has already fired one by the time it reaches here. */
+  const openMenu = () => {
+    const stored = parseFabHint(storage.getString(FAB_HINT_KEY));
+    storage.set(FAB_HINT_KEY, JSON.stringify(markFabHintUsed(stored)));
+    setHintVisible(false);
+    setOpen(true);
+  };
+
   const onFabPress = () => {
     selectionHaptic();
     if (open) {
@@ -416,7 +461,7 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
     }
     const p = fab.primary;
     if (!p) {
-      setOpen(true);
+      openMenu();
       return;
     }
     if (p.kind === 'duel') router.push('/(tabs)/friends');
@@ -477,6 +522,20 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
         </Pressable>
       </Modal>
 
+      {/* Teaching pill for the hold gesture. Decorative to assistive tech —
+          the same information reaches those athletes through the FAB's
+          accessibilityHint, and announcing it twice is worse than once. */}
+      {showHint ? (
+        <View
+          style={[styles.fabHint, { bottom: bottomPosition + FAB_HINT_OFFSET }]}
+          pointerEvents="none"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          <Text style={font('semibold', 12, { color: '#ffffff' })}>Hold for more</Text>
+        </View>
+      ) : null}
+
       <Animated.View style={[styles.fabContainer, { bottom: bottomPosition }, scaleStyle]}>
         <Animated.View style={glowStyle}>
           <TouchableOpacity
@@ -484,11 +543,24 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
             onPress={onFabPress}
             onLongPress={() => {
               selectionHaptic();
-              setOpen(true);
+              openMenu();
             }}
             delayLongPress={280}
             accessibilityRole="button"
             accessibilityLabel={open ? 'Close workout menu' : 'Start workout'}
+            /* The menu is reachable only by holding, and a hold is not a
+               gesture a screen reader can produce — without the hint and the
+               explicit action below, every action but the primary one is
+               unreachable with TalkBack or VoiceOver on. */
+            accessibilityHint={
+              open ? undefined : 'Double tap to start. Touch and hold for all workout options.'
+            }
+            accessibilityActions={
+              open ? undefined : [{ name: 'longpress', label: 'Show all workout options' }]
+            }
+            onAccessibilityAction={(e) => {
+              if (e.nativeEvent.actionName === 'longpress') openMenu();
+            }}
             style={styles.fabButton}
           >
             {/* Closed: a near-black disc. The full-colour flex mark keeps its
@@ -623,6 +695,24 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 8,
     elevation: 3,
+  },
+  fabHint: {
+    position: 'absolute',
+    // Right-aligned to the FAB's own inset so the pill sits over the button
+    // rather than drifting toward the middle of the tab bar.
+    right: 23,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    // The same near-black as the closed FAB, so the pill reads as part of the
+    // button rather than as a notification from somewhere else.
+    backgroundColor: '#1C2320',
+    zIndex: 999,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
   },
   fabContainer: {
     position: 'absolute',

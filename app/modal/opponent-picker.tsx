@@ -94,6 +94,36 @@ export default function OpponentPickerScreen() {
         </LinearGradient>
       </PressableScale>
 
+      {/* The in-person case: the rival is standing right here, so matchmaking
+          and the friends list are both the long way round. One shows a code,
+          the other scans it. */}
+      <PressableScale
+        onPress={() => router.push('/modal/duel-scan')}
+        accessibilityRole="button"
+        accessibilityLabel="Scan a rival's duel code"
+        style={styles.scanRow}
+      >
+        <View style={styles.scanIcon}>
+          <Svg width={20} height={20} viewBox="0 0 24 24">
+            {/* Four corner brackets — the universal "scan" mark. */}
+            <Path
+              d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4"
+              stroke={palette.green700}
+              strokeWidth={2.2}
+              strokeLinecap="round"
+              fill="none"
+            />
+          </Svg>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={font('extrabold', 15, { color: palette.ink })}>Scan a code</Text>
+          <Text style={font('semibold', 11, { color: palette.slate500 })}>
+            Race someone in the room with you
+          </Text>
+        </View>
+        <Text style={{ color: palette.slate500, fontSize: 20 }}>›</Text>
+      </PressableScale>
+
       <Eyebrow style={{ marginTop: 20, marginBottom: 8 }}>CHALLENGE A FRIEND</Eyebrow>
       <View style={{ gap: 8 }}>
         {allOpponents.map((opponent) => {
@@ -146,6 +176,27 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 16,
     borderRadius: radius['4xl'],
+  },
+  /* Quieter than Quick Match on purpose: scanning is the deliberate choice of
+     someone who already has a rival next to them, not the default path. */
+  scanRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    marginTop: 10,
+    borderRadius: radius['3xl'],
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.white,
+  },
+  scanIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    backgroundColor: palette.green50,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   quickIcon: {
     width: 48,

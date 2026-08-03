@@ -41,6 +41,9 @@ export interface AnalyticsEvents {
   couple_nudge_sent: Record<string, never>;
   couple_together_started: { exercise: string };
 
+  /** Mirrors `couple_paired` so both invite surfaces are measured the same way. */
+  duel_joined: { via: 'qr' | 'code' | 'invite' };
+
   paywall_viewed: { source: string };
   trial_started: { plan: string };
   subscribed: { plan: string };

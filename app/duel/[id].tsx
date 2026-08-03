@@ -6,7 +6,9 @@ import { ActivityIndicator, BackHandler, StyleSheet, Text, View } from 'react-na
 import { ModalHeader } from '@/components/ModalHeader';
 import { Avatar, PressableScale, Screen } from '@/components/ui';
 import { seatOf, type Duel } from '@/domain/duel';
+import { BrandedQR } from '@/components/BrandedQR';
 import { parseDuelExercise } from '@/domain/duelExercises';
+import { duelInviteDeepLink } from '@/domain/duelInvite';
 import { createDuel, fetchDuel, joinDuel, watchDuel, cancelDuel } from '@/services/duelService';
 import { commitClientRateLimit } from '@/services/safetyService';
 import { successHaptic } from '@/lib/feedback';
@@ -307,6 +309,10 @@ export default function DuelWaitingScreen() {
     router.replace({ pathname: '/session', params: { exercise, mode: 'versus' } });
 
   const opponentName = params.name ?? 'your rival';
+
+  /* An open invite — no named target — is the only kind a stranger's camera
+     can join, matching `isOpenInvite` in firestore.rules. */
+  const scannable = !params.target;
   const opponentLevel = params.level ? Number(params.level) : null;
 
   /* ------------------------------------------------------------------ */
@@ -405,8 +411,21 @@ export default function DuelWaitingScreen() {
       {role === 'host' && duelId ? (
         <>
           <Text style={[text.captionMd, styles.hint]}>
-            Share this duel code so they can jump in from anywhere.
+            {scannable
+              ? 'Point their camera at this, or share the code.'
+              : 'Share this duel code so they can jump in from anywhere.'}
           </Text>
+          {/* Only an *open* invite gets a QR. A duel aimed at one athlete is
+              already on its way to them, and a code anyone could scan would
+              seat the wrong person — which the Firestore read rule refuses
+              anyway, so showing one would only promise something broken. */}
+          {scannable ? (
+            <BrandedQR
+              payload={duelInviteDeepLink(duelId)}
+              size={188}
+              accessibilityLabel="Duel invite QR code"
+            />
+          ) : null}
           <PressableScale onPress={copyCode} style={styles.codeBox} accessibilityRole="button">
             <Text style={styles.code} numberOfLines={1}>
               {duelId}

@@ -55,11 +55,17 @@ FONT_CANDIDATES = [
 # swiping in search results, so they carry the whole argument. Rationale for
 # each shot is in STORE_SCREENSHOTS.md.
 CAPTIONS: list[tuple[str, str]] = [
-    ("01-session", "Your camera counts every rep"),
-    ("02-duel", "Race a friend in real time"),
-    ("03-couple", "Share one streak together"),
-    ("04-profile", "Climb Bronze to Platinum"),
-    ("05-arena", "Weekly leaderboards that reset"),
+    ("01-arena", "Duel a rival, live"),
+    ("02-home", "Your next set, one tap away"),
+    # Caption describes the XP/streak stats actually on this screen. It said
+    # "Climb Bronze to Platinum" first, over a profile reading "Rookie Level 1"
+    # with no league in sight -- the kind of small mismatch a reviewer notices
+    # and a new user feels cheated by.
+    ("03-profile", "Every rep earns XP"),
+    # Still to capture -- all three need a person in frame. See
+    # STORE_SCREENSHOTS.md; drop the raws in and these fill themselves in.
+    ("04-session", "Your camera counts every rep"),
+    ("05-couple", "Share one streak together"),
 ]
 
 

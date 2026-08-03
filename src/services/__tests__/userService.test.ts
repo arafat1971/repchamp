@@ -506,6 +506,33 @@ describe('uploadAvatar', () => {
     const url = await uploadAvatar('u1', 'file:///tmp/huge.jpg');
     expect(url).toBe('file:///tmp/huge.jpg');
   });
+
+  /*
+   * The resizer is required lazily and its absence is swallowed, because this
+   * module sits on the launch path via notifications -> (tabs)/_layout. A
+   * static import of a native module missing from the binary — which happens
+   * whenever a build's JS is newer than its native side — threw during route
+   * loading and left expo-router with an undefined module, white-screening the
+   * app on boot. Losing the cloud copy of an avatar is the correct price.
+   */
+  it('keeps the local uri when the native resizer is missing from the build', async () => {
+    // Evict the resolved module so the lazy require re-runs and hits the
+    // throwing factory, which is what a binary without the native module does.
+    const resolved = require.resolve('expo-image-manipulator');
+    const cached = jest.requireMock('expo-image-manipulator');
+    jest.resetModules();
+    jest.doMock('expo-image-manipulator', () => {
+      throw new Error("Cannot find native module 'ExpoImageManipulator'");
+    });
+    try {
+      const url = await uploadAvatar('u1', 'file:///tmp/me.jpg');
+      expect(url).toBe('file:///tmp/me.jpg');
+    } finally {
+      jest.dontMock('expo-image-manipulator');
+      jest.doMock('expo-image-manipulator', () => cached);
+      void resolved;
+    }
+  });
 });
 
 describe('currentWeekKey', () => {

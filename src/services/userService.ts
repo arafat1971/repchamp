@@ -12,7 +12,6 @@
  */
 
 import firestore from '@react-native-firebase/firestore';
-import * as ImageManipulator from 'expo-image-manipulator';
 
 import { isFirebaseConfigured } from '@/lib/firebase';
 import {
@@ -363,10 +362,27 @@ export async function uploadAvatar(_uid: string, localUri: string): Promise<stri
   if (!localUri) return localUri;
   if (localUri.startsWith('https://') || localUri.startsWith('data:image/')) return localUri;
 
-  const result = await ImageManipulator.manipulateAsync(
+  // Required lazily, not imported at module scope.
+  //
+  // This module is reachable from app/(tabs)/_layout.tsx via notifications, so
+  // a static import puts expo-image-manipulator's native module on the path of
+  // every launch. When a build's JS is newer than its native binary the import
+  // throws, the route module resolves to undefined, and expo-router dies on it
+  // — a white screen on boot because an avatar resizer was missing. Requiring
+  // it here means that failure can only ever cost the athlete a cloud-synced
+  // photo, which is what the local-uri fallbacks below already handle.
+  let manipulateAsync: typeof import('expo-image-manipulator').manipulateAsync;
+  let SaveFormat: typeof import('expo-image-manipulator').SaveFormat;
+  try {
+    ({ manipulateAsync, SaveFormat } = require('expo-image-manipulator'));
+  } catch {
+    return localUri;
+  }
+
+  const result = await manipulateAsync(
     localUri,
     [{ resize: { width: AVATAR_EDGE, height: AVATAR_EDGE } }],
-    { compress: 0.75, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+    { compress: 0.75, format: SaveFormat.JPEG, base64: true },
   );
   if (!result.base64) return localUri;
 

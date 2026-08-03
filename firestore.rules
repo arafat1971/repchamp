@@ -151,7 +151,23 @@ service cloud.firestore {
         return isAuthed() && request.auth.uid == resource.data.targetUid;
       }
 
-      allow read: if isPlayer() || isTarget();
+      // An open QR invite is published on purpose: the host is showing the
+      // code to whoever is standing in front of them, and the scanner has to
+      // read the duel before `joinDuel` can seat them. Narrow on purpose —
+      // it lapses the moment someone joins, because taking the guest seat
+      // flips `status` to 'active' and this clause stops matching.
+      //
+      // Kept in step with `isJoinableByQr` in domain/duelInvite.ts, which is
+      // what the client checks so it can explain "someone already joined"
+      // rather than surfacing a bare permission error.
+      function isOpenInvite() {
+        return isAuthed()
+          && resource.data.status == 'pending'
+          && resource.data.targetUid == null
+          && resource.data.guestUid == null;
+      }
+
+      allow read: if isPlayer() || isTarget() || isOpenInvite();
 
       // Host opens a pending invite, or a matchmaking seeker mints an active
       // duel where they are the guest and both seats start at zero reps.

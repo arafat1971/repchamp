@@ -52,7 +52,7 @@ derived from the code, so paste from them rather than improvising:
 | Release notes | `RELEASE_NOTES.md` | ✅ ready |
 | Feature graphic (1024×500) | `store/feature-graphic.png` | ✅ generated |
 | App icon (512×512) | `store/icon-512.png` | ✅ generated |
-| Phone screenshots (2–8) | `STORE_SCREENSHOTS.md` | ⬜ **needs a device** |
+| Phone screenshots (2–8) | `store/screenshots/` | ✅ 3 of 5 — enough to publish |
 
 - **Privacy Policy URL:** `https://repchamp.web.app/privacy`
 
@@ -65,9 +65,24 @@ Regenerate the graphics after any icon or brand-colour change:
 (System Python specifically — the Homebrew `python3` on this Mac has an
 x86_64 Pillow that will not load on arm64.)
 
-**Screenshots are the only listing asset that cannot be produced from the
-repo**, and they move install conversion more than any other single thing in
-the listing. See `STORE_SCREENSHOTS.md` for the shot list and staging notes.
+Three screenshots — Arena, Home, Profile — are captured and composited in
+`store/screenshots/`, which clears Play's two-shot minimum. Upload those, not
+the raw captures: a raw phone grab is 1080x2400, and Play rejects anything
+whose long side is more than twice its short side.
+
+The two strongest shots are still missing because they need a second person in
+frame: a live session with the pose skeleton overlaid, and a couple streak
+with a paired partner. The session shot is the clearest single image of what
+this app does and should lead the listing once it exists. Drop raws into
+`store/screenshots-raw/` as `04.png` / `05.png` and re-run:
+
+```bash
+/usr/bin/python3 scripts/caption-screenshots.py
+```
+
+Screenshots move install conversion more than any other single thing in the
+listing, so this is worth finishing properly. Shot list and staging notes:
+`STORE_SCREENSHOTS.md`.
 
 ### 5. RevenueCat products (unblocks revenue + activates the paywall)
 Until this is done the hard paywall stays **dormant** by design (the billing-configured

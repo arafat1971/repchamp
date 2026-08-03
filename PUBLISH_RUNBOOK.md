@@ -39,12 +39,35 @@ This produces the signed `.aab`. EAS handles the keystore (or use your own).
 - Upload the AAB to an **internal testing** track first (fastest review, safe).
 
 ### 4. Fill the required listing fields
+
+Each of these has a doc with the exact answers already worked out — they are
+derived from the code, so paste from them rather than improvising:
+
+| Console section | Doc | Status |
+|---|---|---|
+| Store listing (name, descriptions) | `STORE_LISTING.md` | ✅ copy ready, SEO-tuned |
+| Store settings (category, tags, contact) | `STORE_LISTING.md` § Filling in the Play Console form | ✅ ready |
+| Data safety | `DATA_SAFETY.md` | ✅ ready |
+| Content rating + target audience | `CONTENT_RATING.md` | ✅ ready |
+| Release notes | `RELEASE_NOTES.md` | ✅ ready |
+| Feature graphic (1024×500) | `store/feature-graphic.png` | ✅ generated |
+| App icon (512×512) | `store/icon-512.png` | ✅ generated |
+| Phone screenshots (2–8) | `STORE_SCREENSHOTS.md` | ⬜ **needs a device** |
+
 - **Privacy Policy URL:** `https://repchamp.web.app/privacy`
-- **Data safety form** — declare what you collect: account/profile, workout stats,
-  approximate usage analytics (PostHog), crash data (Sentry, if enabled). Say data is
-  encrypted in transit and users can request deletion (Settings → Delete my account).
-- **Content rating** questionnaire (fitness app, no objectionable content → low rating).
-- Screenshots (phone), feature graphic, short + full description, app icon.
+
+Regenerate the graphics after any icon or brand-colour change:
+
+```bash
+/usr/bin/python3 scripts/make-store-graphics.py
+```
+
+(System Python specifically — the Homebrew `python3` on this Mac has an
+x86_64 Pillow that will not load on arm64.)
+
+**Screenshots are the only listing asset that cannot be produced from the
+repo**, and they move install conversion more than any other single thing in
+the listing. See `STORE_SCREENSHOTS.md` for the shot list and staging notes.
 
 ### 5. RevenueCat products (unblocks revenue + activates the paywall)
 Until this is done the hard paywall stays **dormant** by design (the billing-configured

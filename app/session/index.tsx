@@ -379,6 +379,7 @@ export default function SessionScreen() {
     outputs,
     isActive,
     modelState,
+    modelError,
     device,
     canUseCamera,
     posePoints,
@@ -878,11 +879,18 @@ export default function SessionScreen() {
         </View>
       ) : null}
 
+      {/* Rep counting is the whole app, so this failure ends the session —
+          but the copy is for an athlete, not for whoever built the app. It
+          used to read "run `npm run fetch-model`", which is a developer
+          instruction nobody outside this repo can act on. */}
       {modelState === 'error' ? (
         <PressableScale onPress={leaveSession} style={styles.modelBanner}>
           <Text style={styles.modelBannerText}>
-            Pose model unavailable — run `npm run fetch-model`. Tap to go back.
+            Rep counting couldn’t start on this device. Tap to go back.
           </Text>
+          {__DEV__ && modelError ? (
+            <Text style={styles.modelBannerDetail}>{modelError.message}</Text>
+          ) : null}
         </PressableScale>
       ) : null}
 
@@ -1002,5 +1010,13 @@ const styles = StyleSheet.create({
     ...text.caption,
     color: palette.white,
     textAlign: 'center',
+  },
+  /* Dev builds only — the underlying loader error, which a release build has
+     no Metro log to reveal. Dimmed so it reads as diagnostics, not as copy. */
+  modelBannerDetail: {
+    ...text.caption,
+    color: 'rgba(255,255,255,0.7)',
+    textAlign: 'center',
+    marginTop: 4,
   },
 });

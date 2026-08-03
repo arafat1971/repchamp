@@ -651,6 +651,14 @@ export function usePoseSession({
     outputs,
     isActive,
     modelState: model.state,
+    /**
+     * Why the model failed, when it did.
+     *
+     * Without this the screen can only say "unavailable", which is the same
+     * message whether the file is missing, the delegate is unsupported, or the
+     * device is out of memory — and a release build has no Metro log to check.
+     */
+    modelError: model.state === 'error' ? model.error : undefined,
     /** Adaptive camera FPS for long sessions (thermal / battery). */
     cameraFps,
     /** Rep records accumulated so far, for the end-of-session form report. */

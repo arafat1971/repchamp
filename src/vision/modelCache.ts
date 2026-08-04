@@ -28,6 +28,69 @@ export function getCachedPoseModel(): AcceleratedModel | null {
   return cached;
 }
 
+/**
+ * Drop the module-level cache. Tests only — the cache is deliberately global
+ * so every screen shares one load, which also means one test's result would
+ * otherwise leak into the next.
+ */
+export function resetPoseModelForTests(): void {
+  cached = null;
+  inflight = null;
+}
+
+/**
+ * How long a single delegate gets before it is treated as unavailable.
+ *
+ * The hardware delegate either binds quickly or is not going to. Generous
+ * enough for a cold start on a slow device, short enough that an athlete who
+ * tapped "start" is not left staring at a spinner.
+ */
+const DELEGATE_TIMEOUT_MS = 6000;
+
+/**
+ * `loadTensorflowModel`, but it always settles.
+ *
+ * A delegate that *rejects* is easy — the caller catches and moves on. One
+ * that hangs is worse, and it is what a Pixel 7a does with `android-gpu`:
+ * the load starts, never resolves, never throws, so a plain `await` waits
+ * forever. On device that surfaced as "Rep counting couldn't start" with a
+ * spinner behind it and nothing at all in logcat — the model logged
+ * "Loading Tensorflow Lite Model" and simply never logged anything again.
+ *
+ * The hung promise is abandoned rather than cancelled, because TFLite gives us
+ * no way to cancel it. If it does eventually resolve, its model is dropped
+ * unused; that costs some memory once, against rep counting not working.
+ */
+function loadWithTimeout(
+  source: ModelSource,
+  delegates: TensorflowModelDelegate[],
+  ms: number,
+): Promise<TfliteModel> {
+  return new Promise<TfliteModel>((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error(`"${delegates[0] ?? 'cpu'}" delegate timed out after ${ms}ms`));
+    }, ms);
+
+    loadTensorflowModel(source, delegates).then(
+      (model) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(model);
+      },
+      (error: unknown) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      },
+    );
+  });
+}
+
 async function loadWithFallback(source: ModelSource): Promise<AcceleratedModel> {
   const attempts: TensorflowModelDelegate[][] =
     PREFERRED_DELEGATES.length > 0 ? [PREFERRED_DELEGATES, []] : [[]];
@@ -35,7 +98,15 @@ async function loadWithFallback(source: ModelSource): Promise<AcceleratedModel> 
 
   for (const delegates of attempts) {
     try {
-      const model = await loadTensorflowModel(source, delegates);
+      // CPU is the last attempt and has nothing to fall back to, so it gets
+      // longer: timing it out would fail the session outright, where waiting
+      // only makes a slow device feel slow.
+      const isLastAttempt = delegates === attempts[attempts.length - 1];
+      const model = await loadWithTimeout(
+        source,
+        delegates,
+        isLastAttempt ? DELEGATE_TIMEOUT_MS * 4 : DELEGATE_TIMEOUT_MS,
+      );
       return { state: 'loaded', model, delegate: delegates[0] ?? 'cpu' };
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));

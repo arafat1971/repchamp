@@ -331,9 +331,9 @@ export default function FriendsScreen() {
                     disabled={addingUid === a.uid}
                     accessibilityRole="button"
                     accessibilityLabel={`Add ${a.displayName}`}
-                    style={styles.duelButton}
+                    style={styles.addButton}
                   >
-                    <Text style={font('extrabold', 12, { color: palette.white })}>
+                    <Text style={font('extrabold', 12, { color: palette.green700 })}>
                       {addingUid === a.uid ? '…' : 'Add'}
                     </Text>
                   </PressableScale>
@@ -673,6 +673,21 @@ const styles = StyleSheet.create({
   friendInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
   duelButton: {
     backgroundColor: palette.green500,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: radius.lg,
+  },
+  /* "Add" shares a shape with "Duel" but not its weight.
+   *
+   * Both were solid brand green, so a list of six suggestions was six of the
+   * loudest colour on the screen stacked down one edge — no priority, and the
+   * eye had nowhere to rest. Duelling is what the app is for; adding someone
+   * is administrative. A tinted fill keeps it clearly tappable and lets the
+   * green buttons that start a race actually mean something. */
+  addButton: {
+    backgroundColor: palette.green50,
+    borderWidth: 1,
+    borderColor: '#bfeccb',
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: radius.lg,

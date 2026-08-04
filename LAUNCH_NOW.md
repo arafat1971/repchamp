@@ -10,11 +10,15 @@ to run the release binary does so after it is already public.
 
 ---
 
-## 1. Register the signing fingerprint  ⬜ *you*
+## 1. Register the signing fingerprint  ✅ *done 2026-08-04*
 
-Google Sign-In fails at runtime without this, and the failure names nothing.
+Registered and confirmed on device — the app signs in as a real account, which
+is what proves it. `npm run check-signing` reports every fingerprint present.
 
-Copy:
+Kept here because the same trap catches the next keystore: Google Sign-In
+fails at *runtime* without this, and the failure names nothing.
+
+The fingerprint that was missing:
 
 ```
 FE:AE:F1:72:39:57:F2:21:31:62:BD:6D:E6:57:31:72:BB:ED:F0:21
@@ -130,9 +134,18 @@ Worth deciding on deliberately rather than discovering later.
   session shot is the clearest single image of what the app does and should
   lead the listing once it exists. Screenshots move install conversion more
   than any words in the listing.
-- **Nothing from 2026-08-03/04 has been verified on a device.** The block-check
-  fix, avatar sync, duel QR, couple hero card and FAB accessibility hint are
-  all tested and their rules deployed, but none has been watched working.
-  Step 5 is where that changes.
-- **The FAB hint has never been seen rendering.** Its logic is covered by 12
-  tests; the pill itself is unconfirmed.
+- **Partly verified on device, as of 2026-08-04.** Google Sign-In works — the
+  app signs in as a real account. The FAB hint pill renders, and seeing it
+  exposed a layout bug no amount of reading the code would have: it sat beside
+  the button, over the Squats card, because the pill is wider than the disc it
+  was right-aligned to (`c605599`).
+
+  Still unwatched: the block-check fix, avatar sync between devices, the duel
+  QR round trip, and the couple hero card. All tested, rules deployed, none
+  seen working. Step 5 is where that changes.
+
+- **Rep counting was broken on the Pixel 7a until `52f5673`.** The
+  `android-gpu` delegate there never settles — it does not fail, it waits —
+  so the CPU fallback never ran and no session could start. Worth re-checking
+  on any device the app has not run on: the fix makes a hang behave like a
+  rejection, but the underlying GPU behaviour is the vendor's, not ours.

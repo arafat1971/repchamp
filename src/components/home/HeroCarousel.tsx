@@ -182,7 +182,10 @@ export function HeroCarousel({ slides }: { slides: readonly HeroSlide[] }) {
                       source={slide.image}
                       style={styles.photo}
                       contentFit="cover"
-                      contentPosition="right center"
+                      // Centre, not right: anchoring right cropped the man out
+                      // of a card whose whole point is that there are two
+                      // people in it.
+                      contentPosition="center"
                       transition={220}
                       accessible={false}
                     />
@@ -190,12 +193,13 @@ export function HeroCarousel({ slides }: { slides: readonly HeroSlide[] }) {
                         title sits on whatever the artwork happens to be, and
                         this one is bright green where the text begins. */}
                     <LinearGradient
-                      colors={['rgba(4,28,16,0.96)', 'rgba(4,28,16,0.82)', 'rgba(4,28,16,0.2)']}
-                      // Holds near-full opacity across the left half rather
-                      // than fading from the very edge: the couple starts
-                      // around a third in, and a linear fade let the man's
-                      // shoulder sit behind the headline.
-                      locations={[0, 0.45, 1]}
+                      colors={['rgba(4,28,16,0.88)', 'rgba(4,28,16,0.45)', 'rgba(4,28,16,0)']}
+                      // Dark enough at the left edge to hold white text, then
+                      // off quickly. An earlier pass ran 0.96 across the left
+                      // half and, on screen, crushed the photo to near-black —
+                      // the man all but disappeared and the bright green
+                      // backdrop the artwork is built around went muddy.
+                      locations={[0, 0.5, 0.85]}
                       start={{ x: 0, y: 0.5 }}
                       end={{ x: 1, y: 0.5 }}
                       style={StyleSheet.absoluteFill}

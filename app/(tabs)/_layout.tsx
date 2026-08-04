@@ -273,6 +273,15 @@ const FAB_HINT_KEY = 'fab.hint.v1';
  * expects one.
  */
 const FAB_HINT_OFFSET = 78;
+/** The FAB disc, 58pt plus its 3pt border either side. */
+const FAB_DIAMETER = 64;
+/**
+ * Fixed so the pill can be centred on the disc without measuring text.
+ *
+ * 110 rather than wider: centring pushes half the overhang right, and at 128
+ * that put the pill 9pt off the screen edge, clipping the "e" in "more".
+ */
+const HINT_WIDTH = 110;
 
 function FlexMark({ size }: { size: number }) {
   if (!FLEX_ASSET_IS_REAL) {
@@ -707,10 +716,19 @@ const styles = StyleSheet.create({
   },
   fabHint: {
     position: 'absolute',
-    // Right-aligned to the FAB's own inset so the pill sits over the button
-    // rather than drifting toward the middle of the tab bar.
-    right: 23,
-    paddingHorizontal: 10,
+    /* Centred on the FAB rather than right-aligned to it.
+     *
+     * Right-aligning looked correct in isolation and was wrong on screen: the
+     * pill is far wider than the 58pt disc, so all of that extra width grew
+     * leftward, across the Quick Start card. Raising it did not help — the
+     * card is tall, so any offset that still reads as "attached to the
+     * button" lands on it.
+     *
+     * Centring splits the overhang either side, and the right half falls off
+     * the screen edge where there is nothing to collide with. */
+    right: 23 - (HINT_WIDTH - FAB_DIAMETER) / 2,
+    width: HINT_WIDTH,
+    alignItems: 'center',
     paddingVertical: 6,
     borderRadius: 12,
     // The same near-black as the closed FAB, so the pill reads as part of the

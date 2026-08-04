@@ -333,15 +333,22 @@ export default function HomeScreen() {
           style={{ flex: 1 }}
         >
           <LinearGradient
-            colors={['#fff7ed', '#ffedd5', '#fde68a']}
+            /* Softened from a full amber ramp. At #fde68a the card was the
+               most saturated thing on the screen after the hero, which put a
+               secondary stat above the primary action in the visual order. */
+            colors={['#fffbf5', '#fff7ed', '#fdefd3']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={[styles.statCard, styles.leagueCard]}
           >
             <View style={styles.statCardInner}>
+              {/* One league mark, not three. This card carried the tier emoji,
+                  a medal image and a trophy at once — plus a gradient and a
+                  shine — which read as clutter beside the plain white card
+                  next to it. The medal is the clearest of the three and the
+                  only one that sits with the tier name it labels. */}
               <View style={styles.miniHeader}>
                 <Text style={font('bold', 12, { color: '#92400e' })}>League</Text>
-                <Text style={{ fontSize: 16 }}>{leagueProgress.league.emoji}</Text>
               </View>
               <View style={styles.leagueRow}>
                 <Image source={MEDAL_BRONZE} style={styles.medalIconSmall} contentFit="contain" />
@@ -356,9 +363,12 @@ export default function HomeScreen() {
                   ? `${leagueProgress.xpToNext.toLocaleString()} XP until ${leagueProgress.nextLeague.name}`
                   : 'Top league — hold the crown'}
               </Text>
+              {/* The trophy stays as a quiet corner mark; the sweeping shine
+                  that ran across it did not. An animated highlight on a card
+                  whose job is "here is your rank" competes with the number
+                  it is meant to decorate. */}
               <View style={styles.trophyWrapper} pointerEvents="none">
                 <Image source={TROPHY_BRONZE} style={styles.trophyCorner} contentFit="contain" />
-                <TrophyShine />
               </View>
             </View>
           </LinearGradient>
@@ -587,27 +597,6 @@ function BellButton({ pendingDuels, onPress }: { pendingDuels: number; onPress: 
 }
 
 /** Soft gold shimmer that sweeps across the league trophy every few seconds. */
-function TrophyShine() {
-  const x = useSharedValue(-40);
-
-  useEffect(() => {
-    x.value = withRepeat(
-      withSequence(
-        withDelay(2800, withTiming(110, { duration: 900, easing: Easing.inOut(Easing.quad) })),
-        withTiming(-40, { duration: 0 }),
-      ),
-      -1,
-      false,
-    );
-  }, [x]);
-
-  const shineStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: x.value }, { rotate: '22deg' }],
-  }));
-
-  return <Animated.View pointerEvents="none" style={[styles.trophyShine, shineStyle]} />;
-}
-
 function StreakFlame() {
   const flicker = useSharedValue(1);
   useEffect(() => {
@@ -909,7 +898,13 @@ const styles = StyleSheet.create({
   },
   avatarImage: { width: '100%', height: '100%' },
   greeting: { ...font('semibold', 12, { color: palette.grey600 }) },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  /* Wraps rather than truncating. Name, level and streak is three items in a
+     row that often fits two, and every fixed answer traded one problem for
+     another: shrinking clipped "Champion" while space remained, and not
+     shrinking pushed the chips under the bell. Wrapping lets a short name keep
+     everything on one line and a long one drop the chips below, which is the
+     outcome both fixed rules were trying to approximate. */
+  nameRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, rowGap: 6 },
   lvlChip: {
     backgroundColor: palette.green50,
     borderWidth: 1,
@@ -937,6 +932,11 @@ const styles = StyleSheet.create({
     // Nudged down so the icon optically centres against the name row rather
     // than the smaller greeting above it.
     marginTop: 4,
+    /* Reserve the corner. Without a width the identity block's `flex: 1` took
+       the whole row and the bell was drawn over the level chip — the chips
+       looked tucked under it rather than beside the name. */
+    width: 52,
+    flexShrink: 0,
   },
   /** Single-purpose circular control — one icon, one action. */
   /**
@@ -989,14 +989,18 @@ const styles = StyleSheet.create({
   // Stat cards
   row: { flexDirection: 'row', gap: 12, marginTop: 16, alignItems: 'stretch' },
   rowTight: { flexDirection: 'row', gap: 12 },
+  /* The pair reads as a pair now. Both carried a 1.5pt border in their own
+     accent — hard green against hard amber — which made two cards of the same
+     size and role look like they belonged to different screens. A hairline in
+     a tint of each accent keeps them distinguishable without shouting. */
   weekCard: {
     backgroundColor: palette.white,
-    borderColor: palette.green700,
-    borderWidth: 1.5,
+    borderColor: 'rgba(21,128,61,0.28)',
+    borderWidth: 1,
   },
   leagueCard: {
-    borderWidth: 1.5,
-    borderColor: '#f59e0b',
+    borderWidth: 1,
+    borderColor: 'rgba(180,83,9,0.28)',
     overflow: 'hidden',
   },
   tierChipBronze: {

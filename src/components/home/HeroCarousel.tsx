@@ -39,6 +39,14 @@ export type HeroSlide = {
   image?: number;
   /** Two-word footnote row under the CTA, e.g. "⚡ Live reps". */
   chips?: readonly string[];
+  /**
+   * Second line of the title, drawn in brand green under the white first line.
+   *
+   * Splitting it rather than colouring a substring keeps the two lines
+   * independently wrappable — "Train" and "Together" are one phrase to a
+   * reader but two very different lengths once translated.
+   */
+  titleAccent?: string;
 };
 
 /* The couple photo with the pose skeleton drawn over it — the one image that
@@ -182,7 +190,12 @@ export function HeroCarousel({ slides }: { slides: readonly HeroSlide[] }) {
                         title sits on whatever the artwork happens to be, and
                         this one is bright green where the text begins. */}
                     <LinearGradient
-                      colors={['rgba(4,28,16,0.92)', 'rgba(4,28,16,0.55)', 'rgba(4,28,16,0)']}
+                      colors={['rgba(4,28,16,0.96)', 'rgba(4,28,16,0.82)', 'rgba(4,28,16,0.2)']}
+                      // Holds near-full opacity across the left half rather
+                      // than fading from the very edge: the couple starts
+                      // around a third in, and a linear fade let the man's
+                      // shoulder sit behind the headline.
+                      locations={[0, 0.45, 1]}
                       start={{ x: 0, y: 0.5 }}
                       end={{ x: 1, y: 0.5 }}
                       style={StyleSheet.absoluteFill}
@@ -191,11 +204,23 @@ export function HeroCarousel({ slides }: { slides: readonly HeroSlide[] }) {
                   </>
                 ) : null}
 
-                <View style={styles.top}>
-                  <Text style={styles.eyebrow}>{slide.eyebrow}</Text>
-                  {slide.image ? null : <Text style={styles.emoji}>{slide.emoji}</Text>}
-                </View>
-                <Text style={styles.title}>{slide.title}</Text>
+                {/* A photo card carries its own subject, so the eyebrow and
+                    emoji are the parts that start to look like chrome — the
+                    title is doing that work already. */}
+                {slide.image ? null : (
+                  <View style={styles.top}>
+                    <Text style={styles.eyebrow}>{slide.eyebrow}</Text>
+                    <Text style={styles.emoji}>{slide.emoji}</Text>
+                  </View>
+                )}
+                <Text style={[styles.title, slide.image ? styles.titleOnPhoto : null]}>
+                  {slide.title}
+                </Text>
+                {slide.titleAccent ? (
+                  <Text style={[styles.title, styles.titleOnPhoto, styles.titleAccent]}>
+                    {slide.titleAccent}
+                  </Text>
+                ) : null}
                 <Text style={styles.body}>{slide.body}</Text>
                 <View style={styles.ctaRow}>
                   <View style={styles.ctaGlass}>
@@ -267,9 +292,10 @@ export function buildHomeHeroSlides(input: {
       id: 'together',
       emoji: '🤝',
       eyebrow: 'COUPLE MODE',
-      title: input.paired
-        ? `Train with ${input.partnerName ?? 'your partner'}`
-        : 'Train Together',
+      // Split across two lines so "Together" can carry the brand green, which
+      // is what makes the word the card is about the thing the eye lands on.
+      title: input.paired ? 'Train with' : 'Train',
+      titleAccent: input.paired ? (input.partnerName ?? 'your partner') : 'Together',
       body: input.paired
         ? 'One shared streak. Live reps side by side.'
         : 'One shared streak.\nEvery single day.',
@@ -356,6 +382,15 @@ const styles = StyleSheet.create({
     marginTop: 12,
     lineHeight: 30,
   },
+  /* Larger and tighter on a photo card. There is no eyebrow above it to share
+     the space with, and the headline is what has to hold against a busy
+     image — at 26pt it read as a caption on top of a picture. */
+  titleOnPhoto: {
+    ...font('extrabold', 34, { color: palette.white }),
+    marginTop: 0,
+    lineHeight: 38,
+  },
+  titleAccent: { color: palette.green400 },
   body: {
     ...font('semibold', 13, { color: 'rgba(255,255,255,0.9)' }),
     marginTop: 8,

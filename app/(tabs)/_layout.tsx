@@ -262,8 +262,17 @@ const FAB_DAILY_EXERCISE: ExerciseId = 'push';
 const FAB_DAILY_TARGET = 25;
 /** Where the "Hold for more" teaching state lives. See `@/domain/fabHint`. */
 const FAB_HINT_KEY = 'fab.hint.v1';
-/** Clears the 58pt FAB disc plus its border and a little breathing room. */
-const FAB_HINT_OFFSET = 68;
+/**
+ * How far above `bottomPosition` the hint pill sits.
+ *
+ * The FAB disc is 58pt plus a 3pt border. 68 cleared it arithmetically but not
+ * visually: the pill is wider than the disc, and since it is right-aligned to
+ * the same inset, the extra width grows leftward across whatever card is
+ * behind it. Seen on device it read as a label stuck to the Squats tile rather
+ * than a hint about the button. Lifting it clear puts the gap where the eye
+ * expects one.
+ */
+const FAB_HINT_OFFSET = 78;
 
 function FlexMark({ size }: { size: number }) {
   if (!FLEX_ASSET_IS_REAL) {

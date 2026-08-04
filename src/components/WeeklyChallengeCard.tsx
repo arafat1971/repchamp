@@ -48,8 +48,17 @@ export function WeeklyChallengeCard() {
       accessibilityRole="button"
       accessibilityLabel={`This week's challenge: ${def.title}, ${reps} of ${def.target} done`}
     >
+      {/* Deliberately quieter than the duel card above it.
+       *
+       * Both were near-identical full-width green blocks, so the screen led
+       * with nothing — a weekly goal carried the same weight as "start a duel
+       * now", which is the action this tab exists for. A dark slate ground
+       * keeps this legible and important-looking without competing.
+       *
+       * Completion still turns it amber: that is a state change worth
+       * noticing, and it only happens once a week. */}
       <LinearGradient
-        colors={complete ? ['#f59e0b', '#d97706'] : ['#34d26a', '#12923f']}
+        colors={complete ? ['#f59e0b', '#d97706'] : ['#16301f', '#0d2416']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={[styles.card, shadow.brand]}
@@ -92,7 +101,9 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   eyebrow: { ...font('extrabold', 10, { color: 'rgba(255,255,255,0.85)' }), letterSpacing: 1.5 },
   countdown: {
-    backgroundColor: 'rgba(0,0,0,0.2)',
+    /* Lightened with the card. A 20%-black pill was a visible darker patch on
+       the old green ground; on the dark one it disappeared entirely. */
+    backgroundColor: 'rgba(255,255,255,0.14)',
     borderRadius: radius['2xl'],
     paddingHorizontal: 8,
     paddingVertical: 4,

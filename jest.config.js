@@ -4,6 +4,14 @@ module.exports = {
   // Only *.test.* files are suites, so shared fixtures can live alongside them
   // in __tests__ without Jest complaining that they contain no tests.
   testMatch: ['**/*.test.ts', '**/*.test.tsx'],
+  // `.claude/worktrees/` holds full checkouts that background agents work in,
+  // each with its own copy of this suite. Collecting them reported 84 of 142
+  // suites from trees that are not this one — a green run there says nothing
+  // about this branch, and a worktree parked on an older commit runs tests for
+  // code that no longer exists. `modulePathIgnorePatterns` is needed alongside
+  // the test ignore: without it haste sees each duplicated module twice.
+  testPathIgnorePatterns: ['/node_modules/', '/.claude/'],
+  modulePathIgnorePatterns: ['<rootDir>/.claude/'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     // Metro turns a `require`d binary asset into a module id; Jest tries to

@@ -374,6 +374,7 @@ export async function uploadAvatar(_uid: string, localUri: string): Promise<stri
   let manipulateAsync: typeof import('expo-image-manipulator').manipulateAsync;
   let SaveFormat: typeof import('expo-image-manipulator').SaveFormat;
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- deliberate: see above
     ({ manipulateAsync, SaveFormat } = require('expo-image-manipulator'));
   } catch {
     return localUri;

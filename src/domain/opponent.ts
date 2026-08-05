@@ -66,6 +66,7 @@ export const OPPONENTS: readonly Opponent[] = [
 export function getOpponent(id: string | null | undefined): Opponent {
   if (id) {
     // Check phantom opponents first (seeding system).
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- lazy: roster is only needed on a hit
     const { getPhantomOpponent } = require('@/domain/phantomRoster');
     const phantom = getPhantomOpponent(id);
     if (phantom) return phantom;

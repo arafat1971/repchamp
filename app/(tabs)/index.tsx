@@ -203,7 +203,12 @@ export default function HomeScreen() {
           router.push({ pathname: '/duel/new', params: { queue: '1' } });
         },
       }),
-    // startCoupleTrain closes over couple/self/router — rebuild when pairing changes.
+    // startCoupleTrain is a plain function, so the linter cannot see through it
+    // and asks for it by name. It reads couple.paired, couple.partner, self and
+    // router — all four are already here, so the memo rebuilds exactly when its
+    // behaviour would change. Adding the function itself would rebuild on every
+    // render instead, which is the opposite of the point.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deps cover what startCoupleTrain reads
     [couple.paired, couple.partner, self, dailyBest, activity.count, activity.label, router],
   );
 

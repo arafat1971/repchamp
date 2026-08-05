@@ -53,6 +53,7 @@ let mod: SettleModule;
 function load(): SettleModule {
   let loaded!: SettleModule;
   jest.isolateModules(() => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- isolateModules needs a fresh require
     loaded = require('../liveResultSettle') as SettleModule;
   });
   return loaded;

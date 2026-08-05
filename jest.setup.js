@@ -1,5 +1,3 @@
-/* eslint-env jest */
-
 // Native modules that have no JS-only implementation. The vision pipeline is
 // tested through its pure functions (geometry, rep counter, exercise analysis),
 // so the camera and TFLite bindings only need to exist, not to work.

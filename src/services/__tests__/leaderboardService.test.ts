@@ -127,7 +127,7 @@ jest.mock('@react-native-firebase/firestore', () => {
         mockQuery(name, [], { field, dir }, null),
     }),
     batch: () => {
-      const ops: Array<() => Promise<void>> = [];
+      const ops: (() => Promise<void>)[] = [];
       return {
         set(ref: { set: (data: Record<string, unknown>) => Promise<void> }, data: Record<string, unknown>) {
           ops.push(() => ref.set(data));

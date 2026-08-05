@@ -99,9 +99,13 @@ export function useCouple(): CoupleView {
 
   useEffect(() => {
     if (!uid) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+      // Signing out has to clear the bond in the same commit that drops the
+      // uid; deferring it leaves the previous account's partner on screen for
+      // a frame. The cascading-render the rule guards against cannot happen
+      // here — this branch runs only when uid goes null, and setting these
+      // cannot make it non-null.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sign-out must clear synchronously
       setCouple(null);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
       return;
     }

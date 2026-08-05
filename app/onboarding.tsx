@@ -378,8 +378,11 @@ export default function OnboardingScreen() {
         ) : null}
         {step === 17 ? <Challenge username={username} onNext={() => setStep(18)} /> : null}
         {step === 18 ? <Building percent={buildPercent} /> : null}
-        {step === 19 ? <Paywall plan={plan} onSelect={setPlan} onNext={next} /> : null}
-        {step === 20 ? <Offer onDone={finish} /> : null}
+        {/* Sign-in immediately before the paywall: the plan is built, and a
+            subscription needs an account to attach to. */}
+        {step === 19 ? <SignIn onNext={next} /> : null}
+        {step === 20 ? <Paywall plan={plan} onSelect={setPlan} onNext={next} /> : null}
+        {step === 21 ? <Offer onDone={finish} /> : null}
       </Animated.View>
     </View>
   );
@@ -391,32 +394,6 @@ export default function OnboardingScreen() {
 
 function Welcome({ onNext, onTryNow }: { onNext: () => void; onTryNow: () => void }) {
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
-  // Resolved once: whether a real Google sign-in can complete on this build.
-  const googleReady = useMemo(() => isGoogleAuthConfigured(), []);
-
-  const onGoogle = useCallback(async () => {
-    if (busy) return;
-    setBusy(true);
-    setAuthError(null);
-    try {
-      await signInWithGoogle();
-      onNext();
-    } catch (error) {
-      // A cancel is a deliberate user action, not an error worth surfacing.
-      if (!isGoogleCancel(error)) {
-        captureError(error);
-        const message =
-          error instanceof Error && error.message
-            ? error.message
-            : "Couldn't sign in with Google. Please try again.";
-        setAuthError(message);
-      }
-    } finally {
-      setBusy(false);
-    }
-  }, [busy, onNext]);
 
   return (
     <View style={styles.step}>
@@ -474,34 +451,18 @@ function Welcome({ onNext, onTryNow }: { onNext: () => void; onTryNow: () => voi
         </Text>
       </View>
 
-      {/* Get started = full onboarding. Google is optional. Try now skips setup. */}
+      {/* Two ways in, neither of them an account.
+          Sign-in used to sit here, asking for a Google account before the
+          athlete had seen a single rep counted. It now comes near the end,
+          once there is something worth saving — see the `SignIn` step. */}
       <View style={{ gap: 12, marginTop: 16 }}>
-        <PrimaryButton
-          label="Get started"
-          onPress={onNext}
-          disabled={busy}
-        />
-        {googleReady ? (
-          <SocialButton
-            label={busy ? 'Signing in…' : 'Continue with Google'}
-            glyph="G"
-            glyphColor="#4285F4"
-            onPress={onGoogle}
-          />
-        ) : null}
+        <PrimaryButton label="Get started" onPress={onNext} />
       </View>
-
-      {authError ? (
-        <Text style={styles.authError} accessibilityLiveRegion="polite">
-          {authError}
-        </Text>
-      ) : null}
 
       {/* Fast path for the impatient — a counted rep in seconds, no setup. */}
       <Pressable
         onPress={onTryNow}
         accessibilityRole="button"
-        disabled={busy}
         style={styles.tryNow}
       >
         <Text style={font('extrabold', 14, { color: palette.green600 })}>
@@ -527,6 +488,88 @@ function Welcome({ onNext, onTryNow }: { onNext: () => void; onTryNow: () => voi
         </Text>
         .
       </Text>
+    </View>
+  );
+}
+
+/**
+ * Sign in, near the end rather than at the door.
+ *
+ * This used to be the second button on the welcome screen, which asked for a
+ * Google account before the athlete had seen a rep counted. By here they have
+ * picked a username and photo, answered what stops them, and been shown a
+ * projection and a first week — so there is something concrete to lose, and
+ * "save it" is a reason rather than a demand.
+ *
+ * It sits immediately before the paywall on purpose: a subscription has to
+ * attach to an account, so this is the last point where signing in is still
+ * optional rather than a blocker.
+ *
+ * Skipping stays first-class. An anonymous account already backs everything up
+ * to Firebase; what Google adds is recovering it on a new phone, which is what
+ * the copy promises and all it promises.
+ */
+function SignIn({ onNext }: { onNext: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  // Resolved once: whether a real Google sign-in can complete on this build.
+  const googleReady = useMemo(() => isGoogleAuthConfigured(), []);
+
+  const onGoogle = useCallback(async () => {
+    if (busy) return;
+    setBusy(true);
+    setAuthError(null);
+    try {
+      await signInWithGoogle();
+      onNext();
+    } catch (error) {
+      // A cancel is a deliberate user action, not an error worth surfacing.
+      if (!isGoogleCancel(error)) {
+        captureError(error);
+        setAuthError(
+          error instanceof Error && error.message
+            ? error.message
+            : "Couldn't sign in with Google. Please try again.",
+        );
+      }
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, onNext]);
+
+  return (
+    <View style={[styles.step, styles.stepPadded]}>
+      <Animated.View entering={FadeInUp.duration(420)} style={{ alignItems: 'center' }}>
+        <View style={[styles.valueEyebrow, { backgroundColor: palette.green50 }]}>
+          <Text style={styles.valueEyebrowText}>KEEP YOUR PROGRESS</Text>
+        </View>
+        <Text style={[text.h1, { fontSize: 27, textAlign: 'center' }]}>Save your plan</Text>
+        <Text style={[text.body, styles.centeredCopy]}>
+          Sign in so your streak, league and personal bests follow you to a new phone.
+        </Text>
+      </Animated.View>
+
+      <View style={{ gap: 12, marginTop: 28 }}>
+        {googleReady ? (
+          <SocialButton
+            label={busy ? 'Signing in…' : 'Continue with Google'}
+            glyph="G"
+            glyphColor="#4285F4"
+            onPress={onGoogle}
+          />
+        ) : null}
+        <PrimaryButton
+          label={googleReady ? 'Not now' : 'Continue'}
+          onPress={onNext}
+          disabled={busy}
+        />
+      </View>
+
+      {authError ? (
+        <Text style={styles.authError} accessibilityLiveRegion="polite">
+          {authError}
+        </Text>
+      ) : null}
     </View>
   );
 }

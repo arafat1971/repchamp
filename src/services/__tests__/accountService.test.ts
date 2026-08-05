@@ -58,19 +58,6 @@ jest.mock('@react-native-firebase/firestore', () => {
   return { __esModule: true, default: fn };
 });
 
-const storageDeleted: string[] = [];
-
-jest.mock('@react-native-firebase/storage', () => {
-  const fn = () => ({
-    ref: (path: string) => ({
-      async delete() {
-        storageDeleted.push(path);
-      },
-    }),
-  });
-  return { __esModule: true, default: fn };
-});
-
 jest.mock('@react-native-firebase/auth', () => {
   const fn = () => ({ currentUser: null });
   return { __esModule: true, default: fn };
@@ -86,7 +73,6 @@ import { deleteAccount } from '../accountService';
 beforeEach(() => {
   mockState.configured = true;
   deleted.length = 0;
-  storageDeleted.length = 0;
   for (const k of Object.keys(duelRows)) delete duelRows[k];
   for (const k of Object.keys(deleteOk)) delete deleteOk[k];
 });

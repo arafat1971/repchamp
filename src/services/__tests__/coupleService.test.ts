@@ -152,13 +152,6 @@ jest.mock('@react-native-firebase/firestore', () => {
   return { __esModule: true, default: fn };
 });
 
-// userService (imported transitively for the nudge's push-token read) pulls in
-// Storage, whose real ESM entry Jest can't parse — stub it out.
-jest.mock('@react-native-firebase/storage', () => ({
-  __esModule: true,
-  default: () => ({ ref: () => ({}) }),
-}));
-
 const ADA = { uid: 'ada', displayName: 'Ada' };
 const BEA = { uid: 'bea', displayName: 'Bea' };
 

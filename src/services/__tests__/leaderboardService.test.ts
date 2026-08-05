@@ -144,13 +144,6 @@ jest.mock('@react-native-firebase/firestore', () => {
   return { __esModule: true, default: fn };
 });
 
-// leaderboardService imports userService (for currentWeekKey), which imports
-// Storage; its real ESM entry can't be parsed by Jest, so stub it.
-jest.mock('@react-native-firebase/storage', () => ({
-  __esModule: true,
-  default: () => ({ ref: () => ({}) }),
-}));
-
 beforeEach(() => {
   mockState.configured = true;
   mockStore.leaderboard.clear();

@@ -77,8 +77,21 @@ export function registerForPushNudges(uid: string): () => void {
 
   void (async () => {
     try {
-      const granted = await ensureNotificationPermission();
-      if (!granted || cancelled) return;
+      /*
+       * Register only if permission already exists — never ask for it here.
+       *
+       * This runs from the root layout on every launch, so asking meant the
+       * OS prompt fired over the welcome screen before the athlete had seen
+       * anything the app does. A cold prompt is the one you get declined, and
+       * on iOS a decline is close to permanent: `canAskAgain` goes false and
+       * the only route back is Settings.
+       *
+       * The ask now lives on the Reminders step in onboarding, after a plan
+       * the athlete chose. If they allow it there, this picks the token up on
+       * the next launch; if they decline, nothing here nags them again.
+       */
+      const existing = await Notifications.getPermissionsAsync();
+      if (!existing.granted || cancelled) return;
 
       const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
       if (token && !cancelled) {

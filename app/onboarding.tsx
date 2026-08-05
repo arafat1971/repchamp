@@ -63,7 +63,11 @@ import {
   type PlannedDay,
 } from '@/domain/onboardingPlan';
 import { isGoogleAuthConfigured, isGoogleCancel, signInWithGoogle } from '@/services/auth';
-import { ensureNotificationPermission, scheduleDailyTrainingReminder } from '@/lib/notifications';
+import {
+  ensureNotificationPermission,
+  registerForPushNudges,
+  scheduleDailyTrainingReminder,
+} from '@/lib/notifications';
 import { isValidUsername, usernameError as usernameValidationError } from '@/domain/input';
 import { useProfileStore } from '@/state/profileStore';
 import { font, text } from '@/theme/typography';
@@ -76,7 +80,15 @@ import { gradients, palette, radius, shadow } from '@/theme/tokens';
  * bar, and must not be re-enterable from history, so a single screen with an
  * index is simpler and avoids a stack of dead routes behind the tabs.
  */
-const TOTAL_PROGRESS_STEPS = 20;
+/**
+ * Steps the progress bar measures against.
+ *
+ * Must match the highest step the bar is shown for. It read 20 after four
+ * screens were added, which filled the bar to 100% with four still to go —
+ * the one part of onboarding whose whole job is not lying about how much is
+ * left.
+ */
+const TOTAL_PROGRESS_STEPS = 24;
 
 // Onboarding media — the in-app demo clip and the illustrated value-screen art.
 const DEMO_VIDEO = require('../assets/remove_text_bro_thought_202607272319.mp4');
@@ -1464,6 +1476,11 @@ function Reminders({
       const ok = await ensureNotificationPermission();
       if (ok) {
         await scheduleDailyTrainingReminder();
+        // Pick the push token up now rather than next launch. The root layout
+        // only registers when permission already exists — deliberately, so it
+        // never prompts cold — which leaves this the moment it was granted.
+        const uid = useAuthStore.getState().user?.uid;
+        if (uid) registerForPushNudges(uid);
         // Confirm before moving on. A permission prompt that vanishes into the
         // next screen leaves the athlete unsure whether anything happened; the
         // beat here is short enough not to be a wait.

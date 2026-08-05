@@ -160,6 +160,13 @@ export default function SessionScreen() {
     if (upgradeGateLatched.current) return;
     if (!proReady || !isPurchasesConfigured()) return;
     upgradeGateLatched.current = true;
+    /* Intentionally a synchronous setState in an effect, and it has to stay
+       one: the gate can only be decided once `proReady` resolves, which is
+       after the first render. Deriving it instead re-evaluates on every
+       render, and a late `proReady` then flips <Redirect> mid-set and tears
+       the camera down — the exact failure the latch above exists to stop.
+       Fires at most once per mount. */
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setUpgradeBlocked(
       shouldPromptUpgrade({
         isPro,

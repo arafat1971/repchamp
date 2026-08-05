@@ -15,7 +15,7 @@ import { friendInviteLink } from '@/lib/urls';
 import { font, text } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 export default function AddFriendScreen() {
   const router = useRouter();
@@ -23,17 +23,17 @@ export default function AddFriendScreen() {
   const username = useProfileStore((s) => s.username) || 'champion';
   const uid = useAuthStore((s) => s.user?.uid);
   const cloudConfigured = useAuthStore((s) => s.configured);
-  const [query, setQuery] = useState('');
+  /* Seeded from the deep link at first render rather than written back in an
+     effect. `repchamp://modal/add-friend?u=name` is known before the first
+     paint, so the effect only ever corrected a value one render too late —
+     the box appeared empty, then filled. */
+  const [query, setQuery] = useState(() =>
+    typeof params.u === 'string' ? params.u.trim().replace(/^@/, '') : '',
+  );
   const [duelCode, setDuelCode] = useState('');
   const [added, setAdded] = useState<Record<string, boolean>>({});
   const [copied, setCopied] = useState(false);
   const [searching, setSearching] = useState(false);
-
-  // Deep link `repchamp://modal/add-friend?u=name` prefills the search box.
-  useEffect(() => {
-    const fromLink = typeof params.u === 'string' ? params.u.trim().replace(/^@/, '') : '';
-    if (fromLink) setQuery(fromLink);
-  }, [params.u]);
 
   const inviteLink = friendInviteLink(username);
 

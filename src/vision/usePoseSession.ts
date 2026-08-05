@@ -310,6 +310,12 @@ export function usePoseSession({
       recordTimings(convertMs, inferMs);
       noteInferenceMs(inferMs);
       const thermalEvery = inferMs > 48 ? 3 : inferMs > 38 ? 2 : 1;
+      /* Writing `.value` is how a Reanimated shared value is set — the whole
+         point of one is that both the JS thread and the frame processor can
+         update it without a re-render. The immutability rule reads this as
+         mutating a prop; there is no non-mutating way to move a shared value,
+         and using state here would re-render on every frame. */
+      // eslint-disable-next-line react-hooks/immutability
       inferEveryN.value = Math.min(thermalEvery, maxFrameSkip);
       const nextFps = suggestedCameraFps(TARGET_FPS);
       if (nextFps !== cameraFpsRef.current) {

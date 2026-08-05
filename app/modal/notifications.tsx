@@ -35,7 +35,10 @@ export default function NotificationsScreen() {
   useEffect(() => {
     if (!uid) return;
     let cancelled = false;
-    setLoading(true);
+    /* No `setLoading(true)` here: the initialiser above already starts true
+       whenever a uid exists, so this only ever re-set what was already set —
+       an extra render on mount for nothing. A uid change means a different
+       account, which remounts this screen anyway. */
     void fetchIncomingDuels(uid)
       .then((list) => {
         if (!cancelled) setIncoming(list);

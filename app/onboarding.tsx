@@ -391,7 +391,9 @@ export default function OnboardingScreen() {
         {/* Reminders before sign-in: it asks for a permission, and a plan the
             athlete just chose is the strongest reason they will ever have to
             grant it. */}
-        {step === 19 ? <Reminders weeklyGoal={weeklyGoal} onNext={next} /> : null}
+        {step === 19 ? (
+          <Reminders username={username} weeklyGoal={weeklyGoal} onNext={next} />
+        ) : null}
         {/* Sign-in immediately before the paywall: the plan is built, and a
             subscription needs an account to attach to. */}
         {step === 20 ? <SignIn onNext={next} /> : null}
@@ -399,8 +401,15 @@ export default function OnboardingScreen() {
         {/* The last two land right before the first set, which is where the
             advice actually gets used — a framing tip read fifteen screens
             earlier would be forgotten by the time the camera opens. */}
-        {step === 22 ? <HowRepsCount onNext={next} /> : null}
-        {step === 23 ? <SetUpYourSpace onNext={next} /> : null}
+        {step === 22 ? (
+          <HowRepsCount
+            username={username}
+            weeklyGoal={weeklyGoal}
+            level={level}
+            onNext={next}
+          />
+        ) : null}
+        {step === 23 ? <SetUpYourSpace username={username} onNext={next} /> : null}
         {step === 24 ? <Offer onDone={finish} /> : null}
       </Animated.View>
     </View>
@@ -1436,23 +1445,40 @@ function WeekDayBar({ day, peak, index }: { day: PlannedDay; peak: number; index
  * "Not now": a denied OS prompt is much harder to recover from than a skipped
  * screen, so there is no reason to push.
  */
-function Reminders({ weeklyGoal, onNext }: { weeklyGoal: number; onNext: () => void }) {
+function Reminders({
+  username,
+  weeklyGoal,
+  onNext,
+}: {
+  username: string;
+  weeklyGoal: number;
+  onNext: () => void;
+}) {
   const [busy, setBusy] = useState(false);
+  const [granted, setGranted] = useState(false);
 
   const onAllow = useCallback(async () => {
     if (busy) return;
     setBusy(true);
     try {
-      const granted = await ensureNotificationPermission();
-      if (granted) await scheduleDailyTrainingReminder();
+      const ok = await ensureNotificationPermission();
+      if (ok) {
+        await scheduleDailyTrainingReminder();
+        // Confirm before moving on. A permission prompt that vanishes into the
+        // next screen leaves the athlete unsure whether anything happened; the
+        // beat here is short enough not to be a wait.
+        setGranted(true);
+        setBusy(false);
+        setTimeout(onNext, 900);
+        return;
+      }
     } catch (error) {
       // A failed reminder is not worth blocking onboarding over — the athlete
       // can turn them on in Settings, and the session ahead matters more.
       captureError(error);
-    } finally {
-      setBusy(false);
-      onNext();
     }
+    setBusy(false);
+    onNext();
   }, [busy, onNext]);
 
   return (
@@ -1470,16 +1496,33 @@ function Reminders({ weeklyGoal, onNext }: { weeklyGoal: number; onNext: () => v
         </Text>
       </Animated.View>
 
-      <View style={{ gap: 12, marginTop: 28 }}>
-        <PrimaryButton
-          label={busy ? 'Setting up…' : 'Turn on reminders'}
-          onPress={() => void onAllow()}
-          disabled={busy}
-        />
-        <Pressable onPress={onNext} accessibilityRole="button" disabled={busy} style={styles.tryNow}>
-          <Text style={font('extrabold', 14, { color: palette.green600 })}>Not now</Text>
-        </Pressable>
-      </View>
+      {granted ? (
+        <Animated.View entering={FadeInUp.duration(320)} style={styles.rulePayoff}>
+          <Text style={{ fontSize: 30 }}>🔔</Text>
+          <Text style={font('extrabold', 17, { color: palette.ink, marginTop: 6 })}>
+            You’re set{username ? `, ${username}` : ''}
+          </Text>
+          <Text style={font('regular', 12.5, { color: palette.grey600, textAlign: 'center' })}>
+            {weeklyGoal} nudges a week. Nothing else.
+          </Text>
+        </Animated.View>
+      ) : (
+        <View style={{ gap: 12, marginTop: 28 }}>
+          <PrimaryButton
+            label={busy ? 'Setting up…' : 'Turn on reminders'}
+            onPress={() => void onAllow()}
+            disabled={busy}
+          />
+          <Pressable
+            onPress={onNext}
+            accessibilityRole="button"
+            disabled={busy}
+            style={styles.tryNow}
+          >
+            <Text style={font('extrabold', 14, { color: palette.green600 })}>Not now</Text>
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 }
@@ -1492,7 +1535,21 @@ function Reminders({ weeklyGoal, onNext }: { weeklyGoal: number; onNext: () => v
  * the app will refuse to count reps an athlete believes they did, and finding
  * that out mid-set feels like a bug rather than a standard.
  */
-function HowRepsCount({ onNext }: { onNext: () => void }) {
+function HowRepsCount({
+  username,
+  weeklyGoal,
+  level,
+  onNext,
+}: {
+  username: string;
+  weeklyGoal: number;
+  level: FitnessLevel | null;
+  onNext: () => void;
+}) {
+  // The athlete's own first-week number, not a generic one — the same figure
+  // the plan screens showed, so the standard is attached to their target.
+  const target = useMemo(() => firstWeekTarget(weeklyGoal, level), [weeklyGoal, level]);
+
   return (
     <View style={[styles.step, styles.stepPadded]}>
       <Animated.View entering={FadeInUp.duration(420)} style={{ alignItems: 'center' }}>
@@ -1509,13 +1566,42 @@ function HowRepsCount({ onNext }: { onNext: () => void }) {
       </Animated.View>
 
       <View style={{ marginTop: 24, gap: 12 }}>
-        <RuleRow glyph="📐" title="Depth" sub="Full range, or it doesn’t register" />
-        <RuleRow glyph="⏱️" title="Tempo" sub="Too fast reads as a bounce" />
-        <RuleRow glyph="📏" title="Alignment" sub="Hips and back stay in line" />
+        {[
+          { glyph: '📐', title: 'Depth', sub: 'Full range, or it doesn’t register' },
+          { glyph: '⏱️', title: 'Tempo', sub: 'Too fast reads as a bounce' },
+          { glyph: '📏', title: 'Alignment', sub: 'Hips and back stay in line' },
+        ].map((rule, i) => (
+          <StaggerIn key={rule.title} index={i} step={110}>
+            <RuleRow {...rule} />
+          </StaggerIn>
+        ))}
       </View>
 
+      {/* The payoff: the standard just described, attached to their own number.
+          A rule list that ends on "Got it" teaches nothing about why it
+          mattered. */}
+      <StaggerIn index={3} step={110}>
+        <View style={styles.rulePayoff}>
+          <Text style={font('bold', 12.5, { color: palette.green700 })}>
+            {username ? `${username}, this week` : 'Your first week'}
+          </Text>
+          <View style={styles.rulePayoffRow}>
+            <CountUp
+              value={target}
+              style={font('extrabold', 34, { color: palette.ink })}
+            />
+            <Text style={font('bold', 15, { color: palette.grey600, marginBottom: 5 })}>
+              {' '}clean reps
+            </Text>
+          </View>
+          <Text style={font('regular', 12, { color: palette.grey600 })}>
+            Every one of them counted the same way.
+          </Text>
+        </View>
+      </StaggerIn>
+
       <View style={{ marginTop: 'auto' }}>
-        <PrimaryButton label="Got it" onPress={onNext} />
+        <PrimaryButton label="That’s the standard" onPress={onNext} />
       </View>
     </View>
   );
@@ -1528,7 +1614,7 @@ function HowRepsCount({ onNext }: { onNext: () => void }) {
  * first session fails is a phone propped too close or too low. Cheaper to say
  * here than to let someone conclude the counter is broken.
  */
-function SetUpYourSpace({ onNext }: { onNext: () => void }) {
+function SetUpYourSpace({ username, onNext }: { username: string; onNext: () => void }) {
   return (
     <View style={[styles.step, styles.stepPadded]}>
       <Animated.View entering={FadeInUp.duration(420)} style={{ alignItems: 'center' }}>
@@ -1544,14 +1630,39 @@ function SetUpYourSpace({ onNext }: { onNext: () => void }) {
         </Text>
       </Animated.View>
 
-      <View style={{ marginTop: 24, gap: 12 }}>
-        <RuleRow glyph="📱" title="Lean it against something" sub="A wall, a bottle, a book" />
-        <RuleRow glyph="↔️" title="Step back" sub="About two metres from the phone" />
-        <RuleRow glyph="💡" title="Face the light" sub="A window behind you hides you" />
+      {/* The phone drifts gently — the thing being described is a phone
+          standing up watching you, so showing it beats another bullet. */}
+      <View style={styles.spaceStage}>
+        <Floating distance={6}>
+          <View style={styles.spacePhone}>
+            <View style={styles.spacePhoneScreen} />
+          </View>
+        </Floating>
+        <Text style={styles.spaceDistance}>≈ 2 m</Text>
+        <Floating delay={400} distance={5}>
+          <Text style={{ fontSize: 38 }}>🧍</Text>
+        </Floating>
       </View>
 
+      <View style={{ marginTop: 20, gap: 12 }}>
+        {[
+          { glyph: '📱', title: 'Lean it against something', sub: 'A wall, a bottle, a book' },
+          { glyph: '↔️', title: 'Step back', sub: 'About two metres from the phone' },
+          { glyph: '💡', title: 'Face the light', sub: 'A window behind you hides you' },
+        ].map((rule, i) => (
+          <StaggerIn key={rule.title} index={i} step={110}>
+            <RuleRow {...rule} />
+          </StaggerIn>
+        ))}
+      </View>
+
+      {/* Ends on the set itself, not on "Ready". This is the last screen
+          before the camera opens, so the button should say what happens. */}
       <View style={{ marginTop: 'auto' }}>
-        <PrimaryButton label="Ready" onPress={onNext} />
+        <PrimaryButton
+          label={username ? `Start your first set, ${username}` : 'Start your first set'}
+          onPress={onNext}
+        />
       </View>
     </View>
   );
@@ -2845,6 +2956,42 @@ const styles = StyleSheet.create({
     backgroundColor: palette.white,
     borderWidth: 1,
     borderColor: palette.border,
+  },
+  /* The result a screen lands on, tinted so it reads as a conclusion rather
+     than one more row in the list above it. */
+  rulePayoff: {
+    alignItems: 'center',
+    marginTop: 20,
+    padding: 18,
+    borderRadius: radius['3xl'],
+    backgroundColor: palette.green50,
+    borderWidth: 1,
+    borderColor: '#bfeccb',
+  },
+  rulePayoffRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 2 },
+  /* Phone, gap, person — the setup being described, at a glance. */
+  spaceStage: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 14,
+    marginTop: 22,
+  },
+  spacePhone: {
+    width: 34,
+    height: 58,
+    borderRadius: 8,
+    backgroundColor: palette.ink,
+    padding: 3,
+  },
+  spacePhoneScreen: { flex: 1, borderRadius: 5, backgroundColor: palette.green400 },
+  spaceDistance: {
+    ...font('bold', 11, { color: palette.grey600 }),
+    borderTopWidth: 1,
+    borderColor: palette.border,
+    paddingTop: 4,
+    minWidth: 62,
+    textAlign: 'center',
   },
   goalRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 },
   goalIcon: {

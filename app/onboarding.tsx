@@ -63,6 +63,7 @@ import {
   type PlannedDay,
 } from '@/domain/onboardingPlan';
 import { isGoogleAuthConfigured, isGoogleCancel, signInWithGoogle } from '@/services/auth';
+import { ensureNotificationPermission, scheduleDailyTrainingReminder } from '@/lib/notifications';
 import { isValidUsername, usernameError as usernameValidationError } from '@/domain/input';
 import { useProfileStore } from '@/state/profileStore';
 import { font, text } from '@/theme/typography';
@@ -147,7 +148,16 @@ export default function OnboardingScreen() {
   const back = useCallback(() => setStep((s) => Math.max(0, s - 1)), []);
 
   const finish = useCallback(() => {
-    completeOnboarding({ username: username || 'champion', weeklyGoal, avatarUri });
+    // level and blocker ride along now: they shaped the plan the athlete was
+    // just shown, and dropping them here meant the app forgot everything it
+    // had asked the moment onboarding ended.
+    completeOnboarding({
+      username: username || 'champion',
+      weeklyGoal,
+      avatarUri,
+      fitnessLevel: level,
+      blocker,
+    });
     track('onboarding_completed', { weeklyGoal });
     // Upload local photo first — pushProfile strips non-HTTPS URLs, so a bare
     // file:// avatar never reached friends/duel seats.
@@ -166,7 +176,7 @@ export default function OnboardingScreen() {
     // back-swipe from the session lands the athlete on their home as normal.
     router.replace('/(tabs)');
     router.push({ pathname: '/session', params: { exercise: 'push', mode: 'practice' } });
-  }, [completeOnboarding, username, weeklyGoal, avatarUri, router]);
+  }, [completeOnboarding, username, weeklyGoal, avatarUri, level, blocker, router]);
 
   /* Build-profile progress animation (step 10). */
   useEffect(() => {
@@ -378,11 +388,20 @@ export default function OnboardingScreen() {
         ) : null}
         {step === 17 ? <Challenge username={username} onNext={() => setStep(18)} /> : null}
         {step === 18 ? <Building percent={buildPercent} /> : null}
+        {/* Reminders before sign-in: it asks for a permission, and a plan the
+            athlete just chose is the strongest reason they will ever have to
+            grant it. */}
+        {step === 19 ? <Reminders weeklyGoal={weeklyGoal} onNext={next} /> : null}
         {/* Sign-in immediately before the paywall: the plan is built, and a
             subscription needs an account to attach to. */}
-        {step === 19 ? <SignIn onNext={next} /> : null}
-        {step === 20 ? <Paywall plan={plan} onSelect={setPlan} onNext={next} /> : null}
-        {step === 21 ? <Offer onDone={finish} /> : null}
+        {step === 20 ? <SignIn onNext={next} /> : null}
+        {step === 21 ? <Paywall plan={plan} onSelect={setPlan} onNext={next} /> : null}
+        {/* The last two land right before the first set, which is where the
+            advice actually gets used — a framing tip read fifteen screens
+            earlier would be forgotten by the time the camera opens. */}
+        {step === 22 ? <HowRepsCount onNext={next} /> : null}
+        {step === 23 ? <SetUpYourSpace onNext={next} /> : null}
+        {step === 24 ? <Offer onDone={finish} /> : null}
       </Animated.View>
     </View>
   );
@@ -1404,6 +1423,153 @@ function WeekDayBar({ day, peak, index }: { day: PlannedDay; peak: number; index
  * the moment onboarding stops feeling like a form and starts feeling built for
  * them — and every antidote here maps to something the app actually does.
  */
+/**
+ * Turn on reminders — the only screen here that asks the OS for something.
+ *
+ * Onboarding already told the athlete "we'll remind you before your trial
+ * ends if you've allowed notifications", but nothing ever asked, so that
+ * promise depended on a permission the app never requested. `syncLocalReminders`
+ * and `scheduleDailyTrainingReminder` were both sitting unused behind it.
+ *
+ * Asked here rather than at launch because a permission prompt means more
+ * when it follows a plan the athlete just chose. Declining is a plain
+ * "Not now": a denied OS prompt is much harder to recover from than a skipped
+ * screen, so there is no reason to push.
+ */
+function Reminders({ weeklyGoal, onNext }: { weeklyGoal: number; onNext: () => void }) {
+  const [busy, setBusy] = useState(false);
+
+  const onAllow = useCallback(async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const granted = await ensureNotificationPermission();
+      if (granted) await scheduleDailyTrainingReminder();
+    } catch (error) {
+      // A failed reminder is not worth blocking onboarding over — the athlete
+      // can turn them on in Settings, and the session ahead matters more.
+      captureError(error);
+    } finally {
+      setBusy(false);
+      onNext();
+    }
+  }, [busy, onNext]);
+
+  return (
+    <View style={[styles.step, styles.stepPadded]}>
+      <Animated.View entering={FadeInUp.duration(420)} style={{ alignItems: 'center' }}>
+        <View style={[styles.valueEyebrow, { backgroundColor: palette.green50 }]}>
+          <Text style={styles.valueEyebrowText}>STAY ON TRACK</Text>
+        </View>
+        <Text style={[text.h1, { fontSize: 27, textAlign: 'center' }]}>
+          One nudge a day
+        </Text>
+        <Text style={[text.body, styles.centeredCopy]}>
+          A single reminder on your {weeklyGoal} training days. No streaks-are-dying panic,
+          no marketing.
+        </Text>
+      </Animated.View>
+
+      <View style={{ gap: 12, marginTop: 28 }}>
+        <PrimaryButton
+          label={busy ? 'Setting up…' : 'Turn on reminders'}
+          onPress={() => void onAllow()}
+          disabled={busy}
+        />
+        <Pressable onPress={onNext} accessibilityRole="button" disabled={busy} style={styles.tryNow}>
+          <Text style={font('extrabold', 14, { color: palette.green600 })}>Not now</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * What a rep has to look like to count.
+ *
+ * The value screen earlier says form is "checked live" in a single bullet;
+ * this is the one that says what that means in practice. It matters because
+ * the app will refuse to count reps an athlete believes they did, and finding
+ * that out mid-set feels like a bug rather than a standard.
+ */
+function HowRepsCount({ onNext }: { onNext: () => void }) {
+  return (
+    <View style={[styles.step, styles.stepPadded]}>
+      <Animated.View entering={FadeInUp.duration(420)} style={{ alignItems: 'center' }}>
+        <View style={[styles.valueEyebrow, { backgroundColor: palette.blue50 }]}>
+          <Text style={styles.valueEyebrowText}>WHAT COUNTS</Text>
+        </View>
+        <Text style={[text.h1, { fontSize: 27, textAlign: 'center' }]}>
+          Half reps don’t count
+        </Text>
+        <Text style={[text.body, styles.centeredCopy]}>
+          Depth, tempo and alignment all have to land. A rep that misses gets scored, not
+          silently dropped — so you know why.
+        </Text>
+      </Animated.View>
+
+      <View style={{ marginTop: 24, gap: 12 }}>
+        <RuleRow glyph="📐" title="Depth" sub="Full range, or it doesn’t register" />
+        <RuleRow glyph="⏱️" title="Tempo" sub="Too fast reads as a bounce" />
+        <RuleRow glyph="📏" title="Alignment" sub="Hips and back stay in line" />
+      </View>
+
+      <View style={{ marginTop: 'auto' }}>
+        <PrimaryButton label="Got it" onPress={onNext} />
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Where to put the phone.
+ *
+ * Every rep depends on the camera seeing a whole body, and the commonest way a
+ * first session fails is a phone propped too close or too low. Cheaper to say
+ * here than to let someone conclude the counter is broken.
+ */
+function SetUpYourSpace({ onNext }: { onNext: () => void }) {
+  return (
+    <View style={[styles.step, styles.stepPadded]}>
+      <Animated.View entering={FadeInUp.duration(420)} style={{ alignItems: 'center' }}>
+        <View style={[styles.valueEyebrow, { backgroundColor: palette.amber50 }]}>
+          <Text style={styles.valueEyebrowText}>BEFORE YOUR FIRST SET</Text>
+        </View>
+        <Text style={[text.h1, { fontSize: 27, textAlign: 'center' }]}>
+          Prop your phone up
+        </Text>
+        <Text style={[text.body, styles.centeredCopy]}>
+          The camera needs your whole body in frame. Two metres back and roughly waist high
+          is the sweet spot.
+        </Text>
+      </Animated.View>
+
+      <View style={{ marginTop: 24, gap: 12 }}>
+        <RuleRow glyph="📱" title="Lean it against something" sub="A wall, a bottle, a book" />
+        <RuleRow glyph="↔️" title="Step back" sub="About two metres from the phone" />
+        <RuleRow glyph="💡" title="Face the light" sub="A window behind you hides you" />
+      </View>
+
+      <View style={{ marginTop: 'auto' }}>
+        <PrimaryButton label="Ready" onPress={onNext} />
+      </View>
+    </View>
+  );
+}
+
+/** Shared row for the two explainer screens above. */
+function RuleRow({ glyph, title, sub }: { glyph: string; title: string; sub: string }) {
+  return (
+    <View style={styles.ruleRow}>
+      <Text style={{ fontSize: 22 }}>{glyph}</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={font('extrabold', 15, { color: palette.ink })}>{title}</Text>
+        <Text style={font('regular', 12.5, { color: palette.grey600 })}>{sub}</Text>
+      </View>
+    </View>
+  );
+}
+
 function YourAntidote({ blocker, onNext }: { blocker: Blocker | null; onNext: () => void }) {
   const answer = useMemo(() => blockerAnswer(blocker), [blocker]);
 
@@ -2670,6 +2836,16 @@ const styles = StyleSheet.create({
   },
   skip: { alignItems: 'center', marginTop: 12, padding: 8 },
   tryNow: { alignItems: 'center', marginTop: 12, paddingVertical: 4 },
+  ruleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    padding: 14,
+    borderRadius: radius['2xl'],
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
   goalRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 },
   goalIcon: {
     width: 42,

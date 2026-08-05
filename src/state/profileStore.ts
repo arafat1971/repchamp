@@ -18,6 +18,7 @@ import {
   type ProgrammeState,
 } from '@/domain/programme';
 import { normalizeUsername, sanitizeDisplayName } from '@/domain/input';
+import type { Blocker, FitnessLevel } from '@/domain/onboardingPlan';
 import { isoWeekKey } from '@/domain/weeklyChallenge';
 import { EXERCISES, type ExerciseId } from '@/vision/exercises';
 import { zustandStorage } from '@/lib/storage';
@@ -50,6 +51,20 @@ export interface ProfileState {
   avatarUri: string | null;
   /** Weekly training-days goal picked during onboarding. */
   weeklyGoal: number;
+  /**
+   * Self-reported starting level and main obstacle, from onboarding.
+   *
+   * Kept because the app asks for them. They used to shape a few onboarding
+   * screens and then be dropped on the floor at `completeOnboarding`, which
+   * meant three questions whose answers stopped mattering the moment the
+   * athlete finished answering them. `firstWeekTarget` already takes a level;
+   * it just never had one to take.
+   *
+   * Null for anyone onboarded before this was stored, so every read has to
+   * tolerate it rather than assume an answer exists.
+   */
+  fitnessLevel: FitnessLevel | null;
+  blocker: Blocker | null;
   totalXp: number;
   sessions: SessionSummary[];
   /** Best single-set rep count per exercise, for the Train roadmap. */
@@ -69,7 +84,13 @@ export interface ProfileState {
    */
   pairingBonusClaimed: boolean;
 
-  completeOnboarding: (input: { username: string; weeklyGoal: number; avatarUri: string | null }) => void;
+  completeOnboarding: (input: {
+    username: string;
+    weeklyGoal: number;
+    avatarUri: string | null;
+    fitnessLevel?: FitnessLevel | null;
+    blocker?: Blocker | null;
+  }) => void;
   setUsername: (username: string) => void;
   setAvatar: (uri: string | null) => void;
   setWeeklyGoal: (days: number) => void;
@@ -91,6 +112,8 @@ const initialState = {
   displayName: 'Champion',
   avatarUri: null as string | null,
   weeklyGoal: 4,
+  fitnessLevel: null as FitnessLevel | null,
+  blocker: null as Blocker | null,
   totalXp: 0,
   sessions: [] as SessionSummary[],
   // Derived from the exercise registry so it stays complete as the library grows,
@@ -108,7 +131,7 @@ export const useProfileStore = create<ProfileState>()(
     (set) => ({
       ...initialState,
 
-      completeOnboarding: ({ username, weeklyGoal, avatarUri }) => {
+      completeOnboarding: ({ username, weeklyGoal, avatarUri, fitnessLevel, blocker }) => {
         const u = normalizeUsername(username) || 'champion';
         return set({
           onboarded: true,
@@ -116,6 +139,8 @@ export const useProfileStore = create<ProfileState>()(
           displayName: sanitizeDisplayName(u),
           weeklyGoal,
           avatarUri,
+          fitnessLevel: fitnessLevel ?? null,
+          blocker: blocker ?? null,
         });
       },
 

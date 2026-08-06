@@ -86,8 +86,12 @@ common cause of both rejections and refund complaints.
 | Feature graphic | `store/feature-graphic.png` |
 | Phone screenshots | `store/screenshots/*.png` |
 
-Two that are easy to get wrong:
+Three that are easy to get wrong:
 
+- **Advertising ID** — answer **No**. Saying yes blocks the release, because
+  the manifest has no `AD_ID` permission and Play flags the disagreement. No
+  is also true: there are no ad SDKs, and analytics identifies athletes by
+  their Firebase uid. Evidence is in `DATA_SAFETY.md`.
 - **Data safety** — if you submitted this before the duel action-shot feature
   was removed, submit it again. The old answers overstate what is collected.
 - **Screenshots** — upload the composited files, not raw captures. Play

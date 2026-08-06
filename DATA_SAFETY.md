@@ -102,6 +102,38 @@ purpose + optionality as noted.
 
 ---
 
+## Advertising ID — answer **No**
+
+Play Console → **App content → Advertising ID**.
+
+Answering yes here (the defensive instinct) produces a release-blocking error,
+because the declaration then disagrees with the manifest:
+
+> Your advertising ID declaration says that your app uses advertising ID. A
+> manifest file in one of your active artifacts doesn't include the
+> `com.google.android.gms.permission.AD_ID` permission.
+
+**No** is also the truthful answer. Checked 2026-08-06 against the shipping
+bundle, not from memory:
+
+- No AdMob, Facebook SDK, AppsFlyer or Adjust in `package.json`
+- No `firebase-analytics`, which is the usual way `AD_ID` arrives without
+  anyone choosing it
+- PostHog identifies athletes by their Firebase auth uid (`src/lib/analytics.ts`),
+  never a device advertising identifier
+- Sentry is crash reporting and does not request it
+- `AndroidManifest.xml` inside the built AAB contains no `AD_ID` at all
+
+Do **not** fix this by adding the permission. That would request access to an
+identifier the app never reads, and it contradicts the "no advertising or
+marketing" answers above.
+
+Same warning also notes release-blocking errors were switched off. Turn them
+back on once the declaration is corrected — they exist to catch precisely this
+kind of mismatch before a release ships rather than after.
+
+---
+
 ## Privacy policy URL (required field)
 `https://repchamp.web.app/privacy`
 

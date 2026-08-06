@@ -1,4 +1,4 @@
-# Release notes — 2.0.0 (versionCode 2)
+# Release notes — 2.0.0 (versionCode 9)
 
 ## For Play Console
 
@@ -12,6 +12,7 @@ Faster, cleaner, and easier to start a set.
   daily challenge, or a duel waiting on your reply — and shows a badge when
   something needs you.
 • Swipe the home banner to browse challenges.
+• Invite links now open straight in the app instead of a browser tab.
 • Profile pictures now sync properly across devices.
 • Sharper spacing, larger tap targets and clearer text throughout.
 • Fixed missed reps during fast sets, and a crash that could end a session early.
@@ -68,13 +69,32 @@ Grouped by what a reviewer or tester would notice.
 
 ---
 
+## Added in versionCode 9
+
+- **Invite links open the app.** `assetlinks.json` had been served from
+  repchamp.web.app all along, but `app.json` declared no `intentFilters`, so the
+  app never claimed the domain and every https invite opened a browser tab. Both
+  `/couple/join` and `/@username` now carry `autoVerify`.
+- **`/@username` has a route at last.** The website deep-linked to
+  `repchamp://modal/add-friend?u=…` while the app had nothing matching that path.
+- **One support address.** `repchampapp@gmail.com` is gone from the site; the app,
+  privacy policy and terms all point at the same mailbox.
+- **Data Safety answers corrected** — they still described Firebase Storage and a
+  `duelPhotos/` sweep, neither of which exists since the avatar migration.
+  Declarations are unchanged (Photos Yes, Videos No); only the substantiation is.
+
 ## Before promoting past internal testing
 
-1. **RevenueCat products are not registered**, so the paywall shows no plans at
-   all. A reviewer who opens it sees an empty screen. See `LAUNCH_BLOCKERS.md`.
-2. **`app.json` still names the app "RepChamp"** while the listing is
-   "Fitness Duel: RepChamp". Worth aligning if you want the launcher label to
-   match the store.
-3. **This build has never run on a device.** It contains the avatar fix and its
-   new native dependency; the local rebuild that would have proven it was stopped
-   before finishing. Internal testing is the cheap place to find that out.
+1. ~~RevenueCat products are not registered~~ — **done 2026-08-02.** Products are
+   live and the SDK finds the offering on device. The paywall has still never been
+   *seen* rendering with prices; that is item 4 in `TEST_BEFORE_LAUNCH.md`.
+2. ~~`app.json` still names the app "RepChamp"~~ — **done.** It is
+   "Fitness Duel: RepChamp", matching the listing.
+3. **This build has never run on a device.** Everything in `TEST_BEFORE_LAUNCH.md`
+   is still unverified on real hardware — rep counting most of all. Internal
+   testing is the cheap place to find that out.
+4. **App Links only verify from a Play install.** A sideloaded AAB will not
+   trigger Android's domain verification, so test invite links from the internal
+   track, not a local install. Confirm with:
+   `adb shell pm get-app-links gg.repchamp.app` — the domain should read
+   `verified`.

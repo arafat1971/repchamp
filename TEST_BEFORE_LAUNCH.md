@@ -76,6 +76,55 @@ These were broken until recently and the fixes are unverified.
 
 ---
 
+## 3b. Invite links open the app, not a browser  ⬜
+
+New in versionCode 9, and **only testable from a Play install** — Android runs
+domain verification against the installer, so a sideloaded build will not
+verify no matter how correct the manifest is.
+
+First confirm Android accepted the domain:
+
+```bash
+adb shell pm get-app-links gg.repchamp.app
+```
+
+`repchamp.web.app` should read **verified**. If it says `none` or
+`legacy_failure`, the app is installed but unverified — links will open the
+browser and the checks below cannot pass.
+
+Then, from a chat app or email (not by typing them into Chrome's address bar,
+which can bypass the handler):
+
+- **A couple invite** — `https://repchamp.web.app/couple/join?code=ABC234`
+  should open the app straight into pairing, no browser tab.
+- **A friend invite** — `https://repchamp.web.app/@yourhandle` should open the
+  app on Add Friend with the username already in the search box.
+
+If either opens the browser instead, the page still offers "Open in RepChamp",
+so the loop is not broken — it is the verification that failed, and
+`assetlinks.json` versus the installed signing key is the first thing to check.
+
+> **The likeliest failure, worth pre-empting.** Verification compares the
+> installed APK's signing certificate against the fingerprints in
+> `website/.well-known/assetlinks.json`. Play re-signs uploads with the **app
+> signing key**, which is usually *not* the upload key EAS holds — so the
+> fingerprint that matters is the one Play shows, not the one that built the
+> AAB. Check they agree before blaming the manifest:
+>
+> Play Console → Test and release → **Setup → App signing** → copy the
+> **SHA-256 of the app signing key**, and confirm it appears in
+> `assetlinks.json`. The file currently lists three fingerprints; if Play's is
+> not among them, add it and redeploy hosting:
+>
+> ```bash
+> firebase deploy --only hosting
+> ```
+>
+> Verification is retried on install, so a corrected file means reinstalling the
+> app rather than waiting.
+
+---
+
 ## 4. A real purchase  ⬜
 
 Only possible from a Play track with a licence-tester account.

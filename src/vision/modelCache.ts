@@ -1,3 +1,4 @@
+import { Asset } from 'expo-asset';
 import { Platform } from 'react-native';
 import { loadTensorflowModel } from 'react-native-fast-tflite';
 import type { ModelSource, TensorflowModelDelegate, TfliteModel } from 'react-native-fast-tflite';
@@ -21,19 +22,14 @@ export type AcceleratedModel =
 /**
  * The MoveNet model, bundled as an app asset.
  *
- * This `require` depends on a build setting that is easy to turn back on
- * without realising what it breaks: `enableShrinkResourcesInReleaseBuilds` is
- * **false** in app.json, deliberately.
+ * Never passed to `loadTensorflowModel` directly — `resolveModelSource` turns
+ * it into a `file://` URL first. The library resolves a `require`d asset to a
+ * bare Android resource name in release builds, which the native side then
+ * fails to parse as a URL. See the note there.
  *
- * With shrinking on, Android renames and relocates the file — it shipped as
- * `res/LC.tflite` while the JS still resolved it to `assets_models_movenet`.
- * `loadAsset` then received a name that resolved to nothing and never
- * returned: no error, no rejection, just a promise that never settled. On
- * device that read as "Rep counting couldn't start on this device", and it
- * only happened in release, because Metro serves the model over HTTP in dev.
- *
- * If rep counting ever breaks in release but works in dev, check that setting
- * before anything else.
+ * The file ships as `res/LC.tflite` inside the APK. That renaming is normal
+ * Android resource packaging and is *not* the bug — an earlier reading of this
+ * blamed `shrinkResources` for it, wrongly.
  */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 export const POSE_MODEL_SOURCE: ModelSource = require('../../assets/models/movenet.tflite');
@@ -114,7 +110,38 @@ function loadWithTimeout(
   });
 }
 
-async function loadWithFallback(source: ModelSource): Promise<AcceleratedModel> {
+/**
+ * Turn the bundled `require` into something the native loader can open.
+ *
+ * `loadTensorflowModel` hands a `require`d asset to `Image.resolveAssetSource`
+ * and passes the result to the native side, which calls `new URL(...)` on it.
+ * In dev that is a Metro URL and works. In a release build it is a bare
+ * Android resource name — `assets_models_movenet` — and the native side threw
+ *
+ *     java.net.MalformedURLException: no protocol: assets_models_movenet
+ *
+ * which surfaced as "Rep counting couldn't start on this device" on every
+ * release build, while dev was fine. `Asset.downloadAsync()` resolves the
+ * bundled resource to a real `file://` path, which is the other source shape
+ * the library documents.
+ *
+ * Falls back to the raw source if resolution fails, so a future library
+ * version that handles this itself is not broken by this workaround.
+ */
+async function resolveModelSource(source: ModelSource): Promise<ModelSource> {
+  if (typeof source !== 'number') return source;
+  try {
+    const asset = Asset.fromModule(source);
+    await asset.downloadAsync();
+    const uri = asset.localUri ?? asset.uri;
+    return uri ? { url: uri } : source;
+  } catch {
+    return source;
+  }
+}
+
+async function loadWithFallback(rawSource: ModelSource): Promise<AcceleratedModel> {
+  const source = await resolveModelSource(rawSource);
   const attempts: TensorflowModelDelegate[][] =
     PREFERRED_DELEGATES.length > 0 ? [PREFERRED_DELEGATES, []] : [[]];
   let lastError: Error | undefined;

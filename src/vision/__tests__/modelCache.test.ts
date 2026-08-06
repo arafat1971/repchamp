@@ -13,16 +13,34 @@ const state = {
   behaviour: {} as Record<string, 'resolve' | 'reject' | 'hang'>,
   /** Delegate lists passed to the loader, in order. */
   calls: [] as string[],
+  /** Sources the loader was handed, so the resolved shape can be asserted. */
+  sources: [] as unknown[],
 };
+
+/*
+ * Stands in for the asset resolver. The real one needs a native module; what
+ * matters here is only that a numeric `require` id becomes a `file://` URL,
+ * because passing the id through unchanged is the bug this guards against.
+ */
+jest.mock('expo-asset', () => ({
+  Asset: {
+    fromModule: () => ({
+      downloadAsync: async () => undefined,
+      localUri: 'file:///data/app/movenet.tflite',
+      uri: 'file:///data/app/movenet.tflite',
+    }),
+  },
+}));
 
 jest.mock('react-native', () => ({
   Platform: { select: (o: Record<string, unknown>) => o.android },
 }));
 
 jest.mock('react-native-fast-tflite', () => ({
-  loadTensorflowModel: jest.fn((_source: unknown, delegates: string[]) => {
+  loadTensorflowModel: jest.fn((source: unknown, delegates: string[]) => {
     const key = delegates[0] ?? '';
     state.calls.push(key);
+    state.sources.push(source);
     const mode = state.behaviour[key] ?? 'resolve';
     if (mode === 'resolve') return Promise.resolve({ __model: key });
     if (mode === 'reject') return Promise.reject(new Error(`${key} unavailable`));
@@ -38,6 +56,7 @@ const SOURCE = 0 as never;
 beforeEach(() => {
   state.behaviour = {};
   state.calls = [];
+  state.sources = [];
   resetPoseModelForTests();
   jest.useFakeTimers();
 });
@@ -100,5 +119,41 @@ describe('delegate fallback', () => {
     await jest.advanceTimersByTimeAsync(18_000); // CPU's full 24s elapses
     const result = await promise;
     expect(result.state).toBe('error');
+  });
+});
+
+/*
+ * The bug that actually broke rep counting on device, and the one the delegate
+ * work above was chasing without finding.
+ *
+ * `loadTensorflowModel` resolves a `require`d asset through
+ * `Image.resolveAssetSource`. In dev that yields a Metro URL and works; in a
+ * release build it yields a bare Android resource name, and the native side —
+ * which calls `new URL(...)` on it — threw:
+ *
+ *     java.net.MalformedURLException: no protocol: assets_models_movenet
+ *
+ * Every delegate failed identically, so it looked like a hardware problem
+ * rather than a source-shape one. Resolving to a `file://` URL first is the
+ * fix, and passing the raw numeric id through is the regression.
+ */
+describe('model source resolution', () => {
+  it('hands the loader a file URL, never the raw require id', async () => {
+    await preloadPoseModel(SOURCE);
+
+    expect(state.sources.length).toBeGreaterThan(0);
+    for (const source of state.sources) {
+      expect(typeof source).not.toBe('number');
+      expect(source).toEqual({ url: 'file:///data/app/movenet.tflite' });
+    }
+  });
+
+  it('resolves once, not per delegate attempt', async () => {
+    state.behaviour['android-gpu'] = 'reject';
+    await preloadPoseModel(SOURCE);
+
+    // Both attempts get the same resolved source object.
+    expect(state.calls).toEqual(['android-gpu', '']);
+    expect(state.sources[0]).toEqual(state.sources[1]);
   });
 });

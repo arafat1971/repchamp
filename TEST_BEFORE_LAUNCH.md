@@ -1,7 +1,7 @@
 # Test before launch
 
 What to check on the internal-testing build, in the order that finds problems
-soonest. Written 2026-08-06 against `store/aab/repchamp-test-release.aab`.
+soonest. Written 2026-08-06, updated for versionCode 9, against `store/aab/repchamp-2.0.0-vc9.aab`.
 
 Nothing here is a formality. Every item is something that has **never been
 seen working on real hardware** — the code is tested and the rules are
@@ -12,7 +12,7 @@ deployed, but no human has watched any of it run on a phone.
 ## Getting it on a device
 
 1. Play Console → **Testing → Internal testing → Create new release**
-2. Upload `store/aab/repchamp-test-release.aab`
+2. Upload `store/aab/repchamp-2.0.0-vc9.aab`
 3. Release notes: paste from `RELEASE_NOTES.md`
 4. **Testers** tab → add your own Google account, plus anyone helping
 5. **Setup → Licence testing** → add the same accounts

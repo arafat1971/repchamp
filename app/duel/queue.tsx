@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, BackHandler, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
   FadeIn,
@@ -43,6 +44,7 @@ const AI_SKIP_FROM_SEC = 5;
  */
 export default function QueueScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const self = useSelfPlayer();
   const seed = usePhantomSeed();
   const params = useLocalSearchParams<{ exercise?: string; duration?: string }>();
@@ -344,7 +346,12 @@ export default function QueueScreen() {
   }
 
   return (
-    <Screen>
+    /* Fixed height, not a scroll view: there is nothing to scroll, and inside
+       one a flex spacer collapses to nothing — which is why the card and
+       footer bunched at the top with a screenful of blank beneath them.
+       `contentStyle` also drops the 148pt bottom padding Screen reserves for
+       the Train FAB, which does not exist on a modal. */
+    <Screen scroll={false} contentStyle={{ paddingBottom: insets.bottom + 20 }}>
       <ModalHeader title="Quick match" onBack={cancelSearch} />
 
       <Animated.View entering={FadeInDown.duration(320)} style={styles.stage}>
@@ -406,6 +413,12 @@ export default function QueueScreen() {
           </Text>
         </View>
       </Animated.View>
+
+      {/* Pushes the footer to the bottom of the screen instead of letting it
+          sit under the card with a screenful of empty space beneath. Waiting
+          for an opponent is a whole-screen moment; stacking everything into
+          the top third made it read as an unfinished list. */}
+      <View style={styles.spacer} />
 
       <View style={styles.footer}>
         {phase === 'expand' ? (
@@ -594,7 +607,10 @@ const styles = StyleSheet.create({
   readyDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: palette.green500 },
   readyText: font('bold', 11, { color: palette.green700 }),
   selfName: { ...font('extrabold', 12, { color: palette.ink }), flexShrink: 1 },
-  footer: { marginTop: 20, gap: 4 },
+  /* Takes whatever height is left over, so the card sits high and the footer
+     sits low rather than both bunching at the top. */
+  spacer: { flex: 1, minHeight: 12 },
+  footer: { marginTop: 0, gap: 4, paddingBottom: 8 },
   footerHint: {
     ...font('semibold', 12.5, { color: palette.grey600 }),
     textAlign: 'center',

@@ -18,6 +18,23 @@ export type AcceleratedModel =
   | { state: 'loaded'; model: TfliteModel; delegate: string }
   | { state: 'error'; error: Error };
 
+/**
+ * The MoveNet model, bundled as an app asset.
+ *
+ * This `require` depends on a build setting that is easy to turn back on
+ * without realising what it breaks: `enableShrinkResourcesInReleaseBuilds` is
+ * **false** in app.json, deliberately.
+ *
+ * With shrinking on, Android renames and relocates the file — it shipped as
+ * `res/LC.tflite` while the JS still resolved it to `assets_models_movenet`.
+ * `loadAsset` then received a name that resolved to nothing and never
+ * returned: no error, no rejection, just a promise that never settled. On
+ * device that read as "Rep counting couldn't start on this device", and it
+ * only happened in release, because Metro serves the model over HTTP in dev.
+ *
+ * If rep counting ever breaks in release but works in dev, check that setting
+ * before anything else.
+ */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 export const POSE_MODEL_SOURCE: ModelSource = require('../../assets/models/movenet.tflite');
 

@@ -43,6 +43,11 @@
               "scheme": "https",
               "host": "repchamp.web.app",
               "pathPrefix": "/couple/join"
+            },
+            {
+              "scheme": "https",
+              "host": "repchamp.web.app",
+              "pathPrefix": "/@"
             }
           ],
           "category": ["BROWSABLE", "DEFAULT"]

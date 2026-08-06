@@ -200,6 +200,11 @@ export default function RootLayout() {
                 app/duel/_layout. Card presentation so Cancel owns the exit. */}
             <Stack.Screen name="duel" options={{ animation: 'slide_from_bottom' }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+            {/* `/@username` friend invites. Declared last and rendered without
+                animation because it only ever redirects — it is a landing pad for
+                the deep link, never a screen anyone should see slide in. Static
+                routes above still win the match, so this cannot shadow them. */}
+            <Stack.Screen name="[handle]" options={{ animation: 'none' }} />
           </Stack>
           <DialogHost />
         </SafeAreaProvider>

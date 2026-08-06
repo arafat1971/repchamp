@@ -125,12 +125,41 @@ check the things that have never been seen working:
 
 ## 6. Promote to production  ⬜
 
-Once the above passes: Play Console → Internal testing → **Promote release**
-→ Production. Set countries and pricing (the app is free with an in-app
-subscription).
+Play Console → Internal testing → **Promote release** → Production. Promoting
+reuses the exact bundle you tested; there is no rebuild and no second upload,
+which is the whole reason for testing internally first.
 
-Consider a **staged rollout** (start at 20%). It lets you halt on a crash
-spike instead of shipping a bad build to everyone at once.
+Production asks for things internal testing did not. Play will not let the
+release through until each is answered:
+
+- **Countries and regions** — pick where the app is available. Start narrow if
+  you want; adding countries later is trivial, and support in a language you
+  do not read is not.
+- **Pricing** — the app itself is **free**; revenue comes from the `rc_pro_monthly`
+  and `rc_pro_annual` subscriptions. Do not mark the app paid.
+- **Content rating** — the questionnaire from `CONTENT_RATING.md`. Must be
+  submitted, not just filled in.
+- **Target audience** — 18+, or 16+ at the youngest. `CONTENT_RATING.md`
+  explains why a child band would drag the app into Play Families policy.
+- **Data safety** — submitted, matching `DATA_SAFETY.md`. Re-submit if it was
+  filled in before the duel action-shot feature was removed.
+- **Advertising ID → No** — the one that actively blocks a release today.
+- **App access** — if any part needs a login to review, give Play test
+  credentials. Quick match and duels work signed-in; a reviewer who cannot get
+  past onboarding will reject the build.
+
+### Roll out in stages
+
+Start at **10–20%**, not 100%. Play lets you raise the percentage over days
+and halt entirely if crash-free sessions drop.
+
+That matters more than usual here. Rep counting failed in every release build
+until 2026-08-06 and the cause — `MalformedURLException` on the model path —
+was invisible in dev. A staged rollout is what turns "some users hit something
+we never saw" into a paused release rather than a one-star average.
+
+Review takes days for production against hours for internal testing, so leave
+the time.
 
 ---
 

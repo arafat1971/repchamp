@@ -6,9 +6,11 @@
   "hosting": {
     "site": "repchamp",
     "public": "website",
+    "_comment": "Do not re-add '**/.*' to hosting.ignore — it excludes .well-known/assetlinks.json, which Android App Links verification requires. Dropping it silently un-verifies the app and sends invite links to the browser.",
     "ignore": [
       "firebase.json",
-      "**/.*",
+      "**/.git/**",
+      "**/.DS_Store",
       "**/node_modules/**"
     ],
     "cleanUrls": true,

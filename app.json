@@ -33,7 +33,21 @@
         "backgroundColor": "#8AC53E",
         "foregroundImage": "./assets/adaptive-icon.png"
       },
-      "backgroundColor": "#F6F7F5"
+      "backgroundColor": "#F6F7F5",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "repchamp.web.app",
+              "pathPrefix": "/couple/join"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "plugins": [
       "expo-router",

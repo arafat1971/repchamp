@@ -241,3 +241,53 @@ describe('RepCounter — full-body stretch (mobility)', () => {
     expect(counter.state.reps).toBe(0);
   });
 });
+
+/*
+ * How late the number moves.
+ *
+ * A rep books the moment smoothed depth falls back under `upThreshold`, so
+ * that threshold decides how much of the ascent the athlete watches before the
+ * count catches up. At 0.30 it waited out almost the whole way back to
+ * lockout, which is why an otherwise accurate counter felt slow on a brisk
+ * set. These pin the behaviour so the value cannot drift back down without
+ * someone noticing what it costs.
+ */
+describe('RepCounter — counting latency', () => {
+  /** Fraction of a rep cycle elapsed when the count fired (0 = bottom start). */
+  function bookedAtFraction(counter: RepCounter, poses: Pose[]): number | null {
+    for (let i = 0; i < poses.length; i++) {
+      if (counter.push(poses[i]!).completedRep) return i / (poses.length - 1);
+    }
+    return null;
+  }
+
+  it('books a push-up before the athlete is back at lockout', () => {
+    const at = bookedAtFraction(new RepCounter(pushUp), pushUpSet(1));
+    expect(at).not.toBeNull();
+    // The cycle is bottom-at-halfway, so anything under 0.9 means the count
+    // landed during the ascent rather than after it finished.
+    expect(at!).toBeLessThan(0.9);
+  });
+
+  it('books a squat before the athlete is back at standing', () => {
+    const poses = repCycle(squatPose, { top: 172, bottom: 70, durationMs: 1400 });
+    const at = bookedAtFraction(new RepCounter(squat), poses);
+    expect(at).not.toBeNull();
+    expect(at!).toBeLessThan(0.9);
+  });
+
+  /*
+   * The guard that makes an earlier threshold safe. Booking sooner means the
+   * counter is watching for a new descent while the athlete is still moving
+   * up, so without the refractory window a wobble at the top would read as a
+   * second rep.
+   */
+  it('does not double-count a brisk set once the threshold books early', () => {
+    const counter = new RepCounter(pushUp);
+    // 900ms per rep — brisk but real. Below roughly 800ms the One-Euro filter
+    // cannot track the descent to 0.70 at all and nothing is counted, which is
+    // a separate limit from this one and predates the threshold change.
+    feed(counter, pushUpSet(5, { durationMs: 900 }));
+    expect(counter.state.reps).toBe(5);
+  });
+});

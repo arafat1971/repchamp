@@ -41,7 +41,23 @@ export interface ExerciseDefinition {
   requiredKeypoints: readonly KeypointName[];
   /** Depth at which the descent is considered committed. */
   downThreshold: number;
-  /** Depth the athlete must return above to complete the rep. */
+  /**
+   * Depth the athlete must return *below* to complete the rep.
+   *
+   * Depth runs 0 at the top of the movement to 1 at the bottom, so returning
+   * to the top means the value falling back under this number. (The comment
+   * here used to say "return above", which reads the scale backwards.)
+   *
+   * This is the single biggest lever on how late a rep feels. The count fires
+   * the moment depth crosses it, so a low value waits out most of the ascent
+   * before the number moves — the athlete is already back at lockout. Raising
+   * it books the rep earlier, closer to where the effort actually happened.
+   *
+   * What stops that becoming a double-count is the refractory window in
+   * `RepCounter` (60% of `minRepDurationMs`), which ignores a fresh descent
+   * for a beat after every counted rep. Raise this without that guard and a
+   * dip at the top counts twice.
+   */
   upThreshold: number;
   /** Peak depth at or above which a rep is graded "full depth" rather than "partial". */
   fullDepthThreshold: number;
@@ -101,7 +117,13 @@ export const pushUp: ExerciseDefinition = {
   hudLabel: 'PUSH-UP',
   requiredKeypoints: PUSH_REQUIRED,
   downThreshold: 0.7,
-  upThreshold: 0.3,
+  /* 0.42, not 0.30. At 0.30 the count waited out almost the whole ascent, so
+     on a brisk set the number always trailed the body by most of a rep — the
+     commonest complaint about a counter that is otherwise accurate. The 240ms
+     refractory (0.6 x minRepDurationMs) is what keeps the earlier crossing
+     from double-counting a dip at the top. Still well clear of the 0.70
+     descent, so a rep cannot open and close on sensor noise. */
+  upThreshold: 0.42,
   fullDepthThreshold: 0.78,
   minRepDurationMs: 400,
   metricLabels: ['Range of motion', 'Back alignment', 'Tempo consistency'],
@@ -173,7 +195,10 @@ export const squat: ExerciseDefinition = {
   hudLabel: 'SQUAT',
   requiredKeypoints: SQUAT_REQUIRED,
   downThreshold: 0.68,
-  upThreshold: 0.28,
+  /* Raised with push-ups, for the same reason — see the note there. A shade
+     lower than 0.42 because a squat's ascent is slower, so the same absolute
+     depth sits proportionally later in the movement. */
+  upThreshold: 0.4,
   fullDepthThreshold: 0.75,
   minRepDurationMs: 450,
   metricLabels: ['Squat depth', 'Knee alignment', 'Tempo consistency'],

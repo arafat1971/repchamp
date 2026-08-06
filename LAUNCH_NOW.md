@@ -88,6 +88,12 @@ common cause of both rejections and refund complaints.
 
 Three that are easy to get wrong:
 
+- **"No deobfuscation file"** — ignore it. Play shows this on any bundle
+  without a `mapping.txt`, and there is none because R8 is off, so nothing is
+  obfuscated. Informational, not a blocker. Leave minification off until after
+  a clean test round: R8 strips code it believes unused, and this app leans on
+  reflection through Firebase, RevenueCat, Sentry and the TFLite Nitro
+  modules — a missing keep rule is a crash that only shows up in release.
 - **Advertising ID** — answer **No**. Saying yes blocks the release, because
   the manifest has no `AD_ID` permission and Play flags the disagreement. No
   is also true: there are no ad SDKs, and analytics identifies athletes by

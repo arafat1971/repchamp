@@ -152,10 +152,19 @@ nothing anywhere names the fingerprint it wanted — the only way to find it is
 to pull the APK and read its certificate with `apksigner` (`keytool` cannot:
 a v2/v3-signed APK has no `META-INF` certificate to read).
 
-### 7. (Optional, recommended) real Sentry DSN
-Replace the `sentryDsn` placeholder in `app.json` with your project's DSN so you get
-production crash reports. Builds already pass `SENTRY_DISABLE_AUTO_UPLOAD=true` via
-`eas.json`, so a missing org won't fail the build.
+### 7. Sentry DSN — ✅ done
+`extra.sentryDsn` in `app.json` is a real ingest URL, not the placeholder this
+step used to warn about. Crashes will reach the project.
+
+Source-map upload stays off: all three EAS profiles set
+`SENTRY_DISABLE_AUTO_UPLOAD=true`, and `package.json` does the same for local
+`ios`/`android` runs, because without an org configured the upload step fails
+*after* a successful compile. Stack traces are still readable — the app does
+not enable R8, so nothing is minified.
+
+That last point also answers Play's "no deobfuscation file" notice on upload:
+there is no mapping file because there is no obfuscation. It is informational
+and does not block a release.
 
 ---
 

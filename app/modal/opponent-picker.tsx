@@ -94,9 +94,37 @@ export default function OpponentPickerScreen() {
         </LinearGradient>
       </PressableScale>
 
-      {/* The in-person case: the rival is standing right here, so matchmaking
-          and the friends list are both the long way round. One shows a code,
-          the other scans it. */}
+      {/* The in-person case, both halves of it. Scanning shipped without a way
+          to *be* scanned: every route to /duel/new set either `queue` or a
+          `target`, so no open duel was ever created and the QR on the waiting
+          room screen was unreachable. One phone shows, the other scans. */}
+      <PressableScale
+        onPress={() => router.replace({ pathname: '/duel/new', params: { role: 'host' } })}
+        accessibilityRole="button"
+        accessibilityLabel="Show a duel code for a rival to scan"
+        style={styles.scanRow}
+      >
+        <View style={styles.scanIcon}>
+          <Svg width={20} height={20} viewBox="0 0 24 24">
+            {/* A QR-ish glyph: three finder squares and a scatter of modules. */}
+            <Path
+              d="M4 4h5v5H4zM15 4h5v5h-5zM4 15h5v5H4z"
+              stroke={palette.green700}
+              strokeWidth={2}
+              fill="none"
+            />
+            <Path d="M15 15h2v2h-2zM18 18h2v2h-2z" fill={palette.green700} />
+          </Svg>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={font('extrabold', 15, { color: palette.ink })}>Show my code</Text>
+          <Text style={font('semibold', 11, { color: palette.slate500 })}>
+            They scan it and you both start
+          </Text>
+        </View>
+        <Text style={{ color: palette.slate500, fontSize: 20 }}>›</Text>
+      </PressableScale>
+
       <PressableScale
         onPress={() => router.push('/modal/duel-scan')}
         accessibilityRole="button"

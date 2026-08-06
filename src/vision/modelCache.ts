@@ -74,6 +74,12 @@ function loadWithTimeout(
       reject(new Error(`"${delegates[0] ?? 'cpu'}" delegate timed out after ${ms}ms`));
     }, ms);
 
+    // Marks the moment the native call is handed off. Paired with the warn in
+    // `loadWithFallback`, this is what separates "never reached the native
+    // module" from "reached it and it never answered" — the two failures look
+    // identical from the session screen and need opposite fixes.
+    console.warn(`[RepChamp] loading pose model via "${delegates[0] ?? 'cpu'}" (${ms}ms budget)`);
+
     loadTensorflowModel(source, delegates).then(
       (model) => {
         if (settled) return;
@@ -110,16 +116,30 @@ async function loadWithFallback(source: ModelSource): Promise<AcceleratedModel> 
       return { state: 'loaded', model, delegate: delegates[0] ?? 'cpu' };
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
-      if (__DEV__ && delegates.length > 0) {
-        console.warn(
-          `[RepChamp] "${delegates[0]}" delegate unavailable, retrying on CPU:`,
-          lastError.message,
-        );
-      }
+      /*
+       * Logged in release too, not just __DEV__.
+       *
+       * This used to be dev-only, which made the failure undiagnosable on the
+       * device where it actually happens: on a Pixel 7a the session screen
+       * said "rep counting couldn't start" and logcat showed the model
+       * beginning to load and then nothing at all — no delegate error, no
+       * timeout, no completion. There was nothing wrong with the logging
+       * logic; it simply was not running in the build under test.
+       *
+       * A console.warn costs nothing per session — this runs at most twice per
+       * app launch — and it is the only way to tell "the GPU delegate is
+       * unavailable" apart from "the native module never answered", which
+       * need completely different fixes.
+       */
+      console.warn(
+        `[RepChamp] "${delegates[0] ?? 'cpu'}" load failed: ${lastError.message}`,
+      );
     }
   }
 
-  return { state: 'error', error: lastError ?? new Error('Model failed to load') };
+  const failure = lastError ?? new Error('Model failed to load');
+  console.warn(`[RepChamp] pose model unavailable — every delegate failed: ${failure.message}`);
+  return { state: 'error', error: failure };
 }
 
 /**

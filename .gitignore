@@ -34,6 +34,7 @@ yarn-error.*
 .env
 .env.*
 !.env.example
+!.env.claude.example
 .env*.local
 
 # Firebase — these hold REAL project credentials; excluded from the public repo.

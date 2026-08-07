@@ -443,6 +443,12 @@ service cloud.firestore {
       allow read: if isAuthed();
       allow create, update, delete: if isOwner(ticketUid);
 
+      // A *foreign* claimer may flip someone's waiting ticket to `matched`, and
+      // may move nothing else: `tryPair` writes exactly status + duelId on the
+      // ticket it claims. The expiry pair is pinned along with the identity
+      // fields because it decides both when the TTL service collects the ticket
+      // and whether `canPair` still considers it live — left free, a claimer
+      // could keep a rival's ticket alive indefinitely or expire it on the spot.
       allow update: if isAuthed()
         && request.auth.uid != ticketUid
         && resource.data.status == 'waiting'
@@ -450,6 +456,10 @@ service cloud.firestore {
         && request.resource.data.uid == resource.data.uid
         && request.resource.data.displayName == resource.data.displayName
         && request.resource.data.level == resource.data.level
+        && (!('expiresAt' in resource.data)
+            || request.resource.data.expiresAt == resource.data.expiresAt)
+        && (!('expiresAtTs' in resource.data)
+            || request.resource.data.expiresAtTs == resource.data.expiresAtTs)
         && request.resource.data.duelId is string
         && exists(/databases/$(database)/documents/duels/$(request.resource.data.duelId))
         && get(/databases/$(database)/documents/duels/$(request.resource.data.duelId)).data.hostUid

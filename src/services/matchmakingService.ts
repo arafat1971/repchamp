@@ -28,9 +28,11 @@ import { isFirebaseConfigured } from '@/lib/firebase';
 import {
   OPEN_MATCH_DURATION,
   OPEN_MATCH_EXERCISE,
+  TICKET_TTL_MS,
   type QueueTicket,
   buildMatchDuel,
   canPair,
+  isTicketExpired,
   makeTicket,
 } from '@/domain/matchmaking';
 import { isBlockedByMe } from '@/services/safetyService';
@@ -44,6 +46,28 @@ function queueCol() {
 
 function ticketDoc(uid: string) {
   return queueCol().doc(uid);
+}
+
+/**
+ * The pair of expiry fields written on every ticket.
+ *
+ * Two representations of one deadline, because they answer to different
+ * consumers. `expiresAt` is epoch ms and is what `canPair` / `isTicketExpired`
+ * read — the domain module is deliberately Firebase-free, so it cannot handle a
+ * Firestore type. `expiresAtTs` is the real `Timestamp` that the TTL policy
+ * declared in firestore.indexes.json reads.
+ *
+ * The type matters more than it looks: Firestore disables TTL *per document*
+ * when the named field holds anything other than a timestamp, and does so
+ * silently. Pointing the policy at the numeric field would have produced a
+ * config that deploys clean, reports healthy, and never deletes a thing.
+ */
+function ttlFields(expiresAt: number | undefined) {
+  const deadline = expiresAt ?? Date.now() + TICKET_TTL_MS;
+  return {
+    expiresAt: deadline,
+    expiresAtTs: firestore.Timestamp.fromMillis(deadline),
+  };
 }
 
 /** The athlete's identity when entering the queue. */
@@ -88,6 +112,7 @@ export async function enqueue(input: QueueInput): Promise<string | null> {
       const ticket = makeTicket(input);
       tx.set(ref, {
         ...ticket,
+        ...ttlFields(ticket.expiresAt),
         enqueuedAt: firestore.FieldValue.serverTimestamp(),
       });
       return null;
@@ -167,11 +192,20 @@ export async function tryPair(seeker: QueueInput): Promise<string | null> {
           createdAt: firestore.FieldValue.serverTimestamp(),
           startedAt: firestore.FieldValue.serverTimestamp(),
         });
+        // Only `status`/`duelId` move on the claimed ticket: its `expiresAt`
+        // rides along untouched, which both keeps the cross-user rule clause
+        // satisfied and leaves the TTL as a backstop if neither client gets to
+        // run `clearQueueTicket` after the duel.
         tx.update(candidateRef, { status: 'matched', duelId });
         tx.set(seekerRef, {
           ...guest,
           status: 'matched',
           duelId,
+          // Re-stamped rather than reusing the deadline `guest` was built with
+          // outside the transaction: a slow block-list scan or a transaction
+          // retry can put minutes between the two, and a `matched` ticket that
+          // expires early would be collected while its duel is still live.
+          ...ttlFields(Date.now() + TICKET_TTL_MS),
           enqueuedAt: firestore.FieldValue.serverTimestamp(),
         });
         return duelId;
@@ -290,6 +324,11 @@ export async function clearQueueTicket(uid: string): Promise<void> {
 /**
  * How many athletes are sitting in open matchmaking right now (excluding self).
  * Caps the scan so Home's activity pill stays cheap.
+ *
+ * Abandoned tickets are discounted for the same reason `canPair` refuses them:
+ * until the TTL service collects a ghost it still answers this query, and a pill
+ * promising waiting athletes who cannot be paired with is worse than one that
+ * says nobody is around.
  */
 export async function countWaitingTickets(excludeUid?: string, limit = 20): Promise<number> {
   if (!isFirebaseConfigured()) return 0;
@@ -299,7 +338,9 @@ export async function countWaitingTickets(excludeUid?: string, limit = 20): Prom
       .where('status', '==', 'waiting')
       .limit(limit)
       .get();
-    return snap.docs.filter((d) => d.id !== excludeUid).length;
+    return snap.docs.filter(
+      (d) => d.id !== excludeUid && !isTicketExpired(d.data() as QueueTicket),
+    ).length;
   } catch {
     return 0;
   }

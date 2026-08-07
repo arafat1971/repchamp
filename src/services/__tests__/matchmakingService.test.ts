@@ -10,12 +10,18 @@
  * `mock`-prefixed (the only out-of-scope access the hoist guard allows).
  */
 
-import type { QueueTicket } from '../../domain/matchmaking';
+import { TICKET_TTL_MS, type QueueTicket } from '../../domain/matchmaking';
 import type { Duel } from '../../domain/duel';
 
 /* ------------------------------------------------------------------ */
 
-import { clearQueueTicket, enqueue, leaveQueue, tryPair } from '../matchmakingService';
+import {
+  clearQueueTicket,
+  countWaitingTickets,
+  enqueue,
+  leaveQueue,
+  tryPair,
+} from '../matchmakingService';
 
 const mockState = { configured: true };
 
@@ -131,6 +137,12 @@ jest.mock('@react-native-firebase/firestore', () => {
     // Monotonic so enqueue order is preserved for the ascending query.
     serverTimestamp: () => ++mockClock,
   };
+  // The TTL policy needs a real Timestamp (a number silently disables TTL for
+  // the document), so the service writes one; the fake just tags the millis so
+  // tests can assert the twin fields agree.
+  (fn as unknown as { Timestamp: unknown }).Timestamp = {
+    fromMillis: (ms: number) => ({ __ts: ms }),
+  };
   return { __esModule: true, default: fn };
 });
 
@@ -152,6 +164,19 @@ describe('enqueue', () => {
     expect(t.status).toBe('waiting');
     expect(t.duelId).toBeNull();
     expect(t.displayName).toBe('Ana');
+  });
+
+  it('stamps both expiry fields from the same deadline', async () => {
+    const before = Date.now();
+    await enqueue(A);
+    const t = mockStore.matchmaking.get('a') as unknown as QueueTicket & {
+      expiresAtTs: { __ts: number };
+    };
+
+    expect(t.expiresAt).toBeGreaterThanOrEqual(before + TICKET_TTL_MS);
+    // The TTL policy reads `expiresAtTs`; `canPair` reads `expiresAt`. If these
+    // ever disagree the queue and the collector would work to different clocks.
+    expect(t.expiresAtTs.__ts).toBe(t.expiresAt);
   });
 
   it('reuses a matched ticket only when the duel is still live', async () => {
@@ -180,6 +205,27 @@ describe('tryPair', () => {
     await enqueue(A);
     const id = await tryPair(A);
     expect(id).toBeNull();
+  });
+
+  // The failure this whole change exists to stop: an abandoned ticket keeps
+  // answering the oldest-first query until the TTL service collects it, and
+  // because it is the oldest it is scanned *first*. Pairing into it would seat
+  // the seeker against someone who left.
+  it('refuses to pair with a ticket that has aged out', async () => {
+    await enqueue(A);
+    const stale = mockStore.matchmaking.get('a') as unknown as QueueTicket;
+    stale.expiresAt = Date.now() - 1;
+
+    await enqueue(B);
+    expect(await tryPair(B)).toBeNull();
+    // B stays queued rather than being seated against a ghost.
+    expect((mockStore.matchmaking.get('b') as unknown as QueueTicket).status).toBe('waiting');
+  });
+
+  it('still pairs when the waiting ticket is inside its window', async () => {
+    await enqueue(A);
+    await enqueue(B);
+    expect(await tryPair(B)).not.toBeNull();
   });
 
   it('pairs two waiting athletes into one active duel with both matched', async () => {
@@ -258,5 +304,22 @@ describe('clearQueueTicket', () => {
     await tryPair(B);
     await clearQueueTicket('a');
     expect(mockStore.matchmaking.has('a')).toBe(false);
+  });
+});
+
+describe('countWaitingTickets', () => {
+  it('counts live waiting athletes, excluding self', async () => {
+    await enqueue(A);
+    await enqueue(B);
+    expect(await countWaitingTickets('a')).toBe(1);
+  });
+
+  // Home's activity pill reads this. Counting ghosts would promise opponents
+  // that `tryPair` then refuses to pair with — worse than showing nobody.
+  it('does not count tickets that have aged out', async () => {
+    await enqueue(A);
+    await enqueue(B);
+    (mockStore.matchmaking.get('b') as unknown as QueueTicket).expiresAt = Date.now() - 1;
+    expect(await countWaitingTickets('a')).toBe(0);
   });
 });

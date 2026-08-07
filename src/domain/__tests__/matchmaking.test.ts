@@ -8,8 +8,10 @@
 import {
   OPEN_MATCH_DURATION,
   OPEN_MATCH_EXERCISE,
+  TICKET_TTL_MS,
   buildMatchDuel,
   canPair,
+  isTicketExpired,
   makeTicket,
   pickOpponent,
   type QueueTicket,
@@ -27,6 +29,31 @@ describe('makeTicket', () => {
     expect(t.displayName).toBe('Athlete');
     expect(t.avatarUrl).toBeNull();
     expect(t.level).toBe(1);
+  });
+
+  it('stamps an expiry one TTL window out', () => {
+    const now = 1_700_000_000_000;
+    expect(makeTicket({ uid: 'a', displayName: 'A' }, now).expiresAt).toBe(now + TICKET_TTL_MS);
+  });
+});
+
+describe('isTicketExpired', () => {
+  const now = 1_700_000_000_000;
+
+  it('is false before the deadline', () => {
+    expect(isTicketExpired({ expiresAt: now + 1 }, now)).toBe(false);
+  });
+
+  it('is true at and after the deadline', () => {
+    expect(isTicketExpired({ expiresAt: now }, now)).toBe(true);
+    expect(isTicketExpired({ expiresAt: now - 1 }, now)).toBe(true);
+  });
+
+  // Tickets written before the field existed must stay pairable, or an upgrade
+  // would empty the queue for everyone still on the old build.
+  it('treats a ticket with no expiry as live', () => {
+    expect(isTicketExpired({}, now)).toBe(false);
+    expect(isTicketExpired({ expiresAt: undefined }, now)).toBe(false);
   });
 });
 
@@ -62,6 +89,25 @@ describe('canPair', () => {
 
   it('rejects a cancelled ticket', () => {
     expect(canPair('me', ticket('you', { status: 'cancelled' }))).toBe(false);
+  });
+
+  // The reason the TTL alone is not enough: Firestore collects expired docs only
+  // "typically within 24 hours", so an abandoned ticket keeps answering the
+  // oldest-first query long after its deadline. It must be unclaimable meanwhile.
+  it('rejects a waiting ticket that has aged out', () => {
+    const now = 1_700_000_000_000;
+    expect(canPair('me', ticket('you', { expiresAt: now - 1 }), undefined, now)).toBe(false);
+  });
+
+  it('still accepts a waiting ticket inside its window', () => {
+    const now = 1_700_000_000_000;
+    expect(canPair('me', ticket('you', { expiresAt: now + 1 }), undefined, now)).toBe(true);
+  });
+
+  it('accepts a ticket from before the expiry field existed', () => {
+    const legacy = ticket('you');
+    delete (legacy as Partial<QueueTicket>).expiresAt;
+    expect(canPair('me', legacy)).toBe(true);
   });
 });
 

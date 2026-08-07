@@ -107,11 +107,24 @@ export default function DuelWaitingScreen() {
     });
   };
 
+  /* Leaving the waiting room goes to Arena, never `router.back()`.
+   *
+   * Back pops one entry, and for the host that entry is `/duel/new` — the setup
+   * screen whose primary button is "Send Challenge". Cancelling a duel landed on
+   * the button that creates another one, so a cancel-then-tap sent a fresh
+   * invite instead of leaving. The screen is also reached from a push, a QR
+   * scan, and a deep link, where a cold start has no history to pop at all.
+   * Replacing to Arena is the one exit that behaves the same from every entry,
+   * and matches what the duel stack's own error recovery does. */
+  const exitToArena = () => {
+    router.replace('/(tabs)/arena');
+  };
+
   const leaveWaiting = () => {
     void (async () => {
       const id = duelIdRef.current;
       if (!id) {
-        router.back();
+        exitToArena();
         return;
       }
       const duel = await fetchDuel(id);
@@ -140,7 +153,7 @@ export default function DuelWaitingScreen() {
         }
       }
       if (launchedRef.current) return;
-      router.back();
+      exitToArena();
     })();
   };
 
@@ -443,7 +456,7 @@ export default function DuelWaitingScreen() {
             <Text style={styles.primaryLabel}>Duel a rival instead</Text>
           </PressableScale>
           <PressableScale
-            onPress={() => router.back()}
+            onPress={exitToArena}
             style={styles.cancel}
             accessibilityRole="button"
           >

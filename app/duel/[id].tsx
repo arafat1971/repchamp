@@ -370,8 +370,14 @@ export default function DuelWaitingScreen() {
 
   return (
     <Screen>
+      {/* "Challenge sent" is only true when there was someone to send it to.
+          An open QR duel goes to nobody in particular — the athlete is holding
+          up a code and waiting to be scanned — and a header claiming otherwise
+          reads as the screen having done the wrong thing. */}
       <ModalHeader
-        title={role === 'guest' ? 'Joining duel' : 'Challenge sent'}
+        title={
+          role === 'guest' ? 'Joining duel' : scannable ? 'Your duel code' : 'Challenge sent'
+        }
         onBack={leaveWaiting}
       />
 
@@ -404,7 +410,9 @@ export default function DuelWaitingScreen() {
             ? error
             : role === 'guest'
               ? 'Joining the arena…'
-              : 'Waiting for your opponent to accept…'}
+              : scannable
+                ? 'Waiting for someone to scan…'
+                : 'Waiting for your opponent to accept…'}
         </Text>
       </View>
 

@@ -159,6 +159,61 @@ describe('join', () => {
       }),
     );
   });
+
+  // Backward compatibility with builds already in the field.
+  //
+  // `hasOnly` caps *changed* keys, not the payload: `affectedKeys()` reports
+  // only what actually differs. So the shipped `joinCoupleByCode`, which merges
+  // the entire document back (`id`, `createdAt`, and any `nudge` included),
+  // still joins cleanly — the re-sent fields are identical and never register.
+  // Worth pinning, because reading `hasOnly` as a cap on the payload is the
+  // obvious misreading, and acting on it would mean either breaking every
+  // installed app or loosening a rule that never needed loosening.
+  it('accepts a joiner that re-sends unchanged id/createdAt (pre-update client)', async () => {
+    await seedPending();
+    await assertSucceeds(
+      setDoc(
+        doc(asUser(BOB), 'couples', CODE),
+        {
+          id: CODE,
+          createdAt: 1,
+          memberUids: [ALICE, BOB],
+          members: [member(ALICE), member(BOB)],
+          pending: false,
+          pairedAt: 12345,
+        },
+        { merge: true },
+      ),
+    );
+  });
+
+  it('accepts that same whole-document merge when a nudge is already present', async () => {
+    await seed(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'couples', CODE), {
+        id: CODE,
+        memberUids: [ALICE],
+        members: [member(ALICE)],
+        pending: true,
+        createdAt: 1,
+        nudge: { fromUid: ALICE, at: 5 },
+      });
+    });
+    await assertSucceeds(
+      setDoc(
+        doc(asUser(BOB), 'couples', CODE),
+        {
+          id: CODE,
+          createdAt: 1,
+          nudge: { fromUid: ALICE, at: 5 },
+          memberUids: [ALICE, BOB],
+          members: [member(ALICE), member(BOB)],
+          pending: false,
+          pairedAt: 12345,
+        },
+        { merge: true },
+      ),
+    );
+  });
 });
 
 describe('reads', () => {

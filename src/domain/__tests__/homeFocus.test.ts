@@ -12,7 +12,6 @@ function input(overrides: Partial<HomeFocusInput> = {}): HomeFocusInput {
     ...rest,
     couple: {
       paired: true,
-      awaitingPartner: false,
       partnerName: 'Ayesha',
       streak: 3,
       atRisk: false,
@@ -30,7 +29,6 @@ describe('selectHomeFocus — priority order', () => {
         // Even with a streak at risk and partner trained, the first rep wins.
         couple: {
           paired: true,
-          awaitingPartner: false,
           partnerName: 'Ayesha',
           streak: 5,
           atRisk: true,
@@ -47,7 +45,6 @@ describe('selectHomeFocus — priority order', () => {
         trainedToday: false,
         couple: {
           paired: true,
-          awaitingPartner: false,
           partnerName: 'Ayesha',
           streak: 7,
           atRisk: true,
@@ -64,7 +61,6 @@ describe('selectHomeFocus — priority order', () => {
         trainedToday: false,
         couple: {
           paired: true,
-          awaitingPartner: false,
           partnerName: 'Ayesha',
           streak: 2,
           atRisk: false,
@@ -82,7 +78,6 @@ describe('selectHomeFocus — priority order', () => {
         daysThisWeek: 1,
         couple: {
           paired: true,
-          awaitingPartner: false,
           partnerName: 'Ayesha',
           streak: 2,
           atRisk: false,
@@ -93,13 +88,12 @@ describe('selectHomeFocus — priority order', () => {
     expect(focus.kind).not.toBe('partner-trained');
   });
 
-  it('4. invite-partner when there is no partner bonded', () => {
+  it('6. invite-partner is the fallback when there is no partner bonded', () => {
     const focus = selectHomeFocus(
       input({
         trainedToday: false,
         couple: {
           paired: false,
-          awaitingPartner: false,
           partnerName: null,
           streak: 0,
           atRisk: false,
@@ -110,7 +104,7 @@ describe('selectHomeFocus — priority order', () => {
     expect(focus.kind).toBe('invite-partner');
   });
 
-  it('5. daily-challenge when offered, unfinished, and nothing above applies', () => {
+  it('4. daily-challenge when offered, unfinished, and nothing above applies', () => {
     const focus = selectHomeFocus(
       input({
         trainedToday: false,
@@ -120,7 +114,7 @@ describe('selectHomeFocus — priority order', () => {
     expect(focus).toEqual({ kind: 'daily-challenge', exercise: 'push', target: 25 });
   });
 
-  it('5b. a finished daily challenge is skipped', () => {
+  it('4b. a finished daily challenge is skipped', () => {
     const focus = selectHomeFocus(
       input({
         daysThisWeek: 1,
@@ -130,7 +124,7 @@ describe('selectHomeFocus — priority order', () => {
     expect(focus.kind).not.toBe('daily-challenge');
   });
 
-  it('6. goal-met when the weekly target is reached', () => {
+  it('5. goal-met when the weekly target is reached', () => {
     const focus = selectHomeFocus(input({ daysThisWeek: 4, weeklyGoal: 4 }));
     expect(focus).toEqual({ kind: 'goal-met', days: 4, goal: 4 });
   });
@@ -144,16 +138,17 @@ describe('selectHomeFocus — priority order', () => {
 describe('selectHomeFocus — solo (no couple) paths', () => {
   const solo = {
     paired: false,
-    awaitingPartner: false,
     partnerName: null,
     streak: 0,
     atRisk: false,
     partnerTrainedToday: false,
   } as const;
 
-  it('an unpaired veteran who has not trained is nudged to invite', () => {
-    // invite-partner sits above daily-challenge, so an unpaired athlete is always
-    // pushed toward the growth loop first.
+  /* The regression test for the whole reorder. `!paired` used to sit above the
+     daily challenge with no other condition, which made it terminal: a solo
+     athlete saw the invite and never anything else, so the adaptive hero was a
+     constant for most of the userbase. */
+  it('an open daily challenge beats the invite for a solo athlete', () => {
     const focus = selectHomeFocus(
       input({
         trainedToday: false,
@@ -161,6 +156,38 @@ describe('selectHomeFocus — solo (no couple) paths', () => {
         dailyChallenge: { exercise: 'squat', target: 30, done: false },
       }),
     );
+    expect(focus).toEqual({ kind: 'daily-challenge', exercise: 'squat', target: 30 });
+  });
+
+  it('a solo athlete who met their weekly goal is celebrated, not asked to invite', () => {
+    const focus = selectHomeFocus(
+      input({ couple: { ...solo }, daysThisWeek: 4, weeklyGoal: 4 }),
+    );
+    expect(focus).toEqual({ kind: 'goal-met', days: 4, goal: 4 });
+  });
+
+  it('a solo athlete still gets the invite when nothing else is pending', () => {
+    const focus = selectHomeFocus(
+      input({
+        couple: { ...solo },
+        dailyChallenge: null,
+        daysThisWeek: 1,
+        weeklyGoal: 4,
+      }),
+    );
     expect(focus.kind).toBe('invite-partner');
+  });
+
+  /* Paired, so rule 6 cannot fire — proves `recovery` is reachable at all and
+     is not shadowed now that the invite sits directly above it. */
+  it('recovery is still reachable once a partner is bonded', () => {
+    const focus = selectHomeFocus(
+      input({
+        dailyChallenge: { exercise: 'push', target: 25, done: true },
+        daysThisWeek: 1,
+        weeklyGoal: 4,
+      }),
+    );
+    expect(focus.kind).toBe('recovery');
   });
 });

@@ -102,7 +102,6 @@ export default function HomeScreen() {
         weeklyGoal: goal,
         couple: {
           paired: couple.paired,
-          awaitingPartner: couple.awaitingPartner,
           partnerName: couple.partner?.displayName ?? null,
           streak: couple.streak,
           atRisk: couple.atRisk,

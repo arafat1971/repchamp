@@ -1,7 +1,7 @@
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect, Tabs, usePathname, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Modal,
   Platform,
@@ -239,6 +239,27 @@ const HINT_WIDTH = 110;
  * centred and take the same 3pt weight as `ExerciseGlyph`, so the FAB belongs
  * to the same drawing as the tiles it sits above.
  */
+/** A padlock for a Pro-gated row, at the same weight as the movement glyphs. */
+function LockMark({ size, color }: { size: number; color: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path
+        d="M7 11 L7 7.5 A5 5 0 0 1 17 7.5 L17 11"
+        stroke={color}
+        strokeWidth={2.2}
+        strokeLinecap="round"
+        fill="none"
+      />
+      <Path
+        d="M5.5 11 h13 a1.5 1.5 0 0 1 1.5 1.5 v6 a1.5 1.5 0 0 1 -1.5 1.5 h-13 a1.5 1.5 0 0 1 -1.5 -1.5 v-6 a1.5 1.5 0 0 1 1.5 -1.5 z"
+        stroke={color}
+        strokeWidth={2.2}
+        fill="none"
+      />
+    </Svg>
+  );
+}
+
 /** A dumbbell for the "build your own" row — same weight as the movements. */
 function DumbbellMark({ size, color }: { size: number; color: string }) {
   const common = {
@@ -404,7 +425,7 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
      sit-ups was describing the wrong thing entirely and all three were a
      different illustration style from the rest of the app. */
   const META: Record<string, { label: string }> = {
-    push: { label: 'Push-ups' },
+    push: { label: 'Push-Ups' },
     squat: { label: 'Squats' },
     situp: { label: 'Sit-Ups' },
   };
@@ -451,10 +472,14 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
      hint whichever way the athlete got in — hold, accessibility action, or a
      tap with no primary action to shortcut to. Callers own the haptic, since
      onFabPress has already fired one by the time it reaches here. */
+  /** When the menu opened, so a finger lifting off the hold is not a dismiss. */
+  const openedAtRef = useRef(0);
+
   const openMenu = () => {
     const stored = parseFabHint(storage.getString(FAB_HINT_KEY));
     storage.set(FAB_HINT_KEY, JSON.stringify(markFabHintUsed(stored)));
     setHintVisible(false);
+    openedAtRef.current = Date.now();
     setOpen(true);
   };
 
@@ -476,10 +501,27 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
 
   const close = () => setOpen(false);
 
+  /* Holding opened the menu and then letting go closed it again.
+   *
+   * `onLongPress` fires while the finger is still down, so the modal mounts
+   * under it; the release then lands on the scrim, whose `onPress` is `close`.
+   * The menu was appearing and dismissing inside one gesture, which is why it
+   * never looked like it stayed open — and why the disc appeared to never flip
+   * to the ×, since by the time anything could be seen the state was already
+   * back to closed.
+   *
+   * Ignoring scrim presses for a moment after opening lets the finger come up
+   * without being read as "dismiss". Tapping outside still closes it, a beat
+   * later, which is the behaviour the scrim is actually there for. */
+  const closeFromScrim = () => {
+    if (Date.now() - openedAtRef.current < 400) return;
+    close();
+  };
+
   return (
     <>
       <Modal visible={open} transparent animationType="fade" onRequestClose={close}>
-        <Pressable style={styles.fabScrim} onPress={close}>
+        <Pressable style={styles.fabScrim} onPress={closeFromScrim}>
           <View
             style={[styles.fabMenu, { bottom: bottomPosition + 70 }]}
             pointerEvents="box-none"
@@ -519,7 +561,10 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
                   ) : null}
                   <View style={styles.fabMenuEmoji}>
                     {action.locked ? (
-                      <Text style={{ fontSize: 16 }}>🔒</Text>
+                      /* Drawn, like everything else in this sheet. A 🔒 was the
+                         last emoji left once the movements became glyphs, which
+                         made it the one thing on the row that looked pasted in. */
+                      <LockMark size={20} color={palette.grey500} />
                     ) : action.exercise ? (
                       <ExerciseGlyph
                         exercise={action.exercise}

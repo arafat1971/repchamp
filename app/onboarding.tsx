@@ -408,7 +408,31 @@ export default function OnboardingScreen() {
         ) : null}
         {/* Sign-in immediately before the paywall: the plan is built, and a
             subscription needs an account to attach to. */}
-        {step === 20 ? <SignIn onNext={next} /> : null}
+        {step === 20 ? (
+          <SignIn
+            onNext={() => {
+              /* The handle was checked at step 5 and is not claimed until the
+               * profile write at the very end, so fifteen steps of onboarding
+               * sit between "that one is free" and actually taking it. If
+               * someone else took it meanwhile, `upsertProfile` refuses to
+               * steal it and quietly renames you to `handle_a1b2` — you would
+               * finish onboarding as a name you never chose and were never
+               * told about.
+               *
+               * Signing in is the first moment there is a uid to hold a
+               * handle, so re-check here and send them back to choose rather
+               * than rename them behind their back. */
+              void (async () => {
+                const uid = useAuthStore.getState().user?.uid;
+                if (!username || !uid) return next();
+                const free = await isUsernameAvailable(username, uid);
+                if (free) return next();
+                setUsernameError(`@${username} was taken while you were signing up.`);
+                setStep(5);
+              })();
+            }}
+          />
+        ) : null}
         {step === 21 ? <Paywall plan={plan} onSelect={setPlan} onNext={next} /> : null}
         {/* The last two land right before the first set, which is where the
             advice actually gets used — a framing tip read fifteen screens

@@ -73,3 +73,8 @@ store/aab/
 # Cloud Functions build output and deps
 functions/lib/
 functions/node_modules/
+
+# Upload-key credentials — never commit
+android/keystore.properties
+keystore.properties
+*.jks

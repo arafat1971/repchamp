@@ -61,6 +61,7 @@
       ]
     },
     "plugins": [
+      "./plugins/withUploadSigning",
       "expo-router",
       "@react-native-firebase/app",
       "@react-native-firebase/auth",

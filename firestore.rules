@@ -352,6 +352,13 @@ service cloud.firestore {
         && memberZeroed(request.resource.data.members[0]);
 
       // Joiner appends themselves at zero; the existing member's stats are frozen.
+      //
+      // The key set is capped as well as the values. Without `hasOnly` this rule
+      // validated the member entries but let the joiner write *any* other
+      // top-level field on someone else's document in the same operation —
+      // including rewriting `createdAt`, which orders the doc. A join touches
+      // exactly these four keys; `createdAt` is stamped once at create and pinned
+      // here the same way `createdAtPinned()` pins it on user profiles.
       function isJoin() {
         return isAuthed()
           && resource.data.memberUids.size() == 1
@@ -361,7 +368,11 @@ service cloud.firestore {
           && request.resource.data.members.size() == 2
           && request.resource.data.members[0] == resource.data.members[0]
           && request.resource.data.members[1].uid == request.auth.uid
-          && memberZeroed(request.resource.data.members[1]);
+          && memberZeroed(request.resource.data.members[1])
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['memberUids', 'members', 'pending', 'pairedAt'])
+          && (!('createdAt' in resource.data)
+              || request.resource.data.createdAt == resource.data.createdAt);
       }
 
       function memberUidsPinned() {
@@ -383,11 +394,20 @@ service cloud.firestore {
 
       // Each athlete may only mutate their own member slice (reps / days / push).
       // The partner's entire member map stays frozen (including their push token).
+      //
+      // The single-member branch used to read
+      //   request.resource.data.members[0].uid == resource.data.members[0].uid
+      // on both sides of a uid comparison that the line above had already made,
+      // so it asserted nothing the caller could fail — a guard that looked like
+      // it pinned the slice but did not. `isMember()` still kept strangers out,
+      // so nothing was exploitable through it; it was simply dead. Pin the uid
+      // to the *caller* instead, which is the invariant the two-member branch
+      // below actually enforces.
       function onlyOwnMemberStatsChanged() {
         return (
           (resource.data.members.size() == 1
             && request.auth.uid == resource.data.members[0].uid
-            && request.resource.data.members[0].uid == resource.data.members[0].uid)
+            && request.resource.data.members[0].uid == request.auth.uid)
           ||
           (resource.data.members.size() == 2
             && (
@@ -423,6 +443,12 @@ service cloud.firestore {
       allow read: if isAuthed();
       allow create, update, delete: if isOwner(ticketUid);
 
+      // A *foreign* claimer may flip someone's waiting ticket to `matched`, and
+      // may move nothing else: `tryPair` writes exactly status + duelId on the
+      // ticket it claims. The expiry pair is pinned along with the identity
+      // fields because it decides both when the TTL service collects the ticket
+      // and whether `canPair` still considers it live — left free, a claimer
+      // could keep a rival's ticket alive indefinitely or expire it on the spot.
       allow update: if isAuthed()
         && request.auth.uid != ticketUid
         && resource.data.status == 'waiting'
@@ -430,6 +456,10 @@ service cloud.firestore {
         && request.resource.data.uid == resource.data.uid
         && request.resource.data.displayName == resource.data.displayName
         && request.resource.data.level == resource.data.level
+        && (!('expiresAt' in resource.data)
+            || request.resource.data.expiresAt == resource.data.expiresAt)
+        && (!('expiresAtTs' in resource.data)
+            || request.resource.data.expiresAtTs == resource.data.expiresAtTs)
         && request.resource.data.duelId is string
         && exists(/databases/$(database)/documents/duels/$(request.resource.data.duelId))
         && get(/databases/$(database)/documents/duels/$(request.resource.data.duelId)).data.hostUid

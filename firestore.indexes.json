@@ -26,6 +26,14 @@
       ]
     },
     {
+      "collectionGroup": "duels",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "guestUid", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "matchmaking",
       "queryScope": "COLLECTION",
       "fields": [
@@ -34,5 +42,12 @@
       ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "matchmaking",
+      "fieldPath": "expiresAtTs",
+      "ttl": true,
+      "indexes": []
+    }
+  ]
 }

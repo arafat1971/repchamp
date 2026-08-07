@@ -186,14 +186,25 @@ export async function joinCoupleByCode(
     }
 
     const members = [...couple.members, makeMember(input)];
-    const paired: Couple = {
-      ...couple,
-      memberUids: [...couple.memberUids, input.uid],
-      members,
-      pending: false,
-    };
-    tx.set(ref, { ...paired, pairedAt: firestore.FieldValue.serverTimestamp() }, { merge: true });
-    return paired;
+    const memberUids = [...couple.memberUids, input.uid];
+
+    // Send *only* the keys a join is allowed to move. The rules cap this write
+    // to memberUids/members/pending/pairedAt, so spreading the whole document
+    // back — which re-sent `id` and `createdAt` — would now be rejected
+    // wholesale. The full object is still returned to callers below; it is only
+    // the payload that is narrowed.
+    tx.set(
+      ref,
+      {
+        memberUids,
+        members,
+        pending: false,
+        pairedAt: firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+
+    return { ...couple, memberUids, members, pending: false };
   });
 }
 

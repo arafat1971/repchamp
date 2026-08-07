@@ -58,12 +58,14 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.1",
     "@types/jest": "^30.0.0",
     "@types/qrcode": "^1.5.6",
     "@types/react": "~19.2.2",
     "babel-preset-expo": "^57.0.3",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~57.0.0",
+    "firebase": "^12.10.0",
     "jest": "^29.7.0",
     "jest-expo": "^57.0.2",
     "typescript": "~6.0.3"
@@ -75,6 +77,7 @@
     "prebuild": "expo prebuild --clean",
     "test": "jest",
     "test:watch": "jest --watch",
+    "test:rules": "bash scripts/run-rules-tests.sh",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",

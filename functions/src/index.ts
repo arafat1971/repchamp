@@ -18,9 +18,8 @@
  * payload and no new client wiring is needed to make a tap land in the duel.
  */
 
-import { setGlobalOptions } from 'firebase-functions/v2';
+import { logger, setGlobalOptions } from 'firebase-functions/v2';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
-import { logger } from 'firebase-functions/v2';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 

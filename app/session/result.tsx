@@ -1,7 +1,7 @@
 import { Redirect, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { Image } from 'expo-image';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BackHandler, Share, StyleSheet, Text, View, ScrollView } from 'react-native';
 import Animated, { FadeInDown, FadeInUp, ZoomIn } from 'react-native-reanimated';
 import { captureRef } from 'react-native-view-shot';
@@ -33,6 +33,14 @@ import { palette, radius, shadow } from '@/theme/tokens';
 export default function ResultScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  /* The action bar is absolutely positioned over the scroll view, so the
+   * content underneath has to reserve exactly its height. That reserve used to
+   * be a hard-coded 208, which was a guess at a bar whose height depends on the
+   * safe-area inset and on labels that wrap ("Form Report · Pro" is two lines
+   * on a narrow phone). When the bar came out taller, the bottom of the share
+   * card sat behind it. Measuring it removes the guess. */
+  const [actionsHeight, setActionsHeight] = useState(208);
   const session = useSessionStore();
   const recordSession = useProfileStore((s) => s.recordSession);
   const displayName = useProfileStore((s) => s.displayName);
@@ -424,7 +432,7 @@ export default function ResultScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: Math.max(insets.top, 44) + 8, paddingBottom: insets.bottom + 208 },
+          { paddingTop: Math.max(insets.top, 44) + 8, paddingBottom: actionsHeight + 24 },
         ]}
       >
         {/* Trophy — reserved for genuine wins. */}
@@ -497,7 +505,11 @@ export default function ResultScreen() {
       </ScrollView>
 
       {/* Pinned bottom action bar */}
-      <Animated.View entering={FadeInUp.duration(500).delay(500)} style={[styles.actions, { paddingBottom: insets.bottom + 12 }]}>
+      <Animated.View
+        entering={FadeInUp.duration(500).delay(500)}
+        onLayout={(e) => setActionsHeight(e.nativeEvent.layout.height)}
+        style={[styles.actions, { paddingBottom: insets.bottom + 12 }]}
+      >
         <View style={styles.secondaryRow}>
           <PressableScale
             onPress={() => {
@@ -576,7 +588,10 @@ const styles = StyleSheet.create({
     ...font('regular', 15, { color: palette.slate500 }),
     textAlign: 'center',
     marginTop: 8,
-    lineHeight: 22,
+    /* 24, not 22. The copy wraps to two lines on a normal phone, and at 15pt
+       the tighter leading clipped the descenders on the second one -- "today!"
+       lost the tail of its "y". */
+    lineHeight: 24,
     paddingHorizontal: 16,
   },
   rewardRow: {

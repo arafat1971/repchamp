@@ -214,14 +214,12 @@ export const ResultShareCard = forwardRef<View, ResultShareCardProps>(
                 <Text style={styles.heroLabel}>{exerciseLabel.toUpperCase()}</Text>
               </View>
 
-              {/* AI pose stage */}
+              {/* AI pose stage.
+                  The profile photo used to sit behind this, blurred. It read as
+                  a muddy smear rather than a backdrop -- the skeleton is the
+                  subject, and a face at 10px blur only fought it for contrast. */}
               <View style={styles.stage}>
-                {avatarUri ? (
-                  <Image source={{ uri: avatarUri }} style={styles.stagePhoto} contentFit="cover" blurRadius={10} />
-                ) : (
-                  <View style={styles.stageEmpty} />
-                )}
-                <View style={styles.stageVignette} />
+                <View style={styles.stageEmpty} />
                 <View style={styles.skeletonWrap}>
                   <PoseSkeletonSvg exerciseId={exerciseId} />
                 </View>
@@ -433,9 +431,10 @@ const styles = StyleSheet.create({
     backgroundColor: palette.slate900,
     marginBottom: 16,
   },
-  stagePhoto: { width: '100%', height: '100%' },
+  /* A flat panel, not a backdrop: the vignette that used to sit over this only
+     existed to hold a blurred photo back, and over a solid fill it just muddied
+     the green of the skeleton. */
   stageEmpty: { ...StyleSheet.absoluteFill, backgroundColor: palette.slate800 },
-  stageVignette: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.28)' },
   skeletonWrap: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   stageTag: {
     position: 'absolute',

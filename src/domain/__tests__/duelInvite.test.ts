@@ -23,6 +23,15 @@ describe('isDuelId', () => {
     // Hyphens and underscores are not in Firestore's alphabet.
     expect(isDuelId('aB3xY9kLmN-pQ7rS4tU6')).toBe(false);
   });
+
+  /* `'new'` is the route sentinel the host opens the waiting room with, before
+     `createDuel` has minted anything. It reached the code box, the shared link
+     and the QR once, each encoding a duel that cannot exist. */
+  it('rejects the "new" route sentinel', () => {
+    expect(isDuelId('new')).toBe(false);
+    expect(parseDuelInvite(duelInviteDeepLink('new'))).toBeNull();
+    expect(parseDuelInvite(duelInviteLink('new'))).toBeNull();
+  });
 });
 
 describe('link building', () => {

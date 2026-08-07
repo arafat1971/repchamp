@@ -59,7 +59,14 @@ export default function DuelWaitingScreen() {
       ? params.kind
       : 'duel';
 
-  const [duelId, setDuelId] = useState<string | null>(params.id ?? null);
+  /* `'new'` is the host's "mint me one" sentinel, not an id. Seeding state with
+   * it meant that until `createDuel` came back, the screen believed the duel was
+   * called "new": the code box read `new`, Copy link shared
+   * `/duel/join?id=new`, and the QR encoded the same — a code that resolves to
+   * nothing, because `isDuelId` wants 20 characters of [A-Za-z0-9]. */
+  const [duelId, setDuelId] = useState<string | null>(
+    params.id && params.id !== 'new' ? params.id : null,
+  );
   const [status, setStatus] = useState<'starting' | 'waiting' | 'unavailable' | 'cancelled'>(
     'starting',
   );
@@ -421,9 +428,14 @@ export default function DuelWaitingScreen() {
             ? error
             : role === 'guest'
               ? 'Joining the arena…'
-              : scannable
-                ? 'Waiting for someone to scan…'
-                : 'Waiting for your opponent to accept…'}
+              : /* Until `createDuel` returns there is no code to scan and no
+                   challenge on its way, so neither waiting message is true
+                   yet. Say what is actually happening instead. */
+                !duelId
+                ? 'Creating your duel…'
+                : scannable
+                  ? 'Waiting for someone to scan…'
+                  : 'Waiting for your opponent to accept…'}
         </Text>
       </View>
 

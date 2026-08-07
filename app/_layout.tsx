@@ -21,6 +21,7 @@ import { identify, track } from '@/lib/analytics';
 import { initAppCheck } from '@/lib/appCheck';
 import { initCrashReporting, setCrashUser } from '@/lib/crash';
 import {
+  CHALLENGE_ACTION_DECLINE,
   installForegroundNudgeSuppressor,
   registerForPushNudges,
 } from '@/lib/notifications';
@@ -33,6 +34,7 @@ import { useRivalPassedAlert } from '@/state/useRivalPassedAlert';
 import { fontFamily } from '@/theme/typography';
 import { palette } from '@/theme/tokens';
 import { flushCoupleCreditOutbox } from '@/services/coupleCreditOutbox';
+import { cancelDuel } from '@/services/duelService';
 import {
   resumePendingLiveSettles,
 } from '@/services/liveResultSettle';
@@ -86,6 +88,17 @@ export default function RootLayout() {
       if (seen.has(key)) return;
       seen.add(key);
       const data = (response.notification.request.content.data ?? {}) as Record<string, unknown>;
+
+      /* Declining from the shade must not open the duel. Without this the
+         action button fell through to the default tap route, so "Decline"
+         did exactly what "Accept" did. Dismiss the challenge and stop. */
+      if (response.actionIdentifier === CHALLENGE_ACTION_DECLINE) {
+        // Same server call the inbox's Decline makes: drop the pending doc so
+        // the invite does not come back on the next poll.
+        if (typeof data.duelId === 'string') void cancelDuel(data.duelId).catch(() => {});
+        return;
+      }
+
       routeFromData(data);
     };
 

@@ -15,6 +15,7 @@ import { presentChallengeInvite } from '@/lib/notifications';
 import { storage } from '@/lib/storage';
 import { fetchIncomingDuels } from '@/services/duelService';
 import { useAuthStore } from '@/state/authStore';
+import { selectLevel, useProfileStore } from '@/state/profileStore';
 import { useSettingsStore } from '@/state/settingsStore';
 
 const SEEN_KEY = 'repchamp.notif.seenChallenges';
@@ -97,10 +98,17 @@ export function useChallengeInviteSync(): void {
       for (const d of list) {
         if (seen.has(d.id)) continue;
         seen.add(d.id);
+        /* The poll already has the movement, the length and both levels — the
+           banner used to throw all of it away and say "challenged you to a
+           duel". Passing it through is what lets the invite name the stakes. */
         void presentChallengeInvite({
           duelId: d.id,
           fromName: d.hostName,
           kind: d.kind,
+          exercise: d.exercise,
+          duration: d.duration,
+          hostLevel: d.hostLevel,
+          myLevel: selectLevel(useProfileStore.getState()).level,
         });
       }
       writeSeen(seen);

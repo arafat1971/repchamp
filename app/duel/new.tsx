@@ -127,6 +127,25 @@ export default function DuelNewScreen() {
 
     const myUid = user?.uid;
     const target = params.target;
+
+    /* A challenge aimed at someone needs an identity to send it from. Without
+     * one this fell through to `go()`, which opened the waiting room to spin
+     * on a duel it could never create — the button looked broken because the
+     * screen it reached said nothing. Sign-in sits at the end of onboarding
+     * now, so arriving here signed out is an ordinary path, not an edge case. */
+    if (!myUid && target) {
+      showDialog({
+        title: 'Sign in to challenge',
+        message: 'A live duel needs an account so your rival knows who challenged them.',
+        tone: 'info',
+        actions: [
+          { label: 'Not now', variant: 'cancel' },
+          { label: 'Sign in', variant: 'primary', onPress: () => router.push('/onboarding') },
+        ],
+      });
+      return;
+    }
+
     if (!myUid || !target) {
       go();
       return;

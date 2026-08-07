@@ -67,9 +67,9 @@ export default function DuelWaitingScreen() {
   const [duelId, setDuelId] = useState<string | null>(
     params.id && params.id !== 'new' ? params.id : null,
   );
-  const [status, setStatus] = useState<'starting' | 'waiting' | 'unavailable' | 'cancelled'>(
-    'starting',
-  );
+  const [status, setStatus] = useState<
+    'starting' | 'waiting' | 'unavailable' | 'cancelled' | 'signin'
+  >('starting');
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const launchedRef = useRef(false);
@@ -160,9 +160,20 @@ export default function DuelWaitingScreen() {
   const bootstrappedUidRef = useRef<string | null>(null);
   useEffect(() => {
     if (!self) {
+      /* Waiting for identity is right on a cold start from a push, where auth
+       * rehydrates a moment after mount. Waiting *forever* is not: a signed-out
+       * athlete has no identity coming, and since sign-in moved to the end of
+       * onboarding it is entirely possible to reach Friends and tap Send
+       * Challenge without one. That spun here on 'starting' with no error, no
+       * timeout and no way out — the screen the button appeared not to do
+       * anything from.
+       *
+       * Give rehydration a beat, then say so. `signin` is a terminal state with
+       * a route out, not a spinner. */
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setStatus('starting');
-      return;
+      const t = setTimeout(() => setStatus('signin'), 4000);
+      return () => clearTimeout(t);
     }
     if (bootstrappedUidRef.current === self.uid) return;
     bootstrappedUidRef.current = self.uid;
@@ -354,6 +365,44 @@ export default function DuelWaitingScreen() {
           </Text>
           <PressableScale onPress={botFallback} style={styles.primaryBtn} accessibilityRole="button">
             <Text style={styles.primaryLabel}>Duel a rival instead</Text>
+          </PressableScale>
+        </View>
+      </Screen>
+    );
+  }
+
+  if (status === 'signin') {
+    return (
+      <Screen>
+        <ModalHeader title="Live duels" onBack={leaveWaiting} />
+        <View style={styles.center}>
+          <Avatar initial="?" size={80} />
+          <Text style={[text.h2, { textAlign: 'center', marginTop: 12 }]}>
+            Sign in to challenge someone
+          </Text>
+          <Text style={[text.captionMd, styles.hint]}>
+            A live duel needs an account on both sides — that is how the other
+            athlete knows who challenged them, and how the result reaches your
+            streak.
+          </Text>
+          <PressableScale
+            onPress={() => router.replace('/onboarding')}
+            style={styles.primaryBtn}
+            accessibilityRole="button"
+          >
+            <Text style={styles.primaryLabel}>Sign in</Text>
+          </PressableScale>
+          {/* Not `styles.cancelLabel` — that one is red, for abandoning a duel.
+              Taking the paced rival is a real second option, not a destructive
+              act, and should not be coloured like one. */}
+          <PressableScale
+            onPress={botFallback}
+            style={styles.cancel}
+            accessibilityRole="button"
+          >
+            <Text style={font('extrabold', 15, { color: palette.slate500 })}>
+              Duel a paced rival instead
+            </Text>
           </PressableScale>
         </View>
       </Screen>

@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown, FadeInUp, ZoomIn } from 'react-native-reanimated';
 
+import { ExerciseGlyph } from '@/components/ExerciseGlyph';
 import { ModalHeader } from '@/components/ModalHeader';
 import { PressableScale, Screen } from '@/components/ui';
 import { duelExerciseOptions, parseDuelExercise } from '@/domain/duelExercises';
@@ -17,9 +18,6 @@ import { showDialog } from '@/state/useDialog';
 import { font } from '@/theme/typography';
 import { palette, radius, shadow } from '@/theme/tokens';
 import type { ExerciseId } from '@/vision/exercises';
-
-const IC_PUSHUP = require('../../assets/ic-pushup.png');
-const IC_SQUAT = require('../../assets/ic-squat.png');
 
 const EXERCISE_OPTIONS = duelExerciseOptions();
 
@@ -332,15 +330,10 @@ export default function DuelNewScreen() {
                     selected && { borderColor: ex.ring },
                   ]}
                 >
-                  {ex.id === 'push' || ex.id === 'squat' ? (
-                    <Image
-                      source={ex.id === 'squat' ? IC_SQUAT : IC_PUSHUP}
-                      style={styles.exerciseImg}
-                      contentFit="contain"
-                    />
-                  ) : (
-                    <Text style={styles.exerciseEmoji}>{ex.emoji}</Text>
-                  )}
+                  {/* One drawing style for all six. Push-ups and squats used
+                      the PNGs while the rest fell back to emoji, so half this
+                      grid was artwork and half was a platform cartoon. */}
+                  <ExerciseGlyph exercise={ex.id} size={34} color={ex.color} />
                 </LinearGradient>
                 <Text style={[styles.exerciseTitle, selected && { color: ex.color }]} numberOfLines={1}>
                   {ex.label}
@@ -559,8 +552,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'transparent',
   },
-  exerciseImg: { width: 42, height: 36 },
-  exerciseEmoji: { fontSize: 26 },
   exerciseTitle: font('extrabold', 13, { color: palette.ink }),
   exerciseDesc: { ...font('bold', 10, { color: palette.grey500 }), marginTop: -2 },
   proBadge: {

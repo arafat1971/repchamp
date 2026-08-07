@@ -78,9 +78,18 @@ These were broken until recently and the fixes are unverified.
 
 ## 3b. Invite links open the app, not a browser  ⬜
 
-New in versionCode 9, and **only testable from a Play install** — Android runs
-domain verification against the installer, so a sideloaded build will not
-verify no matter how correct the manifest is.
+Testable on the **local APK**, not only from Play. Verification compares the
+installed app's signing certificate against `assetlinks.json`, and the debug
+key that signs a local release build is already listed there — confirmed
+against Google's own checker, which returns all three fingerprints for
+`gg.repchamp.app` with no errors:
+
+```bash
+curl -s "https://digitalassetlinks.googleapis.com/v1/statements:list?source.web.site=https://repchamp.web.app&relation=delegate_permission/common.handle_all_urls"
+```
+
+(An earlier version of this file claimed a sideload could never verify. That
+is wrong — it is the *certificate* that has to match, not the installer.)
 
 First confirm Android accepted the domain:
 

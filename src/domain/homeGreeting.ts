@@ -32,7 +32,6 @@ export function selectHomeGreeting(input: {
 }): HomeGreeting {
   const hour = input.hour ?? new Date().getHours();
   const timeOfDay = timeOfDayLabel(hour);
-  const name = input.firstName.trim() || 'Champ';
 
   let hook: string;
   if (!input.trainedToday && input.streak > 0) {
@@ -42,7 +41,10 @@ export function selectHomeGreeting(input: {
   } else if (input.streak >= 3) {
     hook = `🔥 ${input.streak}-day streak — nice`;
   } else {
-    hook = `Looking strong, ${name}`;
+    /* No name here. The line directly beneath this one is "Good evening,
+       {firstName}", so including it made the header greet the athlete twice in
+       two lines — "Looking strong, uwieue" over "Good evening, uwieue". */
+    hook = 'Looking strong today';
   }
 
   const bonus =

@@ -50,17 +50,26 @@ export function Screen({
 }) {
   const insets = useSafeAreaInsets();
   /*
-   * Bottom clearance keeps the floating Train FAB off the last tiles. The 148
-   * was measured against the tab bar + FAB on a device with no home indicator,
-   * so on an iPhone with one the last row sat that much closer to the edge —
-   * `insets.bottom` is exactly the amount the system reserves there.
+   * Bottom clearance keeps the floating Train FAB off the last tiles.
+   *
+   * This was a flat 148, measured once against a device with no home
+   * indicator. The FAB's real extent is arithmetic, not a measurement: the tab
+   * bar is `60 + max(insets.bottom, 16)`, the FAB sits 25 above that
+   * (`app/(tabs)/_layout.tsx`), and it is 58 tall. On a Pixel that comes to
+   * ~166, so 148 left the button overlapping the last row — visibly, on top of
+   * the Squats card.
+   *
+   * Derived here so the two cannot drift: if the FAB moves or grows, this
+   * follows. The 16 of headroom is so a card's shadow does not tuck under it.
    *
    * Horizontal insets matter on iOS too: in landscape the notch eats one side,
    * and content that ignores it is drawn under the sensor housing.
    */
+  const tabBarHeight = 60 + Math.max(insets.bottom, 16);
+  const fabClearance = tabBarHeight + 25 + 58 + 16;
   const padding = {
     paddingTop: insets.top + 8,
-    paddingBottom: 148 + insets.bottom,
+    paddingBottom: fabClearance,
     // Added to the 20pt gutter, never replacing it: these are 0 on a portrait
     // phone, so assigning them flattened the gutter and every card bled off
     // both edges. Only landscape/notched displays report a non-zero value.

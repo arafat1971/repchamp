@@ -42,7 +42,10 @@ const META: Record<
   },
   squat: {
     emoji: '🦵',
-    desc: 'Lower body strength',
+    // "Lower body strength" was the one description too long for the tile and
+    // rendered as "Lower body streng…". "Legs & glutes" says the same thing in
+    // half the width, and does not echo push-ups' "power".
+    desc: 'Legs & glutes',
     color: '#7c3aed',
     tintBg: '#faf5ff',
     soft: ['#f3e8ff', '#e9d5ff'],

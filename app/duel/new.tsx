@@ -338,8 +338,12 @@ export default function DuelNewScreen() {
                 <Text style={[styles.exerciseTitle, selected && { color: ex.color }]} numberOfLines={1}>
                   {ex.label}
                 </Text>
+                {/* Always the description. A locked tile used to read "Pro"
+                    here while a PRO badge sat in the corner saying the same
+                    thing — so the one line with room to sell the movement
+                    spent it repeating the lock. */}
                 <Text style={styles.exerciseDesc} numberOfLines={1}>
-                  {locked ? 'Pro' : ex.desc}
+                  {ex.desc}
                 </Text>
                 {locked ? (
                   <View style={styles.proBadge}>

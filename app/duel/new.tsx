@@ -153,7 +153,21 @@ export default function DuelNewScreen() {
 
     void (async () => {
       try {
-        if (await isBlockedByMe(myUid, target)) {
+        /* The block check is a Firestore read, and `get()` has no timeout: with
+         * the network unreachable — or App Check failing to attest — it neither
+         * resolves nor rejects. Every path out of this handler is behind it, so
+         * the whole button silently does nothing, which is exactly how this was
+         * reported.
+         *
+         * The check is a courtesy anyway: it exists so a blocked athlete gets
+         * "you can't challenge this athlete" instead of a permission error, and
+         * the Firestore rules refuse the write regardless. Losing the nicety
+         * beats losing the button, so time it out and carry on. */
+        const blocked = await Promise.race([
+          isBlockedByMe(myUid, target),
+          new Promise<false>((resolve) => setTimeout(() => resolve(false), 4000)),
+        ]);
+        if (blocked) {
           showDialog({
             title: 'Unavailable',
             message: 'You can’t challenge this athlete.',
@@ -164,8 +178,13 @@ export default function DuelNewScreen() {
         }
         // Assert only — commit after createDuel succeeds in the waiting room.
         assertClientRateLimit('duelInvite', myUid);
+        // Survives a release build (console.log does not) and runs once per
+        // tap. Without it a failure here is invisible on a real device, which
+        // is what made this take several passes to find.
+        console.warn('[RepChamp] challenge: navigating to waiting room');
         go();
       } catch (err) {
+        console.warn('[RepChamp] challenge failed:', err);
         showDialog({
           title: 'Could not start',
           message: err instanceof Error ? err.message : 'Please try again.',

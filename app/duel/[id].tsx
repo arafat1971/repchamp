@@ -192,21 +192,32 @@ export default function DuelWaitingScreen() {
             return;
           }
 
-          const id = await createDuel({
-            uid: self.uid,
-            displayName: self.displayName,
-            avatarUrl: self.avatarUrl,
-            level: self.level,
-            exercise,
-            duration,
-            targetUid: params.target ?? null,
-            kind: inviteKind,
-            cooperative: inviteKind === 'train',
-          });
+          /* Bounded, for the same reason the block check upstream is: a
+           * Firestore write neither resolves nor rejects while the network is
+           * unreachable or App Check cannot attest, so an unbounded await here
+           * parks the screen on "Creating your duel…" with no error and no way
+           * forward. Twelve seconds is generous for one small document and
+           * still short enough to say something before the athlete gives up. */
+          const id = await Promise.race([
+            createDuel({
+              uid: self.uid,
+              displayName: self.displayName,
+              avatarUrl: self.avatarUrl,
+              level: self.level,
+              exercise,
+              duration,
+              targetUid: params.target ?? null,
+              kind: inviteKind,
+              cooperative: inviteKind === 'train',
+            }),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 12000)),
+          ]);
           if (!id) {
+            console.warn('[RepChamp] createDuel returned no id (timeout or unconfigured)');
             if (!cancelled) setStatus('unavailable');
             return;
           }
+          console.warn('[RepChamp] duel created:', id);
           // Keep the id on the cleanup ref immediately so a mid-create unmount
           // still cancels the pending doc (and cancel here if already gone).
           duelIdRef.current = id;
@@ -356,12 +367,16 @@ export default function DuelWaitingScreen() {
             uri={self?.avatarUrl ?? undefined}
             size={80}
           />
+          {/* This used to say "once the backend is set up", which was true of
+              an unconfigured build and misleading everywhere else — the same
+              state is now reached by a create that timed out, where the cause
+              is almost always the connection rather than the project. */}
           <Text style={[text.h2, { textAlign: 'center', marginTop: 12 }]}>
-            Live duels go online once the backend is set up
+            Couldn&apos;t reach the arena
           </Text>
           <Text style={[text.captionMd, styles.hint]}>
-            Until then you can still settle it against a paced rival — same rules,
-            same XP.
+            Check your connection and try again. You can still settle it against
+            a paced rival — same rules, same XP.
           </Text>
           <PressableScale onPress={botFallback} style={styles.primaryBtn} accessibilityRole="button">
             <Text style={styles.primaryLabel}>Duel a rival instead</Text>

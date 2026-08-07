@@ -31,6 +31,13 @@ export class ErrorBoundary extends Component<Props, State> {
     // Report to the crash service so production render crashes are visible —
     // without this a white-screen bug is invisible outside a dev console.
     captureError(error);
+    /* Also warn in release. This was `__DEV__`-only, which meant a render
+     * crash on a real device left no trace anywhere reachable: Sentry has it,
+     * but that is not where you look while a phone is in your hand, and the
+     * fallback UI below says "something went wrong" without saying what.
+     * `console.warn` survives the release bundle where `console.log` does not,
+     * and this fires once per crash rather than per frame. */
+    console.warn('[RepChamp] Unhandled error:', error?.message, error?.stack);
     if (__DEV__) {
       console.error('[RepChamp] Unhandled error', error, info.componentStack);
     }

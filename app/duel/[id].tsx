@@ -159,6 +159,10 @@ export default function DuelWaitingScreen() {
   // on "backend not set up".
   const bootstrappedUidRef = useRef<string | null>(null);
   useEffect(() => {
+    // Proves the screen actually mounted. The log showed `go()` running and
+    // `createDuel` starting, with the screen never changing and no create
+    // result either way — which cannot all be true of one healthy mount.
+    console.warn('[RepChamp] waiting room mounted, self=', self ? 'yes' : 'no', 'role=', role);
     if (!self) {
       /* Waiting for identity is right on a cold start from a push, where auth
        * rehydrates a moment after mount. Waiting *forever* is not: a signed-out

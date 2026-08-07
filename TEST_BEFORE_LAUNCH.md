@@ -99,6 +99,10 @@ which can bypass the handler):
   should open the app straight into pairing, no browser tab.
 - **A friend invite** — `https://repchamp.web.app/@yourhandle` should open the
   app on Add Friend with the username already in the search box.
+- **A duel invite** — from the waiting room tap **Copy link**, paste it into a
+  chat, and open it on the other phone. It should land in the same duel. New
+  in this build: what the button copied before was a bare id, and the link it
+  now copies points at `/duel/join`, which is the route that answers it.
 
 If either opens the browser instead, the page still offers "Open in RepChamp",
 so the loop is not broken — it is the verification that failed, and

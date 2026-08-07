@@ -50,7 +50,7 @@ export default function ResultScreen() {
   const authUid = useAuthStore((s) => s.user?.uid ?? null);
   const authReady = useAuthStore((s) => s.ready);
 
-  // The off-screen card captured to a PNG when the athlete shares.
+  // The visible card, captured to a PNG when the athlete shares.
   const shareCardRef = useRef<View>(null);
 
   // Persist exactly once
@@ -403,30 +403,12 @@ export default function ResultScreen() {
     <View style={styles.root}>
       <Confetti />
 
-      {/* Off-screen shareable card — captured to PNG on share. */}
-      <View style={styles.offscreen} pointerEvents="none">
-        <ResultShareCard
-          ref={shareCardRef}
-          name={displayName}
-          avatarUri={avatarUri}
-          reps={session.reps}
-          exerciseLabel={definition.label}
-          exerciseId={exercise}
-          streak={streak}
-          formScore={formScore}
-          fullDepthReps={fullDepthReps}
-          peakDepthPct={peakDepth}
-          trackingStatus={aiVerified ? 'AI POSE TRACKED' : 'SESSION'}
-          aiVerified={aiVerified}
-          drew={session.drew}
-          durationSec={session.config.duration}
-          mode={mode}
-          opponentName={opponentLabel}
-          opponentReps={session.opponentReps}
-          won={session.won}
-          cooperative={mode === 'together'}
-        />
-      </View>
+      {/* The share card used to be rendered twice: once off-screen at
+          left:-9999 purely so `captureRef` had a target, and once visibly in
+          the scroll view. That is a 600-line component with gradients, an SVG
+          skeleton and images, built twice on the screen every finished set
+          lands on — for a copy most athletes never share.
+          `captureRef` works on the visible one, so there is only one now. */}
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -482,6 +464,7 @@ export default function ResultScreen() {
         {/* The Beautiful 3D Viral Share Card rendered on screen */}
         <Animated.View entering={FadeInDown.duration(600).delay(200)} style={styles.shareCardOnScreen}>
           <ResultShareCard
+            ref={shareCardRef}
             name={displayName}
             avatarUri={avatarUri}
               reps={session.reps}
@@ -562,7 +545,6 @@ export default function ResultScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.canvas },
-  offscreen: { position: 'absolute', left: -9999, top: 0 },
   scrollContent: { paddingHorizontal: 20, alignItems: 'center' },
   shareCardOnScreen: {
     width: '100%',

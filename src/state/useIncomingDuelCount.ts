@@ -18,7 +18,16 @@ import { useAuthStore } from '@/state/authStore';
 import { useSettingsStore } from '@/state/settingsStore';
 
 const SEEN_KEY = 'repchamp.notif.seenChallenges';
-const POLL_MS = 45_000;
+/* 45s was the delay between a challenge being sent and the target seeing it —
+ * long enough that the invite felt broken rather than slow, since the sender is
+ * usually standing right there. 8s costs four extra reads a minute against a
+ * query that is already indexed and limited to 10 docs, which is nothing beside
+ * a live duel's own subscription.
+ *
+ * The real fix is the push in `functions/src/index.ts`, which is instant and
+ * reaches a closed phone; it needs the Blaze plan. Until that is deployed this
+ * poll is the only delivery path, so it should not be the slow one. */
+const POLL_MS = 8_000;
 
 function readSeen(): Set<string> {
   try {

@@ -53,10 +53,30 @@ a chat — including to me.
 ## 3. Build the bundle
 
 ```bash
-cd android && ./gradlew bundleRelease
+cd android && SENTRY_DISABLE_AUTO_UPLOAD=true ./gradlew bundleRelease
 ```
 
+**That environment variable is not optional.** `sentry.gradle` runs
+`sentry-cli` while bundling JS, and with no Sentry organisation configured it
+exits with *"An organization ID or slug is required"* — failing the build after
+every native architecture has already compiled, roughly half an hour in. EAS
+never hits this because all three profiles in `eas.json` set the same flag; a
+local shell inherits nothing.
+
+It has to be the environment variable specifically. `sentry.gradle` reads
+`System.getenv` and ignores Gradle properties, so there is no way to bake this
+into `gradle.properties` or a config plugin. Crash reporting is unaffected —
+only source-map upload is skipped, which needs `SENTRY_ORG`, `SENTRY_PROJECT`
+and an auth token that do not exist yet.
+
 Output: `android/app/build/outputs/bundle/release/app-release.aab`
+
+Expect it to be slow — 30–60 minutes on a cold cache. The time goes on
+compiling TFLite, Skia and Nitro from C++ for all four CPU architectures.
+Do **not** narrow that with `-PreactNativeArchitectures` for an upload: Play
+splits the bundle per device, and dropping ABIs is what produced the "no longer
+supports 17,612 devices" warning. Narrowing is only appropriate for a local
+APK aimed at one known phone.
 
 The `withUploadSigning` config plugin points the release build at these
 credentials when the file exists, and falls back to the debug key when it does

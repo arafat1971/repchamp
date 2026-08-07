@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#8AC53E">
+  <title>Open RepChamp — Duel invite</title>
+  <meta name="description" content="You've been challenged to a duel on RepChamp. Open the app to race.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/png" href="/assets/logo_nobg.png">
+  <style>
+    :root { --green: #8AC53E; --ink: #0f1a12; --muted: #5b6b60; --canvas: #F6F7F5; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      font-family: "Plus Jakarta Sans", system-ui, sans-serif; background: var(--canvas); color: var(--ink);
+      padding: 24px;
+    }
+    .card {
+      width: 100%; max-width: 400px; background: #fff; border-radius: 28px; padding: 32px 28px;
+      box-shadow: 0 12px 40px rgba(15, 26, 18, 0.08); text-align: center;
+    }
+    img.logo { width: 64px; height: 64px; border-radius: 16px; margin-bottom: 16px; }
+    h1 { font-size: 1.45rem; margin: 0 0 8px; font-weight: 800; }
+    p { margin: 0 0 22px; color: var(--muted); font-size: 0.95rem; line-height: 1.45; }
+    .code {
+      display: inline-block; font-weight: 800; letter-spacing: 0.08em; font-size: 0.95rem;
+      background: #f0fdf4; color: #15803d; padding: 10px 16px; border-radius: 12px; margin-bottom: 22px;
+      max-width: 100%; overflow-wrap: anywhere;
+    }
+    a.btn {
+      display: block; text-decoration: none; border-radius: 16px; padding: 15px 18px;
+      font-weight: 800; font-size: 0.95rem; margin-bottom: 10px;
+    }
+    a.primary { background: var(--green); color: #fff; }
+    a.secondary { background: #eef2ee; color: var(--ink); }
+    .hint { font-size: 0.8rem; color: var(--muted); margin-top: 14px; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <img class="logo" src="/assets/logo.png" alt="RepChamp">
+    <h1>You've been challenged</h1>
+    <p>Someone wants to race you on RepChamp — open the app to take the duel.</p>
+    <div class="code" id="codeDisplay">······</div>
+    <a class="btn primary" id="openApp" href="#">Open in RepChamp</a>
+    <a class="btn secondary" href="https://play.google.com/store/apps/details?id=gg.repchamp.app">Get the app on Google Play</a>
+    <p class="hint">If the app is installed, Open should jump straight into the duel.</p>
+  </main>
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      // Firestore auto-ids: exactly 20 of [A-Za-z0-9]. Same rule the app applies,
+      // so a mangled link says "invalid" here rather than deep-linking the app
+      // into a duel that cannot exist.
+      var raw = (params.get('id') || '').replace(/[^A-Za-z0-9]/g, '');
+      var id = /^[A-Za-z0-9]{20}$/.test(raw) ? raw : '';
+      var deep = id ? 'repchamp://duel/join?id=' + encodeURIComponent(id) : '';
+      var el = document.getElementById('codeDisplay');
+      var open = document.getElementById('openApp');
+
+      if (id) {
+        el.textContent = id;
+        open.href = deep;
+        // Auto-attempt once — messengers often open links in an in-app browser.
+        setTimeout(function () { window.location.href = deep; }, 400);
+      } else {
+        el.textContent = 'Invalid link';
+        // Nothing to open: send them to the store rather than a dead scheme.
+        open.href = 'https://play.google.com/store/apps/details?id=gg.repchamp.app';
+        open.textContent = 'Get RepChamp';
+      }
+    })();
+  </script>
+</body>
+</html>

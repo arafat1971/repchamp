@@ -42,14 +42,23 @@ const META: Record<
   },
   squat: {
     emoji: '🦵',
-    desc: 'Lower body strength',
+    // "Lower body strength" was the one description too long for the tile and
+    // rendered as "Lower body streng…". "Legs & glutes" says the same thing in
+    // half the width, and does not echo push-ups' "power".
+    desc: 'Legs & glutes',
     color: '#7c3aed',
     tintBg: '#faf5ff',
     soft: ['#f3e8ff', '#e9d5ff'],
     ring: 'rgba(139,92,246,0.35)',
   },
+  /* The four below used to be 🧘 ⭐ 🏃 🔥 — a meditation pose for sit-ups, an
+     abstract star for jumping jacks, a runner for lunges and a flame for high
+     knees. Only the flame was even trying to describe the movement, and it
+     described the effort instead. Push-ups and squats set the convention with
+     💪 and 🦵: show the body doing the thing. */
   situp: {
-    emoji: '🧘',
+    // Crunching upward, which is the sit-up.
+    emoji: '🙆',
     desc: 'Core endurance',
     color: '#ea580c',
     tintBg: '#fff7ed',
@@ -57,7 +66,8 @@ const META: Record<
     ring: 'rgba(234,88,12,0.35)',
   },
   'jumping-jack': {
-    emoji: '⭐',
+    // Star jump: arms and legs out, which is the whole movement.
+    emoji: '🤸',
     desc: 'Full-body cardio',
     color: '#0891b2',
     tintBg: '#ecfeff',
@@ -65,7 +75,8 @@ const META: Record<
     ring: 'rgba(8,145,178,0.35)',
   },
   lunge: {
-    emoji: '🏃',
+    // A stride held low, rather than the runner it used to show.
+    emoji: '🚶',
     desc: 'Legs & balance',
     color: '#db2777',
     tintBg: '#fdf2f8',
@@ -73,7 +84,8 @@ const META: Record<
     ring: 'rgba(219,39,119,0.35)',
   },
   'high-knees': {
-    emoji: '🔥',
+    // Knees driving up on the spot — the action, not the effort.
+    emoji: '🏃',
     desc: 'Explosive tempo',
     color: '#dc2626',
     tintBg: '#fef2f2',

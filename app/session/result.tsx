@@ -1,7 +1,7 @@
 import { Redirect, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { Image } from 'expo-image';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BackHandler, Share, StyleSheet, Text, View, ScrollView } from 'react-native';
 import Animated, { FadeInDown, FadeInUp, ZoomIn } from 'react-native-reanimated';
 import { captureRef } from 'react-native-view-shot';
@@ -33,6 +33,14 @@ import { palette, radius, shadow } from '@/theme/tokens';
 export default function ResultScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  /* The action bar is absolutely positioned over the scroll view, so the
+   * content underneath has to reserve exactly its height. That reserve used to
+   * be a hard-coded 208, which was a guess at a bar whose height depends on the
+   * safe-area inset and on labels that wrap ("Form Report · Pro" is two lines
+   * on a narrow phone). When the bar came out taller, the bottom of the share
+   * card sat behind it. Measuring it removes the guess. */
+  const [actionsHeight, setActionsHeight] = useState(208);
   const session = useSessionStore();
   const recordSession = useProfileStore((s) => s.recordSession);
   const displayName = useProfileStore((s) => s.displayName);
@@ -42,7 +50,7 @@ export default function ResultScreen() {
   const authUid = useAuthStore((s) => s.user?.uid ?? null);
   const authReady = useAuthStore((s) => s.ready);
 
-  // The off-screen card captured to a PNG when the athlete shares.
+  // The visible card, captured to a PNG when the athlete shares.
   const shareCardRef = useRef<View>(null);
 
   // Persist exactly once
@@ -395,36 +403,18 @@ export default function ResultScreen() {
     <View style={styles.root}>
       <Confetti />
 
-      {/* Off-screen shareable card — captured to PNG on share. */}
-      <View style={styles.offscreen} pointerEvents="none">
-        <ResultShareCard
-          ref={shareCardRef}
-          name={displayName}
-          avatarUri={avatarUri}
-          reps={session.reps}
-          exerciseLabel={definition.label}
-          exerciseId={exercise}
-          streak={streak}
-          formScore={formScore}
-          fullDepthReps={fullDepthReps}
-          peakDepthPct={peakDepth}
-          trackingStatus={aiVerified ? 'AI POSE TRACKED' : 'SESSION'}
-          aiVerified={aiVerified}
-          drew={session.drew}
-          durationSec={session.config.duration}
-          mode={mode}
-          opponentName={opponentLabel}
-          opponentReps={session.opponentReps}
-          won={session.won}
-          cooperative={mode === 'together'}
-        />
-      </View>
+      {/* The share card used to be rendered twice: once off-screen at
+          left:-9999 purely so `captureRef` had a target, and once visibly in
+          the scroll view. That is a 600-line component with gradients, an SVG
+          skeleton and images, built twice on the screen every finished set
+          lands on — for a copy most athletes never share.
+          `captureRef` works on the visible one, so there is only one now. */}
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: Math.max(insets.top, 44) + 8, paddingBottom: insets.bottom + 208 },
+          { paddingTop: Math.max(insets.top, 44) + 8, paddingBottom: actionsHeight + 24 },
         ]}
       >
         {/* Trophy — reserved for genuine wins. */}
@@ -474,6 +464,7 @@ export default function ResultScreen() {
         {/* The Beautiful 3D Viral Share Card rendered on screen */}
         <Animated.View entering={FadeInDown.duration(600).delay(200)} style={styles.shareCardOnScreen}>
           <ResultShareCard
+            ref={shareCardRef}
             name={displayName}
             avatarUri={avatarUri}
               reps={session.reps}
@@ -497,7 +488,11 @@ export default function ResultScreen() {
       </ScrollView>
 
       {/* Pinned bottom action bar */}
-      <Animated.View entering={FadeInUp.duration(500).delay(500)} style={[styles.actions, { paddingBottom: insets.bottom + 12 }]}>
+      <Animated.View
+        entering={FadeInUp.duration(500).delay(500)}
+        onLayout={(e) => setActionsHeight(e.nativeEvent.layout.height)}
+        style={[styles.actions, { paddingBottom: insets.bottom + 12 }]}
+      >
         <View style={styles.secondaryRow}>
           <PressableScale
             onPress={() => {
@@ -550,7 +545,6 @@ export default function ResultScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.canvas },
-  offscreen: { position: 'absolute', left: -9999, top: 0 },
   scrollContent: { paddingHorizontal: 20, alignItems: 'center' },
   shareCardOnScreen: {
     width: '100%',
@@ -576,7 +570,10 @@ const styles = StyleSheet.create({
     ...font('regular', 15, { color: palette.slate500 }),
     textAlign: 'center',
     marginTop: 8,
-    lineHeight: 22,
+    /* 24, not 22. The copy wraps to two lines on a normal phone, and at 15pt
+       the tighter leading clipped the descenders on the second one -- "today!"
+       lost the tail of its "y". */
+    lineHeight: 24,
     paddingHorizontal: 16,
   },
   rewardRow: {

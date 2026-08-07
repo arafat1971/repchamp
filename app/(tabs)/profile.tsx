@@ -128,6 +128,25 @@ export default function ProfileScreen() {
   const pushProfile = useAuthStore((s) => s.pushProfile);
 
   const pickAvatar = async () => {
+    /* Ask first. Onboarding's picker always did; this one launched straight
+     * into the library, and on Android 13+ that returns `canceled` without
+     * ever showing a dialog — indistinguishable from a dead button.
+     *
+     * The manifest was the other half: it carried only READ_EXTERNAL_STORAGE,
+     * which newer Android ignores outright in favour of READ_MEDIA_IMAGES. */
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      showDialog({
+        title: 'Photo access needed',
+        message: permission.canAskAgain
+          ? 'RepChamp needs permission to open your photos.'
+          : 'Allow photo access for RepChamp in Settings, then try again.',
+        tone: 'info',
+        actions: [{ label: 'Got it', variant: 'primary' }],
+      });
+      return;
+    }
+
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,

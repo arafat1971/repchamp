@@ -24,6 +24,8 @@ import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
+import { buildInviteNotification } from '@/domain/inviteNotification';
+import { parseInviteKind } from '@/domain/presence';
 import { storage } from '@/lib/storage';
 import { syncMyCouplePushToken } from '@/services/coupleService';
 import { saveExpoPushToken } from '@/services/userService';
@@ -32,6 +34,43 @@ import { saveExpoPushToken } from '@/services/userService';
 const CHANNEL_REMINDERS = 'reminders';
 /** Challenge invites, nudges, rival alerts — higher priority. */
 const CHANNEL_SOCIAL = 'social';
+
+/**
+ * Accept / Decline straight from the shade.
+ *
+ * An invite is a yes-or-no question, and making someone unlock, wait for a
+ * cold start and find the button to answer it is why invites go stale. Accept
+ * opens the duel as guest — the same route a tap already takes; Decline is
+ * marked destructive so iOS renders it red, and carries no foreground flag so
+ * it resolves without opening the app.
+ */
+const CHALLENGE_CATEGORY = 'challenge-invite';
+export const CHALLENGE_ACTION_ACCEPT = 'challenge-accept';
+export const CHALLENGE_ACTION_DECLINE = 'challenge-decline';
+
+let challengeCategoryReady: Promise<void> | null = null;
+
+/** Registered lazily and only once — re-registering on every invite is wasted work. */
+function ensureChallengeCategory(): Promise<void> {
+  challengeCategoryReady ??= Notifications.setNotificationCategoryAsync(CHALLENGE_CATEGORY, [
+    {
+      identifier: CHALLENGE_ACTION_ACCEPT,
+      buttonTitle: 'Accept',
+      options: { opensAppToForeground: true },
+    },
+    {
+      identifier: CHALLENGE_ACTION_DECLINE,
+      buttonTitle: 'Decline',
+      options: { opensAppToForeground: false, isDestructive: true },
+    },
+  ])
+    .then(() => {})
+    .catch(() => {
+      // Older OS or unsupported surface — the banner still works without buttons.
+      challengeCategoryReady = null;
+    });
+  return challengeCategoryReady;
+}
 
 /** Legacy ids cancelled on every sync so older installs stop multi-nagging. */
 const LEGACY_IDS = [
@@ -342,23 +381,33 @@ export async function presentChallengeInvite(input: {
   duelId: string;
   fromName: string;
   kind?: string;
+  /** Movement id off the duel doc, when known. */
+  exercise?: string | null;
+  /** Set length in seconds, when known. */
+  duration?: number | null;
+  hostLevel?: number | null;
+  myLevel?: number | null;
 }): Promise<void> {
   if (!(await ensureNotificationPermission())) return;
   const id = `challenge-${input.duelId}`;
   try {
     await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
-    const verb =
-      input.kind === 'train'
-        ? 'wants to train together'
-        : input.kind === 'compete'
-          ? 'challenged you this week'
-          : 'challenged you to a duel';
+    await ensureChallengeCategory();
+    const copy = buildInviteNotification({
+      fromName: input.fromName,
+      exercise: input.exercise,
+      duration: input.duration,
+      kind: parseInviteKind(input.kind),
+      hostLevel: input.hostLevel,
+      myLevel: input.myLevel,
+    });
     await Notifications.scheduleNotificationAsync({
       identifier: id,
       content: {
-        title: 'Challenge invite',
-        body: `${input.fromName} ${verb}.`,
+        title: copy.title,
+        body: copy.body,
         data: { type: 'challenge', duelId: input.duelId },
+        categoryIdentifier: CHALLENGE_CATEGORY,
         ...(Platform.OS === 'android' ? { channelId: channelIdFor('social') } : {}),
       },
       trigger: null,

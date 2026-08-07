@@ -99,7 +99,17 @@ export default function OpponentPickerScreen() {
           `target`, so no open duel was ever created and the QR on the waiting
           room screen was unreachable. One phone shows, the other scans. */}
       <PressableScale
-        onPress={() => router.replace({ pathname: '/duel/new', params: { role: 'host' } })}
+        /* `queue: '0'` is set explicitly rather than left off.
+         *
+         * Both this and Quick Match `replace` the same route, and replacing a
+         * mounted screen reuses it — so omitting the param left whatever
+         * Quick Match had set still in place, and "Show my code" dropped the
+         * athlete into matchmaking with a "Find Opponent" button. Sending the
+         * value every time means neither entry point can inherit the other's
+         * intent. */
+        onPress={() =>
+          router.replace({ pathname: '/duel/new', params: { role: 'host', queue: '0' } })
+        }
         accessibilityRole="button"
         accessibilityLabel="Show a duel code for a rival to scan"
         style={styles.scanRow}

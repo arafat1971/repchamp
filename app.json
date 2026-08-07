@@ -22,20 +22,47 @@
     },
     "android": {
       "package": "gg.repchamp.app",
+      "versionCode": 11,
       "predictiveBackGestureEnabled": false,
       "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.VIBRATE",
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.READ_MEDIA_IMAGES"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#8AC53E",
         "foregroundImage": "./assets/adaptive-icon.png"
       },
-      "backgroundColor": "#F6F7F5"
+      "backgroundColor": "#F6F7F5",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "repchamp.web.app",
+              "pathPrefix": "/couple/join"
+            },
+            {
+              "scheme": "https",
+              "host": "repchamp.web.app",
+              "pathPrefix": "/@"
+            },
+            {
+              "scheme": "https",
+              "host": "repchamp.web.app",
+              "pathPrefix": "/duel/join"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "plugins": [
+      "./plugins/withUploadSigning",
       "expo-router",
       "@react-native-firebase/app",
       "@react-native-firebase/auth",

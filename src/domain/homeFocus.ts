@@ -35,8 +35,6 @@ export interface HomeFocusInput {
   couple: {
     /** Both seats filled. */
     paired: boolean;
-    /** A bond exists but the partner seat is still open. */
-    awaitingPartner: boolean;
     partnerName: string | null;
     /** Shared streak (days both trained). */
     streak: number;
@@ -57,10 +55,22 @@ export interface HomeFocusInput {
  *  1. A brand-new athlete needs a first rep above all else (activation).
  *  2. A live shared streak about to lapse is the sharpest retention moment.
  *  3. "Your partner already trained" is the strongest social pull there is.
- *  4. No partner yet → invite, because couple mode is the growth loop.
- *  5. An open daily challenge is the everyday habit driver.
- *  6. Goal already met → celebrate, offer a bonus.
+ *  4. An open daily challenge is the everyday habit driver.
+ *  5. Goal already met → celebrate, offer a bonus.
+ *  6. No partner yet → invite, because couple mode is the growth loop.
  *  7. Nothing pressing (trained today / rest) → recovery.
+ *
+ * The invite used to sit at 4, above the daily challenge and the weekly goal —
+ * and because `!paired` carries no other condition, that made it a terminal
+ * rule for everyone training alone. A solo athlete who had trained even once
+ * saw "Train with your partner" and nothing else, for good: rules 4, 5 and 7
+ * below it were unreachable for the majority of the userbase, and the hero
+ * that was supposed to adapt never changed.
+ *
+ * It stays above `recovery`, because a solo athlete with nothing pressing is
+ * exactly who the growth loop should ask. But a live challenge or a week just
+ * completed is a better ask, and both change from one day to the next, which is
+ * what makes the screen feel alive.
  */
 export function selectHomeFocus(input: HomeFocusInput): HomeFocus {
   const { couple: c } = input;
@@ -81,12 +91,6 @@ export function selectHomeFocus(input: HomeFocusInput): HomeFocus {
     return { kind: 'partner-trained', partnerName: c.partnerName };
   }
 
-  // Growth: no partner bonded yet. Couple mode can't be used alone, so this is
-  // the invite that unlocks it — kept high because every pairing is an install.
-  if (!c.paired) {
-    return { kind: 'invite-partner' };
-  }
-
   // Habit: today's challenge, if offered and unfinished.
   if (input.dailyChallenge && !input.dailyChallenge.done) {
     return {
@@ -99,6 +103,13 @@ export function selectHomeFocus(input: HomeFocusInput): HomeFocus {
   // Reward: the weekly goal is already met — celebrate rather than nag.
   if (input.daysThisWeek >= input.weeklyGoal) {
     return { kind: 'goal-met', days: input.daysThisWeek, goal: input.weeklyGoal };
+  }
+
+  // Growth: no partner bonded yet. Couple mode can't be used alone, so this is
+  // the invite that unlocks it. Below the two rules above so it is what a solo
+  // athlete sees when nothing else is pending, rather than all they ever see.
+  if (!c.paired) {
+    return { kind: 'invite-partner' };
   }
 
   // Nothing urgent — trained today, or a rest day. Point at recovery.

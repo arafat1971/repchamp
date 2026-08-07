@@ -35,9 +35,16 @@ export function duelInviteDeepLink(duelId: string): string {
   return `${APP_SCHEME}://duel/join?id=${encodeURIComponent(duelId)}`;
 }
 
-/** The shareable https link, for a text message rather than a QR. */
+/**
+ * The shareable https link, for a text message rather than a QR.
+ *
+ * The path matches the app route (`app/duel/join.tsx`) and the deep link above,
+ * exactly as `/couple/join` does. It used to be a bare `/duel`, which no route
+ * answered — expo-router maps paths onto the filesystem and `app/duel/` has no
+ * index — so a verified App Link would have opened the app onto nothing.
+ */
 export function duelInviteLink(duelId: string): string {
-  return `${WEB_BASE}/duel?id=${encodeURIComponent(duelId)}`;
+  return `${WEB_BASE}/duel/join?id=${encodeURIComponent(duelId)}`;
 }
 
 /**

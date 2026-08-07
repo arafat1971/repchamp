@@ -8,7 +8,7 @@ import { Avatar, PressableScale, Screen } from '@/components/ui';
 import { seatOf, type Duel } from '@/domain/duel';
 import { BrandedQR } from '@/components/BrandedQR';
 import { parseDuelExercise } from '@/domain/duelExercises';
-import { duelInviteDeepLink } from '@/domain/duelInvite';
+import { duelInviteDeepLink, duelInviteLink } from '@/domain/duelInvite';
 import { createDuel, fetchDuel, joinDuel, watchDuel, cancelDuel } from '@/services/duelService';
 import { commitClientRateLimit } from '@/services/safetyService';
 import { successHaptic } from '@/lib/feedback';
@@ -59,10 +59,17 @@ export default function DuelWaitingScreen() {
       ? params.kind
       : 'duel';
 
-  const [duelId, setDuelId] = useState<string | null>(params.id ?? null);
-  const [status, setStatus] = useState<'starting' | 'waiting' | 'unavailable' | 'cancelled'>(
-    'starting',
+  /* `'pending'` is the host's "mint me one" sentinel, not an id. Seeding state with
+   * it meant that until `createDuel` came back, the screen believed the duel was
+   * called "new": the code box read `new`, Copy link shared
+   * `/duel/join?id=new`, and the QR encoded the same — a code that resolves to
+   * nothing, because `isDuelId` wants 20 characters of [A-Za-z0-9]. */
+  const [duelId, setDuelId] = useState<string | null>(
+    params.id && params.id !== 'pending' ? params.id : null,
   );
+  const [status, setStatus] = useState<
+    'starting' | 'waiting' | 'unavailable' | 'cancelled' | 'signin'
+  >('starting');
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const launchedRef = useRef(false);
@@ -100,11 +107,24 @@ export default function DuelWaitingScreen() {
     });
   };
 
+  /* Leaving the waiting room goes to Arena, never `router.back()`.
+   *
+   * Back pops one entry, and for the host that entry is `/duel/new` — the setup
+   * screen whose primary button is "Send Challenge". Cancelling a duel landed on
+   * the button that creates another one, so a cancel-then-tap sent a fresh
+   * invite instead of leaving. The screen is also reached from a push, a QR
+   * scan, and a deep link, where a cold start has no history to pop at all.
+   * Replacing to Arena is the one exit that behaves the same from every entry,
+   * and matches what the duel stack's own error recovery does. */
+  const exitToArena = () => {
+    router.replace('/(tabs)/arena');
+  };
+
   const leaveWaiting = () => {
     void (async () => {
       const id = duelIdRef.current;
       if (!id) {
-        router.back();
+        exitToArena();
         return;
       }
       const duel = await fetchDuel(id);
@@ -133,7 +153,7 @@ export default function DuelWaitingScreen() {
         }
       }
       if (launchedRef.current) return;
-      router.back();
+      exitToArena();
     })();
   };
 
@@ -152,10 +172,25 @@ export default function DuelWaitingScreen() {
   // on "backend not set up".
   const bootstrappedUidRef = useRef<string | null>(null);
   useEffect(() => {
+    // Proves the screen actually mounted. The log showed `go()` running and
+    // `createDuel` starting, with the screen never changing and no create
+    // result either way — which cannot all be true of one healthy mount.
+    console.warn('[RepChamp] waiting room mounted, self=', self ? 'yes' : 'no', 'role=', role);
     if (!self) {
+      /* Waiting for identity is right on a cold start from a push, where auth
+       * rehydrates a moment after mount. Waiting *forever* is not: a signed-out
+       * athlete has no identity coming, and since sign-in moved to the end of
+       * onboarding it is entirely possible to reach Friends and tap Send
+       * Challenge without one. That spun here on 'starting' with no error, no
+       * timeout and no way out — the screen the button appeared not to do
+       * anything from.
+       *
+       * Give rehydration a beat, then say so. `signin` is a terminal state with
+       * a route out, not a spinner. */
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setStatus('starting');
-      return;
+      const t = setTimeout(() => setStatus('signin'), 4000);
+      return () => clearTimeout(t);
     }
     if (bootstrappedUidRef.current === self.uid) return;
     bootstrappedUidRef.current = self.uid;
@@ -166,7 +201,7 @@ export default function DuelWaitingScreen() {
         if (role === 'host') {
           // Train Together (and similar) mint the duel first, then open this
           // screen with a real id — reuse it. Don't create a second pending doc.
-          const existingId = params.id && params.id !== 'new' ? params.id : null;
+          const existingId = params.id && params.id !== 'pending' ? params.id : null;
           if (existingId) {
             if (cancelled) return;
             setDuelId(existingId);
@@ -174,21 +209,32 @@ export default function DuelWaitingScreen() {
             return;
           }
 
-          const id = await createDuel({
-            uid: self.uid,
-            displayName: self.displayName,
-            avatarUrl: self.avatarUrl,
-            level: self.level,
-            exercise,
-            duration,
-            targetUid: params.target ?? null,
-            kind: inviteKind,
-            cooperative: inviteKind === 'train',
-          });
+          /* Bounded, for the same reason the block check upstream is: a
+           * Firestore write neither resolves nor rejects while the network is
+           * unreachable or App Check cannot attest, so an unbounded await here
+           * parks the screen on "Creating your duel…" with no error and no way
+           * forward. Twelve seconds is generous for one small document and
+           * still short enough to say something before the athlete gives up. */
+          const id = await Promise.race([
+            createDuel({
+              uid: self.uid,
+              displayName: self.displayName,
+              avatarUrl: self.avatarUrl,
+              level: self.level,
+              exercise,
+              duration,
+              targetUid: params.target ?? null,
+              kind: inviteKind,
+              cooperative: inviteKind === 'train',
+            }),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 12000)),
+          ]);
           if (!id) {
+            console.warn('[RepChamp] createDuel returned no id (timeout or unconfigured)');
             if (!cancelled) setStatus('unavailable');
             return;
           }
+          console.warn('[RepChamp] duel created:', id);
           // Keep the id on the cleanup ref immediately so a mid-create unmount
           // still cancels the pending doc (and cancel here if already gone).
           duelIdRef.current = id;
@@ -202,7 +248,7 @@ export default function DuelWaitingScreen() {
           setStatus('waiting');
         } else {
           const id = params.id;
-          if (!id || id === 'new') return setStatus('unavailable');
+          if (!id || id === 'pending') return setStatus('unavailable');
 
           // Re-open after accept / notification remount: already seated → resume.
           const existing = await fetchDuel(id);
@@ -299,9 +345,20 @@ export default function DuelWaitingScreen() {
     return unsub;
   }, [duelId, self, router]);
 
+  /* Copies a link, not the bare id.
+   *
+   * The screen offers to let a rival "jump in from anywhere", but what landed
+   * on the clipboard was `aB3xY9kLmN2pQ7rS4tU6` — pasted into a chat that is
+   * an unexplained string, not something anyone can act on. The only place
+   * that accepts a pasted id is a field inside Add Friend, which is not where
+   * someone joining a duel would think to look.
+   *
+   * The https link is the one to send: it carries the app scheme for people
+   * who have RepChamp, and falls back to a page that explains itself for
+   * people who don't. */
   const copyCode = async () => {
     if (!duelId) return;
-    await Clipboard.setStringAsync(duelId);
+    await Clipboard.setStringAsync(duelInviteLink(duelId));
     setCopied(true);
   };
 
@@ -327,15 +384,57 @@ export default function DuelWaitingScreen() {
             uri={self?.avatarUrl ?? undefined}
             size={80}
           />
+          {/* This used to say "once the backend is set up", which was true of
+              an unconfigured build and misleading everywhere else — the same
+              state is now reached by a create that timed out, where the cause
+              is almost always the connection rather than the project. */}
           <Text style={[text.h2, { textAlign: 'center', marginTop: 12 }]}>
-            Live duels go online once the backend is set up
+            Couldn&apos;t reach the arena
           </Text>
           <Text style={[text.captionMd, styles.hint]}>
-            Until then you can still settle it against a paced rival — same rules,
-            same XP.
+            Check your connection and try again. You can still settle it against
+            a paced rival — same rules, same XP.
           </Text>
           <PressableScale onPress={botFallback} style={styles.primaryBtn} accessibilityRole="button">
             <Text style={styles.primaryLabel}>Duel a rival instead</Text>
+          </PressableScale>
+        </View>
+      </Screen>
+    );
+  }
+
+  if (status === 'signin') {
+    return (
+      <Screen>
+        <ModalHeader title="Live duels" onBack={leaveWaiting} />
+        <View style={styles.center}>
+          <Avatar initial="?" size={80} />
+          <Text style={[text.h2, { textAlign: 'center', marginTop: 12 }]}>
+            Sign in to challenge someone
+          </Text>
+          <Text style={[text.captionMd, styles.hint]}>
+            A live duel needs an account on both sides — that is how the other
+            athlete knows who challenged them, and how the result reaches your
+            streak.
+          </Text>
+          <PressableScale
+            onPress={() => router.replace('/onboarding')}
+            style={styles.primaryBtn}
+            accessibilityRole="button"
+          >
+            <Text style={styles.primaryLabel}>Sign in</Text>
+          </PressableScale>
+          {/* Not `styles.cancelLabel` — that one is red, for abandoning a duel.
+              Taking the paced rival is a real second option, not a destructive
+              act, and should not be coloured like one. */}
+          <PressableScale
+            onPress={botFallback}
+            style={styles.cancel}
+            accessibilityRole="button"
+          >
+            <Text style={font('extrabold', 15, { color: palette.slate500 })}>
+              Duel a paced rival instead
+            </Text>
           </PressableScale>
         </View>
       </Screen>
@@ -357,7 +456,7 @@ export default function DuelWaitingScreen() {
             <Text style={styles.primaryLabel}>Duel a rival instead</Text>
           </PressableScale>
           <PressableScale
-            onPress={() => router.back()}
+            onPress={exitToArena}
             style={styles.cancel}
             accessibilityRole="button"
           >
@@ -370,8 +469,14 @@ export default function DuelWaitingScreen() {
 
   return (
     <Screen>
+      {/* "Challenge sent" is only true when there was someone to send it to.
+          An open QR duel goes to nobody in particular — the athlete is holding
+          up a code and waiting to be scanned — and a header claiming otherwise
+          reads as the screen having done the wrong thing. */}
       <ModalHeader
-        title={role === 'guest' ? 'Joining duel' : 'Challenge sent'}
+        title={
+          role === 'guest' ? 'Joining duel' : scannable ? 'Your duel code' : 'Challenge sent'
+        }
         onBack={leaveWaiting}
       />
 
@@ -404,7 +509,14 @@ export default function DuelWaitingScreen() {
             ? error
             : role === 'guest'
               ? 'Joining the arena…'
-              : 'Waiting for your opponent to accept…'}
+              : /* Until `createDuel` returns there is no code to scan and no
+                   challenge on its way, so neither waiting message is true
+                   yet. Say what is actually happening instead. */
+                !duelId
+                ? 'Creating your duel…'
+                : scannable
+                  ? 'Waiting for someone to scan…'
+                  : 'Waiting for your opponent to accept…'}
         </Text>
       </View>
 
@@ -430,7 +542,7 @@ export default function DuelWaitingScreen() {
             <Text style={styles.code} numberOfLines={1}>
               {duelId}
             </Text>
-            <Text style={styles.copy}>{copied ? 'Copied ✓' : 'Copy'}</Text>
+            <Text style={styles.copy}>{copied ? 'Link copied ✓' : 'Copy link'}</Text>
           </PressableScale>
         </>
       ) : null}

@@ -34,6 +34,7 @@ yarn-error.*
 .env
 .env.*
 !.env.example
+!.env.claude.example
 .env*.local
 
 # Firebase — these hold REAL project credentials; excluded from the public repo.
@@ -68,4 +69,18 @@ assets/sounds/*.wav
 
 # Build artifacts downloaded from EAS. Large, regenerable from the build URL,
 # and permanent once committed — a 194 MB blob stays in history forever.
+store/aab/
+
+# Cloud Functions build output and deps
+functions/lib/
+functions/node_modules/
+
+# Upload-key credentials — never commit
+android/keystore.properties
+keystore.properties
+*.jks
+
+# Build artifacts — an APK is 114MB, over GitHub's 100MB limit,
+# and a rebuildable output has no business in version control.
+store/apk/
 store/aab/

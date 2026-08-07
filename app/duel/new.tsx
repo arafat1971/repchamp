@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown, FadeInUp, ZoomIn } from 'react-native-reanimated';
 
+import { ExerciseGlyph } from '@/components/ExerciseGlyph';
 import { ModalHeader } from '@/components/ModalHeader';
 import { PressableScale, Screen } from '@/components/ui';
 import { duelExerciseOptions, parseDuelExercise } from '@/domain/duelExercises';
@@ -17,9 +18,6 @@ import { showDialog } from '@/state/useDialog';
 import { font } from '@/theme/typography';
 import { palette, radius, shadow } from '@/theme/tokens';
 import type { ExerciseId } from '@/vision/exercises';
-
-const IC_PUSHUP = require('../../assets/ic-pushup.png');
-const IC_SQUAT = require('../../assets/ic-squat.png');
 
 const EXERCISE_OPTIONS = duelExerciseOptions();
 
@@ -110,10 +108,22 @@ export default function DuelNewScreen() {
     }
 
     const go = () => {
-      router.replace({
+      router.push({
         pathname: '/duel/[id]',
         params: {
-          id: 'new',
+          /* The sentinel must not name a real file in `app/duel/`.
+           *
+           * It was 'new', and `app/duel/new.tsx` exists — a static segment wins
+           * over a dynamic one, so `/duel/[id]` with id='new' resolved to the
+           * URL `/duel/new`, which is this screen. Send Challenge was asking to
+           * navigate from Set Up Duel to Set Up Duel, and the router correctly
+           * did nothing: it returned without throwing and mounted nothing,
+           * which is exactly what the instrumentation showed.
+           *
+           * 'pending' matches no file here, so `[id]` is the only route that
+           * can serve it. The waiting room treats it as "no id yet" and mints
+           * the real one. */
+          id: 'pending',
           role: params.role ?? 'host',
           exercise,
           duration: String(duration),
@@ -127,32 +137,77 @@ export default function DuelNewScreen() {
 
     const myUid = user?.uid;
     const target = params.target;
+
+    /* A challenge aimed at someone needs an identity to send it from. Without
+     * one this fell through to `go()`, which opened the waiting room to spin
+     * on a duel it could never create — the button looked broken because the
+     * screen it reached said nothing. Sign-in sits at the end of onboarding
+     * now, so arriving here signed out is an ordinary path, not an edge case. */
+    if (!myUid && target) {
+      showDialog({
+        title: 'Sign in to challenge',
+        message: 'A live duel needs an account so your rival knows who challenged them.',
+        tone: 'info',
+        actions: [
+          { label: 'Not now', variant: 'cancel' },
+          { label: 'Sign in', variant: 'primary', onPress: () => router.push('/onboarding') },
+        ],
+      });
+      return;
+    }
+
     if (!myUid || !target) {
       go();
       return;
     }
 
+    /* Navigate on the tap rather than after an await.
+     *
+     * This is not what fixed the dead button — the sentinel collision above
+     * was — but it is the better shape and it stays: a tap should move the
+     * screen immediately instead of waiting on a network round trip that may
+     * be slow or, as it turned out, never return at all.
+     *
+     * The rate-limit slot is taken here because it is local and synchronous.
+     * The block check is not — it needs a round trip — so it moves after the
+     * navigation and closes the duel if it comes back positive. That reorder
+     * is safe: `blockUser` already cancels pending duels between the two
+     * athletes, and the Firestore rules refuse the write regardless, so the
+     * check was always a courtesy that produced a kinder message rather than
+     * the thing enforcing the block. */
+    try {
+      assertClientRateLimit('duelInvite', myUid);
+    } catch (err) {
+      showDialog({
+        title: 'Slow down',
+        message: err instanceof Error ? err.message : 'Try again in a moment.',
+        tone: 'info',
+        actions: [{ label: 'Got it', variant: 'primary' }],
+      });
+      return;
+    }
+
+    console.warn('[RepChamp] challenge: navigating to waiting room');
+    go();
+
     void (async () => {
       try {
-        if (await isBlockedByMe(myUid, target)) {
+        const blocked = await Promise.race([
+          isBlockedByMe(myUid, target),
+          new Promise<false>((resolve) => setTimeout(() => resolve(false), 4000)),
+        ]);
+        if (blocked) {
           showDialog({
             title: 'Unavailable',
             message: 'You can’t challenge this athlete.',
             tone: 'info',
             actions: [{ label: 'Got it', variant: 'primary' }],
           });
-          return;
+          router.back();
         }
-        // Assert only — commit after createDuel succeeds in the waiting room.
-        assertClientRateLimit('duelInvite', myUid);
-        go();
-      } catch (err) {
-        showDialog({
-          title: 'Could not start',
-          message: err instanceof Error ? err.message : 'Please try again.',
-          tone: 'danger',
-          actions: [{ label: 'Got it', variant: 'primary' }],
-        });
+      } catch {
+        // The duel is already open and the rules are the real gate; a failed
+        // courtesy check is not worth interrupting it for.
       }
     })();
   };
@@ -283,21 +338,20 @@ export default function DuelNewScreen() {
                     selected && { borderColor: ex.ring },
                   ]}
                 >
-                  {ex.id === 'push' || ex.id === 'squat' ? (
-                    <Image
-                      source={ex.id === 'squat' ? IC_SQUAT : IC_PUSHUP}
-                      style={styles.exerciseImg}
-                      contentFit="contain"
-                    />
-                  ) : (
-                    <Text style={styles.exerciseEmoji}>{ex.emoji}</Text>
-                  )}
+                  {/* One drawing style for all six. Push-ups and squats used
+                      the PNGs while the rest fell back to emoji, so half this
+                      grid was artwork and half was a platform cartoon. */}
+                  <ExerciseGlyph exercise={ex.id} size={34} color={ex.color} />
                 </LinearGradient>
                 <Text style={[styles.exerciseTitle, selected && { color: ex.color }]} numberOfLines={1}>
                   {ex.label}
                 </Text>
+                {/* Always the description. A locked tile used to read "Pro"
+                    here while a PRO badge sat in the corner saying the same
+                    thing — so the one line with room to sell the movement
+                    spent it repeating the lock. */}
                 <Text style={styles.exerciseDesc} numberOfLines={1}>
-                  {locked ? 'Pro' : ex.desc}
+                  {ex.desc}
                 </Text>
                 {locked ? (
                   <View style={styles.proBadge}>
@@ -510,8 +564,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'transparent',
   },
-  exerciseImg: { width: 42, height: 36 },
-  exerciseEmoji: { fontSize: 26 },
   exerciseTitle: font('extrabold', 13, { color: palette.ink }),
   exerciseDesc: { ...font('bold', 10, { color: palette.grey500 }), marginTop: -2 },
   proBadge: {

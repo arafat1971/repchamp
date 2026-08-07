@@ -3,12 +3,20 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
+  "functions": {
+    "source": "functions",
+    "codebase": "default",
+    "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run build"],
+    "ignore": ["node_modules", ".git", "*.local"]
+  },
   "hosting": {
     "site": "repchamp",
     "public": "website",
+    "_comment": "Do not re-add '**/.*' to hosting.ignore — it excludes .well-known/assetlinks.json, which Android App Links verification requires. Dropping it silently un-verifies the app and sends invite links to the browser.",
     "ignore": [
       "firebase.json",
-      "**/.*",
+      "**/.git/**",
+      "**/.DS_Store",
       "**/node_modules/**"
     ],
     "cleanUrls": true,
@@ -28,6 +36,10 @@
       {
         "source": "/couple/join",
         "destination": "/couple-join.html"
+      },
+      {
+        "source": "/duel/join",
+        "destination": "/duel-join.html"
       },
       {
         "source": "/delete-account",

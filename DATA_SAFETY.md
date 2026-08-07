@@ -17,21 +17,18 @@ more. Photos still answers **Yes** because of the avatar.
 **Yes** — it collects some data (for account sync, leaderboards, couple mode).
 
 ## 2. Is all of the user data encrypted in transit?
-**Yes.** All traffic goes to Firebase (Firestore/Auth/Storage) and PostHog/Sentry over HTTPS/TLS.
+**Yes.** All traffic goes to Firebase (Firestore/Auth) and PostHog/Sentry over HTTPS/TLS.
 
 ## 3. Do you provide a way for users to request that their data is deleted?
 **Yes.** In-app: Settings → Your Data → **Delete my account**. It erases the profile,
-leaderboard row, matchmaking ticket, friend and block lists, push token, the shared couple
-record, the avatar, and any duel/together action shots left over from the removed
-photo-share feature. Also provide the
+leaderboard row, matchmaking ticket, friend and block lists, push token, and the shared
+couple record. The avatar is a field on the profile document, so deleting the profile
+deletes the photo with it. Also provide the
 support email arafathossain455@gmail.com for requests.
 
-Two things worth knowing if you are asked to substantiate this:
-- The deletion **reports failure** rather than silently claiming success — if any erasure is
-  rejected it throws, names what survived, and the athlete can retry.
-- Deletion still sweeps `duelPhotos/` because photos uploaded while that feature was live
-  remain in Storage. The opponent's shot is deliberately **not** deleted: it is their
-  photograph, not the deleting athlete's.
+Worth knowing if you are asked to substantiate this: the deletion **reports failure**
+rather than silently claiming success — if any erasure is rejected it throws, names what
+survived, and the athlete can retry.
 
 ---
 
@@ -150,9 +147,15 @@ kind of mismatch before a release ships rather than after.
 
 **2026-08-01 — duel/together action-shot share removed.** The app no longer captures or
 uploads any camera frame. Photos remains **Yes** (the avatar), but its scope narrowed to
-`avatars/{uid}.jpg` alone. `duelPhotos/` is delete-only in `storage.rules`, kept solely so
-account deletion still erases photos uploaded while the feature was live. **Re-submit the
-Data safety form** if the previous, broader answer was already filed.
+the avatar alone. **Re-submit the Data safety form** if the previous, broader answer was
+already filed.
+
+**2026-08-06 — Firebase Storage removed entirely.** The avatar moved to a base64 data URI
+on the profile document (`0ccf6dd`) and the Storage SDK was dropped from the build
+(`c5e813b`); `storage.rules` and the `duelPhotos/` sweep are gone with it. Nothing about
+the *declarations* changes — Photos is still **Yes** (the avatar still leaves the device,
+now as a Firestore field) and Videos is still **No**. What changes is the substantiation:
+there is no separate image host, and deleting the profile document deletes the photo.
 
 ## Field-by-field answers (2026-08-01)
 
@@ -175,9 +178,12 @@ Verified against the code, not from memory. Every claim below traces to a specif
 
 ### The two answers that most often get flagged
 
-**Photos = Yes**, still — the avatar the user picks is uploaded to Storage. Answering No
-because "it's just an avatar" is the kind of mismatch Play rejects for. What changed is the
-*scope*: no camera frame is uploaded in any mode now that the action-shot share is gone.
+**Photos = Yes**, still — the avatar the user picks leaves the device (stored as a base64
+field on the profile document, not in Firebase Storage). Answering No because "it's just an
+avatar", or because it is a Firestore field rather than a file in a bucket, is the kind of
+mismatch Play rejects for: what matters is that a user-supplied photograph is transmitted
+and retained, not the storage mechanism. What changed is the *scope*: no camera frame is
+uploaded in any mode now that the action-shot share is gone.
 
 **Videos = No** is correct and unchanged: the camera stream is processed frame-by-frame
 on-device and discarded.

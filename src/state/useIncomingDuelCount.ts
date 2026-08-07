@@ -15,10 +15,20 @@ import { presentChallengeInvite } from '@/lib/notifications';
 import { storage } from '@/lib/storage';
 import { fetchIncomingDuels } from '@/services/duelService';
 import { useAuthStore } from '@/state/authStore';
+import { selectLevel, useProfileStore } from '@/state/profileStore';
 import { useSettingsStore } from '@/state/settingsStore';
 
 const SEEN_KEY = 'repchamp.notif.seenChallenges';
-const POLL_MS = 45_000;
+/* 45s was the delay between a challenge being sent and the target seeing it —
+ * long enough that the invite felt broken rather than slow, since the sender is
+ * usually standing right there. 8s costs four extra reads a minute against a
+ * query that is already indexed and limited to 10 docs, which is nothing beside
+ * a live duel's own subscription.
+ *
+ * The real fix is the push in `functions/src/index.ts`, which is instant and
+ * reaches a closed phone; it needs the Blaze plan. Until that is deployed this
+ * poll is the only delivery path, so it should not be the slow one. */
+const POLL_MS = 8_000;
 
 function readSeen(): Set<string> {
   try {
@@ -88,10 +98,17 @@ export function useChallengeInviteSync(): void {
       for (const d of list) {
         if (seen.has(d.id)) continue;
         seen.add(d.id);
+        /* The poll already has the movement, the length and both levels — the
+           banner used to throw all of it away and say "challenged you to a
+           duel". Passing it through is what lets the invite name the stakes. */
         void presentChallengeInvite({
           duelId: d.id,
           fromName: d.hostName,
           kind: d.kind,
+          exercise: d.exercise,
+          duration: d.duration,
+          hostLevel: d.hostLevel,
+          myLevel: selectLevel(useProfileStore.getState()).level,
         });
       }
       writeSeen(seen);

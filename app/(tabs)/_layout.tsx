@@ -26,6 +26,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 
+import { ExerciseGlyph } from '@/components/ExerciseGlyph';
 import { useProfileStore } from '@/state/profileStore';
 import { useIncomingDuelCount } from '@/state/useIncomingDuelCount';
 import { buildFabModel } from '@/domain/fabActions';
@@ -187,12 +188,18 @@ function ProfileIcon({ color, focused }: IconProps) {
 
 type FabAction = {
   label: string;
+  /* The movement this row starts, so it can be drawn with the same glyph the
+     exercise tiles use. Absent on rows that are not a single movement — the
+     custom-workout row falls back to its emoji. */
+  exercise?: ExerciseId;
   emoji: string;
   onPress: () => void;
   /** Not on this athlete's plan — say so before they tap into a paywall. */
   locked?: boolean;
   /** Already trained today; still offered, just not the obvious next pick. */
   doneToday?: boolean;
+  /** The "build your own" row — drawn as a dumbbell rather than a movement. */
+  custom?: boolean;
 };
 
 
@@ -232,6 +239,25 @@ const HINT_WIDTH = 110;
  * centred and take the same 3pt weight as `ExerciseGlyph`, so the FAB belongs
  * to the same drawing as the tiles it sits above.
  */
+/** A dumbbell for the "build your own" row — same weight as the movements. */
+function DumbbellMark({ size, color }: { size: number; color: string }) {
+  const common = {
+    stroke: color,
+    strokeWidth: 2.4,
+    strokeLinecap: 'round' as const,
+    fill: 'none' as const,
+  };
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path d="M8 12 L16 12" {...common} />
+      <Path d="M5.5 8.5 L5.5 15.5" {...common} />
+      <Path d="M18.5 8.5 L18.5 15.5" {...common} />
+      <Path d="M3 10.5 L3 13.5" {...common} />
+      <Path d="M21 10.5 L21 13.5" {...common} />
+    </Svg>
+  );
+}
+
 function PlusMark({ size }: { size: number }) {
   const half = size / 2;
   return (
@@ -373,11 +399,14 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
     transform: [{ rotate: `${interpolate(spin.value, [0, 1], [0, 45])}deg` }],
   }));
 
-  /** Labels and glyphs for the movements the FAB can start. */
-  const META: Record<string, { label: string; emoji: string }> = {
-    push: { label: 'Push-ups', emoji: '💪' },
-    squat: { label: 'Squats', emoji: '🦵' },
-    situp: { label: 'Sit-Ups', emoji: '🧘' },
+  /* Labels only. The glyphs come from `ExerciseGlyph`, the same drawing the
+     duel picker uses — these rows used 💪 🦵 🧘, where the meditation pose for
+     sit-ups was describing the wrong thing entirely and all three were a
+     different illustration style from the rest of the app. */
+  const META: Record<string, { label: string }> = {
+    push: { label: 'Push-ups' },
+    squat: { label: 'Squats' },
+    situp: { label: 'Sit-Ups' },
   };
 
   const startExercise = (exercise: ExerciseId) => {
@@ -392,10 +421,11 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
   // what the athlete actually trains and locked rows say so up front.
   const actions: FabAction[] = [
     ...fab.order.map((row) => {
-      const meta = META[row.exercise] ?? { label: row.exercise, emoji: '🏃' };
+      const meta = META[row.exercise] ?? { label: row.exercise };
       return {
         label: meta.label,
-        emoji: meta.emoji,
+        exercise: row.exercise,
+        emoji: '',
         locked: row.locked,
         doneToday: row.doneToday,
         onPress: () => startExercise(row.exercise),
@@ -403,7 +433,11 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
     }),
     {
       label: 'Custom Workout',
-      emoji: '🏋️',
+      /* The one row that is not a single movement, so it keeps a glyph of its
+         own rather than borrowing one. Drawn, not emoji, so the sheet has one
+         illustration style throughout. */
+      emoji: '',
+      custom: true,
       onPress: () => router.navigate('/train'),
     },
   ];
@@ -484,7 +518,19 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
                     </Text>
                   ) : null}
                   <View style={styles.fabMenuEmoji}>
-                    <Text style={{ fontSize: 18 }}>{action.locked ? '🔒' : action.emoji}</Text>
+                    {action.locked ? (
+                      <Text style={{ fontSize: 16 }}>🔒</Text>
+                    ) : action.exercise ? (
+                      <ExerciseGlyph
+                        exercise={action.exercise}
+                        size={24}
+                        color={palette.green600}
+                      />
+                    ) : action.custom ? (
+                      <DumbbellMark size={22} color={palette.green600} />
+                    ) : (
+                      <Text style={{ fontSize: 18 }}>{action.emoji}</Text>
+                    )}
                   </View>
                 </TouchableOpacity>
               </Animated.View>
@@ -789,8 +835,9 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 12,
-    // Sits inside the FAB menu sheet, which is now a dark surface — the pale
-    // green tile it used to be glowed against it.
+    // A pale green tile behind a green600 glyph: enough separation to read as
+    // an icon chip, not so much that it competes with the label beside it.
+    // (An older comment here claimed the sheet was dark. It is not — #f0fdf4.)
     backgroundColor: palette.tintGreenTop,
     alignItems: 'center',
     justifyContent: 'center',

@@ -1,10 +1,8 @@
 import { BlurView } from 'expo-blur';
-import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect, Tabs, usePathname, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Image as RNImage,
   Modal,
   Platform,
   Pressable,
@@ -197,63 +195,7 @@ type FabAction = {
   doneToday?: boolean;
 };
 
-/**
- * Flexed-arm glyph — crisp white silhouette for the green FAB.
- * Reads as “muscle / start training” at 28dp without emoji noise.
- */
-function MuscleIcon({ size = 26, color = '#ffffff' }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      {/* Shoulder → bicep bulge → upper arm */}
-      <Path
-        d="M8.8 6.2c1-.9 2.4-1.4 3.8-1.2 1 .1 1.9.7 2.5 1.5.5-.4 1.2-.6 1.9-.6 1.8 0 3.2 1.5 3.2 3.3 0 .6-.2 1.2-.5 1.7 1.1.8 1.8 2.1 1.8 3.6 0 2-1.3 3.7-3.1 4.3v1.4c0 .8-.6 1.4-1.4 1.4h-1.4c-.8 0-1.4-.6-1.4-1.4v-.6c-.5.2-1.1.3-1.7.3-1.6 0-3-.7-3.9-1.8-.6.8-1.6 1.3-2.7 1.3-1.9 0-3.4-1.5-3.4-3.4 0-1.3.7-2.4 1.8-3-.2-.5-.3-1-.3-1.6 0-1.9 1.4-3.4 3.2-3.6.1-.4.3-.8.6-1.1z"
-        fill={color}
-      />
-      {/* Inner bicep cut for depth */}
-      <Path
-        d="M10.2 9.5c.5-.8 1.4-1.2 2.4-1.2.5 0 1 .1 1.4.4-.1.4-.2.8-.2 1.2 0 1 .4 1.8 1.1 2.4-.7.6-1.6 1-2.6 1-1 0-1.9-.5-2.5-1.3.2-.8.3-1.6.4-2.5z"
-        fill="#15803d"
-        opacity={0.35}
-      />
-    </Svg>
-  );
-}
 
-/**
- * The FAB's flex mark — the illustrated `fabicon` asset.
- *
- * Falling back to the vector `MuscleIcon` if the asset ever fails to resolve
- * keeps a broken or renamed file from leaving an empty FAB.
- */
-const FLEX_ASSET = require('../../assets/fabicon.png') as number;
-const FLEX_ASSET_META = RNImage.resolveAssetSource(FLEX_ASSET);
-const FLEX_ASSET_IS_REAL =
-  (FLEX_ASSET_META?.width ?? 0) > 8 && (FLEX_ASSET_META?.height ?? 0) > 8;
-
-/**
- * How large the artwork is drawn, relative to the circle's diameter.
- *
- * `contentFit="contain"` fits the *whole canvas* into this box, and the mark
- * sits inside a large transparent margin, so drawing it at exactly the circle
- * size would render it far smaller than the circle implies.
- *
- * This has to be tuned to the artwork and cannot be derived at runtime:
- * `resolveAssetSource` reports the canvas (1024²), not the opaque content, and
- * both the old and current marks share that canvas while differing in shape.
- * Measured for the current duo mark, whose content is 866×560 (1.55:1
- * landscape, 85% of the canvas width). At 1.3 it rendered ~64pt wide inside a
- * 58pt circle and the round clip cut both outer arms off; 0.9 was the safe
- * correction but overshot, leaving the mark ~44pt in a 58pt circle with a ring
- * of dead space around it — small enough to read as an icon that failed to
- * load rather than the primary action.
- *
- * 1.08 splits the difference: the 1.55:1 mark lands ~52pt wide, filling the
- * circle without the arms reaching the clip.
- *
- * If the artwork is swapped again, re-measure: a near-square mark can take a
- * larger value, a wide one cannot.
- */
-const FLEX_ART_INSET_SCALE = 1.48;
 
 /** Movements the FAB offers, in authored order — the ranking reorders them. */
 const FAB_EXERCISES: readonly ExerciseId[] = ['push', 'squat', 'situp'];
@@ -265,16 +207,15 @@ const FAB_HINT_KEY = 'fab.hint.v1';
 /**
  * How far above `bottomPosition` the hint pill sits.
  *
- * The FAB disc is 58pt plus a 3pt border. 68 cleared it arithmetically but not
- * visually: the pill is wider than the disc, and since it is right-aligned to
- * the same inset, the extra width grows leftward across whatever card is
- * behind it. Seen on device it read as a label stuck to the Squats tile rather
- * than a hint about the button. Lifting it clear puts the gap where the eye
- * expects one.
+ * The disc is 56pt. 68 cleared it arithmetically but not visually: the pill is
+ * wider than the disc, and since it is right-aligned to the same inset, the
+ * extra width grows leftward across whatever card is behind it. Seen on device
+ * it read as a label stuck to the Squats tile rather than a hint about the
+ * button. Lifting it clear puts the gap where the eye expects one.
  */
 const FAB_HINT_OFFSET = 78;
-/** The FAB disc, 58pt plus its 3pt border either side. */
-const FAB_DIAMETER = 64;
+/** The FAB disc. 56 flat — the 3pt rim it used to carry is gone. */
+const FAB_DIAMETER = 56;
 /**
  * Fixed so the pill can be centred on the disc without measuring text.
  *
@@ -283,22 +224,34 @@ const FAB_DIAMETER = 64;
  */
 const HINT_WIDTH = 110;
 
-function FlexMark({ size }: { size: number }) {
-  if (!FLEX_ASSET_IS_REAL) {
-    // Back to white: the disc is dark again, and the 600-weight green this
-    // used against the light disc would nearly disappear on it.
-    return <MuscleIcon size={size - 6} color="#ffffff" />;
-  }
-  const drawn = size * FLEX_ART_INSET_SCALE;
+/**
+ * The closed-state mark: a plus, drawn rather than typeset.
+ *
+ * A `+` glyph would inherit the font's own proportions and optical centring,
+ * which never quite agree with a circle. Two rounded strokes are exactly
+ * centred and take the same 3pt weight as `ExerciseGlyph`, so the FAB belongs
+ * to the same drawing as the tiles it sits above.
+ */
+function PlusMark({ size }: { size: number }) {
+  const half = size / 2;
   return (
-    <Image
-      source={FLEX_ASSET}
-      style={{ width: drawn, height: drawn }}
-      contentFit="contain"
-      accessibilityLabel="Start workout"
-    />
+    <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <Path
+        d={`M${half} 3 L${half} ${size - 3}`}
+        stroke="#ffffff"
+        strokeWidth={3}
+        strokeLinecap="round"
+      />
+      <Path
+        d={`M3 ${half} L${size - 3} ${half}`}
+        stroke="#ffffff"
+        strokeWidth={3}
+        strokeLinecap="round"
+      />
+    </Svg>
   );
 }
+
 
 /**
  * Train FAB — entrance bounce → glow → idle breathing.
@@ -588,17 +541,27 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
                 Not pure #000: a hair of lift keeps the gradient readable and
                 stops it looking like a hole punched in the UI.
                 Open: flips to the green gradient, where a white × belongs. */}
+            {/* One idea, not four.
+                It was a dark charcoal disc carrying a photographic emoji of two
+                flexing arms, ringed in green, with a red badge on top — four
+                colours and two illustration styles inside 58pt, in an app whose
+                every other surface is flat green on off-white. The emoji read
+                as a sticker someone had dropped on the UI.
+                Now the brand gradient with a drawn glyph on it: a plus, because
+                the button's job is "add a set", and the same line weight the
+                exercise icons use. Open flips to the × on the same green, so
+                the colour never moves — only the mark does. */}
             <LinearGradient
-              colors={open ? ['#4ade80', '#15803d'] : ['#1C2320', '#0C110F']}
+              colors={['#22c55e', '#15803d']}
               start={{ x: 0.15, y: 0 }}
               end={{ x: 0.9, y: 1 }}
-              style={[styles.fabCircle, !open && styles.fabCircleClosed]}
+              style={styles.fabCircle}
             >
               <Animated.View style={iconSpin}>
                 {open ? (
                   <Text style={font('bold', 26, { color: '#fff', lineHeight: 28 })}>×</Text>
                 ) : (
-                  <FlexMark size={34} />
+                  <PlusMark size={26} />
                 )}
               </Animated.View>
             </LinearGradient>
@@ -731,8 +694,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 6,
     borderRadius: 12,
-    // The same near-black as the closed FAB, so the pill reads as part of the
-    // button rather than as a notification from somewhere else.
+    // Near-black rather than the FAB's green: the pill is a passing hint, and
+    // repeating the button's own colour would make it compete with the thing it
+    // is explaining. Kept dark so it reads as a tooltip, not a second action.
     backgroundColor: '#1C2320',
     zIndex: 999,
     elevation: 10,
@@ -773,27 +737,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   fabCircle: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: '#ffffff',
-    shadowColor: '#16a34a',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 14,
-    elevation: 10,
-    // The flex art is drawn larger than the icon box to defeat its built-in
-    // padding, so clip it to the circle rather than let it bleed past the rim.
-    overflow: 'hidden',
-  },
-  /* Closed state is a dark disc: the brand green rim now has real contrast to
-     sit against, so it reads as a deliberate ring rather than an outline. */
-  fabCircleClosed: {
-    borderColor: '#22c55e',
-    borderWidth: 2.5,
+    /* No border. The 3pt white rim existed to separate a dark disc from a light
+       page; a green disc on off-white already has that separation, and the ring
+       only made the button read as an outlined sticker.
+       The shadow is neutral rather than green-tinted — a coloured shadow on a
+       coloured disc doubles the hue and muddies the edge — and softer, because
+       elevation should suggest the button floats, not that it is glowing.
+       56 is the Material FAB diameter; 58 was drifting off-spec for no reason. */
+    shadowColor: '#0f1a12',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    elevation: 8,
   },
   fabScrim: {
     flex: 1,

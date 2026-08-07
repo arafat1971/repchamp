@@ -87,6 +87,26 @@ purpose + optionality as noted.
 - **Financial → payment info / credit score** — No (billing provider handles payment)
 - **Messages / audio / files / web browsing** — No
 
+> **Audio is No, and the manifest now agrees.** VisionCamera merges
+> `RECORD_AUDIO` in for its optional video-with-audio path, which this app never
+> uses — `expo-audio` only plays sounds, and nothing anywhere asks for the mic.
+> A microphone permission you cannot explain invites a review question and drags
+> the Audio category into this form for a capability the app does not have, so
+> `android.blockedPermissions` in `app.json` strips it (along with
+> `SYSTEM_ALERT_WINDOW`, a dev-client overlay with no place in a release build).
+>
+> Confirmed against the *merged* release manifest — the one that ships — not
+> just the source manifest:
+>
+> ```bash
+> cd android && ANDROID_HOME=~/Library/Android/sdk SENTRY_DISABLE_AUTO_UPLOAD=true \
+>   ./gradlew :app:processReleaseManifest
+> grep -oE 'android:name="android\.permission\.[A-Z_]+"' \
+>   app/build/intermediates/merged_manifests/release/processReleaseManifest/AndroidManifest.xml | sort -u
+> ```
+>
+> `CAMERA` must still be present; `RECORD_AUDIO` and `SYSTEM_ALERT_WINDOW` must not.
+
 ---
 
 ## Data collection details (per Play's follow-up questions)

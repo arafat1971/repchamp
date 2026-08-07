@@ -16,6 +16,7 @@ import Animated, {
   Easing,
   interpolate,
   useAnimatedStyle,
+  useReducedMotion,
   useSharedValue,
   withDelay,
   withRepeat,
@@ -41,7 +42,7 @@ import type { ExerciseId } from '@/vision/exercises';
 import { useIsPro } from '@/state/proStore';
 import { canStartExercise } from '@/domain/pro';
 import { font, fontFamily } from '@/theme/typography';
-import { palette } from '@/theme/tokens';
+import { motion, palette } from '@/theme/tokens';
 import { selectionHaptic } from '@/lib/feedback';
 import { storage } from '@/lib/storage';
 
@@ -355,13 +356,29 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
     [sessions, today, isPro, pendingDuels, dailyBest],
   );
 
+  const reduced = useReducedMotion();
+
   const entered = useSharedValue(0);
   const breathe = useSharedValue(1);
   const glow = useSharedValue(0.35);
   const focusScale = useSharedValue(1);
   const spin = useSharedValue(0);
 
+  /* "Reduce Motion" has to switch the breathing off, not merely shorten it.
+   *
+   * The idle loop is a `withRepeat(-1)` — it never ends, so for someone who
+   * turns the setting on precisely to stop moving UI, this button pulses in the
+   * corner of every screen for the whole session. An entrance animation is a
+   * one-off they can look away from; a permanent one is not. With the setting
+   * on the FAB simply arrives at its resting size, fully visible and with the
+   * same glow, and every other interaction still works. */
   useEffect(() => {
+    if (reduced) {
+      entered.value = 1;
+      breathe.value = 1;
+      glow.value = 0.4;
+      return;
+    }
     entered.value = withDelay(
       350,
       withSequence(
@@ -398,15 +415,21 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
         false,
       ),
     );
-  }, [breathe, entered, glow]);
+  }, [breathe, entered, glow, reduced]);
 
   useEffect(() => {
-    focusScale.value = withSpring(focused ? 1.08 : 1, { damping: 14, stiffness: 240 });
-  }, [focused, focusScale]);
+    focusScale.value = reduced
+      ? 1
+      : withSpring(focused ? 1.08 : 1, { damping: 14, stiffness: 240 });
+  }, [focused, focusScale, reduced]);
 
+  /* The × still has to appear — it says the menu is open — so this stays an
+     animation either way, just a short linear one instead of a spring. */
   useEffect(() => {
-    spin.value = withSpring(open ? 1 : 0, { damping: 14, stiffness: 220 });
-  }, [open, spin]);
+    spin.value = reduced
+      ? withTiming(open ? 1 : 0, { duration: motion.fast })
+      : withSpring(open ? 1 : 0, { damping: 14, stiffness: 220 });
+  }, [open, spin, reduced]);
 
   const scaleStyle = useAnimatedStyle(() => ({
     transform: [{ scale: entered.value * breathe.value * focusScale.value }],
@@ -642,8 +665,10 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
                 the button's job is "add a set", and the same line weight the
                 exercise icons use. Open flips to the × on the same green, so
                 the colour never moves — only the mark does. */}
+            {/* Same two greens as before, named rather than spelled: these are
+                palette.green500/green700, so a brand change moves the FAB too. */}
             <LinearGradient
-              colors={['#22c55e', '#15803d']}
+              colors={[palette.green500, palette.green700]}
               start={{ x: 0.15, y: 0 }}
               end={{ x: 0.9, y: 1 }}
               style={styles.fabCircle}

@@ -42,6 +42,9 @@ google-services.json
 GoogleService-Info.plist
 .firebase/
 firebase-debug.log
+# Emulator run logs (`npm run test:rules`).
+firestore-debug.log
+ui-debug.log
 
 # typescript
 *.tsbuildinfo

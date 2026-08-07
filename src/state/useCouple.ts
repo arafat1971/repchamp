@@ -153,20 +153,30 @@ export function useCouple(): CoupleView {
     if (creditId) void flushCoupleCreditOutbox();
   }, [uid, couple?.id]);
 
-  // When a bond appears (or this device already had a private token before pairing),
-  // publish the token onto our member slice so the partner can nudge remotely.
+  // Once the bond is *real*, publish our push token onto our member slice so the
+  // partner can nudge remotely.
+  //
+  // Gated on `isPaired` rather than merely "a couple doc exists". A pending
+  // invite is readable by anyone who presents the code — that is the whole point
+  // of the pending-read rule, it is how a partner finds the invite before
+  // joining — and a 6-character code is a small enough keyspace to enumerate.
+  // Publishing the token while still pending therefore put it somewhere a
+  // stranger could read it and push to the device, which is exactly what keeping
+  // it off the public profile was meant to prevent. Nothing is lost by waiting:
+  // there is no partner to nudge until someone takes the second seat.
+  const pairedCoupleId = isPaired(couple) ? couple?.id : undefined;
   useEffect(() => {
-    if (!uid || !couple?.id) return;
+    if (!uid || !pairedCoupleId) return;
     let cancelled = false;
     void (async () => {
       const token = await fetchExpoPushToken(uid);
       if (!token || cancelled) return;
-      await syncCouplePushToken(couple.id, uid, token);
+      await syncCouplePushToken(pairedCoupleId, uid, token);
     })();
     return () => {
       cancelled = true;
     };
-  }, [uid, couple?.id]);
+  }, [uid, pairedCoupleId]);
 
   return useMemo(() => {
     if (!couple || !uid) return { ...EMPTY, loading };

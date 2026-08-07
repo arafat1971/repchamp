@@ -10,7 +10,11 @@ module.exports = {
   // about this branch, and a worktree parked on an older commit runs tests for
   // code that no longer exists. `modulePathIgnorePatterns` is needed alongside
   // the test ignore: without it haste sees each duplicated module twice.
-  testPathIgnorePatterns: ['/node_modules/', '/.claude/'],
+  // `firestore-rules/` holds the security-rules suites. They drive the Firestore
+  // emulator through the plain Node SDK and have their own config
+  // (`jest.rules.config.js`, run via `npm run test:rules`) — under this preset
+  // their imports fail to parse, so they must not be collected here.
+  testPathIgnorePatterns: ['/node_modules/', '/.claude/', '<rootDir>/firestore-rules/'],
   modulePathIgnorePatterns: ['<rootDir>/.claude/'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',

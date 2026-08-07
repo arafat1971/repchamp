@@ -84,14 +84,29 @@ export async function fetchProfile(uid: string): Promise<CloudProfile | null> {
 export async function saveExpoPushToken(uid: string, token: string): Promise<void> {
   if (!isFirebaseConfigured()) return;
   const ref = usersCol().doc(uid);
-  await Promise.all([
-    ref.collection('private').doc('push').set({
-      expoPushToken: token,
-      pushUpdatedAt: firestore.FieldValue.serverTimestamp(),
-    }),
-    // Strip any pre-migration token left on the world-readable profile.
-    ref.set({ expoPushToken: firestore.FieldValue.delete() }, { merge: true }),
-  ]);
+
+  // The private doc is the one that matters — it is what `fetchExpoPushToken`
+  // reads, and it has no rule preconditions beyond ownership.
+  await ref.collection('private').doc('push').set({
+    expoPushToken: token,
+    pushUpdatedAt: firestore.FieldValue.serverTimestamp(),
+  });
+
+  // Strip any pre-migration token left on the world-readable profile.
+  //
+  // Best-effort, and only once the profile exists: on a fresh install this can
+  // run before `upsertProfile`, and a merge write to a missing doc is a *create*
+  // whose payload is just the delete sentinel — no `uid`, no `totalXp` — which
+  // `isProfileWrite()` rejects. That rejection used to ride an unguarded
+  // `Promise.all` straight out of here and fail push registration outright.
+  try {
+    const snap = await ref.get();
+    if (!snap.exists()) return;
+    await ref.set({ expoPushToken: firestore.FieldValue.delete() }, { merge: true });
+  } catch {
+    // Offline, or the legacy field is already gone — neither is worth failing
+    // token registration for. `upsertProfile` strips it again on the next sync.
+  }
 }
 
 /** Read this athlete's own private push token (owner-only). */

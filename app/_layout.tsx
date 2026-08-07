@@ -67,6 +67,35 @@ export default function RootLayout() {
 
   // Tap handlers for local/push notifications (cold start + foreground).
   useEffect(() => {
+    /* Decline runs with `opensAppToForeground: false`, so on a cold start this
+     * handler can fire before `initializeAuth` has a signed-in user — and the
+     * duels rule requires `isAuthed()`, so the delete is rejected. Both this
+     * call and `cancelDuel` swallow their errors, so the invite would simply
+     * reappear on the next poll with nothing logged.
+     *
+     * Wait for `ready` (set on success *and* on failure, so this cannot hang
+     * forever) before deleting, and give up after 10s rather than holding a
+     * subscription open on a launch that never authenticates. */
+    const declineChallenge = async (duelId: string) => {
+      const auth = useAuthStore.getState();
+      if (!auth.ready) {
+        const authed = await new Promise<boolean>((resolve) => {
+          const timer = setTimeout(() => {
+            unsub();
+            resolve(false);
+          }, 10_000);
+          const unsub = useAuthStore.subscribe((s) => {
+            if (!s.ready) return;
+            clearTimeout(timer);
+            unsub();
+            resolve(true);
+          });
+        });
+        if (!authed) return;
+      }
+      await cancelDuel(duelId).catch(() => {});
+    };
+
     const routeFromData = (data: Record<string, unknown>) => {
       const type = data.type;
       if (type === 'weekly-recap') {
@@ -95,7 +124,7 @@ export default function RootLayout() {
       if (response.actionIdentifier === CHALLENGE_ACTION_DECLINE) {
         // Same server call the inbox's Decline makes: drop the pending doc so
         // the invite does not come back on the next poll.
-        if (typeof data.duelId === 'string') void cancelDuel(data.duelId).catch(() => {});
+        if (typeof data.duelId === 'string') void declineChallenge(data.duelId);
         return;
       }
 

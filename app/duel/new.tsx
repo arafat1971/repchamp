@@ -110,7 +110,18 @@ export default function DuelNewScreen() {
     }
 
     const go = () => {
-      router.replace({
+      /* `push`, not `replace`.
+       *
+       * Both this screen and the waiting room live in the same `app/duel`
+       * Stack, and replacing one sibling with another was silently doing
+       * nothing: the log showed this handler running to completion and the
+       * waiting room's mount effect never firing, with the screen sitting on
+       * Set Up Duel. That is the whole "Send Challenge does nothing" report.
+       *
+       * `push` mounts a new entry unconditionally. The Cancel button on the
+       * waiting room already routes home rather than popping, so the extra
+       * entry costs nothing. */
+      router.push({
         pathname: '/duel/[id]',
         params: {
           id: 'new',

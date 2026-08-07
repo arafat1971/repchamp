@@ -78,3 +78,8 @@ functions/node_modules/
 android/keystore.properties
 keystore.properties
 *.jks
+
+# Build artifacts — an APK is 114MB, over GitHub's 100MB limit,
+# and a rebuildable output has no business in version control.
+store/apk/
+store/aab/

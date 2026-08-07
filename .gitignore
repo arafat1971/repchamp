@@ -69,3 +69,7 @@ assets/sounds/*.wav
 # Build artifacts downloaded from EAS. Large, regenerable from the build URL,
 # and permanent once committed — a 194 MB blob stays in history forever.
 store/aab/
+
+# Cloud Functions build output and deps
+functions/lib/
+functions/node_modules/

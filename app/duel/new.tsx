@@ -108,21 +108,22 @@ export default function DuelNewScreen() {
     }
 
     const go = () => {
-      /* `push`, not `replace`.
-       *
-       * Both this screen and the waiting room live in the same `app/duel`
-       * Stack, and replacing one sibling with another was silently doing
-       * nothing: the log showed this handler running to completion and the
-       * waiting room's mount effect never firing, with the screen sitting on
-       * Set Up Duel. That is the whole "Send Challenge does nothing" report.
-       *
-       * `push` mounts a new entry unconditionally. The Cancel button on the
-       * waiting room already routes home rather than popping, so the extra
-       * entry costs nothing. */
       router.push({
         pathname: '/duel/[id]',
         params: {
-          id: 'new',
+          /* The sentinel must not name a real file in `app/duel/`.
+           *
+           * It was 'new', and `app/duel/new.tsx` exists — a static segment wins
+           * over a dynamic one, so `/duel/[id]` with id='new' resolved to the
+           * URL `/duel/new`, which is this screen. Send Challenge was asking to
+           * navigate from Set Up Duel to Set Up Duel, and the router correctly
+           * did nothing: it returned without throwing and mounted nothing,
+           * which is exactly what the instrumentation showed.
+           *
+           * 'pending' matches no file here, so `[id]` is the only route that
+           * can serve it. The waiting room treats it as "no id yet" and mints
+           * the real one. */
+          id: 'pending',
           role: params.role ?? 'host',
           exercise,
           duration: String(duration),
@@ -160,18 +161,37 @@ export default function DuelNewScreen() {
       return;
     }
 
+    /* Navigate on the tap rather than after an await.
+     *
+     * This is not what fixed the dead button — the sentinel collision above
+     * was — but it is the better shape and it stays: a tap should move the
+     * screen immediately instead of waiting on a network round trip that may
+     * be slow or, as it turned out, never return at all.
+     *
+     * The rate-limit slot is taken here because it is local and synchronous.
+     * The block check is not — it needs a round trip — so it moves after the
+     * navigation and closes the duel if it comes back positive. That reorder
+     * is safe: `blockUser` already cancels pending duels between the two
+     * athletes, and the Firestore rules refuse the write regardless, so the
+     * check was always a courtesy that produced a kinder message rather than
+     * the thing enforcing the block. */
+    try {
+      assertClientRateLimit('duelInvite', myUid);
+    } catch (err) {
+      showDialog({
+        title: 'Slow down',
+        message: err instanceof Error ? err.message : 'Try again in a moment.',
+        tone: 'info',
+        actions: [{ label: 'Got it', variant: 'primary' }],
+      });
+      return;
+    }
+
+    console.warn('[RepChamp] challenge: navigating to waiting room');
+    go();
+
     void (async () => {
       try {
-        /* The block check is a Firestore read, and `get()` has no timeout: with
-         * the network unreachable — or App Check failing to attest — it neither
-         * resolves nor rejects. Every path out of this handler is behind it, so
-         * the whole button silently does nothing, which is exactly how this was
-         * reported.
-         *
-         * The check is a courtesy anyway: it exists so a blocked athlete gets
-         * "you can't challenge this athlete" instead of a permission error, and
-         * the Firestore rules refuse the write regardless. Losing the nicety
-         * beats losing the button, so time it out and carry on. */
         const blocked = await Promise.race([
           isBlockedByMe(myUid, target),
           new Promise<false>((resolve) => setTimeout(() => resolve(false), 4000)),
@@ -183,23 +203,11 @@ export default function DuelNewScreen() {
             tone: 'info',
             actions: [{ label: 'Got it', variant: 'primary' }],
           });
-          return;
+          router.back();
         }
-        // Assert only — commit after createDuel succeeds in the waiting room.
-        assertClientRateLimit('duelInvite', myUid);
-        // Survives a release build (console.log does not) and runs once per
-        // tap. Without it a failure here is invisible on a real device, which
-        // is what made this take several passes to find.
-        console.warn('[RepChamp] challenge: navigating to waiting room');
-        go();
-      } catch (err) {
-        console.warn('[RepChamp] challenge failed:', err);
-        showDialog({
-          title: 'Could not start',
-          message: err instanceof Error ? err.message : 'Please try again.',
-          tone: 'danger',
-          actions: [{ label: 'Got it', variant: 'primary' }],
-        });
+      } catch {
+        // The duel is already open and the rules are the real gate; a failed
+        // courtesy check is not worth interrupting it for.
       }
     })();
   };

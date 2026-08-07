@@ -59,13 +59,13 @@ export default function DuelWaitingScreen() {
       ? params.kind
       : 'duel';
 
-  /* `'new'` is the host's "mint me one" sentinel, not an id. Seeding state with
+  /* `'pending'` is the host's "mint me one" sentinel, not an id. Seeding state with
    * it meant that until `createDuel` came back, the screen believed the duel was
    * called "new": the code box read `new`, Copy link shared
    * `/duel/join?id=new`, and the QR encoded the same — a code that resolves to
    * nothing, because `isDuelId` wants 20 characters of [A-Za-z0-9]. */
   const [duelId, setDuelId] = useState<string | null>(
-    params.id && params.id !== 'new' ? params.id : null,
+    params.id && params.id !== 'pending' ? params.id : null,
   );
   const [status, setStatus] = useState<
     'starting' | 'waiting' | 'unavailable' | 'cancelled' | 'signin'
@@ -188,7 +188,7 @@ export default function DuelWaitingScreen() {
         if (role === 'host') {
           // Train Together (and similar) mint the duel first, then open this
           // screen with a real id — reuse it. Don't create a second pending doc.
-          const existingId = params.id && params.id !== 'new' ? params.id : null;
+          const existingId = params.id && params.id !== 'pending' ? params.id : null;
           if (existingId) {
             if (cancelled) return;
             setDuelId(existingId);
@@ -235,7 +235,7 @@ export default function DuelWaitingScreen() {
           setStatus('waiting');
         } else {
           const id = params.id;
-          if (!id || id === 'new') return setStatus('unavailable');
+          if (!id || id === 'pending') return setStatus('unavailable');
 
           // Re-open after accept / notification remount: already seated → resume.
           const existing = await fetchDuel(id);

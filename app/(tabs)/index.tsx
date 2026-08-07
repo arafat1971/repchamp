@@ -158,11 +158,19 @@ export default function HomeScreen() {
     }
   };
 
-  // Retention nudges beat the rotating game carousel.
-  const urgentHero =
-    focus.kind === 'first-session' ||
-    focus.kind === 'streak-at-risk' ||
-    focus.kind === 'partner-trained';
+  /*
+   * A single card replaces the carousel only when something is about to be
+   * *lost*: a shared streak dying today, or a partner who trained while this
+   * athlete has not. Those are interruptions and deserve the whole slot.
+   *
+   * `first-session` used to qualify and no longer does. Being new is not
+   * urgent, and treating it that way meant the five-slide carousel — couple
+   * mode, the daily challenge, the arena, live rivals — stayed invisible on
+   * the one visit where showing what the app offers matters most. The first
+   * slide already leads with training, so nothing is lost by letting it
+   * rotate.
+   */
+  const urgentHero = focus.kind === 'streak-at-risk' || focus.kind === 'partner-trained';
 
   const onCoupleAction = async (action: 'train' | 'nudge' | 'open') => {
     track('home_couple_strip', { action });

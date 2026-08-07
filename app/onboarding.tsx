@@ -247,7 +247,7 @@ export default function OnboardingScreen() {
       ) : null}
 
       <Animated.View key={step} entering={FadeInDown.duration(420)} style={styles.stepWrap}>
-        {step === 0 ? <Welcome onNext={next} onTryNow={finish} /> : null}
+        {step === 0 ? <Welcome onNext={next} /> : null}
         {step === 1 ? <Showcase onNext={next} /> : null}
         {step === 2 ? (
           <ValueScreen
@@ -432,7 +432,7 @@ export default function OnboardingScreen() {
  * Steps
  * ------------------------------------------------------------------ */
 
-function Welcome({ onNext, onTryNow }: { onNext: () => void; onTryNow: () => void }) {
+function Welcome({ onNext }: { onNext: () => void }) {
   const router = useRouter();
 
   return (
@@ -491,24 +491,18 @@ function Welcome({ onNext, onTryNow }: { onNext: () => void; onTryNow: () => voi
         </Text>
       </View>
 
-      {/* Two ways in, neither of them an account.
+      {/* One way in, and it is not an account.
           Sign-in used to sit here, asking for a Google account before the
           athlete had seen a single rep counted. It now comes near the end,
-          once there is something worth saving — see the `SignIn` step. */}
+          once there is something worth saving — see the `SignIn` step.
+
+          There was also a "Try a set now — no signup" link that jumped
+          straight past onboarding. It advertised an absence, and the screens
+          it skipped are the ones that personalise the app. */}
       <View style={{ gap: 12, marginTop: 16 }}>
         <PrimaryButton label="Get started" onPress={onNext} />
       </View>
 
-      {/* Fast path for the impatient — a counted rep in seconds, no setup. */}
-      <Pressable
-        onPress={onTryNow}
-        accessibilityRole="button"
-        style={styles.tryNow}
-      >
-        <Text style={font('extrabold', 14, { color: palette.green600 })}>
-          Try a set now — no signup →
-        </Text>
-      </Pressable>
       <Text style={styles.legal}>
         By continuing, you agree to RepChamp&apos;s{' '}
         <Text

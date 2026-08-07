@@ -31,7 +31,15 @@ describe('link building', () => {
   });
 
   it('builds an https link for shared text', () => {
-    expect(duelInviteLink(ID)).toBe(`https://repchamp.web.app/duel?id=${ID}`);
+    expect(duelInviteLink(ID)).toBe(`https://repchamp.web.app/duel/join?id=${ID}`);
+  });
+
+  /* The https path has to match a real route. expo-router resolves paths
+     against the filesystem, and `app/duel/` has no index — so the earlier
+     bare `/duel` would have opened a verified App Link onto nothing. */
+  it('shares the path of the route that handles it', () => {
+    expect(duelInviteLink(ID)).toContain('/duel/join?');
+    expect(duelInviteDeepLink(ID)).toContain('/duel/join?');
   });
 
   it('round-trips through the parser', () => {

@@ -32,6 +32,10 @@
         "destination": "/couple-join.html"
       },
       {
+        "source": "/duel/join",
+        "destination": "/duel-join.html"
+      },
+      {
         "source": "/delete-account",
         "destination": "/support.html"
       },

@@ -8,7 +8,7 @@ import { Avatar, PressableScale, Screen } from '@/components/ui';
 import { seatOf, type Duel } from '@/domain/duel';
 import { BrandedQR } from '@/components/BrandedQR';
 import { parseDuelExercise } from '@/domain/duelExercises';
-import { duelInviteDeepLink } from '@/domain/duelInvite';
+import { duelInviteDeepLink, duelInviteLink } from '@/domain/duelInvite';
 import { createDuel, fetchDuel, joinDuel, watchDuel, cancelDuel } from '@/services/duelService';
 import { commitClientRateLimit } from '@/services/safetyService';
 import { successHaptic } from '@/lib/feedback';
@@ -299,9 +299,20 @@ export default function DuelWaitingScreen() {
     return unsub;
   }, [duelId, self, router]);
 
+  /* Copies a link, not the bare id.
+   *
+   * The screen offers to let a rival "jump in from anywhere", but what landed
+   * on the clipboard was `aB3xY9kLmN2pQ7rS4tU6` — pasted into a chat that is
+   * an unexplained string, not something anyone can act on. The only place
+   * that accepts a pasted id is a field inside Add Friend, which is not where
+   * someone joining a duel would think to look.
+   *
+   * The https link is the one to send: it carries the app scheme for people
+   * who have RepChamp, and falls back to a page that explains itself for
+   * people who don't. */
   const copyCode = async () => {
     if (!duelId) return;
-    await Clipboard.setStringAsync(duelId);
+    await Clipboard.setStringAsync(duelInviteLink(duelId));
     setCopied(true);
   };
 
@@ -438,7 +449,7 @@ export default function DuelWaitingScreen() {
             <Text style={styles.code} numberOfLines={1}>
               {duelId}
             </Text>
-            <Text style={styles.copy}>{copied ? 'Copied ✓' : 'Copy'}</Text>
+            <Text style={styles.copy}>{copied ? 'Link copied ✓' : 'Copy link'}</Text>
           </PressableScale>
         </>
       ) : null}

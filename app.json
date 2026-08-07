@@ -48,6 +48,11 @@
               "scheme": "https",
               "host": "repchamp.web.app",
               "pathPrefix": "/@"
+            },
+            {
+              "scheme": "https",
+              "host": "repchamp.web.app",
+              "pathPrefix": "/duel/join"
             }
           ],
           "category": ["BROWSABLE", "DEFAULT"]

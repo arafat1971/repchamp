@@ -128,25 +128,17 @@ export default function ProfileScreen() {
   const pushProfile = useAuthStore((s) => s.pushProfile);
 
   const pickAvatar = async () => {
-    /* Ask first. Onboarding's picker always did; this one launched straight
-     * into the library, and on Android 13+ that returns `canceled` without
-     * ever showing a dialog — indistinguishable from a dead button.
+    /* No permission request, and none needed.
      *
-     * The manifest was the other half: it carried only READ_EXTERNAL_STORAGE,
-     * which newer Android ignores outright in favour of READ_MEDIA_IMAGES. */
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      showDialog({
-        title: 'Photo access needed',
-        message: permission.canAskAgain
-          ? 'RepChamp needs permission to open your photos.'
-          : 'Allow photo access for RepChamp in Settings, then try again.',
-        tone: 'info',
-        actions: [{ label: 'Got it', variant: 'primary' }],
-      });
-      return;
-    }
-
+     * `expo-image-picker` defaults to `legacy: false`, which on Android means
+     * the system Photo Picker: the athlete chooses one image in Google's own
+     * UI and the app is handed only that image. Nothing reads the library, so
+     * READ_MEDIA_IMAGES is not required — and Play asks every app requesting it
+     * to justify the access, which is a declaration worth not having to make.
+     *
+     * Asking anyway was worse than pointless: with the permission dropped from
+     * the manifest the request can only be denied, so the dialog that used to
+     * follow would block a picker that works perfectly well without it. */
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,

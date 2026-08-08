@@ -209,9 +209,9 @@ export default function OnboardingScreen() {
   }, [step]);
 
   const pickPhoto = useCallback(async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) return;
-
+    /* No permission request — the Android Photo Picker needs none, and with
+       READ_MEDIA_IMAGES gone from the manifest this could only ever be denied,
+       silently returning before a picker that works fine on its own. */
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,

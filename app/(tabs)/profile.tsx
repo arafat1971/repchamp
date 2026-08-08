@@ -306,8 +306,31 @@ export default function ProfileScreen() {
         )}
       </StaggerIn>
 
-      {/* ── Achievements ── */}
+      {/* ── History ──
+          Sessions have been recorded since launch and never shown back; this is
+          the way in. Above Achievements because what you actually did outranks
+          what you were awarded for doing it. */}
       <StaggerIn index={3}>
+        <PressableScale
+          onPress={() => router.push('/modal/history')}
+          accessibilityRole="button"
+          accessibilityLabel="See your workout history"
+          style={styles.historyRow}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={font('extrabold', 15, { color: palette.ink })}>History</Text>
+            <Text style={font('semibold', 11, { color: palette.slate500 })}>
+              {profile.sessions.length === 0
+                ? 'Your finished sets will show up here'
+                : `${profile.sessions.length} ${profile.sessions.length === 1 ? 'set' : 'sets'} so far`}
+            </Text>
+          </View>
+          <Text style={{ color: palette.slate500, fontSize: 20 }}>›</Text>
+        </PressableScale>
+      </StaggerIn>
+
+      {/* ── Achievements ── */}
+      <StaggerIn index={4}>
         <View style={styles.sectionHeader}>
           <SectionLabel>Achievements</SectionLabel>
           <PressableScale
@@ -335,7 +358,7 @@ export default function ProfileScreen() {
       </StaggerIn>
 
       {/* ── Pro ── */}
-      <StaggerIn index={4}>
+      <StaggerIn index={5}>
         <View style={[styles.proCard, shadow.card]}>
           <View style={styles.proLogoBadge}>
             <Image source={require('../../assets/logo.png')} style={styles.proLogo} resizeMode="contain" />
@@ -373,6 +396,16 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  historyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: palette.white,
+    borderRadius: radius['2xl'],
+    padding: 14,
+    marginBottom: 20,
+    ...shadow.card,
+  },
   settingsRow: { alignItems: 'flex-end', marginTop: 8, marginBottom: 4 },
   settingsButton: {
     width: 40,

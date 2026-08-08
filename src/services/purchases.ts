@@ -162,6 +162,17 @@ export async function purchase(
       typeof error === 'object' && error != null && 'userCancelled' in error
         ? Boolean((error as { userCancelled?: boolean }).userCancelled)
         : false;
+    /* Logged, because a purchase has never once completed on this app and the
+     * next failure needs to name itself. The dialog shows the athlete a
+     * message; this is the only trace a developer gets on a release build,
+     * where `console.log` is stripped and `console.warn` survives. A cancel is
+     * a deliberate act, not a fault, so it stays quiet. */
+    if (!cancelled) {
+      console.warn(
+        '[RepChamp] purchase failed:',
+        error instanceof Error ? error.message : String(error),
+      );
+    }
     return {
       ok: false,
       isPro: false,

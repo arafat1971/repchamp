@@ -1,1 +1,17 @@
-[{"relation":["delegate_permission/common.handle_all_urls"],"target":{"namespace":"android_app","package_name":"gg.repchamp.app","sha256_cert_fingerprints":["99:11:67:1B:C8:C5:9B:79:02:CB:A0:81:2A:FA:AE:71:7E:CF:B0:A8:00:7D:69:E5:E7:CA:C2:61:07:13:AA:BA","86:D8:A7:75:01:80:30:FE:41:BF:79:D9:5C:F7:45:86:07:39:B3:D6:D9:49:83:FE:EC:68:89:5E:2A:58:EC:62","FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C"]}}]
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "gg.repchamp.app",
+      "sha256_cert_fingerprints": [
+        "99:11:67:1B:C8:C5:9B:79:02:CB:A0:81:2A:FA:AE:71:7E:CF:B0:A8:00:7D:69:E5:E7:CA:C2:61:07:13:AA:BA",
+        "86:D8:A7:75:01:80:30:FE:41:BF:79:D9:5C:F7:45:86:07:39:B3:D6:D9:49:83:FE:EC:68:89:5E:2A:58:EC:62",
+        "FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C",
+        "58:C1:72:C7:3A:50:58:C3:26:04:92:A8:DC:16:6A:A2:E4:7B:17:39:0B:B3:94:A5:0A:B0:D1:2B:0E:58:3E:AD"
+      ]
+    }
+  }
+]

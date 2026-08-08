@@ -22,7 +22,7 @@
     },
     "android": {
       "package": "gg.repchamp.app",
-      "versionCode": 12,
+      "versionCode": 13,
       "predictiveBackGestureEnabled": false,
       "googleServicesFile": "./google-services.json",
       "permissions": [
@@ -67,6 +67,7 @@
     },
     "plugins": [
       "./plugins/withUploadSigning",
+      "./plugins/withVersionCode",
       "expo-router",
       "@react-native-firebase/app",
       "@react-native-firebase/auth",

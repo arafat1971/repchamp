@@ -130,6 +130,7 @@ export default function HomeScreen() {
         kind: 'train',
         target: couple.partner.uid,
         name: couple.partner.displayName,
+        ...(couple.partner.avatarUrl ? { avatar: couple.partner.avatarUrl } : {}),
       },
     });
   };

@@ -45,6 +45,8 @@ export default function DuelWaitingScreen() {
     role?: string;
     id?: string;
     name?: string;
+    /** The rival's photo, forwarded from the setup screen. */
+    avatar?: string;
     level?: string;
     target?: string;
     exercise?: string;
@@ -494,9 +496,19 @@ export default function DuelWaitingScreen() {
           <Text style={styles.vs}>VS</Text>
 
           <View style={styles.vsSide}>
-            <View style={styles.pendingAvatar}>
-              <ActivityIndicator color={palette.green600} />
-            </View>
+            {/* A named rival gets their face; only a genuinely open invite
+                waits on a spinner, because only then is there nobody to show. */}
+            {params.name ? (
+              <Avatar
+                initial={params.name.charAt(0).toUpperCase()}
+                uri={params.avatar ?? undefined}
+                size={64}
+              />
+            ) : (
+              <View style={styles.pendingAvatar}>
+                <ActivityIndicator color={palette.green600} />
+              </View>
+            )}
             <Text style={styles.vsName} numberOfLines={1}>
               {opponentName}
               {opponentLevel ? ` · Lv.${opponentLevel}` : ''}

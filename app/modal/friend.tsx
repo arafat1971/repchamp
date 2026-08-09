@@ -111,6 +111,7 @@ export default function FriendProfileScreen() {
         role: 'host',
         target: friend.id,
         name: displayName,
+        ...(cloudAvatar ? { avatar: cloudAvatar } : {}),
         level: String(displayLevel),
         kind: 'duel',
       },

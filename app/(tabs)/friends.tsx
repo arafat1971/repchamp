@@ -84,6 +84,10 @@ function inviteParams(f: ActiveFriend, kind: InviteKind) {
       target: f.uid,
       name: f.displayName,
       level: String(f.level),
+      /* The rival's face, so the VS card shows who you are challenging rather
+         than the first letter of their name. `avatarUrl` has always been on the
+         friend record; it simply was not forwarded. */
+      ...(f.avatarUrl ? { avatar: f.avatarUrl } : {}),
       kind,
     },
   };

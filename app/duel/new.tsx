@@ -36,6 +36,7 @@ const DURATIONS: { value: number; label: string; desc: string }[] = [
  *   target  uid of the friend being challenged (optional, forwarded)
  *   name    opponent display name (optional, forwarded)
  *   level   opponent level (optional, forwarded)
+ *   avatar  opponent photo (optional, forwarded)
  *   queue   '1' when coming from the open-matchmaking queue path
  */
 export default function DuelNewScreen() {
@@ -49,6 +50,8 @@ export default function DuelNewScreen() {
     target?: string;
     name?: string;
     level?: string;
+    /** The rival's photo, forwarded by whoever opened this screen. */
+    avatar?: string;
     queue?: string;
     kind?: string;
     exercise?: string;
@@ -131,6 +134,7 @@ export default function DuelNewScreen() {
           ...(params.target ? { target: params.target } : {}),
           ...(params.name ? { name: params.name } : {}),
           ...(params.level ? { level: params.level } : {}),
+          ...(params.avatar ? { avatar: params.avatar } : {}),
         },
       });
     };
@@ -267,8 +271,19 @@ export default function DuelNewScreen() {
             </Animated.View>
 
             <View style={styles.heroPlayerCol}>
+              {/* The rival's photo when we have one. This slot only ever drew
+                  an initial, while the athlete's own side rendered an image —
+                  so a duel against someone with a profile picture showed their
+                  face on one side of the VS and a letter on the other. */}
               <View style={[styles.heroAvatarRing, styles.heroAvatarRingRival]}>
-                {isTargeted ? (
+                {params.avatar ? (
+                  <Image
+                    source={{ uri: params.avatar }}
+                    style={styles.heroAvatarImage}
+                    contentFit="cover"
+                    accessibilityLabel={params.name ?? 'Rival'}
+                  />
+                ) : isTargeted ? (
                   <Text style={styles.avatarInitial}>{params.name ? params.name?.[0]?.toUpperCase() : 'R'}</Text>
                 ) : (
                   <Text style={styles.avatarInitialWaiting}>?</Text>

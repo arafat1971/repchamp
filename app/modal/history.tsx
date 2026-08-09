@@ -9,7 +9,8 @@ import {
   labelForDay,
   summariseHistory,
 } from '@/domain/sessionHistory';
-import { useProfileStore } from '@/state/profileStore';
+import { headlineProof } from '@/domain/progressProof';
+import { selectStreak, useProfileStore } from '@/state/profileStore';
 import { getExercise } from '@/vision/exercises';
 import { font, text } from '@/theme/typography';
 import { palette, radius, shadow } from '@/theme/tokens';
@@ -25,12 +26,18 @@ import { palette, radius, shadow } from '@/theme/tokens';
 export default function HistoryScreen() {
   const sessions = useProfileStore((s) => s.sessions);
   const today = dayKey();
+  const streak = useProfileStore(selectStreak);
 
   /* No `useMemo`: `reactCompiler` is on in app.json, and it memoizes these
      itself. Wrapping them by hand makes it bail out of optimising the whole
      component — the lint rule that flagged this says exactly that. */
   const days = groupSessionsByDay(sessions);
   const summary = summariseHistory(sessions);
+  /* One true sentence about getting better. The app recorded every set since
+     launch and never once said the athlete had improved — and belief comes from
+     evidence they can check, not from encouragement. Null until something has
+     actually been earned. */
+  const proof = headlineProof(sessions, streak);
 
   if (sessions.length === 0) {
     return (
@@ -51,6 +58,13 @@ export default function HistoryScreen() {
   return (
     <Screen>
       <ModalHeader title="History" />
+
+      {proof ? (
+        <View style={styles.proofCard}>
+          <Text style={styles.proofMark}>↗</Text>
+          <Text style={styles.proofText}>{proof}</Text>
+        </View>
+      ) : null}
 
       <View style={styles.summaryRow}>
         <Stat label="SETS" value={String(summary.totalSessions)} />
@@ -132,6 +146,23 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   stat: { flex: 1, alignItems: 'center', gap: 2 },
+  /* Green and quiet. This is a fact, not a celebration — overselling it would
+     make the athlete suspicious of a number that is genuinely theirs. */
+  proofCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: palette.tintGreenTop,
+    borderRadius: radius['2xl'],
+    padding: 14,
+    marginBottom: 12,
+  },
+  proofMark: font('extrabold', 18, { color: palette.green600 }),
+  proofText: {
+    ...font('bold', 13.5, { color: palette.green700 }),
+    flexShrink: 1,
+    lineHeight: 19,
+  },
   dayHeader: {
     flexDirection: 'row',
     alignItems: 'center',

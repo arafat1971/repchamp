@@ -21,6 +21,7 @@ import {
   isLiveSettleArmed,
   wasLiveSettleBanked,
 } from '@/services/liveResultSettle';
+import { shareWorthyLine } from '@/domain/progressProof';
 import { useProfileStore, selectStreak } from '@/state/profileStore';
 import { useIsPro } from '@/state/proStore';
 import { useAuthStore } from '@/state/authStore';
@@ -378,10 +379,18 @@ export default function ResultScreen() {
     leaveResult(() => router.replace('/(tabs)'));
   };
 
-  const shareText = () =>
-    void Share.share({
-      message: `💪 I just completed ${session.reps} ${definition.label} on RepChamp — think you can beat me? repchamp.web.app`,
-    });
+  /* Lead with the achievement worth talking about, when there is one.
+     "Up 40% on my best set" is a story about the athlete; "I did 11 push-ups"
+     is a number. Falls back to the rep count, which is still perfectly
+     shareable — `shareWorthyLine` returns null on an ordinary day rather than
+     dressing one up. */
+  const shareText = () => {
+    const proud = shareWorthyLine(useProfileStore.getState().sessions, streak);
+    const message = proud
+      ? `${proud} — think you can beat me? repchamp.web.app`
+      : `💪 I just completed ${session.reps} ${definition.label} on RepChamp — think you can beat me? repchamp.web.app`;
+    void Share.share({ message });
+  };
 
   const shareResult = async () => {
     track('share_opened', { kind: 'result-card' });

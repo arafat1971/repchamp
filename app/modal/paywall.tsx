@@ -36,6 +36,8 @@ import {
 import { useAuthStore } from '@/state/authStore';
 import { useProStore } from '@/state/proStore';
 import { showDialog } from '@/state/useDialog';
+import { headlineProof } from '@/domain/progressProof';
+import { selectStreak, useProfileStore } from '@/state/profileStore';
 import {
   commitmentLine,
   granularPrice,
@@ -201,6 +203,9 @@ export default function PaywallScreen() {
   };
 
   const trialHint = selected && hasFreeTrial(selected) ? trialPeriodLabel(selected) : null;
+  const sessions = useProfileStore((st) => st.sessions);
+  const streak = useProfileStore(selectStreak);
+  const ownProof = headlineProof(sessions, streak);
 
   return (
     <Screen scroll={false} style={styles.root} contentStyle={styles.rootContent}>
@@ -232,6 +237,12 @@ export default function PaywallScreen() {
               <Text style={styles.heroCopy}>
                 Full library, programmes, and form reports — cancel anytime.
               </Text>
+              {/* Their own result, before the price. An athlete who has just
+                  been shown proof they are improving is deciding whether to
+                  keep something that works — not whether to gamble on a claim.
+                  Silent for anyone who has not earned a line yet, because
+                  inventing one here would be the exact opposite. */}
+              {ownProof ? <Text style={styles.ownProof}>{ownProof}</Text> : null}
               {/* A price nobody has to convert in their head. Abstract money is
                   easy to refuse; money measured against a coffee is not. */}
               {selected && priceAnchor(toPlanPrice(selected)) ? (
@@ -541,6 +552,13 @@ const styles = StyleSheet.create({
   },
   /* On the dark hero, so it reads as a quiet aside to the headline price
      rather than another claim competing with it. */
+  /* Sits above the price on the dark hero, in the brand green so it reads as
+     the athlete's own result rather than another marketing claim. */
+  ownProof: {
+    ...font('extrabold', 13, { color: '#86efac' }),
+    marginTop: 10,
+    lineHeight: 18,
+  },
   anchorLine: {
     ...font('bold', 12.5, { color: 'rgba(255,255,255,0.72)' }),
     marginTop: 6,

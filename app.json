@@ -22,7 +22,7 @@
     },
     "android": {
       "package": "gg.repchamp.app",
-      "versionCode": 15,
+      "versionCode": 16,
       "predictiveBackGestureEnabled": false,
       "googleServicesFile": "./google-services.json",
       "permissions": [

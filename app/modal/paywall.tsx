@@ -36,6 +36,13 @@ import {
 import { useAuthStore } from '@/state/authStore';
 import { useProStore } from '@/state/proStore';
 import { showDialog } from '@/state/useDialog';
+import {
+  commitmentLine,
+  granularPrice,
+  priceAnchor,
+  savingsPercent,
+  type PlanPrice,
+} from '@/domain/paywallFraming';
 import { font, text } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
 
@@ -225,6 +232,11 @@ export default function PaywallScreen() {
               <Text style={styles.heroCopy}>
                 Full library, programmes, and form reports — cancel anytime.
               </Text>
+              {/* A price nobody has to convert in their head. Abstract money is
+                  easy to refuse; money measured against a coffee is not. */}
+              {selected && priceAnchor(toPlanPrice(selected)) ? (
+                <Text style={styles.anchorLine}>{priceAnchor(toPlanPrice(selected))}</Text>
+              ) : null}
               {trialHint ? (
                 <View style={styles.trialPill}>
                   <Text style={styles.trialPillText}>{trialHint} free · then subscribe</Text>
@@ -320,6 +332,15 @@ export default function PaywallScreen() {
         {selected && plansReady ? (
           <Text style={styles.footerHint} numberOfLines={2}>
             {renewDisclosure(selected)}
+          </Text>
+        ) : null}
+
+        {/* The reassurance sits directly under the button, where the hesitation
+            is. Naming the exit lowers the cost of committing, and it stays
+            honest: a trial is only promised when the plan carries one. */}
+        {selected && plansReady ? (
+          <Text style={styles.commitLine}>
+            {commitmentLine(hasFreeTrial(selected), trialHint)}
           </Text>
         ) : null}
 
@@ -444,26 +465,34 @@ function PlanRow({
   );
 }
 
-function perWeekHint(pkg: PurchasesPackage): string | null {
-  const price = pkg.product.price;
+/** Turn a RevenueCat package into the shape `domain/paywallFraming` reasons about. */
+function toPlanPrice(pkg: PurchasesPackage): PlanPrice {
   const weeks: Record<string, number> = { ANNUAL: 52, MONTHLY: 4.345, WEEKLY: 1 };
-  const w = weeks[pkg.packageType];
-  if (!price || !w) return null;
-  const perWeek = price / w;
-  const symbol = pkg.product.priceString.replace(/[\d.,\s]/g, '') || '';
-  return `${symbol}${perWeek.toFixed(2)} / week · cancel anytime`;
+  return {
+    price: pkg.product.price || 0,
+    weeks: weeks[pkg.packageType] ?? 0,
+    symbol: pkg.product.priceString.replace(/[\d.,\s]/g, '') || '',
+  };
+}
+
+function perWeekHint(pkg: PurchasesPackage): string | null {
+  /* The arithmetic moved to `domain/paywallFraming`, where it is tested — the
+     same number decides whether a plan reads as £24.99 a year or 48p a week,
+     and getting it wrong either overstates the offer or wastes it. */
+  const granular = granularPrice(toPlanPrice(pkg));
+  return granular ? `${granular} · cancel anytime` : null;
 }
 
 function savingsBadge(annual: PurchasesPackage, all: PurchasesPackage[]): string {
-  const annualPerWeek = (annual.product.price || 0) / 52;
-  const refs = all
-    .filter((p) => p.packageType === 'WEEKLY' || p.packageType === 'MONTHLY')
-    .map((p) => (p.product.price || 0) / (p.packageType === 'WEEKLY' ? 1 : 4.345))
-    .filter((n) => n > 0);
-  const ref = Math.max(0, ...refs);
-  if (!ref || !annualPerWeek || annualPerWeek >= ref) return 'BEST VALUE';
-  const pct = Math.round((1 - annualPerWeek / ref) * 100);
-  return `BEST VALUE · SAVE ${pct}%`;
+  /* Anchored on the dearest plan the athlete could actually buy, never an
+     invented "was" price. `savingsPercent` returns null rather than 0% when
+     there is nothing honest to claim, and a bare BEST VALUE beats a fabricated
+     discount — stores treat the latter as a dark pattern. */
+  const pct = savingsPercent(
+    toPlanPrice(annual),
+    all.filter((p) => p !== annual).map(toPlanPrice),
+  );
+  return pct ? `BEST VALUE · SAVE ${pct}%` : 'BEST VALUE';
 }
 
 const styles = StyleSheet.create({
@@ -509,6 +538,12 @@ const styles = StyleSheet.create({
     ...font('semibold', 13.5, { color: 'rgba(255,255,255,0.9)' }),
     marginTop: 4,
     lineHeight: 19,
+  },
+  /* On the dark hero, so it reads as a quiet aside to the headline price
+     rather than another claim competing with it. */
+  anchorLine: {
+    ...font('bold', 12.5, { color: 'rgba(255,255,255,0.72)' }),
+    marginTop: 6,
   },
   trialPill: {
     alignSelf: 'flex-start',
@@ -628,6 +663,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
     paddingTop: 12,
     gap: 4,
+  },
+  /* Directly under the CTA, muted: reassurance should be findable at the moment
+     of hesitation without competing with the button itself. */
+  commitLine: {
+    ...font('semibold', 11.5, { color: palette.grey450 }),
+    textAlign: 'center',
+    marginBottom: 8,
   },
   footerHint: {
     ...text.caption,

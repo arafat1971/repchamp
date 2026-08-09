@@ -38,7 +38,7 @@ import { captureError } from '@/lib/crash';
 import { OPPONENTS } from '@/domain/opponent';
 import { track } from '@/lib/analytics';
 import { fetchOffering, isPurchasesConfigured, purchase, sortPackagesForPaywall } from '@/services/purchases';
-import { isUsernameAvailable } from '@/services/userService';
+import { fetchProfile, isUsernameAvailable } from '@/services/userService';
 import {
   hasFreeTrial,
   planTitle,
@@ -63,6 +63,7 @@ import {
   type PlannedDay,
 } from '@/domain/onboardingPlan';
 import { isGoogleAuthConfigured, isGoogleCancel, signInWithGoogle } from '@/services/auth';
+import { confirmationFor, planAccountRestore } from '@/domain/returningAccount';
 import {
   ensureNotificationPermission,
   registerForPushNudges,
@@ -410,6 +411,7 @@ export default function OnboardingScreen() {
             subscription needs an account to attach to. */}
         {step === 20 ? (
           <SignIn
+            onRestored={setUsername}
             onNext={() => {
               /* The handle was checked at step 5 and is not claimed until the
                * profile write at the very end, so fifteen steps of onboarding
@@ -567,9 +569,19 @@ function Welcome({ onNext }: { onNext: () => void }) {
  * to Firebase; what Google adds is recovering it on a new phone, which is what
  * the copy promises and all it promises.
  */
-function SignIn({ onNext }: { onNext: () => void }) {
+function SignIn({
+  onNext,
+  onRestored,
+}: {
+  onNext: () => void;
+  /** Called with the handle a returning account already owns, so the parent's
+      username state matches what was just restored from the cloud. */
+  onRestored: (username: string) => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  /** Shown on success. Sign-in used to advance with no acknowledgement at all. */
+  const [signedInAs, setSignedInAs] = useState<string | null>(null);
   // Resolved once: whether a real Google sign-in can complete on this build.
   const googleReady = useMemo(() => isGoogleAuthConfigured(), []);
 
@@ -578,7 +590,31 @@ function SignIn({ onNext }: { onNext: () => void }) {
     setBusy(true);
     setAuthError(null);
     try {
-      await signInWithGoogle();
+      const account = await signInWithGoogle();
+
+      /* Signing in can mean two things, and this used to treat them the same:
+       * a new athlete creating an account, or someone coming back on a new
+       * phone. The second already owns a username, a photo and their XP, and
+       * silently advancing meant the handle they typed two screens ago
+       * overwrote the one they have had all along.
+       *
+       * It also gave no acknowledgement at all — on a slow connection that is
+       * indistinguishable from a tap that did nothing. */
+      const cloud = await fetchProfile(account.uid);
+      const store = useProfileStore.getState();
+      const plan = planAccountRestore(cloud, {
+        username: store.username,
+        avatarUri: store.avatarUri,
+        totalXp: store.totalXp,
+      });
+
+      if (plan.kind === 'returning') {
+        store.setUsername(plan.username);
+        if (plan.avatarUrl) store.setAvatar(plan.avatarUrl);
+        onRestored(plan.username);
+      }
+
+      setSignedInAs(confirmationFor(plan, account.email));
       onNext();
     } catch (error) {
       // A cancel is a deliberate user action, not an error worth surfacing.
@@ -593,7 +629,7 @@ function SignIn({ onNext }: { onNext: () => void }) {
     } finally {
       setBusy(false);
     }
-  }, [busy, onNext]);
+  }, [busy, onNext, onRestored]);
 
   return (
     <View style={[styles.step, styles.stepPadded]}>
@@ -622,6 +658,15 @@ function SignIn({ onNext }: { onNext: () => void }) {
           disabled={busy}
         />
       </View>
+
+      {signedInAs ? (
+        <View style={styles.signedInRow} accessibilityLiveRegion="polite">
+          <Text style={styles.signedInTick}>✓</Text>
+          <Text style={styles.signedInText} numberOfLines={2}>
+            {signedInAs}
+          </Text>
+        </View>
+      ) : null}
 
       {authError ? (
         <Text style={styles.authError} accessibilityLiveRegion="polite">
@@ -2923,6 +2968,25 @@ const styles = StyleSheet.create({
     ...font('bold', 12.5, { color: palette.red500 }),
     textAlign: 'center',
     marginTop: 8,
+  },
+  /* The success counterpart to authError. Green rather than red, and a tick
+     rather than bare text, because "it worked" should be readable at a glance
+     without being read word by word. */
+  signedInRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: palette.tintGreenTop,
+  },
+  signedInTick: font('extrabold', 13, { color: palette.green600 }),
+  signedInText: {
+    ...font('bold', 12.5, { color: palette.green700 }),
+    flexShrink: 1,
   },
   legal: {
     ...text.caption,

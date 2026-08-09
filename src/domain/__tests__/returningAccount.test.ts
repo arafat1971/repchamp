@@ -33,6 +33,15 @@ describe('planAccountRestore', () => {
     });
   });
 
+  /* Deleting an account erases the cloud profile before wiping the device, so
+     `fetchProfile` returns null on the next sign-in. That has to read as a new
+     account — restoring a deleted profile would defeat the deletion. */
+  it('treats a deleted account as new, not returning', () => {
+    expect(planAccountRestore(null, local({ totalXp: 5000 }))).toEqual({
+      kind: 'new-account',
+    });
+  });
+
   it('restores the handle and photo the account already had', () => {
     const plan = planAccountRestore(cloud(), local({ username: 'champion_new' }));
     expect(plan).toMatchObject({

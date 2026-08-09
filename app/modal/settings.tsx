@@ -141,8 +141,13 @@ export default function SettingsScreen() {
   const logOut = () => {
     showDialog({
       title: 'Log out?',
+      /* "It cannot be undone" was true when signing back in gave you a blank
+         profile. It no longer is: sync runs first, and signing in with the same
+         Google account now restores the username, photo and XP from the server.
+         What is genuinely lost is anything this device never managed to push —
+         so the warning stays, aimed at the part that is still true. */
       message:
-        'This clears your profile, session history and XP on this device. Sync runs first when possible. It cannot be undone.',
+        'This clears your profile, session history and XP from this device. Signing back in with the same Google account restores them — but anything not yet synced is lost.',
       tone: 'danger',
       actions: [
         { label: 'Cancel', variant: 'cancel' },

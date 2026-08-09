@@ -38,6 +38,8 @@ import { cancelDuel } from '@/services/duelService';
 import {
   resumePendingLiveSettles,
 } from '@/services/liveResultSettle';
+import { AppState } from 'react-native';
+
 import { useProfileStore } from '@/state/profileStore';
 import { preloadPoseModel } from '@/vision/modelCache';
 
@@ -178,7 +180,25 @@ export default function RootLayout() {
   // reach it even when closed. No-ops until Firebase is provisioned.
   const uid = useAuthStore((s) => s.user?.uid);
   const initializePro = useProStore((s) => s.initialize);
+  const refreshPro = useProStore((s) => s.refresh);
   usePresenceHeartbeat(uid);
+
+  /* Re-check the entitlement whenever the app comes back to the foreground.
+   *
+   * RevenueCat's listener fires on purchases and renewals, but a subscription
+   * that lapses while the app is closed produces no event — nothing happens, so
+   * nothing is delivered. Without this the athlete keeps Pro until something
+   * else forces a fetch, which for a locked exercise could be days.
+   *
+   * `refresh()` already existed and was never called from anywhere in the app.
+   * It is one cached read on resume, and it fails closed via the store. */
+  useEffect(() => {
+    if (!uid) return;
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void refreshPro();
+    });
+    return () => sub.remove();
+  }, [uid, refreshPro]);
   useEffect(() => {
     if (!uid) return;
     // Tie analytics + crash reports to this athlete across sessions.

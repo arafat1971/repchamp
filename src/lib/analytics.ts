@@ -47,6 +47,8 @@ export interface AnalyticsEvents {
   duel_joined: { via: 'qr' | 'code' | 'invite' };
 
   paywall_viewed: { source: string };
+  /** The athlete saw the price and chose not to buy — the other half of the funnel. */
+  paywall_dismissed: { source: string };
   trial_started: { plan: string };
   subscribed: { plan: string };
   restore_completed: { restored: boolean };

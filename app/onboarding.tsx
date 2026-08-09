@@ -2200,6 +2200,52 @@ function Paywall({
   const annual = packages?.find((p) => p.packageType === 'ANNUAL') ?? null;
   const monthly = packages?.find((p) => p.packageType === 'MONTHLY') ?? null;
   const selected = plan === 'year' ? annual : monthly;
+
+  /* This button used to be `onPress={onNext}`.
+   *
+   * It said "Start free trial", showed a trial timeline and "No Payment Due
+   * Now", and then simply advanced the screen — no purchase was ever attempted,
+   * because the only `react-native-purchases` reference in this file was a type
+   * import. Everyone who tapped it continued for free believing they had
+   * started a trial, which is both why nothing ever converted here and a
+   * promise the app was not keeping.
+   *
+   * Now it buys. Declining or failing still continues into the app: the free
+   * staples are the product's floor, and trapping someone on a paywall they
+   * cannot complete would be worse than the bug it replaces. */
+  const [busy, setBusy] = useState(false);
+  const onBuy = useCallback(async () => {
+    if (busy) return;
+    if (!selected) return onNext();
+
+    setBusy(true);
+    const uid = useAuthStore.getState().user?.uid ?? null;
+    const result = await purchase(selected, uid);
+    setBusy(false);
+
+    // A cancel is a decision, not a failure — leave them on the screen so they
+    // can pick the other plan rather than shunting them onward.
+    if (result.cancelled) {
+      track('paywall_dismissed', { source: 'onboarding' });
+      return;
+    }
+
+    if (result.ok && result.isPro) {
+      useProStore.getState().setPro(true);
+      if (hasFreeTrial(selected)) track('trial_started', { plan: selected.packageType });
+      track('subscribed', { plan: selected.packageType });
+      onNext();
+      return;
+    }
+
+    console.warn('[RepChamp] onboarding purchase failed:', result.message);
+    showDialog({
+      title: 'Could not start',
+      message: result.message ?? 'Please try again, or continue with the free staples.',
+      tone: 'info',
+      actions: [{ label: 'Continue free', variant: 'primary', onPress: onNext }],
+    });
+  }, [busy, selected, onNext]);
   const trialDays = selected ? trialLengthDays(selected) : null;
   const trialLabel = selected ? trialPeriodLabel(selected) : null;
   const reminderDay =
@@ -2322,8 +2368,9 @@ function Paywall({
         <Text style={styles.noPayment}>✓ No Payment Due Now</Text>
       ) : null}
       <PrimaryButton
-        label={selected ? subscribeCtaLabel(selected) : 'Continue'}
-        onPress={onNext}
+        label={busy ? 'Starting…' : selected ? subscribeCtaLabel(selected) : 'Continue'}
+        onPress={onBuy}
+        disabled={busy}
       />
       <Text style={[text.captionMd, { textAlign: 'center', marginTop: 12 }]}>
         {selected

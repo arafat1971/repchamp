@@ -28,6 +28,8 @@ import { assertHttps } from '@/lib/https';
 export interface AnalyticsEvents {
   app_opened: Record<string, never>;
   onboarding_completed: { weeklyGoal: number };
+  /** Fires once per step, so drop-off is visible screen by screen. */
+  onboarding_step: { step: number; name: string; percent: number };
   session_started: { exercise: string; mode: string };
   session_finished: { exercise: string; mode: string; reps: number; won: boolean };
   first_rep_counted: { exercise: string };

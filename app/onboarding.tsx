@@ -37,6 +37,7 @@ import { Card, PressableScale, PrimaryButton, ProgressBar } from '@/components/u
 import { captureError } from '@/lib/crash';
 import { OPPONENTS } from '@/domain/opponent';
 import { track } from '@/lib/analytics';
+import { onboardingProgressPercent, onboardingStepName } from '@/domain/onboardingFunnel';
 import { fetchOffering, isPurchasesConfigured, purchase, sortPackagesForPaywall } from '@/services/purchases';
 import { fetchProfile, isUsernameAvailable } from '@/services/userService';
 import {
@@ -159,6 +160,18 @@ export default function OnboardingScreen() {
 
   const next = useCallback(() => setStep((s) => s + 1), []);
   const back = useCallback(() => setStep((s) => Math.max(0, s - 1)), []);
+
+  /* One event per step. Onboarding reported only that it had finished, so a
+     drop at the username screen and a drop at the paywall were indistinguishable
+     — and both looked exactly like an athlete who simply never came back.
+     Named rather than numbered so the funnel reads as screens, not indices. */
+  useEffect(() => {
+    track('onboarding_step', {
+      step,
+      name: onboardingStepName(step),
+      percent: onboardingProgressPercent(step),
+    });
+  }, [step]);
 
   const finish = useCallback(() => {
     // level and blocker ride along now: they shaped the plan the athlete was

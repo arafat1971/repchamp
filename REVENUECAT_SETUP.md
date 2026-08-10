@@ -1,68 +1,124 @@
-# RevenueCat — real subscriptions (Play Store first)
+# RevenueCat setup
 
-Billing is wired end to end in code (`react-native-purchases` + `src/services/purchases.ts`
-+ `src/state/proStore.ts` + the real `app/modal/paywall.tsx`). It **no-ops until you
-add real API keys and store products**, so the app runs fine today; the paywall shows
-an honest "billing not set up yet" / empty-plans note until Play + RevenueCat are live.
+What is already done, what is broken, and the exact steps to fix it.
 
-**You are shipping Android first.** Only Google Play products + `revenueCatGoogle` are
-required. Leave `revenueCatApple` empty until you ship to the App Store — it does not
-block Play billing.
+Verified against the code and the device on 2026-08-09.
 
-Everything below needs your developer accounts — I can't create store products or sign
-into Play Console / RevenueCat for you.
+---
 
-## What's already built
+## Already working — do not change these
 
-- **Entitlement layer** — `src/domain/pro.ts` defines free vs. Pro (couple mode +
-  push-ups + squats free; full library + programmes Pro), unit-tested.
-- **Live entitlement** — `proStore` follows RevenueCat's customer info; never caches a
-  local "is pro" flag.
-- **Real paywall** — fetches the current offering, shows localised store prices,
-  purchases, and Restore.
-- **Gates** — Pro exercises / programmes route to the paywall when billing is configured.
-- **Analytics** — `paywall_viewed`, `trial_started`, `subscribed` already fire.
-- **Android key** — `app.json → extra.revenueCatGoogle` is already set.
+| Thing | Value | Where |
+|---|---|---|
+| Android API key | `goog_MDPF…` | `app.json` → `extra.revenueCatGoogle` |
+| Entitlement the app checks | `pro` | `src/domain/pro.ts:16` |
+| Products | Created 2026-08-02 | RevenueCat dashboard |
+| Google Play billing | **Working** | Proved on device — a duplicate purchase was correctly refused |
 
-## Your setup (≈20–30 min, Play only)
+The purchase call reaches Google and gets a real answer. Nothing in the app is
+the problem.
 
-### 1. Create the products in Google Play Console
-Monetize → Subscriptions → create products, e.g.:
-- `rc_pro_annual` (yearly, optional 7-day free trial)
-- `rc_pro_monthly` (monthly)
+---
 
-Use the same product IDs you will import into RevenueCat.
+## The one thing that is broken
 
-### 2. RevenueCat dashboard (<https://app.revenuecat.com>)
-1. Create a project, add your **Android** app (package `gg.repchamp.app`).
-2. **Entitlements** → create one with identifier **`pro`** (must match
-   `PRO_ENTITLEMENT` in `src/domain/pro.ts`).
-3. **Products** → import the Play products; attach each to the `pro` entitlement.
-4. **Offerings** → create the default (`current`) offering; add Annual + Monthly
-   packages pointing at those products.
-5. Confirm the **Google** public SDK key (`goog_…`) matches `app.json → extra.revenueCatGoogle`.
+Every launch logs, eight times:
 
-### 3. Rebuild & test (licence-tester smoke)
-```bash
-npx expo prebuild --clean
-npm run android
 ```
-1. Play Console → **Setup → Licence testing** → add your Google account.
-2. Install a **signed** build that uses the same package / signing as the Play product
-   (preview or internal-track AAB), open the paywall.
-3. Confirm real localised prices appear (not the empty/billing-not-set-up state).
-4. Buy with the tester account (no charge) → `isPro` flips live.
-5. Fresh install → **Restore** recovers Pro.
+PurchasesError(code=InvalidCredentialsError,
+  underlyingErrorMessage=Invalid Play Store credentials.)
+```
 
-### 4. Later — App Store (optional)
-When you ship iOS: create App Store subscriptions with the same product IDs, add the
-iOS app in RevenueCat, and set `revenueCatApple` to the `appl_…` key. No other code
-change is required.
+That comes from **RevenueCat's server**, not the app. RevenueCat tried to call
+Google Play's API and Google refused it. Until this clears:
 
-## Notes
+- The paywall shows even to an athlete who already owns Pro
+- Purchases fail with `ITEM_ALREADY_OWNED`, because Google knows about the
+  subscription and RevenueCat does not
+- Pro never unlocks
 
-- **Keep couple mode free** — it's the viral loop. The gate in `pro.ts` already does
-  this; don't move it behind Pro.
-- Prices/copy on the paywall come from the store — change them in Play Console, not
-  in code.
-- RevenueCat validates receipts server-side, so no receipt backend is needed on your end.
+---
+
+## Fix: connect a Google Play service account
+
+Three consoles. The middle one is where it usually goes wrong.
+
+### 1. Create the service account — Google Cloud
+
+**console.cloud.google.com** → project **repchamp-14f78**
+
+1. **IAM & Admin → Service Accounts → + Create service account**
+2. Name: `revenuecat` → **Create and continue**
+3. Role: **Pub/Sub Admin** → **Continue** → **Done**
+4. Click the new account → **Keys** tab → **Add key → Create new key → JSON**
+
+A `.json` file downloads. **Treat it like a password.** Do not commit it, do not
+paste its contents into a chat.
+
+Copy the account's email while you are here — it looks like
+`revenuecat@repchamp-14f78.iam.gserviceaccount.com`.
+
+### 2. Grant it access — Play Console  ← the step that usually fails
+
+**play.google.com/console** → **Users and permissions**
+
+This is at **account level**, not inside the app. If you are looking at
+RepChamp, back out first.
+
+1. **Invite new user**
+2. Email address: the service account address from step 1
+3. Under **Account permissions**, tick **both**:
+   - View financial data, orders, and cancellation survey responses
+   - Manage orders and subscriptions
+4. **Invite user**
+
+Then **go back and check it says Active**, not *Invitation pending*. A pending
+invite produces exactly this error, forever, with no other symptom.
+
+### 3. Upload it — RevenueCat
+
+**app.revenuecat.com** → your project → **Apps** → the Android app
+
+1. Find **Service Account credentials JSON**
+2. Upload the file from step 1 → **Save**
+
+RevenueCat validates on upload. A green state means the file itself is fine —
+it does not mean Google has propagated the permission yet.
+
+### 4. Wait
+
+Google takes **up to 36 hours** to propagate Play Console permissions. The error
+keeps appearing throughout. That is Google's delay, not a mistake on your part.
+
+---
+
+## Two more things to confirm while you are in RevenueCat
+
+**The entitlement must be named exactly `pro`** — lowercase. `src/domain/pro.ts`
+checks that literal string. `Pro` or `premium` would let a purchase succeed
+while Pro never unlocks, which is a far worse failure than this one because it
+takes the athlete's money first.
+
+**Both products must be attached to that entitlement, and to an Offering marked
+current.** A product outside the current offering never reaches the paywall,
+which shows up as blank prices rather than an error.
+
+---
+
+## How to tell it is fixed
+
+On a connected device:
+
+```bash
+adb logcat -c
+adb shell am force-stop gg.repchamp.app
+adb shell am start -n gg.repchamp.app/.MainActivity
+sleep 14
+adb logcat -d | grep -c InvalidCredentialsError
+```
+
+**0** means RevenueCat is authenticating. Your existing subscription should then
+unlock Pro with no purchase at all, because RevenueCat can finally see it.
+
+If it is still failing after 36 hours, the cause is step 2 — check the invite
+status before redoing anything else.

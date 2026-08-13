@@ -20,6 +20,21 @@ const EXERCISE_ART: Partial<Record<ExerciseId, number>> = {
   squat: require('../../../assets/ic-squat.png'),
 };
 
+/**
+ * Card treatment per movement, so the hero matches what it depicts.
+ *
+ * The daily-challenge card was hardcoded to `gradients.squat` — purple — for
+ * every exercise. A Push-Ups challenge rendered purple while the Push-Ups
+ * figure on it, the Quick Start tile below it and `colors.push` were all green.
+ * The card contradicted its own illustration.
+ */
+const EXERCISE_THEME: Partial<
+  Record<ExerciseId, { colors: readonly [string, string]; glow: keyof typeof shadow }>
+> = {
+  push: { colors: gradients.brandStrong, glow: 'brand' },
+  squat: { colors: gradients.squat, glow: 'squat' },
+};
+
 /** The rendered shape of a focus: what the card says and where it goes. */
 interface HeroContent {
   emoji: string;
@@ -102,8 +117,9 @@ function contentFor(focus: HomeFocus): HeroContent {
         title: `${focus.target} ${def.label}`,
         body: 'Clear it to keep your daily rhythm going.',
         cta: 'Take the challenge',
-        colors: gradients.squat,
-        glow: 'squat',
+        /* Falls back to purple for movements with no theme of their own, which
+           is what every exercise used to get regardless. */
+        ...(EXERCISE_THEME[focus.exercise] ?? { colors: gradients.squat, glow: 'squat' as const }),
         art: EXERCISE_ART[focus.exercise],
       };
     }

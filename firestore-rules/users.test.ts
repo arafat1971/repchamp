@@ -53,6 +53,34 @@ describe('profile writes', () => {
     );
   });
 
+  /* The rename screen writes only `username`, `displayName` and `updatedAt` —
+     no `uid`, no `totalXp`, both of which `isProfileWrite()` requires. It is
+     allowed because a merge onto an existing doc evaluates the *merged*
+     result, so those fields carry over. Pinned here because a future rule that
+     inspected `request.resource.data.keys()` instead would break renaming with
+     a silent permission-denied. */
+  it('allows a name-only merge on an existing profile (the rename screen)', async () => {
+    await seedProfile(ALICE, { username: 'oldname' });
+    await assertSucceeds(
+      setDoc(
+        doc(asUser(ALICE), 'users', ALICE),
+        { username: 'arafat', displayName: 'Arafat' },
+        { merge: true },
+      ),
+    );
+  });
+
+  it('still refuses a name-only merge onto someone else’s profile', async () => {
+    await seedProfile(BOB, { username: 'bobby' });
+    await assertFails(
+      setDoc(
+        doc(asUser(ALICE), 'users', BOB),
+        { username: 'stolen', displayName: 'Stolen' },
+        { merge: true },
+      ),
+    );
+  });
+
   it('allows the same legacy-token strip once the profile exists', async () => {
     await seedProfile(ALICE, { expoPushToken: 'ExponentPushToken[legacy]' });
     await assertSucceeds(

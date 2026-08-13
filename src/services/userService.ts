@@ -18,7 +18,7 @@ import {
   mergeCloudProgressSlice,
   type CloudProgressSlice,
 } from '@/domain/cloudProgress';
-import { normalizeUsername, sanitizeDisplayName } from '@/domain/input';
+import { isValidUsername, normalizeUsername, sanitizeDisplayName } from '@/domain/input';
 import { clampWeeklyXp } from '@/domain/fairPlay';
 import { isCloudSafeAvatarUrl, MAX_AVATAR_DATA_URI_BYTES } from '@/domain/safety';
 import { isoWeekKey } from '@/domain/weeklyChallenge';
@@ -161,6 +161,46 @@ export async function isUsernameAvailable(
   excludeUid?: string,
 ): Promise<boolean> {
   return (await checkUsername(username, excludeUid)) !== 'taken';
+}
+
+/**
+ * Change the handle on an existing profile.
+ *
+ * Deliberately *not* `upsertProfile`. That function resolves a collision by
+ * quietly keeping the old handle, which is correct for a background sync and
+ * wrong here: someone who opened a rename screen and pressed Save is owed a
+ * real answer, not a write that reports success and changes nothing.
+ *
+ * Writes only the two name fields. A rename has no business touching XP,
+ * personal bests or progress, and a narrow write cannot regress them.
+ *
+ * @returns `true` only when Firestore confirmed the write.
+ */
+export async function renameProfileUsername(
+  uid: string,
+  username: string,
+): Promise<boolean> {
+  if (!isFirebaseConfigured()) return true;
+  const name = normalizeUsername(username);
+  if (!uid || !isValidUsername(name)) return false;
+  try {
+    /* Re-checked immediately before writing. The screen checked too, but an
+       athlete can sit on that screen, and a handle taken in between must not
+       be overwritten. This narrows the race; Firestore rules remain the
+       authority that actually enforces uniqueness. */
+    if ((await checkUsername(name, uid)) !== 'free') return false;
+    await usersCol().doc(uid).set(
+      {
+        username: name,
+        displayName: sanitizeDisplayName(name, name),
+        updatedAt: firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Prefer the higher personal best per exercise across devices. */

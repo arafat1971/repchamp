@@ -232,9 +232,18 @@ export default function ProfileScreen() {
           <Text style={styles.name} numberOfLines={1}>
             {profile.displayName}
           </Text>
-          <Text style={styles.handle} numberOfLines={1}>
-            @{profile.username || 'champion'}
-          </Text>
+          {/* The handle is the affordance: tapping the thing you want to change
+              is where people look first, and a rename buried in Settings would
+              not be found by someone who mistyped it during onboarding. */}
+          <PressableScale
+            onPress={() => router.push('/modal/username')}
+            accessibilityRole="button"
+            accessibilityLabel="Change username"
+          >
+            <Text style={styles.handle} numberOfLines={1}>
+              @{profile.username || 'champion'} <Text style={styles.handleEdit}>Edit</Text>
+            </Text>
+          </PressableScale>
 
           <View style={styles.rankPill}>
             <View style={styles.rankDot} />
@@ -444,6 +453,9 @@ const styles = StyleSheet.create({
   },
   name: { ...font('extrabold', 22, { color: palette.ink }) },
   handle: { ...font('bold', 13, { color: palette.grey550 }), marginTop: 4 },
+  /* Quiet enough not to compete with the handle itself, green so it reads as
+     a control rather than part of the name. */
+  handleEdit: font('extrabold', 12, { color: palette.green700 }),
   rankPill: {
     flexDirection: 'row',
     alignItems: 'center',

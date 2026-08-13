@@ -20,7 +20,31 @@ the problem.
 
 ---
 
-## The one thing that is broken
+## Status: working, verified on device 2026-08-09
+
+A purchase completed, RevenueCat validated it, the `pro` entitlement attached
+and the PRO badges disappeared. Before that day it had never once worked.
+
+Two faults, fixed in this order — the second was invisible until the first
+cleared:
+
+1. **The service account could not authenticate.** Eight
+   `InvalidCredentialsError` per launch. Fixed by granting the four Play Console
+   permissions below and waiting for Google to propagate them.
+2. **The `pro` entitlement had no products attached.** The purchase then
+   succeeded and Pro still did not activate — the app checks
+   `entitlements.active['pro']`, which stayed empty. Fixed in the RevenueCat
+   dashboard by attaching both products to the entitlement.
+
+The app surfaced the second one itself: "Purchase completed, but Pro is not
+active yet. Try Restore purchase, or confirm the 'pro' entitlement is attached
+in RevenueCat." That dialog named the exact cause.
+
+The rest of this file is the setup that got there, kept for the next time.
+
+---
+
+## What was broken
 
 Every launch logs, eight times:
 

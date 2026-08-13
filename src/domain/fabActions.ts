@@ -107,7 +107,13 @@ export function buildFabModel(input: FabInput): FabModel {
   return {
     order,
     primary: pickPrimary({ order, isPro, pendingDuels, daily }),
-    badgeCount: pendingDuels + (daily.done ? 0 : 1),
+    /* Duels only. The daily challenge used to add 1, which meant the badge was
+       lit on almost every cold open — and it double-reported: Home's hero card
+       is already a full-width purple panel announcing the same challenge, two
+       inches above the FAB. A notification dot that is nearly always on stops
+       being a notification, so it now means what a badge should: another person
+       is waiting on you. */
+    badgeCount: pendingDuels,
   };
 }
 

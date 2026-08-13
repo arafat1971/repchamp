@@ -136,8 +136,16 @@ describe('buildFabModel — primary action', () => {
 });
 
 describe('buildFabModel — badge', () => {
-  it('counts pending duels and an unclaimed daily', () => {
-    expect(build({ pendingDuels: 3, daily: { exercise: 'push', done: false } }).badgeCount).toBe(4);
+  it('counts pending duels', () => {
+    expect(build({ pendingDuels: 3, daily: { exercise: 'push', done: false } }).badgeCount).toBe(3);
+  });
+
+  /* The badge means "a person is waiting on you". An open daily challenge is
+     not that, and counting it lit the badge on nearly every cold open while
+     Home's hero card already announced the same thing — a dot that is always
+     on communicates nothing. */
+  it('ignores an unclaimed daily challenge', () => {
+    expect(build({ daily: { exercise: 'push', done: false } }).badgeCount).toBe(0);
   });
 
   it('is zero when nothing is waiting', () => {

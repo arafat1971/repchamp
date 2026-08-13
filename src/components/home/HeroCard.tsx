@@ -4,13 +4,21 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { PressableScale } from '@/components/ui';
 import type { HomeFocus } from '@/domain/homeFocus';
-import { getExercise } from '@/vision/exercises';
+import { getExercise, type ExerciseId } from '@/vision/exercises';
 import { font } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
 
 /* Shot on the same green as `gradients.brandStrong`, so the photograph reads
    as part of the card rather than a rectangle pasted onto it. */
 const COUPLE_HERO = require('../../../assets/couple-hero.png');
+
+/* The same illustrations the Quick Start tiles use. The daily-challenge hero
+   showed a generic 🎯 while a drawn Push-Ups figure already existed two cards
+   below it — the card announcing the movement was the one not depicting it. */
+const EXERCISE_ART: Partial<Record<ExerciseId, number>> = {
+  push: require('../../../assets/ic-pushup.png'),
+  squat: require('../../../assets/ic-squat.png'),
+};
 
 /** The rendered shape of a focus: what the card says and where it goes. */
 interface HeroContent {
@@ -27,6 +35,12 @@ interface HeroContent {
    * the one adaptive action on Home back into wallpaper.
    */
   image?: number;
+  /**
+   * A corner illustration, as opposed to `image`'s full-bleed photograph.
+   * Replaces the emoji on cards that name a specific movement — drawn art at
+   * 92pt carries a card that a 40pt glyph cannot.
+   */
+  art?: number;
 }
 
 /**
@@ -90,6 +104,7 @@ function contentFor(focus: HomeFocus): HeroContent {
         cta: 'Take the challenge',
         colors: gradients.squat,
         glow: 'squat',
+        art: EXERCISE_ART[focus.exercise],
       };
     }
     case 'goal-met':
@@ -164,7 +179,11 @@ export function HeroCard({ focus, onPress }: { focus: HomeFocus; onPress: () => 
           <Text style={[styles.eyebrow, c.image ? styles.textOverPhoto : null]}>{c.eyebrow}</Text>
           {/* The photograph already says it. A 40pt glyph on top of real people
               is the same message twice, and it crowds the corner they occupy. */}
-          {c.image ? null : <Text style={styles.emoji}>{c.emoji}</Text>}
+          {c.image ? null : c.art ? (
+            <Image source={c.art} style={styles.art} contentFit="contain" />
+          ) : (
+            <Text style={styles.emoji}>{c.emoji}</Text>
+          )}
         </View>
         <Text style={[styles.title, c.image ? styles.textOverPhoto : null]}>{c.title}</Text>
         {/* The supporting line would fall across the couple's faces. On a photo
@@ -230,6 +249,13 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   emoji: { fontSize: 40 },
+  /* Sized to carry the card, not decorate it. Verified on device: at 92pt the
+     figure read as a sticker floating in the corner. The art is a 3:2
+     illustration on a transparent ground, so it needs real width before it
+     looks drawn rather than pasted. Negative margins let it bleed into the
+     card's padding and sit flush to the corner, which is what stops it
+     hovering. */
+  art: { width: 150, height: 100, marginTop: -14, marginRight: -14 },
   title: {
     ...font('bold', 26, { color: palette.white }),
     marginTop: 12,

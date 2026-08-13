@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -6,6 +7,10 @@ import type { HomeFocus } from '@/domain/homeFocus';
 import { getExercise } from '@/vision/exercises';
 import { font } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
+
+/* Shot on the same green as `gradients.brandStrong`, so the photograph reads
+   as part of the card rather than a rectangle pasted onto it. */
+const COUPLE_HERO = require('../../../assets/couple-hero.png');
 
 /** The rendered shape of a focus: what the card says and where it goes. */
 interface HeroContent {
@@ -16,6 +21,12 @@ interface HeroContent {
   cta: string;
   colors: readonly [string, string];
   glow: keyof typeof shadow;
+  /**
+   * Optional photograph behind the copy. Only the couple states carry one —
+   * the card has to stay legible, and an image behind every focus would turn
+   * the one adaptive action on Home back into wallpaper.
+   */
+  image?: number;
 }
 
 /**
@@ -56,6 +67,7 @@ function contentFor(focus: HomeFocus): HeroContent {
         colors: gradients.brandStrong,
         cta: 'Catch up',
         glow: 'brand',
+        image: COUPLE_HERO,
       };
     case 'invite-partner':
       return {
@@ -66,6 +78,7 @@ function contentFor(focus: HomeFocus): HeroContent {
         cta: 'Invite them',
         colors: gradients.brandStrong,
         glow: 'brand',
+        image: COUPLE_HERO,
       };
     case 'daily-challenge': {
       const def = getExercise(focus.exercise);
@@ -113,13 +126,33 @@ export function HeroCard({ focus, onPress }: { focus: HomeFocus; onPress: () => 
   const c = contentFor(focus);
   return (
     <PressableScale onPress={onPress} accessibilityRole="button" accessibilityLabel={c.cta}>
-      <LinearGradient colors={c.colors} style={[styles.card, shadow[c.glow]]}>
+      <LinearGradient
+        colors={c.colors}
+        style={[styles.card, c.image ? styles.cardWithPhoto : null, shadow[c.glow]]}
+      >
+        {c.image ? (
+          <>
+            <Image source={c.image} style={styles.photo} contentFit="cover" />
+            {/* Top-down scrim, opaque where the copy sits and clearing before it
+                reaches the faces — the photograph carries the bottom of the card
+                at full strength instead of being half-veiled. */}
+            <LinearGradient
+              colors={['rgba(31,79,26,0.97)', 'rgba(31,79,26,0.72)', 'rgba(31,79,26,0)']}
+              locations={[0, 0.18, 0.33]}
+              style={StyleSheet.absoluteFill}
+            />
+          </>
+        ) : null}
         <View style={styles.top}>
           <Text style={styles.eyebrow}>{c.eyebrow}</Text>
-          <Text style={styles.emoji}>{c.emoji}</Text>
+          {/* The photograph already says it. A 40pt glyph on top of real people
+              is the same message twice, and it crowds the corner they occupy. */}
+          {c.image ? null : <Text style={styles.emoji}>{c.emoji}</Text>}
         </View>
         <Text style={styles.title}>{c.title}</Text>
-        <Text style={styles.body}>{c.body}</Text>
+        {/* The supporting line would fall across the couple's faces. On a photo
+            card the image does that work, so the copy stays title + CTA. */}
+        {c.image ? null : <Text style={styles.body}>{c.body}</Text>}
         <View style={styles.ctaRow}>
           <View style={styles.ctaGlass}>
             <Text style={styles.ctaText}>{c.cta}</Text>
@@ -134,7 +167,26 @@ export function HeroCard({ focus, onPress }: { focus: HomeFocus; onPress: () => 
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: radius['4xl'], padding: 20, minHeight: 200, justifyContent: 'space-between' },
+  card: {
+    borderRadius: radius['4xl'],
+    padding: 20,
+    minHeight: 200,
+    justifyContent: 'space-between',
+    /* The photo is absolutely positioned; without this it squares off the
+       rounded corners the rest of Home is built on. */
+    overflow: 'hidden',
+  },
+  /* Taller than the plain card: the photo owns the bottom band, and the CTA
+     needs to clear the couple rather than sit across their shoulders.
+     `flex-start` overrides the plain card's `space-between` — with the body
+     line dropped, spreading the remaining copy would strand the CTA on the
+     bottom edge, directly over the couple's hands. */
+  cardWithPhoto: { minHeight: 300, justifyContent: 'flex-start' },
+  /* The couple are centred in the source frame and fill it edge to edge, so the
+     photo occupies the lower band of the card at full width rather than a right
+     panel — that keeps both faces, both crowns and the skeletons uncut, and
+     leaves the top of the card clear for the eyebrow and title. */
+  photo: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '72%' },
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   eyebrow: {
     ...font('bold', 10, { color: 'rgba(255,255,255,0.85)' }),

@@ -138,7 +138,7 @@ export function HeroCard({ focus, onPress }: { focus: HomeFocus; onPress: () => 
                 at full strength instead of being half-veiled. */}
             <LinearGradient
               colors={['rgba(31,79,26,0.97)', 'rgba(31,79,26,0.72)', 'rgba(31,79,26,0)']}
-              locations={[0, 0.18, 0.33]}
+              locations={[0, 0.2, 0.4]}
               style={StyleSheet.absoluteFill}
             />
           </>
@@ -153,7 +153,7 @@ export function HeroCard({ focus, onPress }: { focus: HomeFocus; onPress: () => 
         {/* The supporting line would fall across the couple's faces. On a photo
             card the image does that work, so the copy stays title + CTA. */}
         {c.image ? null : <Text style={styles.body}>{c.body}</Text>}
-        <View style={styles.ctaRow}>
+        <View style={[styles.ctaRow, c.image ? styles.ctaRowOverPhoto : null]}>
           <View style={styles.ctaGlass}>
             <Text style={styles.ctaText}>{c.cta}</Text>
             <View style={styles.ctaArrowWrap}>
@@ -181,12 +181,16 @@ const styles = StyleSheet.create({
      `flex-start` overrides the plain card's `space-between` — with the body
      line dropped, spreading the remaining copy would strand the CTA on the
      bottom edge, directly over the couple's hands. */
-  cardWithPhoto: { minHeight: 300, justifyContent: 'flex-start' },
+  cardWithPhoto: { minHeight: 340, justifyContent: 'flex-start' },
+  /* Verified on device: without this the CTA sits across the man's crown.
+     The copy block is short once the body line is dropped, so the button needs
+     an explicit floor to clear the top of the photo band. */
+  ctaRowOverPhoto: { marginBottom: 8 },
   /* The couple are centred in the source frame and fill it edge to edge, so the
      photo occupies the lower band of the card at full width rather than a right
      panel — that keeps both faces, both crowns and the skeletons uncut, and
      leaves the top of the card clear for the eyebrow and title. */
-  photo: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '72%' },
+  photo: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '64%' },
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   eyebrow: {
     ...font('bold', 10, { color: 'rgba(255,255,255,0.85)' }),

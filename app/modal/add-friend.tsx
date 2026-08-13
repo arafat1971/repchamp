@@ -6,7 +6,12 @@ import Svg, { Path } from 'react-native-svg';
 import { ModalHeader } from '@/components/ModalHeader';
 import { Avatar, Card, Divider, Eyebrow, PressableScale, Screen } from '@/components/ui';
 import { isValidUsername, normalizeUsername } from '@/domain/input';
-import { addFriendByUsername } from '@/services/leaderboardService';
+import {
+  addFriendByUid,
+  addFriendByUsername,
+  findAthletesByUsername,
+  type Friend,
+} from '@/services/leaderboardService';
 import { usePhantomSeed } from '@/domain/seedPhantoms';
 import { useAuthStore } from '@/state/authStore';
 import { showDialog } from '@/state/useDialog';
@@ -34,6 +39,31 @@ export default function AddFriendScreen() {
   const [added, setAdded] = useState<Record<string, boolean>>({});
   const [copied, setCopied] = useState(false);
   const [searching, setSearching] = useState(false);
+  /** Several accounts share the searched handle — the athlete picks which. */
+  const [candidates, setCandidates] = useState<Friend[] | null>(null);
+
+  const pickCandidate = async (person: Friend) => {
+    if (!uid) return;
+    setCandidates(null);
+    try {
+      await addFriendByUid(uid, person.uid);
+      setAdded((prev) => ({ ...prev, [person.uid]: true }));
+      showDialog({
+        title: 'Friend added',
+        message: `${person.displayName} is on your list.`,
+        tone: 'success',
+        actions: [{ label: 'Got it', variant: 'primary' }],
+      });
+      setQuery('');
+    } catch (e) {
+      showDialog({
+        title: 'Could not add',
+        message: e instanceof Error ? e.message : 'Please try again.',
+        tone: 'danger',
+        actions: [{ label: 'Got it', variant: 'primary' }],
+      });
+    }
+  };
 
   const inviteLink = friendInviteLink(username);
 
@@ -94,6 +124,22 @@ export default function AddFriendScreen() {
         });
       }
     } catch (err) {
+      /* A shared handle is not a dead end.
+       *
+       * Usernames were meant to be unique and are not: onboarding checked
+       * availability fifteen screens before claiming it, so several accounts
+       * ended up as "champion". Refusing to guess which one is right — adding a
+       * stranger would be worse — but the athlete was then left with an error
+       * and nothing to do about it. Offer the candidates instead. */
+      const ambiguous = err instanceof Error && err.message.startsWith('Several athletes');
+      if (ambiguous) {
+        const matches = await findAthletesByUsername(uid, name);
+        setSearching(false);
+        if (matches.length > 1) {
+          setCandidates(matches);
+          return;
+        }
+      }
       showDialog({
         title: 'Could not add',
         message: err instanceof Error ? err.message : 'Please try again.',
@@ -237,6 +283,42 @@ export default function AddFriendScreen() {
         </PressableScale>
       </LinearGradient>
 
+      {candidates ? (
+        <>
+          <Eyebrow style={{ marginTop: 24, marginBottom: 8 }}>
+            WHICH ONE?
+          </Eyebrow>
+          <Text style={[text.caption, { marginBottom: 10 }]}>
+            Several athletes use “{query}”. Their level and photo should tell
+            them apart.
+          </Text>
+          {candidates.map((person) => (
+            <PressableScale
+              key={person.uid}
+              onPress={() => void pickCandidate(person)}
+              accessibilityRole="button"
+              accessibilityLabel={`Add ${person.displayName}`}
+              style={styles.candidateRow}
+            >
+              <Avatar
+                initial={person.displayName.charAt(0).toUpperCase()}
+                uri={person.avatarUrl ?? undefined}
+                size={44}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={font('extrabold', 15, { color: palette.ink })} numberOfLines={1}>
+                  {person.displayName}
+                </Text>
+                <Text style={font('semibold', 11, { color: palette.slate500 })}>
+                  Level {person.level}
+                </Text>
+              </View>
+              <Text style={font('extrabold', 12, { color: palette.green600 })}>Add</Text>
+            </PressableScale>
+          ))}
+        </>
+      ) : null}
+
       <Eyebrow style={{ marginTop: 24, marginBottom: 8 }}>SUGGESTED FOR YOU</Eyebrow>
       <Card style={{ padding: 8 }}>
         {suggestionsList.length === 0 ? (
@@ -289,6 +371,16 @@ export default function AddFriendScreen() {
 }
 
 const styles = StyleSheet.create({
+  candidateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: palette.white,
+    borderRadius: radius['2xl'],
+    padding: 12,
+    marginBottom: 8,
+    ...shadow.card,
+  },
   search: {
     flexDirection: 'row',
     alignItems: 'center',

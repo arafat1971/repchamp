@@ -148,6 +148,45 @@ export async function fetchFriends(uid: string): Promise<Friend[]> {
  * by username — Firestore rules forbid force-injecting yourself onto someone
  * else's list. Resolves to false when unconfigured.
  */
+/**
+ * Everyone using a given username.
+ *
+ * Handles were meant to be unique and are not: onboarding checked availability
+ * fifteen screens before claiming it, so two athletes could pass the same check
+ * and `upsertProfile` silently renamed the loser to `handle_a1b2`. The ones that
+ * slipped through are still out there — a search for "champion" returns several.
+ *
+ * `addFriendByUsername` refuses an ambiguous handle rather than guessing, which
+ * is right, but left the athlete with no way forward. This gives the screen the
+ * candidates so it can ask which one.
+ */
+export async function findAthletesByUsername(
+  myUid: string,
+  username: string,
+): Promise<Friend[]> {
+  if (!isFirebaseConfigured()) return [];
+  const name = normalizeUsername(username);
+  if (!isValidUsername(name)) return [];
+
+  const match = await firestore()
+    .collection('users')
+    .where('username', '==', name)
+    .limit(10)
+    .get();
+
+  return match.docs
+    .filter((d) => d.id !== myUid)
+    .map((d) => {
+      const data = d.data() as Partial<Friend> & { displayName?: string };
+      return {
+        uid: d.id,
+        displayName: data.displayName || name,
+        avatarUrl: data.avatarUrl ?? null,
+        level: data.level ?? 1,
+      } satisfies Friend;
+    });
+}
+
 export async function addFriendByUsername(
   myUid: string,
   username: string,
@@ -187,6 +226,43 @@ export async function addFriendByUsername(
     .doc(myUid)
     .collection('friends')
     .doc(friendDoc.id)
+    .set({
+      displayName: theirs.displayName ?? 'Athlete',
+      avatarUrl: theirs.avatarUrl ?? null,
+      level: theirs.level ?? 1,
+      addedAt: firestore.FieldValue.serverTimestamp(),
+    });
+
+  commitClientRateLimit('friendAdd', myUid);
+  return true;
+}
+
+/**
+ * Add a specific athlete, once the ambiguity of a shared handle is resolved.
+ *
+ * Same guards as `addFriendByUsername` — block check and rate limit — but keyed
+ * on the uid the athlete picked rather than a username lookup, because the whole
+ * point is that the username did not identify one person.
+ */
+export async function addFriendByUid(myUid: string, friendUid: string): Promise<boolean> {
+  if (!isFirebaseConfigured()) return false;
+  if (friendUid === myUid) throw new Error("That's you!");
+
+  assertClientRateLimit('friendAdd', myUid);
+
+  if (await isBlockedByMe(myUid, friendUid)) {
+    throw new Error('You can’t add this athlete.');
+  }
+
+  const snap = await firestore().collection('users').doc(friendUid).get();
+  if (!snap.exists()) throw new Error('That athlete is no longer on RepChamp.');
+  const theirs = snap.data() as Partial<Friend> & { displayName?: string };
+
+  await firestore()
+    .collection('users')
+    .doc(myUid)
+    .collection('friends')
+    .doc(friendUid)
     .set({
       displayName: theirs.displayName ?? 'Athlete',
       avatarUrl: theirs.avatarUrl ?? null,

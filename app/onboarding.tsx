@@ -148,6 +148,11 @@ export default function OnboardingScreen() {
   const completeOnboarding = useProfileStore((s) => s.completeOnboarding);
 
   const [step, setStep] = useState(0);
+  /* True when sign-in was reached by the "Already have an account?" link rather
+     than by walking the flow. Someone who jumped forward has not answered the
+     goal, frequency or reminder questions yet, so completing sign-in has to
+     return them to where they left off instead of dropping them at the paywall. */
+  const [cameToSignInEarly, setCameToSignInEarly] = useState(false);
   const [username, setUsername] = useState('');
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
@@ -329,6 +334,11 @@ export default function OnboardingScreen() {
               setUsername(v.replace(/[^a-zA-Z0-9_]/g, ''));
               setUsernameError(null);
             }}
+            onSignIn={() => {
+              setUsernameError(null);
+              setCameToSignInEarly(true);
+              setStep(20);
+            }}
             onNext={() => {
               const err = usernameValidationError(username);
               if (err || !isValidUsername(username)) {
@@ -437,6 +447,15 @@ export default function OnboardingScreen() {
                * Signing in is the first moment there is a uid to hold a
                * handle, so re-check here and send them back to choose rather
                * than rename them behind their back. */
+              /* Jumped here from the username step. A returning athlete now has
+                 their real handle back, so send them on through the flow they
+                 skipped; a new athlete still has to pick one, so put them back
+                 on the username step rather than 15 screens ahead of it. */
+              if (cameToSignInEarly) {
+                setCameToSignInEarly(false);
+                setStep(useProfileStore.getState().username ? 6 : 5);
+                return;
+              }
               void (async () => {
                 const uid = useAuthStore.getState().user?.uid;
                 if (!username || !uid) return next();
@@ -627,8 +646,15 @@ function SignIn({
         onRestored(plan.username);
       }
 
+      /* Show the confirmation, then advance — not both at once. Setting state
+       * and calling `onNext()` in the same tick unmounted this screen before
+       * React could paint the tick, so the acknowledgement added for exactly
+       * this purpose was never once visible. A returning athlete gets longer:
+       * "Welcome back, @handle" is the proof their account was found, and it
+       * is the difference between trusting the restore and retyping a handle
+       * they already own. */
       setSignedInAs(confirmationFor(plan, account.email));
-      onNext();
+      setTimeout(onNext, plan.kind === 'returning' ? 1600 : 1100);
     } catch (error) {
       // A cancel is a deliberate user action, not an error worth surfacing.
       if (!isGoogleCancel(error)) {
@@ -868,11 +894,14 @@ function Username({
   error,
   onChange,
   onNext,
+  onSignIn,
 }: {
   value: string;
   error: string | null;
   onChange: (v: string) => void;
   onNext: () => void;
+  /** Jumps straight to sign-in for someone who already has an account. */
+  onSignIn: () => void;
 }) {
   const valid = isValidUsername(value);
   const borderColor = error ? palette.red500 : valid ? palette.green500 : palette.border;
@@ -911,6 +940,16 @@ function Username({
 
       <View style={{ flex: 1 }} />
       <PrimaryButton label="Continue" onPress={onNext} disabled={!isValidUsername(value)} />
+
+      {/* Sign-in lives fifteen steps later, which is the wrong order for anyone
+          who already has an account: they invent a second handle, and the app
+          only discovers the real one long after. Offering it here lets a
+          returning athlete restore first and skip the invention entirely. */}
+      <PressableScale onPress={onSignIn} accessibilityRole="button">
+        <Text style={styles.haveAccountLink}>
+          Already have an account? <Text style={styles.haveAccountStrong}>Sign in</Text>
+        </Text>
+      </PressableScale>
     </View>
   );
 }
@@ -3029,6 +3068,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
   },
+  /* Deliberately quiet: the primary path is claiming a new name, and this must
+     not compete with it. Only the returning athlete is looking for it. */
+  haveAccountLink: {
+    ...font('medium', 13, { color: palette.grey450 }),
+    textAlign: 'center',
+    marginTop: 16,
+  },
+  haveAccountStrong: font('extrabold', 13, { color: palette.green700 }),
   /* The success counterpart to authError. Green rather than red, and a tick
      rather than bare text, because "it worked" should be readable at a glance
      without being read word by word. */

@@ -31,8 +31,12 @@ import {
   selectDaysTrainedThisWeek,
   selectLevel,
   selectStreak,
+  selectTotalReps,
   selectWeeklyXp,
 } from '@/state/profileStore';
+import { useEffectivePro } from '@/state/proStore';
+import { isPurchasesConfigured } from '@/services/purchases';
+import { isWalled } from '@/domain/hardPaywall';
 import { useCouple } from '@/state/useCouple';
 import { useIncomingDuelCount } from '@/state/useIncomingDuelCount';
 import { useLiveActivityCount } from '@/state/useLiveActivityCount';
@@ -60,6 +64,15 @@ export default function HomeScreen() {
   const weeklyXp = selectWeeklyXp(profile);
   const leagueProgress = useMemo(() => leagueProgressFromWeeklyXp(weeklyXp), [weeklyXp]);
   const streak = selectStreak(profile);
+  /* Whether solo training is out of free reps. Couple mode is exempt, so this
+     is deliberately asked without `isCoupleMode` — it governs the solo tiles
+     and the hero's solo cases only. */
+  const isPro = useEffectivePro();
+  const soloWalled = isWalled({
+    isPro,
+    repsSoFar: selectTotalReps(profile),
+    billingReady: isPurchasesConfigured(),
+  });
   const daysTrained = selectDaysTrainedThisWeek(profile);
   const goal = profile.weeklyGoal;
   const initial = (profile.username || 'C').charAt(0).toUpperCase();
@@ -135,11 +148,29 @@ export default function HomeScreen() {
     });
   };
 
+  /* Every solo route into a set goes through here.
+   *
+   * The session redirects a walled athlete to the paywall on its own, so this
+   * is not what enforces the wall — it is what stops Home pretending the wall
+   * is not there. Without it the tiles look normal, tapping one bounces
+   * through a session that immediately unmounts, and dismissing lands back on
+   * an unchanged Home: the obvious next move is to tap the same tile again.
+   *
+   * Couple mode deliberately does not call this. Together-sets are never
+   * walled, and routing them through a Pro check would wall the invite loop. */
+  const startSolo = (exercise: 'push' | 'squat') => {
+    if (soloWalled) {
+      router.push({ pathname: '/modal/paywall', params: { source: 'rep-limit', hard: '1' } });
+      return;
+    }
+    router.push({ pathname: '/session', params: { exercise, mode: 'practice' } });
+  };
+
   const onHeroPress = () => {
     track('home_hero_tapped', { kind: focus.kind });
     switch (focus.kind) {
       case 'first-session':
-        return router.push({ pathname: '/session', params: { exercise: 'push', mode: 'practice' } });
+        return startSolo('push');
       case 'streak-at-risk':
       case 'partner-trained':
         // Same path as CoupleStrip "Train together" — invite modal has no train CTA.
@@ -149,7 +180,7 @@ export default function HomeScreen() {
       case 'daily-challenge':
         return router.push('/modal/daily');
       case 'goal-met':
-        return router.push({ pathname: '/session', params: { exercise: 'push', mode: 'practice' } });
+        return startSolo('push');
       case 'recovery':
         return router.push('/modal/rest');
     }
@@ -350,19 +381,21 @@ export default function HomeScreen() {
       <StaggerIn index={3} style={styles.quickGrid}>
         <QuickTile
           label="Push-Ups"
+          locked={soloWalled}
           image={IC_PUSHUP}
           accent="#16a34a"
           tint={[palette.tintGreenTop, palette.tintGreenBottom]}
           stats={pushStats}
-          onPress={() => router.push({ pathname: '/session', params: { exercise: 'push', mode: 'practice' } })}
+          onPress={() => startSolo('push')}
         />
         <QuickTile
           label="Squats"
+          locked={soloWalled}
           image={IC_SQUAT}
           accent="#7c3aed"
           tint={[palette.tintPurpleTop, palette.tintPurpleBottom]}
           stats={squatStats}
-          onPress={() => router.push({ pathname: '/session', params: { exercise: 'squat', mode: 'practice' } })}
+          onPress={() => startSolo('squat')}
         />
       </StaggerIn>
 
@@ -467,6 +500,7 @@ function QuickTile({
   tint,
   stats,
   onPress,
+  locked = false,
 }: {
   label: string;
   image?: number;
@@ -475,6 +509,8 @@ function QuickTile({
   tint: readonly [string, string];
   stats: { todayBest: number; lastBest: number; delta: number };
   onPress: () => void;
+  /** Free reps are spent. The tile still taps — straight to the paywall. */
+  locked?: boolean;
 }) {
   /*
    * A day that has not been trained yet is not a regression.
@@ -516,11 +552,17 @@ function QuickTile({
   // it — not by having barely started.
   const deltaPositive = notStartedToday || chasing || stats.delta >= 0;
 
+  /* A locked tile says so instead of inviting a set it cannot deliver. It stays
+     pressable, because the paywall is where the tap should go — what it must
+     not do is look like a normal "Start set" and bounce off a session that
+     unmounts itself. */
+  const pillLabel = locked ? 'Free reps used' : deltaLabel;
+
   return (
     <PressableScale
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`Practice ${label}`}
+      accessibilityLabel={locked ? `${label} — free reps used, see Pro` : `Practice ${label}`}
       style={styles.quickTileWrap}
     >
       <LinearGradient colors={tint} start={{ x: 0.2, y: 0 }} end={{ x: 0.8, y: 1 }} style={styles.quickTileNew}>
@@ -532,8 +574,25 @@ function QuickTile({
               <Text style={{ fontSize: 22 }}>{emoji}</Text>
             )}
           </View>
-          <View style={[styles.deltaPill, { backgroundColor: deltaPositive ? palette.tintGreenBottom : palette.tintDangerBg }]}>
-            <Text style={font('bold', 11, { color: deltaPositive ? '#15803d' : '#b91c1c' })}>{deltaLabel}</Text>
+          <View
+            style={[
+              styles.deltaPill,
+              {
+                backgroundColor: locked
+                  ? palette.border
+                  : deltaPositive
+                    ? palette.tintGreenBottom
+                    : palette.tintDangerBg,
+              },
+            ]}
+          >
+            <Text
+              style={font('bold', 11, {
+                color: locked ? palette.grey600 : deltaPositive ? '#15803d' : '#b91c1c',
+              })}
+            >
+              {pillLabel}
+            </Text>
           </View>
         </View>
         <Text style={font('semibold', 15, { color: palette.ink, marginTop: 8 })} numberOfLines={1}>

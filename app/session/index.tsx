@@ -27,10 +27,12 @@ import {
 } from '@/domain/exerciseSafety';
 import { OpponentPacer, getOpponent, type Opponent } from '@/domain/opponent';
 import { shouldPromptUpgrade } from '@/domain/paywallGate';
+import { isWalled, repsRemaining } from '@/domain/hardPaywall';
 import type { SessionMode } from '@/domain/progression';
 import { isPurchasesConfigured } from '@/services/purchases';
 import { useAuthStore } from '@/state/authStore';
 import { useEffectivePro, useProStore } from '@/state/proStore';
+import { selectTotalReps, useProfileStore } from '@/state/profileStore';
 import {
   lockHaptic,
   playCountSound,
@@ -151,6 +153,10 @@ export default function SessionScreen() {
    */
   const isPro = useEffectivePro();
   const proReady = useProStore((s) => s.ready);
+  /* Lifetime reps already banked, which the free allowance counts against.
+     Capped at the store's 500-session history, which is far beyond a 5-rep
+     limit and so cannot matter here. */
+  const bankedReps = useProfileStore(selectTotalReps);
 
   // Freemium gate: latch once billing readiness resolves. Re-evaluating every
   // render let a late `proReady` flip Redirect mid-set and tear down the camera.
@@ -178,6 +184,22 @@ export default function SessionScreen() {
 
   const phase = useSessionStore((s) => s.phase);
   const reps = useSessionStore((s) => s.reps);
+
+  /* Recomputed every render on purpose, unlike `upgradeBlocked` above.
+   *
+   * That gate is latched because a late `proReady` flipping it mid-set would
+   * tear the camera down. This one has to react to the live rep count — that
+   * is the whole mechanism — so it cannot be latched. It is still safe from
+   * the same failure: `evaluateHardWall` returns false whenever `isPro` is
+   * true, so a late Pro resolution can only ever *unwall*, never wall. */
+  const wallInput = {
+    isPro,
+    repsSoFar: bankedReps + reps,
+    isCoupleMode: mode === 'together',
+    billingReady: isPurchasesConfigured(),
+  };
+  const hardWalled = proReady && isWalled(wallInput);
+  const repsLeft = repsRemaining(wallInput);
   const opponentReps = useSessionStore((s) => s.opponentReps);
   const timeLeft = useSessionStore((s) => s.timeLeft);
   const countdown = useSessionStore((s) => s.countdown);
@@ -714,6 +736,23 @@ export default function SessionScreen() {
     );
   }
 
+  /* The hard rep wall, which unlike the gate above *does* cut a live set off.
+   *
+   * That is the point of it — an allowance that only applies between sessions
+   * is not a wall — but it deliberately breaks the rule one line up, so the
+   * exemptions in `evaluateHardWall` are what keep it from being cruel:
+   * couple mode and a build that cannot sell anything are never walled.
+   *
+   * `bankedReps + reps` is the lifetime total including the set in progress,
+   * so crossing the limit stops the set on that rep rather than at the end. */
+  if (hardWalled) {
+    return (
+      <Redirect
+        href={{ pathname: '/modal/paywall', params: { source: 'rep-limit', hard: '1' } }}
+      />
+    );
+  }
+
   return (
     <View ref={cameraStageRef} style={styles.root}>
       <CameraStage
@@ -850,6 +889,18 @@ export default function SessionScreen() {
           />
         ) : null}
 
+        {/* The allowance running out, said before it does.
+            A set that simply stops reads as a crash; this makes the last two
+            reps deliberate. Rendered over both HUDs rather than threaded
+            through each, since it is about the account, not the exercise. */}
+        {phase === 'active' && Number.isFinite(repsLeft) && repsLeft > 0 && repsLeft <= 2 ? (
+          <View style={styles.repAllowance} pointerEvents="none">
+            <Text style={styles.repAllowanceText}>
+              {repsLeft === 1 ? '1 free rep left' : `${repsLeft} free reps left`}
+            </Text>
+          </View>
+        ) : null}
+
         {/* Dev-only pipeline diagnostics — proves the model produces a usable
             depth signal from a real body, which unit tests (synthetic poses)
             cannot. Compiled out for athletes via the __DEV__ guard inside. */}
@@ -919,6 +970,23 @@ function FramingBrackets({ accent }: { accent: string }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.camGreenBottom },
+  /* Sits low and centred so it does not cover the rep counter or the form cue,
+     both of which the athlete is watching mid-set. */
+  repAllowance: {
+    position: 'absolute',
+    bottom: 120,
+    alignSelf: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    zIndex: 12,
+  },
+  repAllowanceText: {
+    color: palette.white,
+    fontSize: 13,
+    fontWeight: '800',
+  },
   center: { alignItems: 'center', justifyContent: 'center' },
   logoWrap: {
     position: 'absolute',

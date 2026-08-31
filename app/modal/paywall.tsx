@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  BackHandler,
   Linking,
   StyleSheet,
   Text,
@@ -62,7 +63,7 @@ const BENEFITS = [
 export default function PaywallScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ source?: string }>();
+  const params = useLocalSearchParams<{ source?: string; hard?: string }>();
   const refresh = useProStore((s) => s.refresh);
   const setPro = useProStore((s) => s.setPro);
   const uid = useAuthStore((s) => s.user?.uid ?? null);
@@ -75,9 +76,40 @@ export default function PaywallScreen() {
 
   const billingReady = isPurchasesConfigured();
 
+  /* Reached from the hard rep wall, which the athlete may still decline.
+   *
+   * The wall stays up — it just is not a trap. `router.back()` would return to
+   * the session, which re-evaluates the wall on render and redirects here
+   * again: a loop with no exit, which is the failure mode this paywall was
+   * already rejected for once. Dismissing therefore goes Home, where free
+   * exercises and couple mode are still reachable. */
+  const fromRepWall = params.hard === '1';
+  const dismiss = useCallback(() => {
+    if (fromRepWall) {
+      router.replace('/(tabs)');
+      return;
+    }
+    router.back();
+  }, [fromRepWall, router]);
+
   useEffect(() => {
     track('paywall_viewed', { source: params.source ?? 'unknown' });
   }, [params.source]);
+
+  /* Android back, routed through the same exit as "Maybe later".
+   *
+   * Left alone it pops back to the session, which re-walls and redirects here
+   * again — the athlete would be stuck in a loop they cannot back out of, and
+   * a paywall you cannot leave is what the store rejection was about. This
+   * does not block the gesture; it redirects it. */
+  useEffect(() => {
+    if (!fromRepWall) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      dismiss();
+      return true;
+    });
+    return () => sub.remove();
+  }, [fromRepWall, dismiss]);
 
   useEffect(() => {
     let cancelled = false;
@@ -376,7 +408,7 @@ export default function PaywallScreen() {
             {showRetry ? (
               <>
                 <PressableScale
-                  onPress={() => router.back()}
+                  onPress={dismiss}
                   accessibilityRole="button"
                   accessibilityLabel="Maybe later"
                   style={styles.footerLinkHit}
@@ -406,7 +438,7 @@ export default function PaywallScreen() {
           </View>
         ) : (
           <PressableScale
-            onPress={() => router.back()}
+            onPress={dismiss}
             accessibilityRole="button"
             style={styles.footerLinkHit}
           >

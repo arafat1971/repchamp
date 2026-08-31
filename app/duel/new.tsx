@@ -10,9 +10,11 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { PressableScale, Screen } from '@/components/ui';
 import { duelExerciseOptions, parseDuelExercise } from '@/domain/duelExercises';
 import { canStartWorkout } from '@/domain/paywallGate';
+import { isWalled } from '@/domain/hardPaywall';
 import { assertClientRateLimit, isBlockedByMe } from '@/services/safetyService';
 import { useAuthStore } from '@/state/authStore';
-import { useProfileStore } from '@/state/profileStore';
+import { selectTotalReps, useProfileStore } from '@/state/profileStore';
+import { isPurchasesConfigured } from '@/services/purchases';
 import { useEffectivePro } from '@/state/proStore';
 import { showDialog } from '@/state/useDialog';
 import { font } from '@/theme/typography';
@@ -43,6 +45,7 @@ export default function DuelNewScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const isPro = useEffectivePro();
+  const bankedReps = useProfileStore(selectTotalReps);
   const avatarUri = useProfileStore((s) => s.avatarUri);
   const displayName = useProfileStore((s) => s.displayName);
   const params = useLocalSearchParams<{
@@ -99,6 +102,22 @@ export default function DuelNewScreen() {
       })
     ) {
       router.push({ pathname: '/modal/paywall', params: { source: 'duel-exercise' } });
+      return;
+    }
+
+    /* Stop here rather than at the camera. The session enforces the same wall,
+       but letting someone pick an opponent and a duration first, only to be
+       bounced the moment the camera opens, wastes their time and reads as a
+       bug. */
+    if (
+      isWalled({
+        isPro,
+        repsSoFar: bankedReps,
+        isCoupleMode: isCoupleTrain,
+        billingReady: isPurchasesConfigured(),
+      })
+    ) {
+      router.push({ pathname: '/modal/paywall', params: { source: 'rep-limit', hard: '1' } });
       return;
     }
 

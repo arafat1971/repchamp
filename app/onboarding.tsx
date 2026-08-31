@@ -2296,6 +2296,13 @@ function Paywall({
       actions: [{ label: 'Continue free', variant: 'primary', onPress: onNext }],
     });
   }, [busy, selected, onNext]);
+
+  const onSkip = useCallback(() => {
+    if (busy) return;
+    track('paywall_dismissed', { source: 'onboarding' });
+    onNext();
+  }, [busy, onNext]);
+
   const trialDays = selected ? trialLengthDays(selected) : null;
   const trialLabel = selected ? trialPeriodLabel(selected) : null;
   const reminderDay =
@@ -2339,9 +2346,10 @@ function Paywall({
       : 'Go Pro when you’re ready';
 
   return (
+    <View style={styles.step}>
     <ScrollView
-      style={styles.step}
-      contentContainerStyle={[styles.stepPadded, { paddingBottom: 40 }]}
+      style={{ flex: 1 }}
+      contentContainerStyle={[styles.stepPadded, { paddingBottom: 8 }]}
       showsVerticalScrollIndicator={false}
     >
       <Animated.View entering={FadeInUp.duration(420)} style={{ alignItems: 'center' }}>
@@ -2428,6 +2436,23 @@ function Paywall({
           : 'Push-ups, squats, duels and couple mode stay free.'}
       </Text>
     </ScrollView>
+
+    {/* The way out, pinned outside the ScrollView on purpose.
+     *
+     * Without it this step is a dead end whenever a plan resolves: `onBuy` only
+     * falls through to `onNext()` when there is nothing to sell, so cancelling
+     * the billing sheet returned here with no exit — which is what Google Play
+     * review flagged as a paywalled app.
+     *
+     * It has to stay out of the scroll region. Below the trophy, timeline and
+     * plan cards there is no room left on a short screen, and a reviewer who
+     * does not think to scroll sees the same wall the rejection was about. */}
+    <View style={styles.paywallSkipBar}>
+      <Pressable onPress={onSkip} accessibilityRole="button" style={styles.skip}>
+        <Text style={font('extrabold', 14, { color: palette.grey600 })}>Maybe later</Text>
+      </Pressable>
+    </View>
+    </View>
   );
 }
 
@@ -3163,6 +3188,14 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   skip: { alignItems: 'center', marginTop: 12, padding: 8 },
+  /* Sits below the paywall's scroll region so "Maybe later" is on screen at any
+     height. The top border keeps it from reading as part of the plan cards. */
+  paywallSkipBar: {
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: palette.border,
+    backgroundColor: palette.canvas,
+  },
   tryNow: { alignItems: 'center', marginTop: 12, paddingVertical: 4 },
   ruleRow: {
     flexDirection: 'row',

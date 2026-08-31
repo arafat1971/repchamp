@@ -39,9 +39,9 @@ import { captureError } from '@/lib/crash';
 import { OPPONENTS } from '@/domain/opponent';
 import { track } from '@/lib/analytics';
 import { onboardingProgressPercent, onboardingStepName } from '@/domain/onboardingFunnel';
-import { checkHandleAtSignIn } from '@/domain/signInHandle';
+import { checkHandleAtSignIn, mayPassUncheckedHandle } from '@/domain/signInHandle';
 import { fetchOffering, isPurchasesConfigured, purchase, sortPackagesForPaywall } from '@/services/purchases';
-import { checkUsername, fetchProfile, isUsernameAvailable } from '@/services/userService';
+import { checkUsername, fetchProfile } from '@/services/userService';
 import {
   hasFreeTrial,
   planTitle,
@@ -155,6 +155,9 @@ export default function OnboardingScreen() {
      goal, frequency or reminder questions yet, so completing sign-in has to
      return them to where they left off instead of dropping them at the paywall. */
   const [cameToSignInEarly, setCameToSignInEarly] = useState(false);
+  /** The handle sign-in could not confirm, if any. Scopes the username step's
+      leniency so the same unverifiable name cannot be waved through twice. */
+  const [refusedAtSignIn, setRefusedAtSignIn] = useState<string | null>(null);
   const [username, setUsername] = useState('');
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
@@ -349,11 +352,23 @@ export default function OnboardingScreen() {
               }
               const uid = useAuthStore.getState().user?.uid;
               void (async () => {
-                const free = await isUsernameAvailable(username, uid);
-                if (!free) {
+                const state = await checkUsername(username, uid);
+                if (state === 'taken') {
                   setUsernameError('That username is taken. Try another.');
                   return;
                 }
+                /* An unverifiable lookup normally passes, so a bad connection
+                   cannot strand anyone here. The exception is a handle sign-in
+                   already bounced back for exactly that reason: waving it
+                   through again on another failed lookup leads straight to the
+                   silent rename the bounce existed to prevent. */
+                if (state === 'unknown' && !mayPassUncheckedHandle(username, refusedAtSignIn)) {
+                  setUsernameError(
+                    `Still can't confirm @${username}. Check your connection, or pick another name.`,
+                  );
+                  return;
+                }
+                setRefusedAtSignIn(null);
                 next();
               })();
             }}
@@ -464,15 +479,19 @@ export default function OnboardingScreen() {
                    guard is here to skip the Firestore round-trip, not to
                    decide anything. */
                 if (!username || !uid) return next();
-                /* `checkUsername`, not the permissive `isUsernameAvailable`:
-                   the rule here is stricter than the username step's, and
-                   `checkHandleAtSignIn` documents and tests why. */
+                /* Stricter than the username step, which passes an
+                   unverifiable lookup; `checkHandleAtSignIn` documents and
+                   tests why. */
                 const check = checkHandleAtSignIn(
                   username,
                   uid,
                   await checkUsername(username, uid),
                 );
-                if (check.kind === 'proceed') return next();
+                if (check.kind === 'proceed') {
+                  setRefusedAtSignIn(null);
+                  return next();
+                }
+                setRefusedAtSignIn(username);
                 setUsernameError(check.reason);
                 setStep(5);
               })();

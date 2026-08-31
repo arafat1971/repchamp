@@ -1,4 +1,4 @@
-import { checkHandleAtSignIn } from '../signInHandle';
+import { checkHandleAtSignIn, mayPassUncheckedHandle } from '../signInHandle';
 
 describe('checkHandleAtSignIn', () => {
   it('carries on when the handle is still free', () => {
@@ -51,5 +51,34 @@ describe('checkHandleAtSignIn', () => {
   it('proceeds when sign-in produced no uid, even on taken', () => {
     expect(checkHandleAtSignIn('arafat', null, 'taken')).toEqual({ kind: 'proceed' });
     expect(checkHandleAtSignIn('arafat', undefined, 'taken')).toEqual({ kind: 'proceed' });
+  });
+});
+
+describe('mayPassUncheckedHandle', () => {
+  /* The ordinary case the username step's leniency exists for: nobody has been
+     told anything yet, so a failed lookup must not strand them. */
+  it('lets any handle through when sign-in refused nothing', () => {
+    expect(mayPassUncheckedHandle('arafat', null)).toBe(true);
+  });
+
+  /* The loop this closes. Sign-in bounced them back saying @arafat could not
+     be confirmed; retyping @arafat and passing again on another failed lookup
+     walks them into the silent rename the bounce existed to prevent. */
+  it('refuses the exact handle sign-in could not confirm', () => {
+    expect(mayPassUncheckedHandle('arafat', 'arafat')).toBe(false);
+  });
+
+  /* Case and stray whitespace must not be an escape hatch — @Arafat and
+     @arafat are the same claim on the same name. */
+  it('is not fooled by case or padding', () => {
+    expect(mayPassUncheckedHandle('ARAFAT', 'arafat')).toBe(false);
+    expect(mayPassUncheckedHandle('  arafat  ', 'arafat')).toBe(false);
+  });
+
+  /* Scoped deliberately. The offline athlete still has to be able to move, so
+     only the refused name is blocked — picking a different one is the way out
+     the bounce is asking for. */
+  it('still lets a different handle through', () => {
+    expect(mayPassUncheckedHandle('someone_else', 'arafat')).toBe(true);
   });
 });

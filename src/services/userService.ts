@@ -153,8 +153,12 @@ export async function checkUsername(
 /**
  * True when the name is free *or* we could not check.
  *
- * Kept for onboarding, where blocking on a failed lookup would trap an
- * offline athlete on the username step with no way forward.
+ * No longer used in the app. Onboarding was the last caller and now asks
+ * `checkUsername` directly: it has to tell "free" apart from "could not
+ * check" to scope its leniency to a single handle, which this cannot express.
+ * Kept as a convenience for a caller that genuinely does not care why a name
+ * is usable — but prefer `checkUsername`, since collapsing the two answers is
+ * what let an athlete be silently renamed.
  */
 export async function isUsernameAvailable(
   username: string,

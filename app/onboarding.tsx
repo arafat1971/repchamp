@@ -30,6 +30,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BreathingImage, CountUp, Floating, StaggerIn } from '@/components/motion';
+import { GoogleMark } from '@/components/GoogleMark';
 import { BarChart } from '@/components/charts/BarChart';
 import { GrowthChart } from '@/components/charts/GrowthChart';
 import { ProgressRing } from '@/components/session/ProgressRing';
@@ -625,6 +626,8 @@ function SignIn({
   const [authError, setAuthError] = useState<string | null>(null);
   /** Shown on success. Sign-in used to advance with no acknowledgement at all. */
   const [signedInAs, setSignedInAs] = useState<string | null>(null);
+  /** How long the confirmation is held, so its progress bar can match it. */
+  const [holdMs, setHoldMs] = useState(1100);
   // Resolved once: whether a real Google sign-in can complete on this build.
   const googleReady = useMemo(() => isGoogleAuthConfigured(), []);
 
@@ -664,8 +667,10 @@ function SignIn({
        * "Welcome back, @handle" is the proof their account was found, and it
        * is the difference between trusting the restore and retyping a handle
        * they already own. */
+      const hold = plan.kind === 'returning' ? 1600 : 1100;
+      setHoldMs(hold);
       setSignedInAs(confirmationFor(plan, account.email));
-      setTimeout(onNext, plan.kind === 'returning' ? 1600 : 1100);
+      setTimeout(onNext, hold);
     } catch (error) {
       // A cancel is a deliberate user action, not an error worth surfacing.
       if (!isGoogleCancel(error)) {
@@ -681,6 +686,15 @@ function SignIn({
     }
   }, [busy, onNext, onRestored]);
 
+  /* The confirmation replaces the screen rather than appearing under it.
+   *
+   * It used to render as a small green row below the buttons, then sit there
+   * for over a second while `setTimeout` ran. That put the most important
+   * moment on the screen — proof the account was found — in the least visible
+   * place on it, under two buttons that were now pointless, and the wait read
+   * as a hang rather than as a beat. */
+  if (signedInAs) return <SignedIn message={signedInAs} holdMs={holdMs} />;
+
   return (
     <View style={[styles.step, styles.stepPadded]}>
       <Animated.View entering={FadeInUp.duration(420)} style={{ alignItems: 'center' }}>
@@ -693,60 +707,141 @@ function SignIn({
         </Text>
       </Animated.View>
 
-      <View style={{ gap: 12, marginTop: 28 }}>
+      {/* What is actually being protected, named. "Your progress" is abstract;
+          a streak, a league and a personal best are things the athlete has
+          just spent fifteen screens being shown. */}
+      <Animated.View entering={FadeIn.duration(600).delay(140)} style={styles.saveVault}>
+        <Floating distance={4} duration={4200}>
+          <View style={styles.saveVaultRow}>
+            {SAVED_ITEMS.map((item, i) => (
+              <StaggerIn key={item.label} index={i} step={110}>
+                <View style={styles.saveVaultItem}>
+                  <View style={[styles.saveVaultIcon, { backgroundColor: item.tint }]}>
+                    <Text style={{ fontSize: 19 }}>{item.icon}</Text>
+                  </View>
+                  <Text style={styles.saveVaultLabel}>{item.label}</Text>
+                </View>
+              </StaggerIn>
+            ))}
+          </View>
+        </Floating>
+      </Animated.View>
+
+      <View style={{ gap: 12, marginTop: 24 }}>
         {googleReady ? (
-          <SocialButton
-            label={busy ? 'Signing in…' : 'Continue with Google'}
-            glyph="G"
-            glyphColor="#4285F4"
-            onPress={onGoogle}
-          />
+          <StaggerIn index={3} step={110}>
+            <GoogleButton busy={busy} onPress={onGoogle} />
+          </StaggerIn>
         ) : null}
-        <PrimaryButton
-          label={googleReady ? 'Not now' : 'Continue'}
-          onPress={onNext}
-          disabled={busy}
-        />
+        <StaggerIn index={4} step={110}>
+          <PrimaryButton
+            label={googleReady ? 'Not now' : 'Continue'}
+            onPress={onNext}
+            disabled={busy}
+          />
+        </StaggerIn>
       </View>
 
-      {signedInAs ? (
-        <View style={styles.signedInRow} accessibilityLiveRegion="polite">
-          <Text style={styles.signedInTick}>✓</Text>
-          <Text style={styles.signedInText} numberOfLines={2}>
-            {signedInAs}
-          </Text>
-        </View>
-      ) : null}
+      {/* Sits under the buttons because it is a reassurance, not an action. */}
+      <Animated.View entering={FadeIn.duration(500).delay(500)}>
+        <Text style={styles.signInFinePrint}>
+          We never post anything. Your email is only used to find your account.
+        </Text>
+      </Animated.View>
 
       {authError ? (
-        <Text style={styles.authError} accessibilityLiveRegion="polite">
+        <Animated.Text
+          entering={FadeInDown.duration(260)}
+          style={styles.authError}
+          accessibilityLiveRegion="polite"
+        >
           {authError}
-        </Text>
+        </Animated.Text>
       ) : null}
     </View>
   );
 }
 
-function SocialButton({
-  label,
-  glyph,
-  glyphColor,
-  onPress,
-}: {
-  label: string;
-  glyph: string;
-  glyphColor: string;
-  onPress: () => void;
-}) {
+/** The three things sign-in protects, shown rather than asserted. */
+const SAVED_ITEMS = [
+  { icon: '🔥', label: 'Streak', tint: palette.amber50 },
+  { icon: '🏆', label: 'League', tint: palette.green50 },
+  { icon: '📈', label: 'Records', tint: palette.blue50 },
+] as const;
+
+/**
+ * The success beat, given the whole screen.
+ *
+ * There is a deliberate pause here — 1.1s, or 1.6s for a returning athlete —
+ * while the parent's `setTimeout` runs. That pause is the acknowledgement, so
+ * it has to look intentional: the tick springs in, the message follows, and a
+ * progress line runs the length of the wait so the athlete can see the app is
+ * moving rather than stuck.
+ */
+function SignedIn({ message, holdMs }: { message: string; holdMs: number }) {
+  const tick = useSharedValue(0);
+  const fill = useSharedValue(0);
+
+  useEffect(() => {
+    tick.value = withSpring(1, { damping: 9, stiffness: 140 });
+    /* Linear on purpose: this is a clock, not a flourish. Easing it would make
+       the remaining wait misrepresent itself. */
+    fill.value = withTiming(1, { duration: holdMs, easing: Easing.linear });
+  }, [tick, fill, holdMs]);
+
+  const tickStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: tick.value }],
+    opacity: tick.value,
+  }));
+  /* Animating width, matching the shared `ProgressBar`. A scaleX transform
+     would need `transformOrigin: 'left'`, which nothing else in the app relies
+     on; width percentages are known to behave here. */
+  const fillStyle = useAnimatedStyle(() => ({ width: `${fill.value * 100}%` }));
+
+  return (
+    <View style={[styles.step, styles.stepPadded, styles.signedInScreen]}>
+      <Animated.View style={[styles.signedInBadge, tickStyle]}>
+        <Text style={styles.signedInBadgeTick}>✓</Text>
+      </Animated.View>
+
+      <Animated.Text
+        entering={FadeInUp.duration(360).delay(160)}
+        style={[text.h1, { fontSize: 24, textAlign: 'center', marginTop: 20 }]}
+        accessibilityLiveRegion="polite"
+      >
+        {message}
+      </Animated.Text>
+
+      <Animated.View entering={FadeIn.duration(400).delay(320)} style={styles.signedInBar}>
+        <Animated.View style={[styles.signedInBarFill, fillStyle]} />
+      </Animated.View>
+    </View>
+  );
+}
+
+/**
+ * Google's own button, near enough to be recognised at a glance.
+ *
+ * Was a bordered pill with a blue letter `G` set in the app's typeface. The
+ * real mark and a settled label make it read as the control people already
+ * trust, and the spinner replaces the mark in place so the row does not
+ * reflow the moment it is tapped.
+ */
+function GoogleButton({ busy, onPress }: { busy: boolean; onPress: () => void }) {
   return (
     <PressableScale
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={label}
-      style={styles.socialButton}
+      accessibilityState={{ busy, disabled: busy }}
+      accessibilityLabel="Continue with Google"
+      style={[styles.socialButton, busy && styles.socialButtonBusy]}
     >
-      <Text style={font('extrabold', 17, { color: glyphColor })}>{glyph}</Text>
-      <Text style={font('extrabold', 15, { color: palette.ink })}>{label}</Text>
+      <View style={styles.socialGlyph}>
+        {busy ? <ActivityIndicator size="small" color={palette.grey600} /> : <GoogleMark size={20} />}
+      </View>
+      <Text style={font('extrabold', 15, { color: palette.ink })}>
+        {busy ? 'Signing in…' : 'Continue with Google'}
+      </Text>
     </PressableScale>
   );
 }
@@ -3097,7 +3192,71 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 10,
+  },
+  /* Dims without moving. Swapping the mark for a spinner inside a fixed-width
+     slot keeps the label from sliding sideways at the moment of the tap. */
+  socialButtonBusy: { opacity: 0.6 },
+  socialGlyph: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
+
+  /* The three things sign-in is protecting. */
+  saveVault: { marginTop: 26, alignItems: 'center' },
+  saveVaultRow: { flexDirection: 'row', gap: 12 },
+  saveVaultItem: {
+    alignItems: 'center',
     gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.white,
+    minWidth: 88,
+  },
+  saveVaultIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveVaultLabel: font('extrabold', 12, { color: palette.ink }),
+
+  signInFinePrint: {
+    ...font('bold', 11.5, { color: palette.grey600 }),
+    textAlign: 'center',
+    marginTop: 14,
+    maxWidth: 290,
+    alignSelf: 'center',
+  },
+
+  /* Success takes the whole screen — see `SignedIn`. */
+  signedInScreen: { alignItems: 'center', justifyContent: 'center' },
+  signedInBadge: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: palette.green50,
+    borderWidth: 2,
+    borderColor: palette.green500,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  signedInBadgeTick: font('extrabold', 38, { color: palette.green600 }),
+  /* Runs for the length of the parent's advance timer, so the pause reads as
+     progress rather than as a stall. */
+  signedInBar: {
+    width: 132,
+    height: 4,
+    borderRadius: 2,
+    marginTop: 26,
+    backgroundColor: palette.border,
+    overflow: 'hidden',
+  },
+  signedInBarFill: {
+    height: '100%',
+    borderRadius: 2,
+    backgroundColor: palette.green500,
   },
   authError: {
     ...font('bold', 12.5, { color: palette.red500 }),

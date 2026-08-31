@@ -2562,7 +2562,12 @@ function Paywall({
      * plan cards there is no room left on a short screen, and a reviewer who
      * does not think to scroll sees the same wall the rejection was about. */}
     <View style={styles.paywallSkipBar}>
-      <Pressable onPress={onSkip} accessibilityRole="button" style={styles.skip}>
+      <Pressable
+        onPress={onSkip}
+        accessibilityRole="button"
+        accessibilityLabel="Maybe later"
+        style={styles.paywallSkip}
+      >
         <Text style={font('extrabold', 14, { color: palette.grey600 })}>Maybe later</Text>
       </Pressable>
     </View>
@@ -3220,7 +3225,12 @@ const styles = StyleSheet.create({
 
   /* The three things sign-in is protecting. */
   saveVault: { marginTop: 26, alignItems: 'center' },
-  saveVaultRow: { flexDirection: 'row', gap: 12 },
+  /* Wraps rather than clips. Three 88pt cards plus two 12pt gaps need 288pt,
+     and a 320pt screen leaves only 280 after the step's padding — so the row
+     overflowed at the default font size on small devices, and on every device
+     once the OS font scale passed ~1.5, with the third card cut off rather
+     than reflowed. */
+  saveVaultRow: { flexDirection: 'row', gap: 12, flexWrap: 'wrap', justifyContent: 'center' },
   saveVaultItem: {
     alignItems: 'center',
     gap: 8,
@@ -3230,7 +3240,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: palette.border,
     backgroundColor: palette.white,
-    minWidth: 88,
+    /* A floor the card may drop below when the row is tight — as a hard
+       `minWidth` it was the thing forcing the overflow. */
+    flexBasis: 88,
+    flexShrink: 1,
   },
   saveVaultIcon: {
     width: 42,
@@ -3373,6 +3386,15 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: palette.border,
     backgroundColor: palette.canvas,
+  },
+  /* Not the shared `skip` style, whose 8pt padding gives a ~34pt target — 14pt
+     under Android's 48pt minimum. This is the one control a Play reviewer has
+     to find and press, so it gets a full-width, full-height target. */
+  paywallSkip: {
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
   },
   tryNow: { alignItems: 'center', marginTop: 12, paddingVertical: 4 },
   ruleRow: {

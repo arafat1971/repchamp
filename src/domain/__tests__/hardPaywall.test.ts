@@ -96,3 +96,30 @@ describe('isNearingWall', () => {
     expect(isNearingWall(input({ isPro: true, repsSoFar: FREE_REP_LIMIT - 1 }))).toBe(false);
   });
 });
+
+/* The wall is evaluated on *banked* reps, never banked + live.
+ *
+ * An earlier version added the live rep count, which cut the set off the
+ * instant the limit was crossed. That unmounted the session before the result
+ * screen could run `recordSession`, so the athlete's last set was lost — and
+ * because those reps were never banked, the total stayed under the limit and
+ * re-walled them on every future session. These pin the arithmetic that the
+ * call site depends on. */
+describe('the allowance is spent by banked reps, not live ones', () => {
+  it('does not wall an athlete whose banked total is still under the limit', () => {
+    expect(isWalled(input({ repsSoFar: FREE_REP_LIMIT - 1 }))).toBe(false);
+  });
+
+  it('walls once those reps have actually been banked', () => {
+    expect(isWalled(input({ repsSoFar: FREE_REP_LIMIT }))).toBe(true);
+  });
+
+  /* The warning counts the live set, so it can reach zero during the set that
+     spends the allowance — while the wall itself stays down until those reps
+     are recorded. */
+  it('lets the countdown reach zero without the wall being up', () => {
+    const banked = FREE_REP_LIMIT - 2;
+    expect(repsRemaining(input({ repsSoFar: banked + 2 }))).toBe(0);
+    expect(isWalled(input({ repsSoFar: banked }))).toBe(false);
+  });
+});

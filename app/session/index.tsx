@@ -185,21 +185,20 @@ export default function SessionScreen() {
   const phase = useSessionStore((s) => s.phase);
   const reps = useSessionStore((s) => s.reps);
 
-  /* Recomputed every render on purpose, unlike `upgradeBlocked` above.
-   *
-   * That gate is latched because a late `proReady` flipping it mid-set would
-   * tear the camera down. This one has to react to the live rep count — that
-   * is the whole mechanism — so it cannot be latched. It is still safe from
-   * the same failure: `evaluateHardWall` returns false whenever `isPro` is
-   * true, so a late Pro resolution can only ever *unwall*, never wall. */
+  /* Unlatched, but gated on `setUnderway` at the redirect below rather than
+     on a ref: `bankedReps` only changes when a session is recorded, which
+     cannot happen while this screen is mounted, so this is stable within a
+     set. `repsLeft` below is the part that tracks the live count. */
   const wallInput = {
     isPro,
-    repsSoFar: bankedReps + reps,
+    repsSoFar: bankedReps,
     isCoupleMode: mode === 'together',
     billingReady: isPurchasesConfigured(),
   };
   const hardWalled = proReady && isWalled(wallInput);
-  const repsLeft = repsRemaining(wallInput);
+  /* The countdown *does* include the live set, so the warning reflects what
+     the athlete is actually spending as they spend it. */
+  const repsLeft = repsRemaining({ ...wallInput, repsSoFar: bankedReps + reps });
   const opponentReps = useSessionStore((s) => s.opponentReps);
   const timeLeft = useSessionStore((s) => s.timeLeft);
   const countdown = useSessionStore((s) => s.countdown);
@@ -736,16 +735,22 @@ export default function SessionScreen() {
     );
   }
 
-  /* The hard rep wall, which unlike the gate above *does* cut a live set off.
+  /* The hard rep wall — enforced *before* a set, never by tearing down a live
+   * one.
    *
-   * That is the point of it — an allowance that only applies between sessions
-   * is not a wall — but it deliberately breaks the rule one line up, so the
-   * exemptions in `evaluateHardWall` are what keep it from being cruel:
-   * couple mode and a build that cannot sell anything are never walled.
+   * Redirecting mid-set looked like the stronger wall and was actually a data
+   * loss: the screen unmounts before `phase` reaches 'finished', so the result
+   * screen never mounts and `recordSession` never runs. The athlete's last set
+   * would vanish — no XP, no history, no streak — and because the reps were
+   * never banked, `bankedReps` would stay under the limit and re-wall them on
+   * every future session, forever.
    *
-   * `bankedReps + reps` is the lifetime total including the set in progress,
-   * so crossing the limit stops the set on that rep rather than at the end. */
-  if (hardWalled) {
+   * So the allowance is checked at entry using banked reps only. Someone who
+   * starts their last free set finishes it, gets credited, and meets the wall
+   * on their next attempt — which is also the only version an athlete can make
+   * sense of. `setUnderway` keeps a late store hydration from redirecting out
+   * of a set already in progress. */
+  if (hardWalled && !setUnderway) {
     return (
       <Redirect
         href={{ pathname: '/modal/paywall', params: { source: 'rep-limit', hard: '1' } }}

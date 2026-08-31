@@ -26,19 +26,19 @@
 export const FREE_REP_LIMIT = 5;
 
 /**
- * Master switch — **off** while the Google Play appeal is open.
+ * Master switch — **on** as of 2026-08-31, Play review having cleared.
  *
- * The app was rejected as paywalled, and a rep wall is the shape that
- * rejection was about. The code below stays complete and tested so turning it
- * back on is this one line, not another rebuild: set it to `true` once review
- * has cleared.
+ * It was held off while the app sat under a rejection for being paywalled.
+ * Setting it back to `false` is the whole of the retreat if that judgement
+ * returns: every caller then behaves as though the wall does not exist, and
+ * the rules stay under test via `evaluateHardWallRule` either way.
  *
- * With it off, `evaluateHardWall` and `repsRemaining` return "not walled" and
- * "unlimited" before looking at anything else, so every caller — the session,
- * Home, the FAB, the Train tab, the duel screen and the reminder handler —
- * behaves exactly as it did before the wall existed. Freemium is what ships.
+ * This is the second time this model has shipped. It was removed once before,
+ * on 2026-08-06, because an athlete who cannot build a routine never
+ * subscribes and never invites a partner — worth re-reading if the numbers
+ * after this turn out the same way.
  */
-export const HARD_WALL_ENABLED = false;
+export const HARD_WALL_ENABLED = true;
 
 export interface HardWallInput {
   /** RevenueCat entitlement truth. Pro is never walled. */

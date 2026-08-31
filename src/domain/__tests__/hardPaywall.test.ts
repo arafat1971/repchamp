@@ -135,30 +135,47 @@ describe('the allowance is spent by banked reps, not live ones', () => {
 
 /* The master switch itself.
  *
- * It is off while the Play appeal is open, so these are what guarantee the
- * shipped app behaves as though the wall does not exist — and, when it is
- * flipped back on, that the switch is genuinely all that changed. The rules
- * above are tested through `*Rule` so they stay pinned in either state. */
+ * On since Play review cleared. These assert that the switch is genuinely all
+ * that separates the shipped app from the rules tested above — so if it is
+ * ever turned off again, the failures point at the switch rather than leaving
+ * the rules silently unverified. */
 describe('HARD_WALL_ENABLED', () => {
-  it('is off — the wall must not ship while Play review is open', () => {
-    expect(HARD_WALL_ENABLED).toBe(false);
+  it('is on — Play review has cleared', () => {
+    expect(HARD_WALL_ENABLED).toBe(true);
   });
 
-  it('nothing is walled while the switch is off, at any rep count', () => {
-    expect(evaluateHardWall(input({ repsSoFar: 10_000 }))).toEqual({ walled: false });
-    expect(isWalled(input({ repsSoFar: 10_000 }))).toBe(false);
-  });
-
-  it('the allowance reads as unlimited, so no countdown is shown', () => {
-    expect(repsRemaining(input({ repsSoFar: 10_000 }))).toBe(Number.POSITIVE_INFINITY);
-    expect(isNearingWall(input({ repsSoFar: FREE_REP_LIMIT - 1 }))).toBe(false);
-  });
-
-  /* The switch is checked before every exemption, so its behaviour cannot
-     depend on who the athlete is. */
-  it('is off for everyone, not just the exempt', () => {
-    for (const who of [{ isPro: true }, { isCoupleMode: true }, { billingReady: false }, {}]) {
-      expect(isWalled(input({ ...who, repsSoFar: 10_000 }))).toBe(false);
+  /* With the switch on, the public functions and the rule functions must agree
+     exactly. Any divergence means the switch is doing more than gating. */
+  it('delegates to the rules unchanged', () => {
+    const cases = [
+      input({ repsSoFar: 0 }),
+      input({ repsSoFar: FREE_REP_LIMIT }),
+      input({ repsSoFar: FREE_REP_LIMIT, isPro: true }),
+      input({ repsSoFar: FREE_REP_LIMIT, isCoupleMode: true }),
+      input({ repsSoFar: FREE_REP_LIMIT, billingReady: false }),
+    ];
+    for (const c of cases) {
+      expect(evaluateHardWall(c)).toEqual(evaluateHardWallRule(c));
+      expect(repsRemaining(c)).toBe(repsRemainingRule(c));
     }
+  });
+
+  it('walls a spent athlete, and only a spent athlete', () => {
+    expect(isWalled(input({ repsSoFar: FREE_REP_LIMIT }))).toBe(true);
+    expect(isWalled(input({ repsSoFar: FREE_REP_LIMIT - 1 }))).toBe(false);
+  });
+
+  /* The exemptions still hold with the switch on — this is what keeps the
+     invite loop and no-billing builds out of the wall. */
+  it('keeps every exemption', () => {
+    const spent = { repsSoFar: 10_000 };
+    expect(isWalled(input({ ...spent, isPro: true }))).toBe(false);
+    expect(isWalled(input({ ...spent, isCoupleMode: true }))).toBe(false);
+    expect(isWalled(input({ ...spent, billingReady: false }))).toBe(false);
+  });
+
+  it('shows a real countdown rather than an unlimited one', () => {
+    expect(repsRemaining(input({ repsSoFar: FREE_REP_LIMIT - 2 }))).toBe(2);
+    expect(isNearingWall(input({ repsSoFar: FREE_REP_LIMIT - 1 }))).toBe(true);
   });
 });

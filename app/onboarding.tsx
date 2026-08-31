@@ -3659,7 +3659,10 @@ const styles = StyleSheet.create({
     borderRadius: radius['2xl'],
     paddingVertical: 12,
     paddingHorizontal: 16,
-    minWidth: 96,
+    /* A floor the card may drop below when the row is tight, not a hard
+       minimum that forces an overflow. */
+    flexBasis: 96,
+    flexShrink: 1,
   },
   readyStatLabel: { ...font('bold', 10.5, { color: palette.grey600 }), marginTop: 4 },
   offerReadyBubble: {

@@ -12,7 +12,10 @@ import { StaggerIn } from '@/components/motion';
 import { createDuel } from '@/services/duelService';
 import { useCouple } from '@/state/useCouple';
 import { showDialog } from '@/state/useDialog';
-import { useProfileStore } from '@/state/profileStore';
+import { selectTotalReps, useProfileStore } from '@/state/profileStore';
+import { useEffectivePro } from '@/state/proStore';
+import { isWalled } from '@/domain/hardPaywall';
+import { isPurchasesConfigured } from '@/services/purchases';
 import { useSelfPlayer } from '@/state/useSelfPlayer';
 import { defaultDuration } from '@/state/sessionStore';
 import type { ExerciseId } from '@/vision/exercises';
@@ -27,6 +30,7 @@ const IC_SQUAT = require('../../assets/ic-squat.png');
 
 export default function TrainScreen() {
   const router = useRouter();
+  const isPro = useEffectivePro();
   const personalBests = useProfileStore((s) => s.personalBests);
   const self = useSelfPlayer();
   const { paired, partner, streak, combined } = useCouple();
@@ -35,8 +39,22 @@ export default function TrainScreen() {
 
   const nextMilestone = MILESTONES.find((m) => m > best) ?? MILESTONES[MILESTONES.length - 1]!;
 
-  const practice = (exercise: ExerciseId) =>
+  /* Same guard as Home's `startSolo`: the session enforces the wall anyway,
+     so this only exists to stop the tab opening a set that bounces straight
+     back out. */
+  const practice = (exercise: ExerciseId) => {
+    if (
+      isWalled({
+        isPro,
+        repsSoFar: selectTotalReps(useProfileStore.getState()),
+        billingReady: isPurchasesConfigured(),
+      })
+    ) {
+      router.push({ pathname: '/modal/paywall', params: { source: 'rep-limit', hard: '1' } });
+      return;
+    }
     router.push({ pathname: '/session', params: { exercise, mode: 'practice' } });
+  };
 
   /**
    * Couple entry. Unpaired athletes go to the invite screen — that gate is the

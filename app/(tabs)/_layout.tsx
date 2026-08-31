@@ -28,7 +28,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { ExerciseGlyph } from '@/components/ExerciseGlyph';
-import { useProfileStore } from '@/state/profileStore';
+import { selectTotalReps, useProfileStore } from '@/state/profileStore';
 import { useIncomingDuelCount } from '@/state/useIncomingDuelCount';
 import { buildFabModel } from '@/domain/fabActions';
 import {
@@ -41,6 +41,8 @@ import { dayKey } from '@/domain/progression';
 import type { ExerciseId } from '@/vision/exercises';
 import { useIsPro } from '@/state/proStore';
 import { canStartExercise } from '@/domain/pro';
+import { isWalled } from '@/domain/hardPaywall';
+import { isPurchasesConfigured } from '@/services/purchases';
 import { font, fontFamily } from '@/theme/typography';
 import { motion, palette } from '@/theme/tokens';
 import { selectionHaptic } from '@/lib/feedback';
@@ -456,6 +458,18 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
   const startExercise = (exercise: ExerciseId) => {
     if (!canStartExercise(isPro, exercise)) {
       router.push({ pathname: '/modal/paywall', params: { source: 'exercise-library' } });
+      return;
+    }
+    /* Entitlement is not the only thing that can stop a set. Without this the
+       FAB opens a session that redirects straight back out again. */
+    if (
+      isWalled({
+        isPro,
+        repsSoFar: selectTotalReps(useProfileStore.getState()),
+        billingReady: isPurchasesConfigured(),
+      })
+    ) {
+      router.push({ pathname: '/modal/paywall', params: { source: 'rep-limit', hard: '1' } });
       return;
     }
     router.push({ pathname: '/session', params: { exercise, mode: 'practice' } });

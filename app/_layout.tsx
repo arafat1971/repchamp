@@ -40,7 +40,9 @@ import {
 } from '@/services/liveResultSettle';
 import { AppState } from 'react-native';
 
-import { useProfileStore } from '@/state/profileStore';
+import { selectTotalReps, useProfileStore } from '@/state/profileStore';
+import { isWalled } from '@/domain/hardPaywall';
+import { isPurchasesConfigured } from '@/services/purchases';
 import { preloadPoseModel } from '@/vision/modelCache';
 
 // Hold the splash until fonts are ready, so the first frame never shows
@@ -107,7 +109,23 @@ export default function RootLayout() {
       } else if (type === 'rival-passed') {
         router.push('/(tabs)/friends');
       } else if (type === 'workout-reminder' || type === 'streak-reminder') {
-        router.push({ pathname: '/session', params: { exercise: 'push', mode: 'practice' } });
+        /* A reminder must not open a sales page.
+         *
+         * "Time to train" is the app asking for something; landing a walled
+         * athlete on the paywall turns that into a pitch they did not ask for,
+         * which is a worse thing to send someone than nothing at all. Home
+         * still shows the wall and the way past it, and couple mode is right
+         * there and never walled. */
+        const walled = isWalled({
+          isPro: useProStore.getState().isPro,
+          repsSoFar: selectTotalReps(useProfileStore.getState()),
+          billingReady: isPurchasesConfigured(),
+        });
+        router.push(
+          walled
+            ? '/(tabs)'
+            : { pathname: '/session', params: { exercise: 'push', mode: 'practice' } },
+        );
       } else if (type === 'couple-nudge') {
         router.push('/modal/couple-invite');
       }

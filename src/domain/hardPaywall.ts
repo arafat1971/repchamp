@@ -26,13 +26,19 @@
 export const FREE_REP_LIMIT = 5;
 
 /**
- * Master switch.
+ * Master switch — **off** while the Google Play appeal is open.
  *
- * The wall was shipped once, removed on 2026-08-06, and is being restored. It
- * is behind a constant so the reversal — if it happens again — is a one-line
- * change rather than another archaeology exercise.
+ * The app was rejected as paywalled, and a rep wall is the shape that
+ * rejection was about. The code below stays complete and tested so turning it
+ * back on is this one line, not another rebuild: set it to `true` once review
+ * has cleared.
+ *
+ * With it off, `evaluateHardWall` and `repsRemaining` return "not walled" and
+ * "unlimited" before looking at anything else, so every caller — the session,
+ * Home, the FAB, the Train tab, the duel screen and the reminder handler —
+ * behaves exactly as it did before the wall existed. Freemium is what ships.
  */
-export const HARD_WALL_ENABLED = true;
+export const HARD_WALL_ENABLED = false;
 
 export interface HardWallInput {
   /** RevenueCat entitlement truth. Pro is never walled. */
@@ -61,6 +67,21 @@ export type WallDecision =
  */
 export function evaluateHardWall(input: HardWallInput): WallDecision {
   if (!HARD_WALL_ENABLED) return { walled: false };
+  return evaluateHardWallRule(input);
+}
+
+/**
+ * The wall's rules, with the master switch left out.
+ *
+ * Split out so the behaviour stays under test while `HARD_WALL_ENABLED` is
+ * false. Without this the suite would only be able to assert "nothing is ever
+ * walled", and the rules would sit unverified until someone flipped the flag
+ * back on — which is exactly when a regression would be most expensive.
+ *
+ * Call `evaluateHardWall` in app code; this is for tests and for callers that
+ * genuinely need the rule regardless of the switch.
+ */
+export function evaluateHardWallRule(input: HardWallInput): WallDecision {
   if (input.isPro) return { walled: false };
   if (input.isCoupleMode) return { walled: false };
   if (!input.billingReady) return { walled: false };
@@ -81,6 +102,11 @@ export function isWalled(input: HardWallInput): boolean {
  */
 export function repsRemaining(input: HardWallInput): number {
   if (!HARD_WALL_ENABLED) return Number.POSITIVE_INFINITY;
+  return repsRemainingRule(input);
+}
+
+/** `repsRemaining` without the master switch. See `evaluateHardWallRule`. */
+export function repsRemainingRule(input: HardWallInput): number {
   if (input.isPro || input.isCoupleMode || !input.billingReady) {
     return Number.POSITIVE_INFINITY;
   }

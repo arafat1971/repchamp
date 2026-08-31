@@ -38,8 +38,9 @@ import { captureError } from '@/lib/crash';
 import { OPPONENTS } from '@/domain/opponent';
 import { track } from '@/lib/analytics';
 import { onboardingProgressPercent, onboardingStepName } from '@/domain/onboardingFunnel';
+import { checkHandleAtSignIn } from '@/domain/signInHandle';
 import { fetchOffering, isPurchasesConfigured, purchase, sortPackagesForPaywall } from '@/services/purchases';
-import { fetchProfile, isUsernameAvailable } from '@/services/userService';
+import { checkUsername, fetchProfile, isUsernameAvailable } from '@/services/userService';
 import {
   hasFreeTrial,
   planTitle,
@@ -458,10 +459,20 @@ export default function OnboardingScreen() {
               }
               void (async () => {
                 const uid = useAuthStore.getState().user?.uid;
+                /* `checkHandleAtSignIn` proceeds on either of these too; this
+                   guard is here to skip the Firestore round-trip, not to
+                   decide anything. */
                 if (!username || !uid) return next();
-                const free = await isUsernameAvailable(username, uid);
-                if (free) return next();
-                setUsernameError(`@${username} was taken while you were signing up.`);
+                /* `checkUsername`, not the permissive `isUsernameAvailable`:
+                   the rule here is stricter than the username step's, and
+                   `checkHandleAtSignIn` documents and tests why. */
+                const check = checkHandleAtSignIn(
+                  username,
+                  uid,
+                  await checkUsername(username, uid),
+                );
+                if (check.kind === 'proceed') return next();
+                setUsernameError(check.reason);
                 setStep(5);
               })();
             }}

@@ -36,6 +36,17 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "android": {
+        "serviceAccountKeyPath": "./play-publisher.json",
+        "track": "production"
+      }
+    },
+    "internal": {
+      "android": {
+        "serviceAccountKeyPath": "./play-publisher.json",
+        "track": "internal"
+      }
+    }
   }
 }

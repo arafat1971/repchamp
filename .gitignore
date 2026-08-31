@@ -87,3 +87,10 @@ keystore.properties
 # and a rebuildable output has no business in version control.
 store/apk/
 store/aab/
+
+# EAS local credentials (contains keystore passwords)
+credentials.json
+
+# Google Play service account key (publishing credentials)
+play-publisher*.json
+repchamp-*-*.json

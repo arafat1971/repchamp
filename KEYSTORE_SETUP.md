@@ -203,7 +203,7 @@ app rather than waiting.
 
 ## versionCode
 
-`app.json` pins `android.versionCode` — **22** as of 2026-08-31. EAS was
+`app.json` pins `android.versionCode` — **23** as of 2026-09-01. EAS was
 incrementing this remotely; a local build cannot see that counter, and Play
 refuses anything less than or equal to a code already uploaded. Raise it by one
 for each new upload.

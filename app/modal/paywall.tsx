@@ -76,15 +76,28 @@ export default function PaywallScreen() {
 
   const billingReady = isPurchasesConfigured();
 
-  /* Reached from the hard rep wall, which the athlete may still decline.
-   *
-   * The wall stays up — it just is not a trap. `router.back()` would return to
-   * the session, which re-evaluates the wall on render and redirects here
-   * again: a loop with no exit, which is the failure mode this paywall was
-   * already rejected for once. Dismissing therefore goes Home, where free
-   * exercises and couple mode are still reachable. */
+  /* Reached from the hard rep wall, which the athlete may still decline — the
+     wall stays up, it just is not a trap. See `leave` for why that needs a
+     different exit than the ordinary paywall. */
   const fromRepWall = params.hard === '1';
-  const dismiss = useCallback(() => {
+
+  /* Every way off this screen, whether the athlete subscribed or declined.
+   *
+   * `router.back()` is wrong for the rep wall in both directions. The session
+   * reaches here via <Redirect>, which *replaces* the session in the stack
+   * rather than stacking on top of it, so back lands on whatever preceded the
+   * session — not the session. Declining that way could bounce them into a
+   * screen that re-walls and sends them straight back; subscribing that way
+   * drops someone who just paid to keep training onto Home with nothing
+   * running.
+   *
+   * Home is the right destination for both. The set is gone either way, and
+   * from Home a subscriber has every exercise unlocked one tap away while
+   * someone who declined still has couple mode, which is never walled.
+   *
+   * The ordinary pushed paywall keeps `router.back()`, which already returns
+   * to whatever opened it. */
+  const leave = useCallback(() => {
     if (fromRepWall) {
       router.replace('/(tabs)');
       return;
@@ -105,11 +118,11 @@ export default function PaywallScreen() {
   useEffect(() => {
     if (!fromRepWall) return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      dismiss();
+      leave();
       return true;
     });
     return () => sub.remove();
-  }, [fromRepWall, dismiss]);
+  }, [fromRepWall, leave]);
 
   useEffect(() => {
     let cancelled = false;
@@ -161,7 +174,7 @@ export default function PaywallScreen() {
         track('trial_started', { plan: selected.packageType });
       }
       track('subscribed', { plan: selected.packageType });
-      router.back();
+      leave();
       return;
     }
 
@@ -182,7 +195,7 @@ export default function PaywallScreen() {
       tone: 'danger',
       actions: [{ label: 'Try again', variant: 'primary' }],
     });
-  }, [selected, setPro, refresh, router, uid]);
+  }, [selected, setPro, refresh, uid, leave]);
 
   const onRestore = useCallback(async () => {
     setBusy(true);
@@ -199,7 +212,7 @@ export default function PaywallScreen() {
         tone: 'success',
         actions: [{ label: 'Got it', variant: 'primary' }],
       });
-      router.back();
+      leave();
       return;
     }
 
@@ -211,7 +224,7 @@ export default function PaywallScreen() {
       tone: result.ok ? 'info' : 'danger',
       actions: [{ label: 'Got it', variant: 'primary' }],
     });
-  }, [setPro, refresh, router, uid]);
+  }, [setPro, refresh, uid, leave]);
 
   const ctaLabel = (() => {
     if (busy) return 'Please wait…';
@@ -228,7 +241,7 @@ export default function PaywallScreen() {
         setReloadKey((k) => k + 1);
         return;
       }
-      router.back();
+      leave();
       return;
     }
     void onSubscribe();
@@ -408,7 +421,7 @@ export default function PaywallScreen() {
             {showRetry ? (
               <>
                 <PressableScale
-                  onPress={dismiss}
+                  onPress={leave}
                   accessibilityRole="button"
                   accessibilityLabel="Maybe later"
                   style={styles.footerLinkHit}
@@ -438,7 +451,7 @@ export default function PaywallScreen() {
           </View>
         ) : (
           <PressableScale
-            onPress={dismiss}
+            onPress={leave}
             accessibilityRole="button"
             style={styles.footerLinkHit}
           >

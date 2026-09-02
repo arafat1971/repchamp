@@ -9,7 +9,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { useCameraPermission, type CameraRef } from 'react-native-vision-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -33,6 +33,7 @@ import { isPurchasesConfigured } from '@/services/purchases';
 import { useAuthStore } from '@/state/authStore';
 import { useEffectivePro, useProStore } from '@/state/proStore';
 import { selectTotalReps, useProfileStore } from '@/state/profileStore';
+import { momentFor, shouldShow, type LiveMoment, type MomentKind } from '@/domain/liveMoments';
 import {
   lockHaptic,
   playCountSound,
@@ -264,6 +265,12 @@ export default function SessionScreen() {
   /* Refs, not state: the pose callback is memoised on [exercise] and would
      otherwise close over a stale mode and a stale streak. */
   const isTogetherRef = useRef(false);
+  /* The one thing on this screen that notices the athlete is close to
+     something. `personalBests` lived in the store and the live screen never
+     read it — nobody was told they were a rep from their record. */
+  const personalBest = useProfileStore((st) => st.personalBests[exercise] ?? 0);
+  const [moment, setMoment] = useState<LiveMoment | null>(null);
+  const shownMoments = useRef<Set<MomentKind>>(new Set());
   const syncMilestoneRef = useRef<number | null>(null);
   const [syncMilestone, setSyncMilestone] = useState<number | null>(null);
   /**
@@ -406,6 +413,35 @@ export default function SessionScreen() {
   useEffect(() => {
     isTogetherRef.current = mode === 'together';
   }, [mode]);
+
+  /* Live moments — the reason to do the next rep.
+   *
+   * Keyed on the rep count so it evaluates once per rep rather than on every
+   * render, and each kind fires once per set: a cue that reappears whenever
+   * the count wobbles is one the athlete learns to ignore. Runs for every
+   * mode, since a personal best is worth chasing alone, against a rival, or
+   * beside a partner. */
+  useEffect(() => {
+    if (phase !== 'active' || reps <= 0) return;
+    const next = momentFor({
+      reps,
+      timeLeft: mode === 'practice' ? null : timeLeft,
+      personalBest,
+      target: target ?? null,
+    });
+    if (!next || !shouldShow(next.kind, shownMoments.current)) return;
+    shownMoments.current.add(next.kind);
+    setMoment(next);
+    if (next.triumphant) successHaptic();
+    const id = setTimeout(() => setMoment(null), next.triumphant ? 2200 : 1600);
+    return () => clearTimeout(id);
+  }, [reps, phase, mode, timeLeft, personalBest, target]);
+
+  /* A fresh set starts with a clean slate, or the second set of a session
+     would inherit the first set's fired cues and stay silent. */
+  useEffect(() => {
+    if (phase === 'countdown') shownMoments.current = new Set();
+  }, [phase]);
 
   useEffect(() => {
     if (mode !== 'together' || phase !== 'active') {
@@ -937,6 +973,21 @@ export default function SessionScreen() {
           />
         ) : null}
 
+        {/* The moment. Rendered over every HUD rather than inside each, because
+            a personal best is worth chasing alone, against a rival or beside a
+            partner — the hook is about the athlete, not the mode. */}
+        {phase === 'active' && moment ? (
+          <Animated.View
+            key={moment.kind}
+            entering={FadeInDown.duration(260)}
+            style={[styles.moment, moment.triumphant && styles.momentTriumphant]}
+            pointerEvents="none"
+          >
+            <Text style={styles.momentHeadline}>{moment.headline}</Text>
+            {moment.detail ? <Text style={styles.momentDetail}>{moment.detail}</Text> : null}
+          </Animated.View>
+        ) : null}
+
         {/* The allowance running out, said before it does.
             A set that simply stops reads as a crash; this makes the last two
             reps deliberate. Rendered over both HUDs rather than threaded
@@ -1018,6 +1069,33 @@ function FramingBrackets({ accent }: { accent: string }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.camGreenBottom },
+  /* High enough to clear the rep counter and the form cue, both of which the
+     athlete is already watching. */
+  moment: {
+    position: 'absolute',
+    top: '30%',
+    alignSelf: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 22,
+    paddingVertical: 14,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.62)',
+    maxWidth: '86%',
+    zIndex: 14,
+  },
+  momentTriumphant: {
+    backgroundColor: 'rgba(22,163,74,0.86)',
+  },
+  momentHeadline: {
+    ...font('extrabold', 24, { color: palette.white }),
+    textAlign: 'center',
+    letterSpacing: 0.5,
+  },
+  momentDetail: {
+    ...font('bold', 13, { color: 'rgba(255,255,255,0.86)' }),
+    textAlign: 'center',
+    marginTop: 4,
+  },
   /* Sits low and centred so it does not cover the rep counter or the form cue,
      both of which the athlete is watching mid-set. */
   repAllowance: {

@@ -18,6 +18,7 @@ import { getExercise, type ExerciseId } from '@/vision/exercises';
 import { font } from '@/theme/typography';
 import { gradients, palette, radius } from '@/theme/tokens';
 import { useProfileStore } from '@/state/profileStore';
+import { endgameLabel, type RaceRead } from '@/domain/duelTension';
 
 /** The rival's colour on the live scoreboard — a clear blue against your green. */
 const DUEL_RIVAL = '#3b82f6';
@@ -39,6 +40,8 @@ function formatClock(seconds: number): string {
 export function DuelHud({
   exercise,
   mode,
+  race,
+  overtake,
   reps,
   opponentReps,
   opponent,
@@ -51,6 +54,10 @@ export function DuelHud({
 }: {
   exercise: ExerciseId;
   mode: SessionMode;
+  /** The state of the race — the margin the HUD never used to state. */
+  race: RaceRead | null;
+  /** A lead change that just happened, shown briefly. */
+  overtake: 'took' | 'lost' | null;
   reps: number;
   opponentReps: number;
   opponent: Opponent;
@@ -67,6 +74,7 @@ export function DuelHud({
   const accent =
     exercise === 'squat' || exercise === 'stretch' ? palette.purple500 : palette.green500;
 
+  const endgame = race ? endgameLabel(timeLeft, race) : '';
   const total = reps + opponentReps;
   const tugPercent = total === 0 ? 50 : Math.round((reps / total) * 100);
   const soloPercent = target ? Math.min(100, Math.round((reps / target) * 100)) : 0;
@@ -141,8 +149,47 @@ export function DuelHud({
               <View style={styles.duelBarDivider} />
               <Animated.View style={tugSpacerStyle} />
             </View>
+
+            {/* The margin, stated. The bar showed the ratio and left the
+                athlete to work out the gap themselves, mid-rep — a duel's
+                tension is the margin, and it was the one thing never said.
+                Late on, it becomes an instruction instead of a status. */}
+            {race ? (
+              <Animated.View
+                key={endgame || race.label}
+                entering={FadeIn.duration(200)}
+                style={[
+                  styles.marginChip,
+                  race.margin > 0 && styles.marginChipAhead,
+                  race.margin < 0 && styles.marginChipBehind,
+                ]}
+                pointerEvents="none"
+              >
+                <Text style={styles.marginText}>{endgame || race.label}</Text>
+              </Animated.View>
+            ) : null}
             </View>
           </View>
+        ) : null}
+
+        {/* A lead change — the most galvanising event in a race, and it used
+            to pass in silence with two numbers swapping order. */}
+        {overtake ? (
+          <Animated.View
+            key={`ot-${overtake}-${reps}`}
+            entering={FadeIn.duration(180)}
+            style={styles.overtake}
+            pointerEvents="none"
+          >
+            <Text
+              style={[
+                styles.overtakeText,
+                { color: overtake === 'took' ? palette.green300 : palette.amber300 },
+              ]}
+            >
+              {overtake === 'took' ? 'YOU TOOK THE LEAD' : 'THEY WENT AHEAD'}
+            </Text>
+          </Animated.View>
         ) : null}
 
         {mode === 'solo' ? (
@@ -259,6 +306,34 @@ export function DuelHud({
 }
 
 const styles = StyleSheet.create({
+  /* Directly under the tug bar, where the eye already is when checking the
+     race. Neutral by default so a tie does not read as a warning. */
+  marginChip: {
+    alignSelf: 'center',
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  marginChipAhead: { backgroundColor: 'rgba(22,163,74,0.72)' },
+  marginChipBehind: { backgroundColor: 'rgba(180,83,9,0.72)' },
+  marginText: {
+    ...font('extrabold', 12, { color: palette.white }),
+    letterSpacing: 1.2,
+  },
+  /* Centred and large: an overtake should interrupt, briefly. */
+  overtake: {
+    position: 'absolute',
+    top: '34%',
+    alignSelf: 'center',
+  },
+  overtakeText: {
+    ...font('extrabold', 26, {}),
+    letterSpacing: 0.5,
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowRadius: 16,
+  },
   top: { position: 'absolute', left: 16, right: 16 },
 
   duelWrap: { gap: 8 },

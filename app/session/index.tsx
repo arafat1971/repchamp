@@ -34,6 +34,7 @@ import { useAuthStore } from '@/state/authStore';
 import { useEffectivePro, useProStore } from '@/state/proStore';
 import { selectTotalReps, useProfileStore } from '@/state/profileStore';
 import { momentFor, shouldShow, type LiveMoment, type MomentKind } from '@/domain/liveMoments';
+import { leadChanged, readRace } from '@/domain/duelTension';
 import {
   lockHaptic,
   playCountSound,
@@ -207,6 +208,10 @@ export default function SessionScreen() {
      the athlete is actually spending as they spend it. */
   const repsLeft = repsRemaining({ ...wallInput, repsSoFar: bankedReps + reps });
   const opponentReps = useSessionStore((s) => s.opponentReps);
+  /* Only a versus set has a race to read. Solo and practice have no opponent,
+     and together mode is cooperative — a margin there would invent a
+     competition the mode exists to avoid. */
+  const race = mode === 'versus' ? readRace(reps, opponentReps) : null;
   const timeLeft = useSessionStore((s) => s.timeLeft);
   const countdown = useSessionStore((s) => s.countdown);
   const calibration = useSessionStore((s) => s.calibration);
@@ -270,6 +275,9 @@ export default function SessionScreen() {
      read it — nobody was told they were a rep from their record. */
   const personalBest = useProfileStore((st) => st.personalBests[exercise] ?? 0);
   const [moment, setMoment] = useState<LiveMoment | null>(null);
+  /* The race, and the lead changes the HUD never announced. */
+  const [overtake, setOvertake] = useState<'took' | 'lost' | null>(null);
+  const prevMarginRef = useRef(0);
   const shownMoments = useRef<Set<MomentKind>>(new Set());
   const syncMilestoneRef = useRef<number | null>(null);
   const [syncMilestone, setSyncMilestone] = useState<number | null>(null);
@@ -437,10 +445,27 @@ export default function SessionScreen() {
     return () => clearTimeout(id);
   }, [reps, phase, mode, timeLeft, personalBest, target]);
 
+  /* Lead changes. Compared against the previous margin so an overtake fires
+     once, on the rep that causes it, rather than for as long as the lead
+     holds. */
+  useEffect(() => {
+    if (phase !== 'active' || !race) return;
+    const change = leadChanged(prevMarginRef.current, race.margin);
+    prevMarginRef.current = race.margin;
+    if (!change) return;
+    setOvertake(change);
+    if (change === 'took') successHaptic();
+    const id = setTimeout(() => setOvertake(null), 1500);
+    return () => clearTimeout(id);
+  }, [race?.margin, phase, race]);
+
   /* A fresh set starts with a clean slate, or the second set of a session
      would inherit the first set's fired cues and stay silent. */
   useEffect(() => {
-    if (phase === 'countdown') shownMoments.current = new Set();
+    if (phase === 'countdown') {
+      shownMoments.current = new Set();
+      prevMarginRef.current = 0;
+    }
   }, [phase]);
 
   useEffect(() => {
@@ -961,6 +986,8 @@ export default function SessionScreen() {
           <DuelHud
             exercise={exercise}
             mode={mode}
+            race={race}
+            overtake={overtake}
             reps={reps}
             opponentReps={opponentReps}
             opponent={opponent}

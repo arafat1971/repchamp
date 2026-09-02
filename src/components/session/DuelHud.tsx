@@ -322,10 +322,12 @@ const styles = StyleSheet.create({
     ...font('extrabold', 12, { color: palette.white }),
     letterSpacing: 1.2,
   },
-  /* Centred and large: an overtake should interrupt, briefly. */
+  /* An overtake should interrupt, but not over the rep counter at 38% — that
+     number is what the athlete is actually watching, and covering it to say
+     the lead changed trades the more important reading for the louder one. */
   overtake: {
     position: 'absolute',
-    top: '34%',
+    top: '21%',
     alignSelf: 'center',
   },
   overtakeText: {

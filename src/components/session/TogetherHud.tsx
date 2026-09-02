@@ -173,16 +173,17 @@ export function TogetherHud({
 }
 
 const styles = StyleSheet.create({
-  /* Centred over the combined score, where the eye already is at the moment a
-     rep lands. */
+  /* Below the combined score, not over it. The shared total at 34% is the
+     reason this mode exists; a milestone that covers it is celebrating the
+     number by hiding it. */
   syncBurst: {
     position: 'absolute',
     alignSelf: 'center',
-    top: '38%',
+    top: '45%',
     alignItems: 'center',
   },
   syncBurstValue: {
-    ...font('extrabold', 56, { color: palette.white }),
+    ...font('extrabold', 42, { color: palette.white }),
     textShadowColor: 'rgba(0,0,0,0.55)',
     textShadowRadius: 18,
   },

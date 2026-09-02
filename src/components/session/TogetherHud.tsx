@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PopOnChange } from '@/components/motion';
 import { PressableScale } from '@/components/ui';
 import { getExercise, type ExerciseId } from '@/vision/exercises';
+import { syncStreakLabel } from '@/domain/couple';
 import { font } from '@/theme/typography';
 import { palette, radius } from '@/theme/tokens';
 
@@ -22,6 +23,8 @@ function formatClock(seconds: number): string {
  */
 export function TogetherHud({
   exercise,
+  syncStreak,
+  syncMilestone,
   reps,
   partnerReps,
   partnerName,
@@ -34,6 +37,10 @@ export function TogetherHud({
   onEnd,
 }: {
   exercise: ExerciseId;
+  /** Consecutive in-sync reps in the current run. */
+  syncStreak: number;
+  /** A run milestone just crossed, shown briefly then cleared. */
+  syncMilestone: number | null;
   reps: number;
   partnerReps: number;
   partnerName: string;
@@ -100,12 +107,31 @@ export function TogetherHud({
         <PopOnChange trigger={combined} scale={1.16}>
           <Text style={styles.combinedValue}>{combined}</Text>
         </PopOnChange>
+        {/* The run, not just the state.
+            This used to read "IN SYNC ⚡" and vanish — the rhythm was detected
+            and then thrown away. Showing the count climbing is what makes
+            holding it worth something: neither partner can see the other's
+            screen, so a long run is a shared achievement. */}
         {inSync ? (
           <Animated.View entering={FadeIn.duration(180)} style={styles.syncPill}>
-            <Text style={styles.syncText}>IN SYNC ⚡</Text>
+            <Text style={styles.syncText}>{syncStreakLabel(syncStreak) || 'IN SYNC ⚡'}</Text>
           </Animated.View>
         ) : null}
       </View>
+
+      {/* A run milestone, briefly. Rare enough to still mean something across a
+          60-second set — see SYNC_MILESTONES. */}
+      {syncMilestone ? (
+        <Animated.View
+          key={`ms-${syncMilestone}`}
+          entering={FadeIn.duration(200)}
+          style={styles.syncBurst}
+          pointerEvents="none"
+        >
+          <Text style={styles.syncBurstValue}>×{syncMilestone}</Text>
+          <Text style={styles.syncBurstLabel}>IN SYNC</Text>
+        </Animated.View>
+      ) : null}
 
       {!partnerConnected ? (
         <View style={[styles.waiting, { bottom: insets.bottom + 190 }]} pointerEvents="none">
@@ -147,6 +173,24 @@ export function TogetherHud({
 }
 
 const styles = StyleSheet.create({
+  /* Centred over the combined score, where the eye already is at the moment a
+     rep lands. */
+  syncBurst: {
+    position: 'absolute',
+    alignSelf: 'center',
+    top: '38%',
+    alignItems: 'center',
+  },
+  syncBurstValue: {
+    ...font('extrabold', 56, { color: palette.white }),
+    textShadowColor: 'rgba(0,0,0,0.55)',
+    textShadowRadius: 18,
+  },
+  syncBurstLabel: {
+    ...font('extrabold', 12, { color: palette.green300 }),
+    letterSpacing: 3,
+    marginTop: -4,
+  },
   top: { position: 'absolute', left: 16, right: 16 },
   heading: { alignItems: 'center', marginBottom: 8 },
   title: {

@@ -590,3 +590,98 @@ export function isInSync(
   if (myLastRepAt === null || partnerLastRepAt === null) return false;
   return now - myLastRepAt <= IN_SYNC_WINDOW_MS && now - partnerLastRepAt <= IN_SYNC_WINDOW_MS;
 }
+
+/* ------------------------------------------------------------------ *
+ * Sync streak
+ * ------------------------------------------------------------------ */
+
+/**
+ * Consecutive in-sync reps, counted live during a together set.
+ *
+ * `isInSync` already detects the thing couple mode exists for — two people
+ * repping in rhythm on separate phones — but it only ever lit a pill, which
+ * appeared and vanished with nothing counting it. Nothing rewarded the rhythm,
+ * so there was no reason to hold it.
+ *
+ * This turns that signal into a run. Each rep either extends the streak or
+ * breaks it, and the current run is the number the HUD can show climbing. It is
+ * the one mechanic a solo fitness app cannot copy: you cannot see your
+ * partner's screen, so holding a rhythm together is genuinely a shared skill.
+ *
+ * Kept pure and reducer-shaped so a set can be replayed in tests rep by rep.
+ */
+export interface SyncStreak {
+  /** In-sync reps in the current unbroken run. */
+  current: number;
+  /** Longest run this set — what the result screen reports. */
+  best: number;
+  /** Every rep counted this set, in sync or not. Denominator for the rate. */
+  totalReps: number;
+  /** Reps that landed in sync. Numerator for the rate. */
+  syncedReps: number;
+}
+
+export const EMPTY_SYNC_STREAK: SyncStreak = {
+  current: 0,
+  best: 0,
+  totalReps: 0,
+  syncedReps: 0,
+};
+
+/**
+ * Fold one of my reps into the running streak.
+ *
+ * Only *my* reps advance it. The partner's reps arrive over the network with
+ * their own latency, and counting both would let a burst from one side inflate
+ * a streak the pair never actually held — each device counts its own athlete
+ * and both arrive at the same number because both must be in sync for it to
+ * rise at all.
+ */
+export function advanceSyncStreak(streak: SyncStreak, inSync: boolean): SyncStreak {
+  const current = inSync ? streak.current + 1 : 0;
+  return {
+    current,
+    best: Math.max(streak.best, current),
+    totalReps: streak.totalReps + 1,
+    syncedReps: streak.syncedReps + (inSync ? 1 : 0),
+  };
+}
+
+/**
+ * Share of this set's reps that landed in sync, 0–100.
+ *
+ * Reported at the end rather than live: a percentage that lurches around on the
+ * first few reps reads as noise, and mid-set the athlete should be watching the
+ * run, not a statistic.
+ */
+export function syncRate(streak: SyncStreak): number {
+  if (streak.totalReps <= 0) return 0;
+  return Math.round((streak.syncedReps / streak.totalReps) * 100);
+}
+
+/**
+ * Runs worth reacting to.
+ *
+ * A pill that fires on every rep is wallpaper. These are spaced so the
+ * celebration stays rare enough to mean something across a 60-second set.
+ */
+export const SYNC_MILESTONES = [5, 10, 20, 35, 50] as const;
+
+/**
+ * The milestone this rep just crossed, or null.
+ *
+ * Compares against the previous run so a milestone fires once, on the rep that
+ * reaches it, and not on every rep after.
+ */
+export function syncMilestoneReached(previous: number, current: number): number | null {
+  if (current <= previous) return null;
+  return SYNC_MILESTONES.find((m) => m > previous && m <= current) ?? null;
+}
+
+/** Copy for a run, shown live in the HUD. Empty until the run is worth naming. */
+export function syncStreakLabel(current: number): string {
+  if (current < 3) return '';
+  if (current < 10) return `IN SYNC ×${current}`;
+  if (current < 20) return `LOCKED IN ×${current}`;
+  return `UNSTOPPABLE ×${current}`;
+}

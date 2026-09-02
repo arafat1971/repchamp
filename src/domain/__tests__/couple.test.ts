@@ -23,6 +23,11 @@ import {
   streakAtRisk,
   type Couple,
   type CoupleMember,
+  EMPTY_SYNC_STREAK,
+  advanceSyncStreak,
+  syncMilestoneReached,
+  syncRate,
+  syncStreakLabel,
 } from '../couple';
 
 function member(uid: string, trainedDays: string[] = [], totalReps = 0): CoupleMember {
@@ -371,5 +376,96 @@ describe('coupleBondPresentation', () => {
     });
     expect(p.milestoneLabel).toBe('50 / 100 reps');
     expect(p.milestoneProgress).toBeCloseTo(0.5);
+  });
+});
+
+describe('sync streak', () => {
+  /** Replay a set as a list of in-sync booleans, one per rep. */
+  const run = (reps: boolean[]) => reps.reduce(advanceSyncStreak, EMPTY_SYNC_STREAK);
+
+  it('counts an unbroken run', () => {
+    expect(run([true, true, true]).current).toBe(3);
+  });
+
+  it('resets the run when a rep lands out of sync', () => {
+    expect(run([true, true, false]).current).toBe(0);
+  });
+
+  /* The run is what the HUD shows, but the *best* is what the pair earned —
+     losing it because they fell out of rhythm at the end would misreport the
+     set. */
+  it('remembers the best run after it breaks', () => {
+    const s = run([true, true, true, false, true]);
+    expect(s.current).toBe(1);
+    expect(s.best).toBe(3);
+  });
+
+  it('counts every rep, synced or not', () => {
+    const s = run([true, false, true, true]);
+    expect(s.totalReps).toBe(4);
+    expect(s.syncedReps).toBe(3);
+  });
+
+  it('starts empty', () => {
+    expect(EMPTY_SYNC_STREAK.current).toBe(0);
+    expect(EMPTY_SYNC_STREAK.best).toBe(0);
+  });
+});
+
+describe('syncRate', () => {
+  const run = (reps: boolean[]) => reps.reduce(advanceSyncStreak, EMPTY_SYNC_STREAK);
+
+  it('is the share of reps that landed in sync', () => {
+    expect(syncRate(run([true, true, false, false]))).toBe(50);
+  });
+
+  it('is 100 for a perfectly synced set', () => {
+    expect(syncRate(run([true, true, true]))).toBe(100);
+  });
+
+  /* A set with no reps must not divide by zero — the result screen renders
+     this before anyone has trained. */
+  it('is zero before any reps', () => {
+    expect(syncRate(EMPTY_SYNC_STREAK)).toBe(0);
+  });
+});
+
+describe('syncMilestoneReached', () => {
+  it('fires on the rep that reaches a milestone', () => {
+    expect(syncMilestoneReached(4, 5)).toBe(5);
+  });
+
+  /* Once, not on every rep after — otherwise the celebration becomes
+     wallpaper, which is what this whole mechanic is trying to avoid. */
+  it('does not fire again past the milestone', () => {
+    expect(syncMilestoneReached(5, 6)).toBeNull();
+    expect(syncMilestoneReached(9, 10)).toBe(10);
+  });
+
+  it('does not fire when the run breaks', () => {
+    expect(syncMilestoneReached(12, 0)).toBeNull();
+  });
+
+  it('reports the lowest milestone crossed if a jump skips one', () => {
+    expect(syncMilestoneReached(3, 12)).toBe(5);
+  });
+});
+
+describe('syncStreakLabel', () => {
+  /* Silent below three: a "×1" on the first synced rep would fire constantly
+     and mean nothing. */
+  it('says nothing until the run is worth naming', () => {
+    expect(syncStreakLabel(0)).toBe('');
+    expect(syncStreakLabel(2)).toBe('');
+  });
+
+  it('escalates as the run grows', () => {
+    expect(syncStreakLabel(3)).toContain('IN SYNC');
+    expect(syncStreakLabel(10)).toContain('LOCKED IN');
+    expect(syncStreakLabel(20)).toContain('UNSTOPPABLE');
+  });
+
+  it('always carries the count', () => {
+    expect(syncStreakLabel(7)).toContain('7');
   });
 });

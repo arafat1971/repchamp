@@ -47,7 +47,13 @@ import { touchPresence } from '@/services/userService';
 import { defaultDuration, useSessionStore } from '@/state/sessionStore';
 import { useCouple } from '@/state/useCouple';
 import { useLiveDuel } from '@/state/useLiveDuel';
-import { isInSync } from '@/domain/couple';
+import {
+  EMPTY_SYNC_STREAK,
+  advanceSyncStreak,
+  isInSync,
+  syncMilestoneReached,
+  type SyncStreak,
+} from '@/domain/couple';
 import { dayKey } from '@/domain/progression';
 import {
   flushCoupleCreditOutbox,
@@ -252,6 +258,14 @@ export default function SessionScreen() {
   const partnerLastRepAt = useRef<number | null>(null);
   const lastPartnerReps = useRef(0);
   const [inSync, setInSync] = useState(false);
+  /* The run of consecutive in-sync reps — the reason to hold a rhythm rather
+     than just watching a pill flicker. See `advanceSyncStreak`. */
+  const [syncStreak, setSyncStreak] = useState<SyncStreak>(EMPTY_SYNC_STREAK);
+  /* Refs, not state: the pose callback is memoised on [exercise] and would
+     otherwise close over a stale mode and a stale streak. */
+  const isTogetherRef = useRef(false);
+  const syncMilestoneRef = useRef<number | null>(null);
+  const [syncMilestone, setSyncMilestone] = useState<number | null>(null);
   /**
    * Offers a manual start if calibration has not locked after a while.
    *
@@ -348,7 +362,21 @@ export default function SessionScreen() {
     }) => {
       if (completedRep) {
         repFeedback();
-        myLastRepAt.current = Date.now();
+        const now = Date.now();
+        /* Read the sync state at the instant of the rep, not from the 400ms
+           timer's last tick — the timer exists to switch the glow *off* when a
+           partner stops, which is a different question from whether this
+           particular rep landed in rhythm. */
+        const synced = isInSync(now, now, partnerLastRepAt.current);
+        myLastRepAt.current = now;
+        if (isTogetherRef.current) {
+          setSyncStreak((prev) => {
+            const next = advanceSyncStreak(prev, synced);
+            const hit = syncMilestoneReached(prev.current, next.current);
+            if (hit) syncMilestoneRef.current = hit;
+            return next;
+          });
+        }
         if (completedRep.index === 1) {
           track('first_rep_counted', { exercise });
         }
@@ -376,6 +404,10 @@ export default function SessionScreen() {
    * has to switch *off* when a partner stops, and a stop produces no event.
    */
   useEffect(() => {
+    isTogetherRef.current = mode === 'together';
+  }, [mode]);
+
+  useEffect(() => {
     if (mode !== 'together' || phase !== 'active') {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setInSync(false);
@@ -383,6 +415,15 @@ export default function SessionScreen() {
     }
     const id = setInterval(() => {
       setInSync(isInSync(Date.now(), myLastRepAt.current, partnerLastRepAt.current));
+      /* The pose callback records a milestone in a ref because it cannot
+         safely touch state; this promotes it on the next tick so the HUD can
+         show it, then clears it after its moment. */
+      if (syncMilestoneRef.current !== null) {
+        const hit = syncMilestoneRef.current;
+        syncMilestoneRef.current = null;
+        setSyncMilestone(hit);
+        setTimeout(() => setSyncMilestone(null), 1800);
+      }
     }, 400);
     return () => clearInterval(id);
   }, [mode, phase]);
@@ -865,6 +906,8 @@ export default function SessionScreen() {
         {phase === 'active' && mode === 'together' ? (
           <TogetherHud
             exercise={exercise}
+            syncStreak={syncStreak.current}
+            syncMilestone={syncMilestone}
             reps={reps}
             partnerReps={opponentReps}
             partnerName={partner?.displayName ?? 'Partner'}

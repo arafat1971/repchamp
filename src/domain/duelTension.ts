@@ -110,3 +110,28 @@ export function endgameLabel(timeLeft: number, race: RaceRead): string {
   }
   return `${timeLeft}s — HOLD THE LEAD`;
 }
+
+/**
+ * The shortest gap between two overtake announcements.
+ *
+ * A lead change is worth interrupting for; a lead change every other rep is
+ * not. In a genuinely close duel the lead can trade a dozen times in a minute,
+ * and at roughly two seconds between reps an unthrottled banner would be on
+ * screen for most of the set — turning the loudest cue in the app into
+ * wallpaper, and doing it precisely in the races that matter most.
+ */
+export const OVERTAKE_COOLDOWN_MS = 6_000;
+
+/**
+ * Whether an overtake should actually be announced now.
+ *
+ * The first one in a set always shows. After that the race has to settle for
+ * `OVERTAKE_COOLDOWN_MS` before the next announcement, so a see-sawing duel
+ * produces a few meaningful callouts rather than a permanent banner. The lead
+ * change still *happened* and the margin chip still reflects it — this governs
+ * only the interruption.
+ */
+export function shouldAnnounceOvertake(now: number, lastAnnouncedAt: number | null): boolean {
+  if (lastAnnouncedAt === null) return true;
+  return now - lastAnnouncedAt >= OVERTAKE_COOLDOWN_MS;
+}

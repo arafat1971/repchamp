@@ -34,7 +34,7 @@ import { useAuthStore } from '@/state/authStore';
 import { useEffectivePro, useProStore } from '@/state/proStore';
 import { selectTotalReps, useProfileStore } from '@/state/profileStore';
 import { momentFor, shouldShow, type LiveMoment, type MomentKind } from '@/domain/liveMoments';
-import { leadChanged, readRace } from '@/domain/duelTension';
+import { leadChanged, readRace, shouldAnnounceOvertake } from '@/domain/duelTension';
 import {
   lockHaptic,
   playCountSound,
@@ -278,6 +278,9 @@ export default function SessionScreen() {
   /* The race, and the lead changes the HUD never announced. */
   const [overtake, setOvertake] = useState<'took' | 'lost' | null>(null);
   const prevMarginRef = useRef(0);
+  /* When the last overtake was announced, so a see-sawing duel does not keep a
+     banner on screen for the whole set. See `shouldAnnounceOvertake`. */
+  const lastOvertakeAtRef = useRef<number | null>(null);
   const shownMoments = useRef<Set<MomentKind>>(new Set());
   const syncMilestoneRef = useRef<number | null>(null);
   const [syncMilestone, setSyncMilestone] = useState<number | null>(null);
@@ -453,6 +456,11 @@ export default function SessionScreen() {
     const change = leadChanged(prevMarginRef.current, race.margin);
     prevMarginRef.current = race.margin;
     if (!change) return;
+    /* The lead did change, and the margin chip already says so. This governs
+       only whether it is worth interrupting for again. */
+    const now = Date.now();
+    if (!shouldAnnounceOvertake(now, lastOvertakeAtRef.current)) return;
+    lastOvertakeAtRef.current = now;
     setOvertake(change);
     if (change === 'took') successHaptic();
     const id = setTimeout(() => setOvertake(null), 1500);
@@ -465,6 +473,7 @@ export default function SessionScreen() {
     if (phase === 'countdown') {
       shownMoments.current = new Set();
       prevMarginRef.current = 0;
+      lastOvertakeAtRef.current = null;
     }
   }, [phase]);
 

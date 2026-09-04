@@ -1,4 +1,11 @@
-import { endgameLabel, isEndgame, leadChanged, readRace } from '../duelTension';
+import {
+  OVERTAKE_COOLDOWN_MS,
+  endgameLabel,
+  isEndgame,
+  leadChanged,
+  readRace,
+  shouldAnnounceOvertake,
+} from '../duelTension';
 
 describe('readRace', () => {
   it('reads a clear lead', () => {
@@ -115,5 +122,26 @@ describe('endgameLabel', () => {
 
   it('is empty when it is not the endgame', () => {
     expect(endgameLabel(45, readRace(10, 10))).toBe('');
+  });
+});
+
+describe('shouldAnnounceOvertake', () => {
+  it('always announces the first overtake of a set', () => {
+    expect(shouldAnnounceOvertake(1_000, null)).toBe(true);
+  });
+
+  /* The reason this exists: a close duel can trade the lead a dozen times in a
+     minute, and at ~2s between reps an unthrottled banner would be on screen
+     for most of the set — wallpaper, in exactly the races that matter most. */
+  it('suppresses a second overtake moments later', () => {
+    expect(shouldAnnounceOvertake(3_000, 1_000)).toBe(false);
+  });
+
+  it('announces again once the race has settled', () => {
+    expect(shouldAnnounceOvertake(1_000 + OVERTAKE_COOLDOWN_MS, 1_000)).toBe(true);
+  });
+
+  it('treats the cooldown boundary as elapsed', () => {
+    expect(shouldAnnounceOvertake(7_000, 1_000)).toBe(true);
   });
 });

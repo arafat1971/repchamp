@@ -36,6 +36,7 @@ import {
   configurePurchases,
   fetchOffering,
   isEmptyOfferingsConfigError,
+  isPlayCredentialsError,
   isPurchasesSdkReady,
   restore,
   watchCustomerInfo,
@@ -135,5 +136,36 @@ describe('purchases configure race + offering fallback', () => {
     expect(mockRestorePurchases).toHaveBeenCalled();
     expect(result.ok).toBe(true);
     expect(result.isPro).toBe(true);
+  });
+});
+
+describe('isPlayCredentialsError', () => {
+  /* The real shape logged on device — RevenueCat's server could not
+     authenticate to Google Play. See REVENUECAT_SETUP.md. */
+  it('matches the SDK error code', () => {
+    expect(isPlayCredentialsError({ code: 'InvalidCredentialsError' })).toBe(true);
+  });
+
+  it('matches the underlying Play message', () => {
+    expect(
+      isPlayCredentialsError({
+        code: '35',
+        underlyingErrorMessage: 'Invalid Play Store credentials.',
+      }),
+    ).toBe(true);
+  });
+
+  it('matches when the text only appears on an Error message', () => {
+    expect(isPlayCredentialsError(new Error('Invalid Play Store credentials.'))).toBe(true);
+  });
+
+  it('ignores an ordinary decline, which is the athlete\'s to act on', () => {
+    expect(isPlayCredentialsError(new Error('Your card was declined.'))).toBe(false);
+  });
+
+  it('ignores a cancellation and non-objects', () => {
+    expect(isPlayCredentialsError({ userCancelled: true })).toBe(false);
+    expect(isPlayCredentialsError(null)).toBe(false);
+    expect(isPlayCredentialsError('InvalidCredentialsError')).toBe(false);
   });
 });

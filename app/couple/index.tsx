@@ -102,11 +102,19 @@ export default function CoupleTrackerScreen() {
     <Screen>
       <ModalHeader title="Your bond" subtitle={`You & ${partnerName}`} />
 
+      {/* Two tiles per row, matching recap.tsx and friend.tsx. Three across
+          leaves ~68dp of text width on a 360dp phone, and `combined` is a
+          cumulative all-time count — at 26px extrabold a five-digit total needs
+          nearer 78dp, so the third tile would clip as soon as a couple got
+          good. Two rows cost nothing and never truncate. */}
       <Animated.View entering={FadeInDown.duration(340).springify()}>
         <View style={styles.statRow}>
-          <StatTile label="STREAK" value={String(streak)} />
-          <StatTile label="BEST RUN" value={String(summary.bestRun)} />
-          <StatTile label="TOGETHER" value={String(combined)} />
+          <StatTile label="STREAK" value={streak} />
+          <StatTile label="BEST RUN" value={summary.bestRun} />
+        </View>
+        <View style={[styles.statRow, styles.statRowGap]}>
+          <StatTile label="REPS TOGETHER" value={combined.toLocaleString()} />
+          <StatTile label="SHARED DAYS" value={summary.bothDays} />
         </View>
       </Animated.View>
 
@@ -350,6 +358,7 @@ const styles = StyleSheet.create({
   emptyCtaText: font('extrabold', 14, { color: palette.white }),
 
   statRow: { flexDirection: 'row', gap: 10 },
+  statRowGap: { marginTop: 10 },
 
   paceHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   paceCount: font('extrabold', 20, { color: palette.ink }),

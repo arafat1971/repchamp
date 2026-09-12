@@ -129,6 +129,36 @@ export default function CoupleTrackerScreen() {
           onPress={() => router.push('/modal/couple-invite')}
           style={styles.emptyButton}
         />
+
+        {/* The QR lives on the invite screen, which owns pair-code creation —
+            a code has to exist before there is anything to encode. Offering
+            the scanner here covers the other half: the person who was *sent*
+            an invite and has the code on someone else's screen in front of
+            them. Without it they have to guess that "Invite a partner" is also
+            where you accept one. */}
+        <PressableScale
+          onPress={() => router.push('/modal/couple-scan')}
+          accessibilityRole="button"
+          accessibilityLabel="Scan a partner's QR code"
+          style={styles.emptySecondary}
+        >
+          <Text style={styles.emptySecondaryText}>Scan their QR code</Text>
+        </PressableScale>
+
+        {/* Couple mode is unusable alone, so a screen that only offers pairing
+            is a dead end for anyone not ready to invite someone. Training solo
+            is always available and is what most people will do first. */}
+        <PressableScale
+          onPress={() => {
+            track('session_started', { exercise: 'push', mode: 'practice' });
+            router.replace({ pathname: '/session', params: { exercise: 'push', mode: 'practice' } });
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Skip and train on your own"
+          style={styles.emptySkip}
+        >
+          <Text style={styles.emptySkipText}>Skip — train on my own</Text>
+        </PressableScale>
       </Screen>
     );
   }
@@ -383,7 +413,10 @@ function paceHint(
 const styles = StyleSheet.create({
   loading: { paddingVertical: 48, alignItems: 'center' },
 
-  emptyHero: { alignItems: 'center', paddingVertical: 28, gap: 6 },
+  /* `GradientCard` only sets borderRadius + overflow — it carries no padding of
+     its own, so the horizontal value has to live here or the centred copy runs
+     into both gradient edges. 20 matches the paywall hero. */
+  emptyHero: { alignItems: 'center', paddingVertical: 28, paddingHorizontal: 20, gap: 6 },
   emptyAvatars: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   emptyAvatarMe: {
     width: 58,
@@ -431,6 +464,18 @@ const styles = StyleSheet.create({
   },
   emptyPreviewNote: { marginTop: 10 },
   emptyButton: { marginTop: 16 },
+  emptySecondary: {
+    marginTop: 10,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    paddingVertical: 13,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: palette.green500,
+  },
+  emptySecondaryText: font('extrabold', 14, { color: palette.green600 }),
+  emptySkip: { marginTop: 14, alignSelf: 'center', paddingVertical: 10, paddingHorizontal: 16 },
+  emptySkipText: font('bold', 13.5, { color: palette.grey600 }),
 
   statRow: { flexDirection: 'row', gap: 10 },
   statRowGap: { marginTop: 10 },

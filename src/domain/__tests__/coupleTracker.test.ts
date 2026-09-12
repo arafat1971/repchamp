@@ -187,3 +187,28 @@ describe('trackerSummary', () => {
     expect(summary).toEqual({ streak: 0, bothDays: 0, bestRun: 0, consistency: 0 });
   });
 });
+
+describe('resilience to real couple-doc data', () => {
+  /* `coupleService.recordCoupleSession` appends to `trainedDays` with no
+     sanitising — unlike the profile path, which runs every day through
+     `compactTrainedDays` (dedupe, sort, cap at 90). So the couple doc can
+     legitimately hold unsorted, duplicated or malformed entries, and the
+     tracker has to be indifferent to all three. */
+  it('ignores order, duplicates and malformed entries', () => {
+    const days = recentDays(3);
+    const messy = [days[2]!, 'not-a-day', days[0]!, days[0]!, '', days[2]!];
+    const history = trackerHistory(couple(messy, messy), 'me', TODAY, 3);
+
+    expect(history.map((d) => d.status)).toEqual(['both', 'neither', 'both']);
+    expect(daysBothTrained(history)).toBe(2);
+  });
+
+  it('stays correct when a member has more days than the window', () => {
+    // 200 days of history, a 7-day window: only the window may be counted.
+    const many = recentDays(200);
+    const summary = trackerSummary(couple(many, many), 'me', TODAY, 7);
+    expect(summary.bothDays).toBe(7);
+    expect(summary.consistency).toBe(1);
+    expect(summary.bestRun).toBe(7);
+  });
+});

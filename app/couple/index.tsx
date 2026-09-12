@@ -4,7 +4,16 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { ModalHeader } from '@/components/ModalHeader';
-import { Card, PressableScale, ProgressBar, Screen, SectionLabel, StatTile } from '@/components/ui';
+import {
+  Card,
+  GradientCard,
+  PressableScale,
+  PrimaryButton,
+  ProgressBar,
+  Screen,
+  SectionLabel,
+  StatTile,
+} from '@/components/ui';
 import { track } from '@/lib/analytics';
 import {
   contributionSplit,
@@ -18,7 +27,7 @@ import { useCouple } from '@/state/useCouple';
 import { useAuthStore } from '@/state/authStore';
 import { useProfileStore } from '@/state/profileStore';
 import { font, text } from '@/theme/typography';
-import { palette, radius } from '@/theme/tokens';
+import { gradients, palette, radius } from '@/theme/tokens';
 
 /** Four weeks reads as a month of effort without scrolling on a small phone. */
 const WINDOW_DAYS = 28;
@@ -37,6 +46,7 @@ export default function CoupleTrackerScreen() {
   const { couple, paired, partner, streak, combined, level, loading } = useCouple();
   const uid = useAuthStore((s) => s.user?.uid ?? null);
   const weeklyGoal = useProfileStore((s) => s.weeklyGoal);
+  const displayName = useProfileStore((s) => s.displayName);
 
   const today = dayKey();
   const viewerUid = uid ?? '';
@@ -69,28 +79,56 @@ export default function CoupleTrackerScreen() {
     );
   }
 
-  /* Not paired yet — send them to the invite rather than showing an empty
-     tracker. A grid of blank days is a worse answer than the one action that
-     would fill it. */
+  /* Not paired yet — preview the tracker rather than apologising for it.
+     `previewDays` is a real 28-day grid with every day empty, rendered muted:
+     the shape of what pairing gives them, not a promise in prose. */
   if (!paired || !partner) {
+    const previewDays = trackerHistory(null, viewerUid, today, WINDOW_DAYS);
+    const myInitial = (displayName?.trim()?.charAt(0) || 'A').toUpperCase();
+
     return (
       <Screen>
         <ModalHeader title="Your bond" />
-        <Card style={styles.emptyCard}>
-          <Text style={styles.emptyTitle}>No partner yet</Text>
-          <Text style={text.caption}>
-            Couple mode tracks the days you both train. Invite someone and this fills in from
-            your first shared session.
-          </Text>
-          <PressableScale
-            onPress={() => router.push('/modal/couple-invite')}
-            accessibilityRole="button"
-            accessibilityLabel="Invite a partner"
-            style={styles.emptyCta}
-          >
-            <Text style={styles.emptyCtaText}>Invite a partner</Text>
-          </PressableScale>
-        </Card>
+
+        {/* Show the thing rather than describing it. A bare paragraph asking
+            someone to go find a partner is the weakest possible pitch; a
+            greyed-out preview of their own future calendar, with the two
+            avatars that would fill it, makes the empty state the argument. */}
+        <Animated.View entering={FadeInDown.duration(380).springify()}>
+          <GradientCard colors={gradients.brandDeep} glow="brand" style={styles.emptyHero}>
+            <View style={styles.emptyAvatars}>
+              <View style={styles.emptyAvatarMe}>
+                <Text style={styles.emptyAvatarText}>{myInitial}</Text>
+              </View>
+              <View style={styles.emptyPlus}>
+                <Text style={styles.emptyPlusText}>+</Text>
+              </View>
+              <View style={styles.emptyAvatarThem}>
+                <Text style={styles.emptyAvatarQ}>?</Text>
+              </View>
+            </View>
+            <Text style={styles.emptyHeroTitle}>Train together</Text>
+            <Text style={styles.emptyHeroCopy}>
+              Your streak only survives on days you both show up. Reps combine into one total.
+            </Text>
+          </GradientCard>
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.delay(80).duration(320)}>
+          <Card style={styles.emptyPreviewCard}>
+            <Text style={styles.emptyPreviewLabel}>WHAT YOU&rsquo;LL SEE</Text>
+            <Calendar days={previewDays} muted />
+            <Text style={[text.caption, styles.emptyPreviewNote]}>
+              A month of who trained which day, filled in from your first shared session.
+            </Text>
+          </Card>
+        </Animated.View>
+
+        <PrimaryButton
+          label="Invite a partner"
+          onPress={() => router.push('/modal/couple-invite')}
+          style={styles.emptyButton}
+        />
       </Screen>
     );
   }
@@ -229,7 +267,7 @@ export default function CoupleTrackerScreen() {
  * ------------------------------------------------------------------ */
 
 /** Four-week grid, one column per day, wrapping a week per row. */
-function Calendar({ days }: { days: readonly TrackerDay[] }) {
+function Calendar({ days, muted }: { days: readonly TrackerDay[]; muted?: boolean }) {
   const weeks: TrackerDay[][] = [];
   for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7));
 
@@ -250,7 +288,7 @@ function Calendar({ days }: { days: readonly TrackerDay[] }) {
               accessibilityLabel={`${d.day}: ${describeDay(d)}`}
               style={[
                 styles.day,
-                { backgroundColor: dayColor(d) },
+                { backgroundColor: muted ? palette.border : dayColor(d) },
                 d.isToday && styles.dayToday,
                 d.isFuture && styles.dayFuture,
               ]}
@@ -345,17 +383,54 @@ function paceHint(
 const styles = StyleSheet.create({
   loading: { paddingVertical: 48, alignItems: 'center' },
 
-  emptyCard: { gap: 12 },
-  emptyTitle: font('extrabold', 17, { color: palette.ink }),
-  emptyCta: {
-    marginTop: 4,
-    alignSelf: 'flex-start',
-    backgroundColor: palette.green500,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: radius.md,
+  emptyHero: { alignItems: 'center', paddingVertical: 28, gap: 6 },
+  emptyAvatars: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  emptyAvatarMe: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  emptyCtaText: font('extrabold', 14, { color: palette.white }),
+  emptyAvatarThem: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: -14,
+  },
+  emptyAvatarText: font('extrabold', 22, { color: palette.white }),
+  emptyAvatarQ: font('extrabold', 22, { color: 'rgba(255,255,255,0.6)' }),
+  emptyPlus: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: palette.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: -14,
+    zIndex: 1,
+  },
+  emptyPlusText: font('extrabold', 17, { color: palette.green600 }),
+  emptyHeroTitle: font('extrabold', 21, { color: palette.white }),
+  emptyHeroCopy: {
+    ...font('semibold', 13.5, { color: 'rgba(255,255,255,0.88)' }),
+    textAlign: 'center',
+    lineHeight: 19,
+  },
+
+  emptyPreviewCard: { marginTop: 14 },
+  emptyPreviewLabel: {
+    ...font('extrabold', 10.5, { color: palette.grey600, letterSpacing: 0.7 }),
+    marginBottom: 10,
+  },
+  emptyPreviewNote: { marginTop: 10 },
+  emptyButton: { marginTop: 16 },
 
   statRow: { flexDirection: 'row', gap: 10 },
   statRowGap: { marginTop: 10 },

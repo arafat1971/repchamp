@@ -32,7 +32,18 @@ export interface AnalyticsEvents {
   onboarding_step: { step: number; name: string; percent: number };
   session_started: { exercise: string; mode: string };
   session_finished: { exercise: string; mode: string; reps: number; won: boolean };
+  /** First rep of *a session*. Fires several times a week for a regular. */
   first_rep_counted: { exercise: string };
+  /**
+   * First rep of the athlete's *life* — fires exactly once, ever.
+   *
+   * The terminal step of the activation funnel: `onboarding_step` →
+   * `onboarding_completed` → this. Kept separate from `first_rep_counted`
+   * rather than added to it as a flag, because that event answers a real and
+   * different question (did this set start producing reps) that would be lost
+   * if its shape changed.
+   */
+  first_rep_ever: { exercise: string; mode: string };
 
   home_hero_shown: { kind: string };
   home_hero_tapped: { kind: string };

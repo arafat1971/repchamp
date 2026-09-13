@@ -26,6 +26,8 @@ import {
   EXERCISE_SAFETY_CHIP,
 } from '@/domain/exerciseSafety';
 import { OpponentPacer, getOpponent, type Opponent } from '@/domain/opponent';
+import { FIRST_REP_MARKER, firstRepOutcome } from '@/domain/activation';
+import { storage } from '@/lib/storage';
 import { shouldPromptUpgrade } from '@/domain/paywallGate';
 import { NEARING_WALL_REPS, isWalled, repsRemaining } from '@/domain/hardPaywall';
 import type { SessionMode } from '@/domain/progression';
@@ -398,11 +400,27 @@ export default function SessionScreen() {
         }
         if (completedRep.index === 1) {
           track('first_rep_counted', { exercise });
+
+          /* The athlete's first rep *ever* is a different question from the
+             first rep of this set, and only the former closes the activation
+             funnel: `first_rep_counted` fires several times a week for a
+             regular, so install → first counted rep was not computable from it.
+             The marker is instrumentation, so it lives in MMKV beside the
+             `day_n_return` markers rather than in `profileStore`, which
+             deliberately does not know analytics exists. */
+          const activation = firstRepOutcome(
+            completedRep.index,
+            storage.getString(FIRST_REP_MARKER) ?? null,
+          );
+          if (activation.isFirstEver && activation.markAt) {
+            storage.set(FIRST_REP_MARKER, activation.markAt);
+            track('first_rep_ever', { exercise, mode });
+          }
         }
       }
       useSessionStore.getState().applyPose({ depth, tracking, completedRep, formCue });
     },
-    [exercise],
+    [exercise, mode],
   );
 
   /**

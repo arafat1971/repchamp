@@ -40,19 +40,25 @@
 export const FREE_REP_LIMIT = 50;
 
 /**
- * Master switch — **on** as of 2026-08-31, Play review having cleared.
+ * Master switch — **off** as of 2026-09-13. The wall is stood down.
  *
- * It was held off while the app sat under a rejection for being paywalled.
- * Setting it back to `false` is the whole of the retreat if that judgement
- * returns: every caller then behaves as though the wall does not exist, and
- * the rules stay under test via `evaluateHardWallRule` either way.
+ * Turned off because gating the core experience hurts retention: an athlete
+ * who cannot build a routine never subscribes and never invites a partner.
+ * That is the same conclusion as 2026-08-06, reached again after the 50-rep
+ * allowance earlier the same day proved to be treating the symptom — moving
+ * where the wall falls does not change that it eventually stops training.
  *
- * This is the second time this model has shipped. It was removed once before,
- * on 2026-08-06, because an athlete who cannot build a routine never
- * subscribes and never invites a partner — worth re-reading if the numbers
- * after this turn out the same way.
+ * History, because this decision has now turned over four times: shipped
+ * (`4ef36a4`), removed 2026-08-06 on this reasoning, restored 2026-08-31 once
+ * Play review cleared, stood down again here. Setting this back to `true` is
+ * the whole of the return — nothing else needs editing, and no app code calls
+ * the rules directly around it.
+ *
+ * The rules underneath stay live and under test via `evaluateHardWallRule` /
+ * `repsRemainingRule`, so nothing rots while the switch is off. That split is
+ * exactly why this is a one-line change rather than git archaeology.
  */
-export const HARD_WALL_ENABLED = true;
+export const HARD_WALL_ENABLED = false;
 
 export interface HardWallInput {
   /** RevenueCat entitlement truth. Pro is never walled. */

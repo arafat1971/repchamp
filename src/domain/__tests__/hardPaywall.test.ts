@@ -100,19 +100,6 @@ describe('isNearingWall', () => {
     expect(nearing(input({ repsSoFar: FREE_REP_LIMIT - NEARING_WALL_REPS - 1 }))).toBe(false);
   });
 
-  /* The literal values, which every assertion above is blind to.
-   *
-   * Those all derive their inputs from the same constants they check, so they
-   * pin the rule's *shape* and move silently when a constant moves — changing
-   * NEARING_WALL_REPS to 9 leaves the whole suite green. These are the numbers
-   * the warning was actually tuned to: 8 reps of warning against a 50-rep
-   * allowance. Both are product decisions, so a change here should be a
-   * deliberate edit to this line and not a side effect. */
-  it('is tuned to 8 reps of warning against a 50-rep allowance', () => {
-    expect(NEARING_WALL_REPS).toBe(8);
-    expect(FREE_REP_LIMIT).toBe(50);
-  });
-
   it('does not warn while there is room', () => {
     expect(nearing(input({ repsSoFar: 0 }))).toBe(false);
   });
@@ -157,50 +144,58 @@ describe('the allowance is spent by banked reps, not live ones', () => {
 
 /* The master switch itself.
  *
- * On since Play review cleared. These assert that the switch is genuinely all
- * that separates the shipped app from the rules tested above — so if it is
- * ever turned off again, the failures point at the switch rather than leaving
- * the rules silently unverified. */
+ * Off since 2026-09-13 — gating the core experience hurts retention. These
+ * assert that the switch is genuinely all that separates the shipped app from
+ * the rules tested above, so the two stay distinguishable: the rules keep their
+ * own coverage via the `*Rule` functions, and these pin what athletes actually
+ * meet, which is no wall at all. */
 describe('HARD_WALL_ENABLED', () => {
-  it('is on — Play review has cleared', () => {
-    expect(HARD_WALL_ENABLED).toBe(true);
+  it('is off — the wall is stood down', () => {
+    expect(HARD_WALL_ENABLED).toBe(false);
   });
 
-  /* With the switch on, the public functions and the rule functions must agree
-     exactly. Any divergence means the switch is doing more than gating. */
-  it('delegates to the rules unchanged', () => {
-    const cases = [
-      input({ repsSoFar: 0 }),
-      input({ repsSoFar: FREE_REP_LIMIT }),
-      input({ repsSoFar: FREE_REP_LIMIT, isPro: true }),
-      input({ repsSoFar: FREE_REP_LIMIT, isCoupleMode: true }),
-      input({ repsSoFar: FREE_REP_LIMIT, billingReady: false }),
-    ];
-    for (const c of cases) {
-      expect(evaluateHardWall(c)).toEqual(evaluateHardWallRule(c));
-      expect(repsRemaining(c)).toBe(repsRemainingRule(c));
-    }
-  });
-
-  it('walls a spent athlete, and only a spent athlete', () => {
-    expect(isWalled(input({ repsSoFar: FREE_REP_LIMIT }))).toBe(true);
+  /* The point of the switch: nobody is walled, at any rep total, ever. If this
+     fails the wall is live again and athletes are being stopped mid-habit. */
+  it('never walls anyone, however many reps they have spent', () => {
+    expect(isWalled(input({ repsSoFar: FREE_REP_LIMIT }))).toBe(false);
     expect(isWalled(input({ repsSoFar: FREE_REP_LIMIT - 1 }))).toBe(false);
+    expect(isWalled(input({ repsSoFar: 10_000 }))).toBe(false);
+    expect(evaluateHardWall(input({ repsSoFar: 10_000 }))).toEqual({ walled: false });
   });
 
-  /* The exemptions still hold with the switch on — this is what keeps the
-     invite loop and no-billing builds out of the wall. */
-  it('keeps every exemption', () => {
+  /* With the switch off the countdown is unbounded, so the session renders no
+     allowance warning — `Number.isFinite` at the call site is what hides it. */
+  it('shows no countdown and no warning', () => {
+    expect(repsRemaining(input({ repsSoFar: FREE_REP_LIMIT - 2 }))).toBe(Number.POSITIVE_INFINITY);
+    expect(repsRemaining(input({ repsSoFar: 10_000 }))).toBe(Number.POSITIVE_INFINITY);
+    expect(isNearingWall(input({ repsSoFar: FREE_REP_LIMIT - 1 }))).toBe(false);
+    expect(isNearingWall(input({ repsSoFar: FREE_REP_LIMIT - NEARING_WALL_REPS }))).toBe(false);
+  });
+
+  /* The switch only gates — it must not have edited the rules on its way out.
+     Every case the public functions now wave through is still a case the rule
+     functions decide correctly, ready for the switch being turned back on. */
+  it('leaves the rules underneath intact', () => {
+    expect(evaluateHardWallRule(input({ repsSoFar: FREE_REP_LIMIT }))).toEqual({
+      walled: true,
+      reason: 'rep-limit',
+    });
+    expect(evaluateHardWallRule(input({ repsSoFar: FREE_REP_LIMIT - 1 })).walled).toBe(false);
+    expect(repsRemainingRule(input({ repsSoFar: FREE_REP_LIMIT - 2 }))).toBe(2);
+
+    /* And the exemptions, which must survive a return to the wall — they are
+       what keeps the invite loop and no-billing builds out of it. */
     const spent = { repsSoFar: 10_000 };
-    expect(isWalled(input({ ...spent, isPro: true }))).toBe(false);
-    expect(isWalled(input({ ...spent, isCoupleMode: true }))).toBe(false);
-    expect(isWalled(input({ ...spent, billingReady: false }))).toBe(false);
+    expect(evaluateHardWallRule(input({ ...spent, isPro: true })).walled).toBe(false);
+    expect(evaluateHardWallRule(input({ ...spent, isCoupleMode: true })).walled).toBe(false);
+    expect(evaluateHardWallRule(input({ ...spent, billingReady: false })).walled).toBe(false);
   });
 
-  it('shows a real countdown rather than an unlimited one', () => {
-    expect(repsRemaining(input({ repsSoFar: FREE_REP_LIMIT - 2 }))).toBe(2);
-    expect(isNearingWall(input({ repsSoFar: FREE_REP_LIMIT - 1 }))).toBe(true);
-    /* Outside the window the countdown is live but silent — the public
-       function, not just the rule, respects the threshold. */
-    expect(isNearingWall(input({ repsSoFar: FREE_REP_LIMIT - NEARING_WALL_REPS - 1 }))).toBe(false);
+  /* The literal values stay pinned while the switch is off. They are what the
+     wall would come back as, and a silent drift now would only surface on the
+     day someone turns it on. */
+  it('still records the allowance it would return as', () => {
+    expect(FREE_REP_LIMIT).toBe(50);
+    expect(NEARING_WALL_REPS).toBe(8);
   });
 });

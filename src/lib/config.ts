@@ -18,6 +18,7 @@ type Extra = {
   revenueCatGoogle?: string;
   revenueCatApple?: string;
   sentryDsn?: string;
+  appCheckDebugToken?: string;
 };
 
 function extra(): Extra {
@@ -46,6 +47,25 @@ function rejectSecrets(key: string | undefined, allowedPrefixes: string[]): stri
 
 export function posthogKey(): string | undefined {
   return rejectSecrets(fromEnvOrExtra('EXPO_PUBLIC_POSTHOG_KEY', 'posthogKey'), ['phc_']);
+}
+
+/**
+ * App Check debug token — **debug builds only**.
+ *
+ * Play Integrity attests that the app is an unmodified, Play-installed binary,
+ * which a sideloaded debug APK can never be. With App Check enforcement on for
+ * Firestore, every write from such a build is rejected before the rules even
+ * run (`[firestore/unknown] PERMISSION_DENIED`) while reads still pass — the
+ * exact asymmetry seen on device on 2026-09-13.
+ *
+ * Registering this token in the Firebase console (App Check → the Android app →
+ * Manage debug tokens) lets one known development install attest without
+ * weakening enforcement for anyone else. It is not a secret key in the
+ * `rejectSecrets` sense, but it *is* a bypass credential: keep it in a local
+ * `.env`, never in `app.json`, and revoke it in the console if it leaks.
+ */
+export function appCheckDebugToken(): string | undefined {
+  return fromEnvOrExtra('EXPO_PUBLIC_APP_CHECK_DEBUG_TOKEN', 'appCheckDebugToken');
 }
 
 export function googleWebClientId(): string | undefined {

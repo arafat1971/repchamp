@@ -276,6 +276,34 @@ Finish in the Firebase console — **order matters** so you never lock out live 
 ⚠️ App Check is a **native module** — after pulling this change, `npx expo prebuild
 --clean && npm run android` (a full rebuild) is required for it to load on device.
 
+### Testing on a sideloaded debug build (after enforcement is on)
+
+Once step 3's enforcement is live, a **debug APK cannot pass Play Integrity** — it
+is not a Play-installed binary — so its Firestore *writes* are rejected before the
+rules run (`[firestore/unknown] PERMISSION_DENIED`) while *reads* still succeed.
+That asymmetry is the tell; it is not a rules bug, and redeploying rules will not
+fix it. Observed on device 2026-09-13: pairing failed with exactly this while
+`watchMyCouple` read cleanly and auth held a valid anonymous uid.
+
+The fix is the documented debug provider, which attests one known install without
+relaxing enforcement for anyone else:
+
+1. Firebase console → **App Check** → your Android app → **Manage debug tokens** →
+   add a token (any name; the console generates the value).
+2. Put it in a local `.env` — **never** `app.json`, and never commit it. `.gitignore`
+   already covers `.env*`:
+
+   ```
+   EXPO_PUBLIC_APP_CHECK_DEBUG_TOKEN=<the token from the console>
+   ```
+
+3. Restart Metro so `app.config.js` re-reads the env, then relaunch the app.
+
+`src/lib/appCheck.ts` selects the debug provider only when `__DEV__` **and** a token
+is configured, so a release build can never take this path and a debug build without
+a token behaves exactly as before. Treat the token as a bypass credential: revoke it
+in the console if it leaks.
+
 ## Recommended next (scale hardening)
 
 - A scheduled Cloud Function to roll over `weekKey` and prune stale leaderboard rows.

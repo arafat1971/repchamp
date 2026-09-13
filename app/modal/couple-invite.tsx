@@ -654,7 +654,7 @@ export default function CoupleInviteScreen() {
                   )}
                 </View>
                 <View style={styles.pitchHeartBubble}>
-                  <Text style={styles.pitchPlus}>+</Text>
+                  <Text style={styles.pitchCouple}>🫶</Text>
                 </View>
                 <View style={styles.pitchAvatarPartner}>
                   <Text style={styles.pitchAvatarInitial}>?</Text>
@@ -667,19 +667,27 @@ export default function CoupleInviteScreen() {
                 streak only survives if you both show up.
               </Text>
 
-              {/* Feature pills */}
+              {/* Feature pills. The emoji replace a decorative dot that said
+                  nothing — each one now names its pill at a glance, which is
+                  how `settings.tsx` uses emoji too (one per row, labelling a
+                  structured element rather than loose in prose).
+                  Labels are one word each on purpose: "Shared streak" etc. plus
+                  an emoji needs ~320dp on a 360dp phone against ~264dp of
+                  usable row, which wrapped the third pill onto its own line.
+                  One word apiece comes to ~202dp and the emoji carries the
+                  meaning the extra word was doing. */}
               <View style={styles.featurePills}>
                 <View style={styles.featurePill}>
-                  <View style={styles.featurePillDot} />
-                  <Text style={styles.featurePillText}>Shared streak</Text>
+                  <Text style={styles.featurePillEmoji}>🔥</Text>
+                  <Text style={styles.featurePillText}>Streak</Text>
                 </View>
                 <View style={styles.featurePill}>
-                  <View style={styles.featurePillDot} />
-                  <Text style={styles.featurePillText}>Combined reps</Text>
+                  <Text style={styles.featurePillEmoji}>💪</Text>
+                  <Text style={styles.featurePillText}>Reps</Text>
                 </View>
                 <View style={styles.featurePill}>
-                  <View style={styles.featurePillDot} />
-                  <Text style={styles.featurePillText}>Couple badges</Text>
+                  <Text style={styles.featurePillEmoji}>🏆</Text>
+                  <Text style={styles.featurePillText}>Badges</Text>
                 </View>
               </View>
             </LinearGradient>
@@ -1148,7 +1156,6 @@ const styles = StyleSheet.create({
   },
   pitchAvatarImg: { width: '100%', height: '100%' },
   pitchAvatarInitial: font('extrabold', 24, { color: palette.white }),
-  pitchPlus: font('extrabold', 22, { color: palette.green600 }),
   pitchHeartBubble: {
     zIndex: 10,
     backgroundColor: 'rgba(255,255,255,0.9)',
@@ -1175,7 +1182,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
-  featurePillDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: 'rgba(255,255,255,0.85)' },
+  featurePillEmoji: { fontSize: 11 },
+  pitchCouple: { fontSize: 19 },
   featurePillText: font('bold', 10, { color: palette.white }),
   ctaButton: {
     height: 58,

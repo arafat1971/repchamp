@@ -253,3 +253,28 @@ describe('nudge', () => {
     );
   });
 });
+
+describe('reading a couple that does not exist yet', () => {
+  /* `createCouple` opens its transaction with `tx.get(ref)` on a freshly
+     minted pair code, so the very first thing it does is read a document that
+     is definitionally absent. The get rule used to dereference `resource.data`
+     unguarded, which threw `Null value error` and denied the read — creation
+     failed before it attempted a single write, and surfaced to the athlete as
+     `[firestore/unknown] PERMISSION_DENIED`, which reads like a write problem
+     and is not one.
+
+     Nothing covered this: every other get case seeds a document first. */
+  it('allows a get on a missing doc, which is what create must do first', async () => {
+    await assertSucceeds(getDoc(doc(asUser(ALICE), 'couples', 'NOSUCH1')));
+  });
+
+  it('still hides a couple the caller is not part of', async () => {
+    await seedPaired();
+    await assertFails(getDoc(doc(asUser('stranger'), 'couples', CODE)));
+  });
+
+  it('still lets a stranger read a pending invite by code', async () => {
+    await seedPending();
+    await assertSucceeds(getDoc(doc(asUser('stranger'), 'couples', CODE)));
+  });
+});

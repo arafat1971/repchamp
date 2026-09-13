@@ -13,7 +13,7 @@
  * cases seed foreign documents deliberately.
  */
 
-import { assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
+import { assertSucceeds } from '@firebase/rules-unit-testing';
 import { collection, doc, getDocs, limit, query, setDoc, where } from 'firebase/firestore';
 
 import { asUser, clearData, member, seed, setupEnv, teardownEnv } from './harness';

@@ -619,7 +619,7 @@ export default function CoupleInviteScreen() {
             </PressableScale>
             <PressableScale onPress={shareCode} accessibilityRole="button">
               <LinearGradient
-                colors={['#22c55e', '#15803d']}
+                colors={gradients.brandStrong}
                 style={styles.actionPrimaryGrad}
               >
                 <Text style={font('extrabold', 14, { color: palette.white })}>Share invite</Text>
@@ -1057,7 +1057,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 20,
-    shadowColor: '#22c55e',
+    shadowColor: palette.green500,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -1151,6 +1151,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: palette.green700,
   },
+  /* #059669 and #047857 below are deliberately NOT swapped for green600/green700.
+     Measured against this card's own ground (tintGreenTop #f0fdf4 →
+     tintGreenBottom #dcfce7) the tokens are worse on contrast, not better:
+       waitingCode  #059669 3.60:1 / 3.43:1  vs  green600 3.15:1 / 3.00:1
+       waitingLabel #047857 5.24:1 / 4.99:1  vs  green700 4.79:1 / 4.57:1
+     The label would still pass AA on the token, but tokenising here trades
+     legibility for tidiness on the one surface that shows a 6-character code
+     someone has to read off a screen and type into another phone. */
   waitingCode: {
     ...font('extrabold', 40, { color: '#059669' }),
     letterSpacing: 8,
@@ -1160,7 +1168,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#22c55e',
+    backgroundColor: palette.green500,
   },
   waitingLabel: font('semibold', 13, { color: '#047857' }),
 

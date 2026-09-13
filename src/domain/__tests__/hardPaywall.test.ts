@@ -1,6 +1,7 @@
 import {
   FREE_REP_LIMIT,
   HARD_WALL_ENABLED,
+  NEARING_WALL_REPS,
   evaluateHardWall,
   evaluateHardWallRule,
   isNearingWall,
@@ -12,7 +13,7 @@ import {
 /** `isNearingWall` without the master switch, mirroring its real logic. */
 const nearing = (i: Parameters<typeof repsRemainingRule>[0]) => {
   const left = repsRemainingRule(i);
-  return Number.isFinite(left) && left > 0 && left <= 2;
+  return Number.isFinite(left) && left > 0 && left <= NEARING_WALL_REPS;
 };
 
 const input = (o: Partial<Parameters<typeof evaluateHardWall>[0]> = {}) => ({
@@ -86,9 +87,30 @@ describe('repsRemaining', () => {
 describe('isNearingWall', () => {
   /* A wall that arrives unannounced reads as a crash, so the session warns
      first. */
-  it('warns on the last two reps', () => {
-    expect(nearing(input({ repsSoFar: FREE_REP_LIMIT - 2 }))).toBe(true);
+  it('warns through the closing reps', () => {
+    expect(nearing(input({ repsSoFar: FREE_REP_LIMIT - NEARING_WALL_REPS }))).toBe(true);
     expect(nearing(input({ repsSoFar: FREE_REP_LIMIT - 1 }))).toBe(true);
+  });
+
+  /* The boundary itself, which the thresholds above sit inside and so cannot
+     pin. Without this the window could widen or narrow silently — the failure
+     that hid when the warning stayed at 2 reps against a 50-rep allowance. */
+  it('starts exactly at the threshold, not before', () => {
+    expect(nearing(input({ repsSoFar: FREE_REP_LIMIT - NEARING_WALL_REPS }))).toBe(true);
+    expect(nearing(input({ repsSoFar: FREE_REP_LIMIT - NEARING_WALL_REPS - 1 }))).toBe(false);
+  });
+
+  /* The literal values, which every assertion above is blind to.
+   *
+   * Those all derive their inputs from the same constants they check, so they
+   * pin the rule's *shape* and move silently when a constant moves — changing
+   * NEARING_WALL_REPS to 9 leaves the whole suite green. These are the numbers
+   * the warning was actually tuned to: 8 reps of warning against a 50-rep
+   * allowance. Both are product decisions, so a change here should be a
+   * deliberate edit to this line and not a side effect. */
+  it('is tuned to 8 reps of warning against a 50-rep allowance', () => {
+    expect(NEARING_WALL_REPS).toBe(8);
+    expect(FREE_REP_LIMIT).toBe(50);
   });
 
   it('does not warn while there is room', () => {
@@ -177,5 +199,8 @@ describe('HARD_WALL_ENABLED', () => {
   it('shows a real countdown rather than an unlimited one', () => {
     expect(repsRemaining(input({ repsSoFar: FREE_REP_LIMIT - 2 }))).toBe(2);
     expect(isNearingWall(input({ repsSoFar: FREE_REP_LIMIT - 1 }))).toBe(true);
+    /* Outside the window the countdown is live but silent — the public
+       function, not just the rule, respects the threshold. */
+    expect(isNearingWall(input({ repsSoFar: FREE_REP_LIMIT - NEARING_WALL_REPS - 1 }))).toBe(false);
   });
 });

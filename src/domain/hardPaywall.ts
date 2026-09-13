@@ -22,8 +22,22 @@
  * screen and anywhere else it is consulted.
  */
 
-/** Free reps a non-Pro athlete may do, lifetime, before the wall. */
-export const FREE_REP_LIMIT = 5;
+/**
+ * Free reps a non-Pro athlete may do, lifetime, before the wall.
+ *
+ * Raised from 5 to 50 on 2026-09-13. At 5 the wall landed on the *second*
+ * session: onboarding's last tap drops the athlete straight into a practice set
+ * (`app/onboarding.tsx`), and five reps is about twenty seconds of push-ups, so
+ * they met the pitch having never finished a routine, seen a form report or
+ * started a streak. That is a paywall placed before the core value, which is
+ * the same reasoning that removed the wall entirely on 2026-08-06.
+ *
+ * 50 buys several complete sessions first. The wall still exists — this tunes
+ * where it falls, it does not retreat from it. Everything downstream (the
+ * countdown, the warning, the tests) reads this constant, so moving the number
+ * is the whole change.
+ */
+export const FREE_REP_LIMIT = 50;
 
 /**
  * Master switch — **on** as of 2026-08-31, Play review having cleared.
@@ -114,12 +128,23 @@ export function repsRemainingRule(input: HardWallInput): number {
 }
 
 /**
+ * How many reps out the "nearly gone" warning starts.
+ *
+ * Widened from 2 to 8 on 2026-09-13, alongside the move to a 50-rep allowance.
+ * Two reps was a fifth of the old budget and read as a real heads-up; against
+ * 50 it is the last 4%, firing only after the athlete has already done 48 and
+ * far too late to act on. Eight keeps the warning something you can still
+ * finish a set around.
+ */
+export const NEARING_WALL_REPS = 8;
+
+/**
  * Whether to warn that the allowance is nearly gone.
  *
  * A wall that arrives with no warning reads as a crash. This lets the session
- * say "1 rep left" before it stops rather than after.
+ * say "8 reps left" while there is still room to decide, rather than after.
  */
 export function isNearingWall(input: HardWallInput): boolean {
   const left = repsRemaining(input);
-  return Number.isFinite(left) && left > 0 && left <= 2;
+  return Number.isFinite(left) && left > 0 && left <= NEARING_WALL_REPS;
 }

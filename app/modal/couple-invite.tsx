@@ -35,7 +35,7 @@ import { useCouple } from '@/state/useCouple';
 import { showDialog } from '@/state/useDialog';
 import { selectPairingBonusActive, useProfileStore } from '@/state/profileStore';
 import { font, text } from '@/theme/typography';
-import { palette, radius, shadow } from '@/theme/tokens';
+import { gradients, palette, radius, shadow } from '@/theme/tokens';
 
 /**
  * Pair up with a partner — the entry point to couple mode, and the app's viral
@@ -633,8 +633,13 @@ export default function CoupleInviteScreen() {
       {!loading && !paired && !code ? (
         <>
           <Animated.View entering={FadeInDown.duration(600)}>
+            {/* `gradients.brandDeep` — the same hero gradient the couple
+                tracker uses. This was a hardcoded mint wash
+                (#059669→#10b981→#6ee7b7), visibly lighter and cooler than every
+                other hero in the app, so the two halves of the pairing flow
+                read as different products one tap apart. */}
             <LinearGradient
-              colors={['#059669', '#10b981', '#6ee7b7']}
+              colors={gradients.brandDeep}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={[styles.pitchCard, shadow.brand]}
@@ -688,7 +693,7 @@ export default function CoupleInviteScreen() {
               disabled={creating}
             >
               <LinearGradient
-                colors={['#22c55e', '#059669']}
+                colors={gradients.brandStrong}
                 style={[styles.ctaButton, shadow.brand]}
               >
                 <Text style={font('extrabold', 16, { color: palette.white })}>

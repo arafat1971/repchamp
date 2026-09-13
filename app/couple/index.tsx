@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
+import { Image } from 'expo-image';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
@@ -103,11 +104,22 @@ export default function CoupleTrackerScreen() {
               <View style={styles.emptyAvatarMe}>
                 <Text style={styles.emptyAvatarText}>{myInitial}</Text>
               </View>
+              {/* 🫶, matching the invite screen's pitch. A bare "+" said
+                  "add a person"; the two couple surfaces should make the same
+                  gesture at the same joint. */}
               <View style={styles.emptyPlus}>
-                <Text style={styles.emptyPlusText}>+</Text>
+                <Text style={styles.emptyJoinGlyph}>🫶</Text>
               </View>
+              {/* Same empty seat as the invite screen's pitch, and the same
+                  reasoning: a bare "?" reads as an error rather than an
+                  invitation. The two couple surfaces must agree. */}
               <View style={styles.emptyAvatarThem}>
-                <Text style={styles.emptyAvatarQ}>?</Text>
+                <Image
+                  source={require('../../assets/logo.png')}
+                  style={styles.emptyPartnerLogo}
+                  contentFit="cover"
+                  accessibilityLabel="Your partner's empty seat"
+                />
               </View>
             </View>
             <Text style={styles.emptyHeroTitle}>Train together</Text>
@@ -439,10 +451,16 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.3)',
     alignItems: 'center',
     justifyContent: 'center',
+    // Clips the logo tile to the ring — see couple-invite.tsx.
+    overflow: 'hidden',
     marginLeft: -14,
   },
   emptyAvatarText: font('extrabold', 22, { color: palette.white }),
-  emptyAvatarQ: font('extrabold', 22, { color: 'rgba(255,255,255,0.6)' }),
+  /* One figure, not a pair — see couple-invite.tsx. Held slightly transparent
+     so the filled seat opposite stays the dominant one. */
+  /* Same empty seat as the invite pitch — see couple-invite.tsx for why this
+     fills and is clipped rather than being inset. */
+  emptyPartnerLogo: { width: '100%', height: '100%', opacity: 0.9 },
   emptyPlus: {
     width: 30,
     height: 30,
@@ -453,7 +471,7 @@ const styles = StyleSheet.create({
     marginLeft: -14,
     zIndex: 1,
   },
-  emptyPlusText: font('extrabold', 17, { color: palette.green600 }),
+  emptyJoinGlyph: { fontSize: 16 },
   emptyHeroTitle: font('extrabold', 21, { color: palette.white }),
   emptyHeroCopy: {
     ...font('semibold', 13.5, { color: 'rgba(255,255,255,0.88)' }),

@@ -704,8 +704,18 @@ export default function CoupleInviteScreen() {
                 <View style={styles.pitchHeartBubble}>
                   <Text style={styles.pitchCouple}>🫶</Text>
                 </View>
+                {/* The empty seat. A bare "?" read as an error state rather
+                    than an invitation — this is the one slot on the screen that
+                    is meant to feel like someone is missing from it. The
+                    athlete's own initial stays on the left, because that circle
+                    is them and identity beats decoration. */}
                 <View style={styles.pitchAvatarPartner}>
-                  <Text style={styles.pitchAvatarInitial}>?</Text>
+                  <Image
+                    source={require('../../assets/logo.png')}
+                    style={styles.pitchPartnerLogo}
+                    contentFit="cover"
+                    accessibilityLabel="Your partner's empty seat"
+                  />
                 </View>
               </View>
 
@@ -1207,11 +1217,25 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.1)',
     alignItems: 'center',
     justifyContent: 'center',
+    // Clips the logo tile to the ring. `pitchAvatarMe` has always had this —
+    // it is why a real avatar photo crops round — but this seat never needed
+    // it while it held only a text glyph.
+    overflow: 'hidden',
     marginLeft: -12,
     zIndex: 1,
   },
   pitchAvatarImg: { width: '100%', height: '100%' },
   pitchAvatarInitial: font('extrabold', 24, { color: palette.white }),
+  /* One figure, not a pair: this circle is the single empty seat, and
+     🧑‍🤝‍🧑 rendered as two people so the cluster read as three. Held slightly
+     transparent so the filled seat opposite stays the dominant one. */
+  /* The app's own 3D couple mark fills the empty seat.
+     `cover` at 100%, not `contain` at 72%: logo.png is RGB with no alpha, so at
+     72% it rendered as a green SQUARE sitting inside the round ring. Filling the
+     container lets `overflow: hidden` above clip it to a circle like any avatar
+     photo. Slightly under full opacity so the filled seat opposite stays the
+     dominant one. */
+  pitchPartnerLogo: { width: '100%', height: '100%', opacity: 0.9 },
   pitchHeartBubble: {
     zIndex: 10,
     backgroundColor: 'rgba(255,255,255,0.9)',

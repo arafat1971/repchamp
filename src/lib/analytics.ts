@@ -54,6 +54,22 @@ export interface AnalyticsEvents {
   restore_completed: { restored: boolean };
 
   share_opened: { kind: string };
+
+  /* ── Retention ──
+   * The app ships streaks, leagues and three kinds of nudge, and until these
+   * events existed there was no way to tell which of them brought anyone back.
+   * Each one answers a question that was previously unfalsifiable. */
+
+  /** A training day extended a live run. `previous`/`length` bracket the change. */
+  streak_continued: { length: number; previous: number };
+  /** Reported on the return *after* a gap — nothing runs on a day nobody opens. */
+  streak_broken: { length: number; previous: number; daysMissed: number };
+  /** A nudge was actually tapped, rather than merely delivered. */
+  notification_opened: { kind: string };
+  /** First open of a calendar day. `dayN` counts from install, for D1/D7. */
+  day_n_return: { dayN: number; daysSinceLast: number };
+  /** Movement on the weekly-XP ladder. Demotion is the more telling direction. */
+  league_promoted: { from: string; to: string; direction: 'promoted' | 'demoted' };
 }
 
 type EventName = keyof AnalyticsEvents;

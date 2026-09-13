@@ -32,6 +32,9 @@ import { gradients, palette, radius } from '@/theme/tokens';
 /** Four weeks reads as a month of effort without scrolling on a small phone. */
 const WINDOW_DAYS = 28;
 
+/** Inner padding for every Card here; matches recap.tsx. */
+const CARD_PADDING = 16;
+
 /**
  * The couple tracker — the bond's own screen.
  *
@@ -189,7 +192,7 @@ export default function CoupleTrackerScreen() {
       {/* ── Weekly pace ── */}
       <SectionLabel>THIS WEEK</SectionLabel>
       <Animated.View entering={FadeInDown.delay(60).duration(320)}>
-        <Card>
+        <Card style={styles.paddedCard}>
           <View style={styles.paceHead}>
             <Text style={styles.paceCount}>
               {pace.bothDays}
@@ -205,7 +208,7 @@ export default function CoupleTrackerScreen() {
       {/* ── Shared calendar ── */}
       <SectionLabel>LAST 4 WEEKS</SectionLabel>
       <Animated.View entering={FadeInDown.delay(110).duration(320)}>
-        <Card>
+        <Card style={styles.paddedCard}>
           <Calendar days={history} />
           <View style={styles.legend}>
             <LegendDot color={palette.green500} label="Both" />
@@ -225,7 +228,7 @@ export default function CoupleTrackerScreen() {
         <>
           <SectionLabel>WHO PUT IN WHAT</SectionLabel>
           <Animated.View entering={FadeInDown.delay(160).duration(320)}>
-            <Card>
+            <Card style={styles.paddedCard}>
               <View style={styles.splitBar}>
                 <View
                   style={[
@@ -269,7 +272,7 @@ export default function CoupleTrackerScreen() {
       {/* ── Level ── */}
       <SectionLabel>BOND LEVEL</SectionLabel>
       <Animated.View entering={FadeInDown.delay(210).duration(320)}>
-        <Card>
+        <Card style={styles.paddedCard}>
           <View style={styles.levelRow}>
             <Text style={styles.levelName}>{level.name}</Text>
             <Text style={styles.levelNum}>LVL {level.level}</Text>
@@ -412,6 +415,7 @@ function paceHint(
 
 const styles = StyleSheet.create({
   loading: { paddingVertical: 48, alignItems: 'center' },
+  paddedCard: { padding: CARD_PADDING },
 
   /* `GradientCard` only sets borderRadius + overflow — it carries no padding of
      its own, so the horizontal value has to live here or the centred copy runs
@@ -457,7 +461,11 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
 
-  emptyPreviewCard: { marginTop: 14 },
+  /* `Card` carries no padding of its own — only background, radius and shadow,
+     the same gap `GradientCard` has. Without this the label, grid and note all
+     render flush to the card edges and the two-line note spills past the bottom
+     rounded corner. 16 matches recap.tsx's chartCard. */
+  emptyPreviewCard: { marginTop: 14, padding: CARD_PADDING },
   emptyPreviewLabel: {
     ...font('extrabold', 10.5, { color: palette.grey600, letterSpacing: 0.7 }),
     marginBottom: 10,

@@ -23,6 +23,7 @@ import {
   isLiveSettleArmed,
   wasLiveSettleBanked,
 } from '@/services/liveResultSettle';
+import { emitRetention, retentionSnapshot } from '@/services/recordSessionWithRetention';
 import { shareWorthyLine } from '@/domain/progressProof';
 import { useProfileStore, selectLeague, selectStreak } from '@/state/profileStore';
 import { useIsPro } from '@/state/proStore';
@@ -282,6 +283,9 @@ export default function ResultScreen() {
             if (useAuthStore.getState().user?.uid !== uid) return false;
             if (persisted.current) return true;
             persisted.current = true;
+            // Same signal as the normal finish above — a detached settle is
+            // the same training day, just banked later.
+            const before = retentionSnapshot();
             useProfileStore.getState().recordSession({
               exercise: cfg.exercise,
               mode: cfg.mode,
@@ -295,6 +299,7 @@ export default function ResultScreen() {
               formScore,
               durationSec: cfg.duration,
             });
+            emitRetention(before.days, before.league);
             void useAuthStore.getState().pushProfile();
             return true;
           },

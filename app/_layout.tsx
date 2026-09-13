@@ -41,6 +41,7 @@ import { cancelDuel } from '@/services/duelService';
 import {
   resumePendingLiveSettles,
 } from '@/services/liveResultSettle';
+import { emitRetention, retentionSnapshot } from '@/services/recordSessionWithRetention';
 import { AppState } from 'react-native';
 
 import { selectTotalReps, useProfileStore } from '@/state/profileStore';
@@ -259,6 +260,10 @@ export default function RootLayout() {
     // Re-arm live-duel XP settles that survived process death.
     resumePendingLiveSettles((item, bank) => {
       if (useAuthStore.getState().user?.uid !== item.uid) return false;
+      // A duel banked on cold resume is a real training day: it extends a real
+      // streak and can move a real league. Snapshot before the write — after it
+      // the state would be compared with itself and report nothing.
+      const before = retentionSnapshot();
       useProfileStore.getState().recordSession({
         exercise: item.record.exercise,
         mode: item.record.sessionMode,
@@ -273,6 +278,7 @@ export default function RootLayout() {
         formScore: item.record.formScore,
         durationSec: item.record.durationSec,
       });
+      emitRetention(before.days, before.league);
       void useAuthStore.getState().pushProfile();
       return true;
     });

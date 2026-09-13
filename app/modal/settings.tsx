@@ -18,6 +18,7 @@ import {
 } from '@/services/accountService';
 import { flushCoupleCreditOutbox } from '@/services/coupleCreditOutbox';
 import { forceBankPendingLiveSettles } from '@/services/liveResultSettle';
+import { emitRetention, retentionSnapshot } from '@/services/recordSessionWithRetention';
 import { isPurchasesConfigured, resetPurchases, restore } from '@/services/purchases';
 import { track } from '@/lib/analytics';
 import { useAuthStore } from '@/state/authStore';
@@ -91,6 +92,9 @@ export default function SettingsScreen() {
     if (opts?.syncFirst !== false) {
       // Bank any live-duel XP still in the settle outbox before MMKV wipe.
       forceBankPendingLiveSettles((item, bank) => {
+        // Force-banked XP still counts as the training day it was. Snapshot
+        // before the write, or the comparison is against the new state.
+        const before = retentionSnapshot();
         useProfileStore.getState().recordSession({
           exercise: item.record.exercise,
           mode: item.record.sessionMode,
@@ -105,6 +109,7 @@ export default function SettingsScreen() {
           formScore: item.record.formScore,
           durationSec: item.record.durationSec,
         });
+        emitRetention(before.days, before.league);
         return true;
       });
       // Best-effort cloud mirror — unsynced XP / couple credits are lost otherwise.

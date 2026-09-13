@@ -2,7 +2,7 @@ import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, {
   FadeInDown,
@@ -65,6 +65,11 @@ export default function CoupleInviteScreen() {
     if (!paired) void cancelStreakReminder();
   }, [paired]);
 
+  /* Auto-create fires at most once per mount. Without this, any re-render
+     while `code` is still null — an auth tick, a profile write — would queue a
+     second `createCouple` and leave an orphaned pending invite behind. */
+  const autoCreated = useRef(false);
+
   const [creating, setCreating] = useState(false);
   const [joining, setJoining] = useState(false);
   const [nudging, setNudging] = useState(false);
@@ -118,14 +123,24 @@ export default function CoupleInviteScreen() {
     });
   };
 
-  const startInvite = async () => {
+  /**
+   * Create the pair code.
+   *
+   * `silent` is for the arrival effect: nobody asked for that attempt, so a
+   * failure must not throw a red dialog in front of someone who has only just
+   * opened the screen. The manual button keeps every message — there the
+   * athlete pressed something and is owed an answer.
+   */
+  const createInvite = async ({ silent }: { silent: boolean }) => {
     // Never let a primary button be a silent no-op — say why instead.
-    if (!uid) return requireAccount();
+    if (!uid) return silent ? undefined : requireAccount();
     setCreating(true);
     try {
       const created = await createCouple({ uid, displayName, avatarUrl: avatarUri });
       if (created) {
         track('couple_invite_created');
+      } else if (silent) {
+        // Unconfigured build — the screen already says so in its own card.
       } else {
         showDialog({
           title: 'Not available yet',
@@ -135,18 +150,51 @@ export default function CoupleInviteScreen() {
         });
       }
     } catch (error) {
-      // Surface the real reason rather than a dead end — a pairing failure the
-      // athlete can't act on is worse than none.
-      showDialog({
-        title: 'Could not create a code',
-        message: error instanceof Error ? error.message : 'Please try again.',
-        tone: 'danger',
-        actions: [{ label: 'Try again', variant: 'primary' }],
-      });
+      if (silent) {
+        /* Arrival attempt. Report it, but do not interrupt: the athlete can
+           still tap "Invite My Partner" and get the full message then. This is
+           also what keeps a Firestore outage (or App Check rejecting an
+           un-attested build) from greeting every visit with a red dialog. */
+        captureError(error);
+      } else {
+        // Surface the real reason rather than a dead end — a pairing failure the
+        // athlete can't act on is worse than none.
+        showDialog({
+          title: 'Could not create a code',
+          message: error instanceof Error ? error.message : 'Please try again.',
+          tone: 'danger',
+          actions: [{ label: 'Try again', variant: 'primary' }],
+        });
+      }
     } finally {
       setCreating(false);
     }
   };
+
+  const startInvite = () => createInvite({ silent: false });
+
+  /* Have a code ready on arrival, so the QR is on screen without a tap.
+   *
+   * Guarded hard, because this writes to Firestore: only for a signed-in
+   * athlete on a configured build, only once the couple subscription has
+   * settled (`loading`), and only when there is genuinely no couple yet —
+   * `code` covers an invite already open, `paired` covers a live bond. Firing
+   * on a half-loaded state would create a second couple for someone who
+   * already has one, which `createCouple` refuses anyway, but the refusal
+   * would surface as an error nobody asked for. */
+  useEffect(() => {
+    if (autoCreated.current) return;
+    if (!cloudConfigured || !uid || loading || paired || code) return;
+    autoCreated.current = true;
+    /* `createInvite` flips `creating` synchronously, which the lint rule reads
+       as a cascading render. It is bounded here: `autoCreated` makes this a
+       once-per-mount write, and the render it triggers is the spinner the
+       athlete should see while the code is minted. Same shape as the offering
+       fetch in `modal/paywall.tsx`, suppressed the same way. */
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void createInvite({ silent: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cloudConfigured, uid, loading, paired, code]);
 
   const redeem = async () => {
     if (!uid) return requireAccount();

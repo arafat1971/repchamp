@@ -48,6 +48,19 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
+      # The root tsconfig includes `**/*.ts` and excludes only node_modules and
+      # design, so `tsc --noEmit` typechecks functions/src, and `eslint .` walks
+      # into it as well. Both resolve firebase-admin / firebase-functions out of
+      # functions/node_modules, which is gitignored — so without this the two
+      # checks fail on the Cloud Functions imports and nothing else.
+      #
+      # It passes locally only because that directory is left over from an
+      # earlier install; a clean clone reproduces the runner exactly. Installed
+      # separately rather than as a workspace because functions/ carries its own
+      # lockfile and its own TypeScript version.
+      - name: Install Cloud Functions dependencies
+        run: npm ci --ignore-scripts --prefix functions
+
       # Each step runs even when an earlier one failed: a push with both a type
       # error and a lint error should report both, rather than making the author
       # fix one, push, and wait to discover the other.

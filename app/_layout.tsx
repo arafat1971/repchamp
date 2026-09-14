@@ -119,14 +119,28 @@ export default function RootLayout() {
         router.push({ pathname: '/duel/[id]', params: { id: data.duelId, role: 'guest' } });
       } else if (type === 'rival-passed') {
         router.push('/(tabs)/friends');
-      } else if (type === 'workout-reminder' || type === 'streak-reminder') {
+      } else if (
+        type === 'workout-reminder' ||
+        type === 'streak-reminder' ||
+        type === 'dormant-reminder'
+      ) {
         /* A reminder must not open a sales page.
          *
          * "Time to train" is the app asking for something; landing a walled
          * athlete on the paywall turns that into a pitch they did not ask for,
          * which is a worse thing to send someone than nothing at all. Home
          * still shows the wall and the way past it, and couple mode is right
-         * there and never walled. */
+         * there and never walled.
+         *
+         * `dormant-reminder` belongs here rather than in a branch of its own.
+         * It shipped emitting its type with no arm in this chain at all, so a
+         * tap fell through to no `router.push` and the athlete landed on
+         * whatever screen was already mounted — the one person the slot exists
+         * for getting the worst result of anyone. It is the same promise as the
+         * other two ("come and train"), so it gets the same destination and the
+         * same walled check; and since its copy is specifically about progress
+         * already banked, dropping a lapsed athlete on a paywall instead is the
+         * sharpest possible version of the mistake this branch guards. */
         const walled = isWalled({
           isPro: useProStore.getState().isPro,
           repsSoFar: selectTotalReps(useProfileStore.getState()),

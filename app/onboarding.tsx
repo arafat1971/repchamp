@@ -600,6 +600,7 @@ function Welcome({ onNext }: { onNext: () => void }) {
           style={styles.legalLink}
           onPress={() => router.push('/modal/legal?tab=terms')}
           accessibilityRole="link"
+          accessibilityLabel="Terms"
         >
           Terms
         </Text>{' '}
@@ -608,6 +609,7 @@ function Welcome({ onNext }: { onNext: () => void }) {
           style={styles.legalLink}
           onPress={() => router.push('/modal/legal')}
           accessibilityRole="link"
+          accessibilityLabel="Privacy Policy"
         >
           Privacy Policy
         </Text>
@@ -1085,7 +1087,11 @@ function Username({
           who already has an account: they invent a second handle, and the app
           only discovers the real one long after. Offering it here lets a
           returning athlete restore first and skip the invention entirely. */}
-      <PressableScale onPress={onSignIn} accessibilityRole="button">
+      <PressableScale
+        onPress={onSignIn}
+        accessibilityRole="button"
+        accessibilityLabel="Already have an account? Sign in"
+      >
         <Text style={styles.haveAccountLink}>
           Already have an account? <Text style={styles.haveAccountStrong}>Sign in</Text>
         </Text>
@@ -1142,7 +1148,12 @@ function Photo({
 
       <View style={{ flex: 1 }} />
       <PrimaryButton label="Continue" onPress={onNext} />
-      <Pressable onPress={onNext} accessibilityRole="button" style={styles.skip}>
+      <Pressable
+        onPress={onNext}
+        accessibilityRole="button"
+        accessibilityLabel="Skip for now"
+        style={styles.skip}
+      >
         <Text style={font('extrabold', 14, { color: palette.grey600 })}>Skip for now</Text>
       </Pressable>
     </View>
@@ -1790,6 +1801,8 @@ function Reminders({
           <Pressable
             onPress={onNext}
             accessibilityRole="button"
+            accessibilityLabel="Not now"
+            accessibilityState={{ disabled: busy }}
             disabled={busy}
             style={styles.tryNow}
           >
@@ -2265,6 +2278,7 @@ function Challenge({ username, onNext }: { username: string; onNext: () => void 
       <Pressable
         onPress={onNext}
         accessibilityRole="button"
+        accessibilityLabel="Not right now"
         style={[styles.declineButton, { minHeight: reservedControlHeight(54, fontScale) }]}
       >
         <Text style={font('extrabold', 15, { color: palette.ink })} {...scaleForRole('control')}>
@@ -2792,7 +2806,12 @@ function Offer({ onDone }: { onDone: () => void }) {
           <Text style={[text.captionMd, { textAlign: 'center', marginTop: 8 }]}>
             {annual ? renewDisclosure(annual) : null}
           </Text>
-          <Pressable onPress={onDone} accessibilityRole="button" style={styles.skip}>
+          <Pressable
+            onPress={onDone}
+            accessibilityRole="button"
+            accessibilityLabel="Maybe later"
+            style={styles.skip}
+          >
             <Text style={font('extrabold', 14, { color: palette.grey600 })}>Maybe later</Text>
           </Pressable>
         </>

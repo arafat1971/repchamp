@@ -634,13 +634,18 @@ export default function CoupleInviteScreen() {
             <PressableScale
               onPress={copyCode}
               accessibilityRole="button"
+              accessibilityLabel={copied ? 'Code copied' : 'Copy code'}
               style={[styles.actionOutline, { minHeight: reservedControlHeight(52, fontScale) }]}
             >
               <Text style={styles.actionOutlineLabel} {...scaleForRole('control')}>
                 {copied ? 'Copied' : 'Copy code'}
               </Text>
             </PressableScale>
-            <PressableScale onPress={shareCode} accessibilityRole="button">
+            <PressableScale
+              onPress={shareCode}
+              accessibilityRole="button"
+              accessibilityLabel="Share invite"
+            >
               <LinearGradient
                 colors={gradients.brandStrong}
                 style={[

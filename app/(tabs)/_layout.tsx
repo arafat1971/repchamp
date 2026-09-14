@@ -558,7 +558,16 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
   return (
     <>
       <Modal visible={open} transparent animationType="fade" onRequestClose={close}>
-        <Pressable style={styles.fabScrim} onPress={closeFromScrim}>
+        {/* The scrim is the only way out of this sheet for someone who cannot
+            see where it ends, so it is announced as a real dismiss control
+            rather than left as an unlabelled full-screen target. Its children
+            keep their own labels — the menu is nested inside it. */}
+        <Pressable
+          style={styles.fabScrim}
+          onPress={closeFromScrim}
+          accessibilityRole="button"
+          accessibilityLabel="Close menu"
+        >
           <View
             style={[styles.fabMenu, { bottom: bottomPosition + 70 }]}
             pointerEvents="box-none"

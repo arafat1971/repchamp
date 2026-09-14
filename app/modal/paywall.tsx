@@ -483,6 +483,7 @@ export default function PaywallScreen() {
           <PressableScale
             onPress={leave}
             accessibilityRole="button"
+            accessibilityLabel="Maybe later"
             style={styles.footerLinkHit}
           >
             <Text style={[styles.footerLink, { textAlign: 'center' }]}>Maybe later</Text>

@@ -1101,7 +1101,12 @@ export default function SessionScreen() {
           used to read "run `npm run fetch-model`", which is a developer
           instruction nobody outside this repo can act on. */}
       {modelState === 'error' ? (
-        <PressableScale onPress={leaveSession} style={styles.modelBanner}>
+        <PressableScale
+          onPress={leaveSession}
+          accessibilityRole="button"
+          accessibilityLabel="Rep counting couldn’t start on this device. Tap to go back."
+          style={styles.modelBanner}
+        >
           <Text style={styles.modelBannerText}>
             Rep counting couldn’t start on this device. Tap to go back.
           </Text>

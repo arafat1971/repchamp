@@ -406,7 +406,12 @@ export default function DuelWaitingScreen() {
             Check your connection and try again. You can still settle it against
             a paced rival — same rules, same XP.
           </Text>
-          <PressableScale onPress={botFallback} style={styles.primaryBtn} accessibilityRole="button">
+          <PressableScale
+            onPress={botFallback}
+            style={styles.primaryBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Duel a rival instead"
+          >
             <Text style={styles.primaryLabel}>Duel a rival instead</Text>
           </PressableScale>
         </View>
@@ -432,6 +437,7 @@ export default function DuelWaitingScreen() {
             onPress={() => router.replace('/onboarding')}
             style={styles.primaryBtn}
             accessibilityRole="button"
+            accessibilityLabel="Sign in"
           >
             <Text style={styles.primaryLabel}>Sign in</Text>
           </PressableScale>
@@ -442,6 +448,7 @@ export default function DuelWaitingScreen() {
             onPress={botFallback}
             style={[styles.cancel, { minHeight: reservedControlHeight(54, fontScale) }]}
             accessibilityRole="button"
+            accessibilityLabel="Duel a paced rival instead"
           >
             <Text
               style={font('extrabold', 15, { color: palette.slate500 })}
@@ -466,13 +473,19 @@ export default function DuelWaitingScreen() {
           <Text style={[text.captionMd, styles.hint]}>
             {error ?? 'This challenge was declined or cancelled.'}
           </Text>
-          <PressableScale onPress={botFallback} style={styles.primaryBtn} accessibilityRole="button">
+          <PressableScale
+            onPress={botFallback}
+            style={styles.primaryBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Duel a rival instead"
+          >
             <Text style={styles.primaryLabel}>Duel a rival instead</Text>
           </PressableScale>
           <PressableScale
             onPress={exitToArena}
             style={[styles.cancel, { minHeight: reservedControlHeight(54, fontScale) }]}
             accessibilityRole="button"
+            accessibilityLabel="Back"
           >
             <Text style={styles.cancelLabel} {...scaleForRole('control')}>
               Back
@@ -564,7 +577,15 @@ export default function DuelWaitingScreen() {
               accessibilityLabel="Duel invite QR code"
             />
           ) : null}
-          <PressableScale onPress={copyCode} style={styles.codeBox} accessibilityRole="button">
+          {/* The label tracks the state rather than freezing on "Copy link":
+              a screen reader announcing "Copy link" after the copy already
+              happened contradicts what the button now says. */}
+          <PressableScale
+            onPress={copyCode}
+            style={styles.codeBox}
+            accessibilityRole="button"
+            accessibilityLabel={copied ? 'Link copied' : `Copy link for duel ${duelId}`}
+          >
             <Text style={styles.code} numberOfLines={1}>
               {duelId}
             </Text>

@@ -7,10 +7,25 @@
  * |-------------------------|------------------------|----------------------------------------|
  * | Workout reminder        | ≤1 / day               | Evening, only if not trained today     |
  * | Couple streak reminder  | ≤1 / day               | Evening, only if shared streak at risk |
+ * | Dormant reminder        | ≤1 / day (replaces ↑)  | Evening, only after 3 days away        |
  * | Weekly summary          | 1 / week (Sunday 18:00)| Always (low-frequency payoff)          |
  * | Challenge invitation    | Event-driven           | When a friend challenges you (push)    |
  * | Couple nudge            | Event-driven           | Partner taps Nudge (push + in-app)     |
  * | Rival passed you        | ≤1 / week              | Soft alert if a rival overtakes weekly |
+ *
+ * The workout reminder and the weekly summary say what is actually at stake —
+ * the solo streak by number, and a real claim off `progressProof` — rather than
+ * the generic lines they carried before. Copy lives in `domain/reminderCopy`.
+ * That changed the wording of two existing slots and nothing about this table:
+ * no new kind, no new frequency. Volume is the thing this policy protects.
+ *
+ * The dormant slot is the one addition, and it *replaces* the workout reminder
+ * rather than joining it — an athlete three days gone was already getting the
+ * evening nag daily, and the same words that failed on days one and two are not
+ * improved by a third repetition. Net volume is unchanged: still at most one
+ * evening reminder. Copy lives in `domain/dormantReminder`, which states what
+ * the athlete has built rather than what they are losing, and stays silent
+ * when `progressProof` has no honest claim to make.
  *
  * Workout and streak reminders never stack on the same day — streak-at-risk
  * wins (more urgent). Turning "Daily reminders" off cancels the workout slot;
@@ -24,9 +39,12 @@ import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
+import { buildDormantReminder } from '@/domain/dormantReminder';
 import { buildInviteNotification } from '@/domain/inviteNotification';
 import { parseInviteKind } from '@/domain/presence';
+import { buildDailyReminder, buildWeeklyRecap } from '@/domain/reminderCopy';
 import { storage } from '@/lib/storage';
+import type { SessionSummary } from '@/state/profileStore';
 import { syncMyCouplePushToken } from '@/services/coupleService';
 import { saveExpoPushToken } from '@/services/userService';
 
@@ -85,6 +103,7 @@ const LEGACY_IDS = [
 
 const WORKOUT_REMINDER_ID = 'workout-reminder-daily';
 const STREAK_REMINDER_ID = 'couple-streak-reminder-eve';
+const DORMANT_REMINDER_ID = 'dormant-reminder-eve';
 const WEEKLY_RECAP_ID = 'weekly-recap';
 const RIVAL_PASSED_ID = 'rival-passed-weekly';
 
@@ -224,6 +243,23 @@ export interface ReminderContext {
   /** Couple shared streak dies tonight unless both train. */
   coupleAtRisk: boolean;
   partnerName?: string | null;
+  /**
+   * The athlete's own solo streak, so the evening reminder can say what is
+   * actually at stake. `coupleAtRisk` only ever covered paired athletes, which
+   * left a solo athlete on a long streak getting the same generic nag as
+   * someone on day zero.
+   */
+  streak?: number;
+  /**
+   * Session history, for the weekly recap's headline. Read only to build copy
+   * — the recap claims nothing `progressProof` will not stand behind.
+   */
+  sessions?: readonly SessionSummary[];
+  /**
+   * Whole days since the last recorded session, or null with no history.
+   * Past `DORMANT_AFTER_DAYS` the dormant slot replaces the evening nag.
+   */
+  daysSinceLastSession?: number | null;
 }
 
 /**
@@ -237,27 +273,45 @@ export async function syncLocalReminders(ctx: ReminderContext): Promise<void> {
     await cancelIds(LEGACY_IDS);
 
     // Weekly summary — always one quiet ping (not gated by daily toggle).
-    await scheduleWeeklyRecap();
+    await scheduleWeeklyRecap(1, 18, {
+      sessions: ctx.sessions ?? [],
+      streak: ctx.streak ?? 0,
+    });
 
     if (ctx.trainedToday) {
-      await cancelIds([WORKOUT_REMINDER_ID, STREAK_REMINDER_ID]);
+      // Back in the app — a win-back push aimed at someone training today is
+      // both wrong and the fastest way to teach them the slot means nothing.
+      await cancelIds([WORKOUT_REMINDER_ID, STREAK_REMINDER_ID, DORMANT_REMINDER_ID]);
       return;
     }
 
     if (ctx.coupleAtRisk) {
       // Streak protection beats a generic workout nag — never both.
-      await cancelIds([WORKOUT_REMINDER_ID]);
+      await cancelIds([WORKOUT_REMINDER_ID, DORMANT_REMINDER_ID]);
       await scheduleStreakReminder(ctx.partnerName ?? 'your partner');
       return;
     }
 
     await cancelIds([STREAK_REMINDER_ID]);
 
-    if (ctx.dailyReminderEnabled) {
-      await scheduleDailyTrainingReminder();
-    } else {
-      await cancelIds([WORKOUT_REMINDER_ID]);
+    if (!ctx.dailyReminderEnabled) {
+      // The toggle is off: it governs the evening slot whichever copy fills it.
+      await cancelIds([WORKOUT_REMINDER_ID, DORMANT_REMINDER_ID]);
+      return;
     }
+
+    /* Dormant replaces the evening nag rather than joining it. Three days in,
+       the athlete has already had this slot twice in the words that did not
+       work; a third identical nag is the one that gets notifications disabled.
+       Scheduling is all-or-nothing — when `buildDormantReminder` declines
+       (no history, or no honest claim), fall through to the daily line. */
+    if (await scheduleDormantReminder(ctx)) {
+      await cancelIds([WORKOUT_REMINDER_ID]);
+      return;
+    }
+
+    await cancelIds([DORMANT_REMINDER_ID]);
+    await scheduleDailyTrainingReminder(ctx.streak ?? 0);
   } catch {
     // Best-effort.
   }
@@ -287,16 +341,23 @@ export async function scheduleStreakReminder(partnerName: string): Promise<void>
   }
 }
 
-/** @deprecated Prefer syncLocalReminders. */
-export async function scheduleDailyTrainingReminder(): Promise<void> {
+/**
+ * @deprecated Prefer syncLocalReminders.
+ *
+ * `streak` is optional because the deprecated call sites do not have one —
+ * without it the copy is exactly what it always was, so an older caller
+ * schedules the same reminder it used to.
+ */
+export async function scheduleDailyTrainingReminder(streak = 0): Promise<void> {
   if (!(await ensureNotificationPermission())) return;
   try {
     await cancelIds([WORKOUT_REMINDER_ID, ...LEGACY_IDS.filter((id) => id.startsWith('daily-'))]);
+    const copy = buildDailyReminder({ streak });
     await Notifications.scheduleNotificationAsync({
       identifier: WORKOUT_REMINDER_ID,
       content: {
-        title: 'Time for a quick set',
-        body: 'Two minutes of reps keeps your streak and form sharp.',
+        title: copy.title,
+        body: copy.body,
         data: { type: 'workout-reminder' },
         ...(Platform.OS === 'android' ? { channelId: channelIdFor('reminders') } : {}),
       },
@@ -311,6 +372,48 @@ export async function scheduleDailyTrainingReminder(): Promise<void> {
   }
 }
 
+/**
+ * The three-days-away slot.
+ *
+ * Returns whether anything was scheduled, so the caller knows if the evening
+ * slot is filled — `buildDormantReminder` returns null both for an athlete who
+ * is not dormant and for one with no honest claim on record, and in the second
+ * case the generic daily line is still the right thing to send.
+ *
+ * Same evening hour as the workout reminder it replaces: this is a different
+ * sentence in the existing slot, not an extra ping.
+ */
+async function scheduleDormantReminder(ctx: ReminderContext): Promise<boolean> {
+  const copy = buildDormantReminder({
+    daysAway: ctx.daysSinceLastSession ?? null,
+    sessions: ctx.sessions ?? [],
+    streak: ctx.streak ?? 0,
+  });
+  if (!copy) return false;
+
+  try {
+    await Notifications.cancelScheduledNotificationAsync(DORMANT_REMINDER_ID).catch(() => {});
+    await Notifications.scheduleNotificationAsync({
+      identifier: DORMANT_REMINDER_ID,
+      content: {
+        title: copy.title,
+        body: copy.body,
+        data: { type: 'dormant-reminder' },
+        ...(Platform.OS === 'android' ? { channelId: channelIdFor('reminders') } : {}),
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour: 19,
+        minute: 0,
+      },
+    });
+    return true;
+  } catch {
+    // Best-effort — report failure so the daily line still gets its chance.
+    return false;
+  }
+}
+
 export async function cancelDailyTrainingReminder(): Promise<void> {
   try {
     await cancelIds([WORKOUT_REMINDER_ID, ...LEGACY_IDS.filter((id) => id.startsWith('daily-'))]);
@@ -319,15 +422,31 @@ export async function cancelDailyTrainingReminder(): Promise<void> {
   }
 }
 
-export async function scheduleWeeklyRecap(weekday = 1, hour = 18): Promise<void> {
+/**
+ * The Sunday recap.
+ *
+ * `proof` carries the athlete's history so the banner can state a fact rather
+ * than invite them to go and look. Optional for the same reason as
+ * `scheduleDailyTrainingReminder`'s streak: absent it, the copy is the generic
+ * line this always sent.
+ */
+export async function scheduleWeeklyRecap(
+  weekday = 1,
+  hour = 18,
+  proof?: { sessions: readonly SessionSummary[]; streak: number },
+): Promise<void> {
   if (!(await ensureNotificationPermission())) return;
   try {
     await Notifications.cancelScheduledNotificationAsync(WEEKLY_RECAP_ID).catch(() => {});
+    const copy = buildWeeklyRecap({
+      sessions: proof?.sessions ?? [],
+      streak: proof?.streak ?? 0,
+    });
     await Notifications.scheduleNotificationAsync({
       identifier: WEEKLY_RECAP_ID,
       content: {
-        title: 'Your week in reps',
-        body: 'See what you got done — and celebrate the wins.',
+        title: copy.title,
+        body: copy.body,
         data: { type: 'weekly-recap' },
         ...(Platform.OS === 'android' ? { channelId: channelIdFor('reminders') } : {}),
       },

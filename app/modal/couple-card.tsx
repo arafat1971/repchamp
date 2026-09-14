@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import * as Sharing from 'expo-sharing';
 import { useRef } from 'react';
-import { Share, StyleSheet, Text, View } from 'react-native';
+import { Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 
 import { track } from '@/lib/analytics';
@@ -10,7 +10,8 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { Avatar, Card, PressableScale, Screen } from '@/components/ui';
 import { inviteLink, lastMilestoneReached } from '@/domain/couple';
 import { useCouple } from '@/state/useCouple';
-import { font, text } from '@/theme/typography';
+import { reservedControlHeight } from '@/theme/fontScale';
+import { font, scaleForRole, text } from '@/theme/typography';
 import { palette, radius } from '@/theme/tokens';
 
 /**
@@ -26,6 +27,7 @@ import { palette, radius } from '@/theme/tokens';
  * anything on the athlete's behalf.
  */
 export default function CoupleCardScreen() {
+  const { fontScale } = useWindowDimensions();
   const { paired, partner, me, streak, combined, code } = useCouple();
   const cardRef = useRef<View>(null);
 
@@ -139,9 +141,11 @@ export default function CoupleCardScreen() {
         onPress={() => void share()}
         accessibilityRole="button"
         accessibilityLabel="Share our couple card"
-        style={styles.share}
+        style={[styles.share, { minHeight: reservedControlHeight(56, fontScale) }]}
       >
-        <Text style={font('extrabold', 16, { color: palette.white })}>Share</Text>
+        <Text style={font('extrabold', 16, { color: palette.white })} {...scaleForRole('control')}>
+          Share
+        </Text>
       </PressableScale>
 
       <Text style={[text.caption, styles.hint]}>
@@ -228,8 +232,8 @@ const styles = StyleSheet.create({
   streakDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: palette.green500 },
   streakText: { ...font('extrabold', 12, { color: palette.green700 }), letterSpacing: 1 },
   share: {
+    // `minHeight` at render time — see `@/theme/fontScale`.
     marginTop: 20,
-    height: 56,
     borderRadius: radius['2xl'],
     backgroundColor: palette.green500,
     alignItems: 'center',

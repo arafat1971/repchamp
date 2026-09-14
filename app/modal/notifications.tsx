@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import { ModalHeader } from '@/components/ModalHeader';
@@ -15,7 +15,8 @@ import { captureError } from '@/lib/crash';
 import { useAuthStore } from '@/state/authStore';
 import { selectStreak, useProfileStore } from '@/state/profileStore';
 import { useSettingsStore } from '@/state/settingsStore';
-import { font, text } from '@/theme/typography';
+import { reservedControlHeight } from '@/theme/fontScale';
+import { font, scaleForRole, text } from '@/theme/typography';
 import { palette, radius } from '@/theme/tokens';
 
 export default function NotificationsScreen() {
@@ -235,6 +236,7 @@ function InviteCard({
   onDismiss: () => void;
   acceptLabel?: string;
 }) {
+  const { fontScale } = useWindowDimensions();
   return (
     <Card style={styles.inviteCard}>
       <View style={styles.inviteTop}>
@@ -265,17 +267,21 @@ function InviteCard({
           onPress={onAccept}
           accessibilityRole="button"
           accessibilityLabel={acceptLabel ?? `Accept invite from ${name}`}
-          style={styles.acceptButton}
+          style={[styles.acceptButton, { minHeight: reservedControlHeight(44, fontScale) }]}
         >
-          <Text style={font('extrabold', 14, { color: palette.white })}>Accept</Text>
+          <Text style={font('extrabold', 14, { color: palette.white })} {...scaleForRole('control')}>
+            Accept
+          </Text>
         </PressableScale>
         <PressableScale
           onPress={onDismiss}
           accessibilityRole="button"
           accessibilityLabel="Decide later"
-          style={styles.laterButton}
+          style={[styles.laterButton, { minHeight: reservedControlHeight(44, fontScale) }]}
         >
-          <Text style={font('extrabold', 14, { color: palette.slate500 })}>Later</Text>
+          <Text style={font('extrabold', 14, { color: palette.slate500 })} {...scaleForRole('control')}>
+            Later
+          </Text>
         </PressableScale>
       </View>
     </Card>
@@ -421,16 +427,16 @@ const styles = StyleSheet.create({
   metaChipText: font('bold', 10.5, { color: palette.slate600 }),
   inviteActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
   acceptButton: {
+    // `minHeight` at render time — see `@/theme/fontScale`.
     flex: 1,
-    height: 44,
     borderRadius: radius.lg,
     backgroundColor: palette.green500,
     alignItems: 'center',
     justifyContent: 'center',
   },
   laterButton: {
+    // `minHeight` at render time — see `@/theme/fontScale`.
     width: 96,
-    height: 44,
     borderRadius: radius.lg,
     backgroundColor: palette.canvas,
     alignItems: 'center',

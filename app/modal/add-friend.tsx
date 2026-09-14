@@ -1,6 +1,6 @@
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Share, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import { ModalHeader } from '@/components/ModalHeader';
@@ -17,12 +17,14 @@ import { useAuthStore } from '@/state/authStore';
 import { showDialog } from '@/state/useDialog';
 import { useProfileStore } from '@/state/profileStore';
 import { friendInviteLink } from '@/lib/urls';
-import { font, text } from '@/theme/typography';
+import { reservedControlHeight } from '@/theme/fontScale';
+import { font, scaleForRole, text } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 
 export default function AddFriendScreen() {
+  const { fontScale } = useWindowDimensions();
   const router = useRouter();
   const params = useLocalSearchParams<{ u?: string }>();
   const username = useProfileStore((s) => s.username) || 'champion';
@@ -277,9 +279,11 @@ export default function AddFriendScreen() {
           onPress={shareLink}
           accessibilityRole="button"
           accessibilityLabel="Share invite link"
-          style={styles.shareButton}
+          style={[styles.shareButton, { minHeight: reservedControlHeight(44, fontScale) }]}
         >
-          <Text style={font('extrabold', 12, { color: palette.white })}>Share link</Text>
+          <Text style={font('extrabold', 12, { color: palette.white })} {...scaleForRole('control')}>
+            Share link
+          </Text>
         </PressableScale>
       </LinearGradient>
 
@@ -444,7 +448,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
   },
   shareButton: {
-    height: 44,
+    // `minHeight` at render time — see `@/theme/fontScale`.
     borderRadius: radius.md,
     backgroundColor: 'rgba(255,255,255,0.16)',
     alignItems: 'center',

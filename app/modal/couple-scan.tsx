@@ -2,7 +2,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import type { BarcodeScanningResult } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ModalHeader } from '@/components/ModalHeader';
@@ -14,7 +14,8 @@ import { joinCoupleByCode } from '@/services/coupleService';
 import { useAuthStore } from '@/state/authStore';
 import { showDialog } from '@/state/useDialog';
 import { useProfileStore } from '@/state/profileStore';
-import { font, text } from '@/theme/typography';
+import { reservedControlHeight } from '@/theme/fontScale';
+import { font, scaleForRole, text } from '@/theme/typography';
 import { palette, radius } from '@/theme/tokens';
 
 /**
@@ -33,6 +34,7 @@ import { palette, radius } from '@/theme/tokens';
  * code because `onBarcodeScanned` keeps firing while the code is in view.
  */
 export default function CoupleScanScreen() {
+  const { fontScale } = useWindowDimensions();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const uid = useAuthStore((s) => s.user?.uid);
@@ -141,9 +143,14 @@ export default function CoupleScanScreen() {
         onPress={() => router.back()}
         accessibilityRole="button"
         accessibilityLabel="Enter the code by hand instead"
-        style={[styles.manual, { marginBottom: insets.bottom + 12 }]}
+        style={[
+          styles.manual,
+          { marginBottom: insets.bottom + 12, minHeight: reservedControlHeight(52, fontScale) },
+        ]}
       >
-        <Text style={font('extrabold', 14, { color: palette.ink })}>Enter code by hand</Text>
+        <Text style={font('extrabold', 14, { color: palette.ink })} {...scaleForRole('control')}>
+          Enter code by hand
+        </Text>
       </PressableScale>
     </Screen>
   );
@@ -180,8 +187,8 @@ const styles = StyleSheet.create({
   joiningText: { ...font('extrabold', 15, { color: palette.white }), marginTop: 12 },
   hint: { textAlign: 'center', marginTop: 12 },
   manual: {
+    // `minHeight` at render time — see `@/theme/fontScale`.
     marginTop: 12,
-    height: 52,
     borderRadius: radius['2xl'],
     borderWidth: 1,
     borderColor: palette.border,

@@ -1,7 +1,14 @@
 import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  BackHandler,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 
 import { ModalHeader } from '@/components/ModalHeader';
 import { Avatar, PressableScale, Screen } from '@/components/ui';
@@ -13,7 +20,8 @@ import { createDuel, fetchDuel, joinDuel, watchDuel, cancelDuel } from '@/servic
 import { commitClientRateLimit } from '@/services/safetyService';
 import { successHaptic } from '@/lib/feedback';
 import { useSelfPlayer } from '@/state/useSelfPlayer';
-import { font, text } from '@/theme/typography';
+import { reservedControlHeight } from '@/theme/fontScale';
+import { font, scaleForRole, text } from '@/theme/typography';
 import { palette, radius, shadow } from '@/theme/tokens';
 import type { ExerciseId } from '@/vision/exercises';
 
@@ -39,6 +47,7 @@ import type { ExerciseId } from '@/vision/exercises';
  *   name/level opponent display fields, for the host's waiting card
  */
 export default function DuelWaitingScreen() {
+  const { fontScale } = useWindowDimensions();
   const router = useRouter();
   const self = useSelfPlayer();
   const params = useLocalSearchParams<{
@@ -431,10 +440,13 @@ export default function DuelWaitingScreen() {
               act, and should not be coloured like one. */}
           <PressableScale
             onPress={botFallback}
-            style={styles.cancel}
+            style={[styles.cancel, { minHeight: reservedControlHeight(54, fontScale) }]}
             accessibilityRole="button"
           >
-            <Text style={font('extrabold', 15, { color: palette.slate500 })}>
+            <Text
+              style={font('extrabold', 15, { color: palette.slate500 })}
+              {...scaleForRole('control')}
+            >
               Duel a paced rival instead
             </Text>
           </PressableScale>
@@ -459,10 +471,12 @@ export default function DuelWaitingScreen() {
           </PressableScale>
           <PressableScale
             onPress={exitToArena}
-            style={styles.cancel}
+            style={[styles.cancel, { minHeight: reservedControlHeight(54, fontScale) }]}
             accessibilityRole="button"
           >
-            <Text style={styles.cancelLabel}>Back</Text>
+            <Text style={styles.cancelLabel} {...scaleForRole('control')}>
+              Back
+            </Text>
           </PressableScale>
         </View>
       </Screen>
@@ -561,12 +575,14 @@ export default function DuelWaitingScreen() {
 
       <PressableScale
         onPress={leaveWaiting}
-        style={styles.cancel}
+        style={[styles.cancel, { minHeight: reservedControlHeight(54, fontScale) }]}
         accessibilityRole="button"
         accessibilityLabel={role === 'guest' ? 'Cancel joining' : 'Cancel challenge'}
       >
         <View style={styles.cancelDot} />
-        <Text style={styles.cancelLabel}>{role === 'guest' ? 'Cancel' : 'Cancel challenge'}</Text>
+        <Text style={styles.cancelLabel} {...scaleForRole('control')}>
+          {role === 'guest' ? 'Cancel' : 'Cancel challenge'}
+        </Text>
       </PressableScale>
     </Screen>
   );
@@ -634,7 +650,7 @@ const styles = StyleSheet.create({
     gap: 8,
     alignSelf: 'stretch',
     marginTop: 24,
-    height: 54,
+    // `minHeight` at render time — see `@/theme/fontScale`.
     borderRadius: radius.pill,
     backgroundColor: palette.white,
     borderWidth: 1.5,

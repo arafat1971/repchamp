@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Share, StyleSheet, Text, View } from 'react-native';
+import { Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { ModalHeader } from '@/components/ModalHeader';
 import { Card, Chevron, Divider, Eyebrow, PressableScale, Screen, Toggle } from '@/components/ui';
@@ -28,7 +28,8 @@ import { dayKey } from '@/domain/progression';
 import { useCouple } from '@/state/useCouple';
 import { useProfileStore } from '@/state/profileStore';
 import { useSettingsStore, type SettingsToggle } from '@/state/settingsStore';
-import { font, text } from '@/theme/typography';
+import { reservedControlHeight } from '@/theme/fontScale';
+import { font, scaleForRole, text } from '@/theme/typography';
 import { palette, radius, shadow } from '@/theme/tokens';
 
 interface ToggleRow {
@@ -75,6 +76,7 @@ const SYNC_LABEL: Record<string, string> = {
 };
 
 export default function SettingsScreen() {
+  const { fontScale } = useWindowDimensions();
   const router = useRouter();
   const settings = useSettingsStore();
   const resetProfile = useProfileStore((s) => s.reset);
@@ -421,9 +423,11 @@ export default function SettingsScreen() {
         onPress={logOut}
         accessibilityRole="button"
         accessibilityLabel="Log out and clear this device"
-        style={styles.logOut}
+        style={[styles.logOut, { minHeight: reservedControlHeight(52, fontScale) }]}
       >
-        <Text style={font('extrabold', 14, { color: palette.red500 })}>Log out</Text>
+        <Text style={font('extrabold', 14, { color: palette.red500 })} {...scaleForRole('control')}>
+          Log out
+        </Text>
       </PressableScale>
 
       <Text style={styles.version}>RepChamp v2.0 · Made for champions</Text>
@@ -469,7 +473,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
   syncDot: { width: 10, height: 10, borderRadius: 5 },
   logOut: {
-    height: 52,
+    // `minHeight` at render time — see `@/theme/fontScale`.
     borderRadius: radius.xl,
     backgroundColor: palette.white,
     alignItems: 'center',

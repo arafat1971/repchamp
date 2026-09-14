@@ -2,7 +2,13 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+  type ImageSourcePropType,
+} from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import { ExerciseLibrary } from '@/components/ExerciseLibrary';
@@ -19,7 +25,8 @@ import { isPurchasesConfigured } from '@/services/purchases';
 import { useSelfPlayer } from '@/state/useSelfPlayer';
 import { defaultDuration } from '@/state/sessionStore';
 import type { ExerciseId } from '@/vision/exercises';
-import { font, text } from '@/theme/typography';
+import { reservedControlHeight } from '@/theme/fontScale';
+import { font, scaleForRole, text } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
 
 /** Rep milestones on the roadmap, in order. */
@@ -29,6 +36,7 @@ const IC_PUSHUP = require('../../assets/ic-pushup.png');
 const IC_SQUAT = require('../../assets/ic-squat.png');
 
 export default function TrainScreen() {
+  const { fontScale } = useWindowDimensions();
   const router = useRouter();
   const isPro = useEffectivePro();
   const personalBests = useProfileStore((s) => s.personalBests);
@@ -198,19 +206,23 @@ export default function TrainScreen() {
             onPress={() => void trainTogether('push')}
             accessibilityRole="button"
             accessibilityLabel="Together push-up set"
-            style={styles.couplePick}
+            style={[styles.couplePick, { minHeight: reservedControlHeight(52, fontScale) }]}
           >
             <Image source={IC_PUSHUP} style={styles.couplePickIcon} contentFit="contain" />
-            <Text style={styles.couplePickText}>Push-Ups</Text>
+            <Text style={styles.couplePickText} {...scaleForRole('control')}>
+              Push-Ups
+            </Text>
           </PressableScale>
           <PressableScale
             onPress={() => void trainTogether('squat')}
             accessibilityRole="button"
             accessibilityLabel="Together squat set"
-            style={styles.couplePick}
+            style={[styles.couplePick, { minHeight: reservedControlHeight(52, fontScale) }]}
           >
             <Image source={IC_SQUAT} style={styles.couplePickIcon} contentFit="contain" />
-            <Text style={styles.couplePickText}>Squats</Text>
+            <Text style={styles.couplePickText} {...scaleForRole('control')}>
+              Squats
+            </Text>
           </PressableScale>
         </View>
       ) : null}
@@ -432,8 +444,8 @@ const styles = StyleSheet.create({
   },
   couplePickRow: { flexDirection: 'row', gap: 12, marginTop: 12 },
   couplePick: {
+    // `minHeight` at render time — see `@/theme/fontScale`.
     flex: 1,
-    height: 52,
     borderRadius: radius['2xl'],
     backgroundColor: palette.white,
     borderWidth: 1,

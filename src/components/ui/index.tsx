@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
   type PressableProps,
   type StyleProp,
@@ -20,7 +21,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { text } from '@/theme/typography';
+import { reservedControlHeight } from '@/theme/fontScale';
+import { scaleFor, text } from '@/theme/typography';
 import { gradients, palette, radius, shadow, space, SCREEN_GUTTER, type Gradient } from '@/theme/tokens';
 import { lightImpactHaptic } from '@/lib/feedback';
 
@@ -223,6 +225,9 @@ export function PrimaryButton({
   colors?: Gradient;
   style?: StyleProp<ViewStyle>;
 }) {
+  // The button grows with its label rather than clipping it. At the default
+  // text size this is exactly the designed 60pt — see `@/theme/fontScale`.
+  const { fontScale } = useWindowDimensions();
   return (
     <PressableScale
       onPress={onPress}
@@ -236,9 +241,14 @@ export function PrimaryButton({
         colors={disabled ? [palette.border, palette.border] : colors}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
-        style={styles.primaryButton}
+        style={[styles.primaryButton, { minHeight: reservedControlHeight(60, fontScale) }]}
       >
-        <Text style={[text.button, disabled && { color: palette.grey450 }]}>{label}</Text>
+        <Text
+          style={[text.button, disabled && { color: palette.grey450 }]}
+          {...scaleFor('button')}
+        >
+          {label}
+        </Text>
       </LinearGradient>
     </PressableScale>
   );
@@ -471,7 +481,9 @@ const styles = StyleSheet.create({
     ...shadow.brand,
   },
   primaryButton: {
-    height: 60,
+    // `minHeight` is supplied at render time from the live font scale, so the
+    // label can never be clipped by its own button. Declaring a fixed `height`
+    // here again would silently reinstate that clipping.
     borderRadius: radius['4xl'],
     alignItems: 'center',
     justifyContent: 'center',
@@ -480,8 +492,11 @@ const styles = StyleSheet.create({
     // 44, not 40: the accessibility node reports the *element* bounds, so a
     // hitSlop-padded 40pt chip still audits as 40 even though the tap lands.
     // Measured on device (uiautomator) at exactly 40.0x40.0dp before this.
+    //
+    // `minHeight`, so a glyph rendered at a larger text size grows the chip
+    // instead of being cropped by it. 44 remains the floor the audit measures.
     width: 44,
-    height: 44,
+    minHeight: 44,
     borderRadius: radius.lg,
     backgroundColor: palette.white,
     alignItems: 'center',

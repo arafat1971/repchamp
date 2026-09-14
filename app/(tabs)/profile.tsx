@@ -538,7 +538,7 @@ const styles = StyleSheet.create({
   badgeEarnedWrap: {
     backgroundColor: palette.tintGreenBottom,
     borderWidth: 1.5,
-    borderColor: '#4ade80',
+    borderColor: palette.green400,
   },
   badgeDot: {
     position: 'absolute',

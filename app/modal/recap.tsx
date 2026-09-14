@@ -105,7 +105,7 @@ export default function WeeklyRecapScreen() {
               <View key={i} style={styles.chartColumn}>
                 {value > 0 ? (
                   <LinearGradient
-                    colors={isBest ? gradients.brandStrong : ['#86efac', '#22c55e']}
+                    colors={isBest ? gradients.brandStrong : [palette.green300, palette.green500]}
                     style={[
                       styles.chartBar,
                       { height: `${Math.max(8, heightPercent)}%` },

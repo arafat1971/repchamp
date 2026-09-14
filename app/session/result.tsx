@@ -654,7 +654,7 @@ const styles = StyleSheet.create({
   rewardChipFire: {
     backgroundColor: palette.amber50,
     borderWidth: 1,
-    borderColor: '#fcd34d',
+    borderColor: palette.amber200,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
@@ -662,7 +662,7 @@ const styles = StyleSheet.create({
   rewardChipGold: {
     backgroundColor: palette.amber50,
     borderWidth: 1,
-    borderColor: '#f59e0b',
+    borderColor: palette.amber500,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,

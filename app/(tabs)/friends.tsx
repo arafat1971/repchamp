@@ -35,9 +35,9 @@ import type { InviteKind } from '@/domain/presence';
 
 /** Avatar tints, keyed by opponent id, matching the design. */
 const TINTS: Record<string, { background: string; color: string }> = {
-  adrian: { background: '#ddd6fe', color: '#5b21b6' },
-  zheng: { background: '#bfdbfe', color: '#1e40af' },
-  mia: { background: '#fde68a', color: '#92400e' },
+  adrian: { background: palette.purple300, color: palette.purple900 },
+  zheng: { background: palette.blue100, color: palette.blue800 },
+  mia: { background: palette.amber100, color: palette.amber900 },
 };
 
 function tint(id: string) {

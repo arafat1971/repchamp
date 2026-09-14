@@ -104,6 +104,6 @@ const styles = StyleSheet.create({
   },
   particle: {
     position: 'absolute',
-    backgroundColor: '#22c55e',
+    backgroundColor: palette.green500,
   },
 });

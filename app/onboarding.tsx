@@ -128,7 +128,7 @@ const BLOCKERS = [
 /** Illustrative leaderboard rows for the antidote screen. */
 const BOARD_MOCK = [
   { medal: '🥇', emoji: '🏃‍♀️', name: 'Nova', xp: '1,240', tint: '#ede9fe', you: false },
-  { medal: '🥈', emoji: '💪', name: 'You', xp: '1,180', tint: '#eafaf0', you: true },
+  { medal: '🥈', emoji: '💪', name: 'You', xp: '1,180', tint: palette.green50, you: true },
   { medal: '🥉', emoji: '🤾‍♂️', name: 'Titan', xp: '1,020', tint: '#dbeafe', you: false },
 ] as const;
 
@@ -2903,7 +2903,7 @@ const styles = StyleSheet.create({
     padding: 8,
     borderWidth: 2,
     borderColor: '#20302a',
-    shadowColor: '#16a34a',
+    shadowColor: palette.green600,
     shadowOffset: { width: 0, height: 16 },
     shadowOpacity: 0.35,
     shadowRadius: 30,
@@ -2957,7 +2957,7 @@ const styles = StyleSheet.create({
     borderColor: palette.green700,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#16a34a',
+    shadowColor: palette.green600,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.22,
     shadowRadius: 22,
@@ -3122,7 +3122,7 @@ const styles = StyleSheet.create({
     borderColor: palette.green700,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#16a34a',
+    shadowColor: palette.green600,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.22,
     shadowRadius: 22,
@@ -3163,7 +3163,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.purple100,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#7c3aed',
+    shadowColor: palette.purple600,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.2,
     shadowRadius: 22,
@@ -3716,7 +3716,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.amber50,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#f59e0b',
+    shadowColor: palette.amber500,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.24,
     shadowRadius: 22,

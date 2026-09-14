@@ -350,14 +350,14 @@ export default function HomeScreen() {
                   next to it. The medal is the clearest of the three and the
                   only one that sits with the tier name it labels. */}
               <View style={styles.miniHeader}>
-                <Text style={font('bold', 12, { color: '#92400e' })}>League</Text>
+                <Text style={font('bold', 12, { color: palette.amber900 })}>League</Text>
               </View>
               <View style={styles.leagueRow}>
                 <Image source={MEDAL_BRONZE} style={styles.medalIconSmall} contentFit="contain" />
                 <Text style={font('bold', 16, { color: palette.ink })}>{leagueProgress.title}</Text>
               </View>
-              <Text style={font('bold', 14, { color: '#b45309', marginTop: 4 })}>
-                <CountUp value={weeklyXp} style={font('bold', 14, { color: '#b45309' })} /> XP
+              <Text style={font('bold', 14, { color: palette.amber800, marginTop: 4 })}>
+                <CountUp value={weeklyXp} style={font('bold', 14, { color: palette.amber800 })} /> XP
               </Text>
               <LeagueXpBar fill={leagueProgress.fill} />
               <Text style={font('regular', 10.5, { color: palette.amber100Text, marginTop: 4 })} numberOfLines={1}>
@@ -392,7 +392,7 @@ export default function HomeScreen() {
           label="Push-Ups"
           locked={soloWalled}
           image={IC_PUSHUP}
-          accent="#16a34a"
+          accent={palette.green600}
           tint={[palette.tintGreenTop, palette.tintGreenBottom]}
           stats={pushStats}
           onPress={() => startSolo('push')}
@@ -401,7 +401,7 @@ export default function HomeScreen() {
           label="Squats"
           locked={soloWalled}
           image={IC_SQUAT}
-          accent="#7c3aed"
+          accent={palette.purple600}
           tint={[palette.tintPurpleTop, palette.tintPurpleBottom]}
           stats={squatStats}
           onPress={() => startSolo('squat')}
@@ -670,7 +670,7 @@ const styles = StyleSheet.create({
     gap: 4,
     backgroundColor: palette.amber50,
     borderWidth: 1,
-    borderColor: '#fcd34d',
+    borderColor: palette.amber200,
     borderRadius: radius.sm,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -717,7 +717,7 @@ const styles = StyleSheet.create({
   iconButtonAlert: {
     backgroundColor: palette.green50,
     borderColor: palette.green500,
-    shadowColor: '#16a34a',
+    shadowColor: palette.green600,
     shadowOpacity: 0.28,
     shadowRadius: 10,
   },
@@ -814,7 +814,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    shadowColor: '#0f172a',
+    shadowColor: palette.slate900,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 10,

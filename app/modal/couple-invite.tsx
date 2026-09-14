@@ -380,7 +380,7 @@ export default function CoupleInviteScreen() {
                   {partner.avatarUrl ? (
                     <Image source={{ uri: partner.avatarUrl }} style={styles.avatarImg} contentFit="cover" />
                   ) : (
-                    <View style={[styles.avatarPlaceholder, { backgroundColor: '#065f46' }]}>
+                    <View style={[styles.avatarPlaceholder, { backgroundColor: palette.green900 }]}>
                       <Text style={styles.avatarInitial}>{partnerInitial}</Text>
                     </View>
                   )}
@@ -486,11 +486,11 @@ export default function CoupleInviteScreen() {
             </View>
             <View style={styles.calendarLegend}>
               <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: '#22c55e' }]} />
+                <View style={[styles.legendDot, { backgroundColor: palette.green500 }]} />
                 <Text style={styles.legendText}>Both</Text>
               </View>
               <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: '#86efac' }]} />
+                <View style={[styles.legendDot, { backgroundColor: palette.green300 }]} />
                 <Text style={styles.legendText}>You</Text>
               </View>
               <View style={styles.legendItem}>
@@ -574,7 +574,7 @@ export default function CoupleInviteScreen() {
               accessibilityLabel="Open our shareable couple card"
             >
               <LinearGradient
-                colors={['#22c55e', '#15803d']}
+                colors={[palette.green500, palette.green700]}
                 style={[
                   styles.actionPrimaryGrad,
                   { minHeight: reservedControlHeight(52, fontScale) },
@@ -898,7 +898,7 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: 'rgba(255,255,255,0.9)',
     overflow: 'hidden',
-    backgroundColor: '#065f46',
+    backgroundColor: palette.green900,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
@@ -1034,8 +1034,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  calendarDotBoth: { backgroundColor: '#22c55e' },
-  calendarDotMe: { backgroundColor: '#86efac' },
+  calendarDotBoth: { backgroundColor: palette.green500 },
+  calendarDotMe: { backgroundColor: palette.green300 },
   calendarDotPartner: { backgroundColor: '#cbd5e1' },
   calendarDotNone: { backgroundColor: palette.divider },
   calendarLegend: {
@@ -1085,7 +1085,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#22c55e',
+    backgroundColor: palette.green500,
   },
 
   /* ── Shared styles ── */
@@ -1353,7 +1353,7 @@ const styles = StyleSheet.create({
     gap: 8,
     backgroundColor: '#fffbeb',
     borderWidth: 1,
-    borderColor: '#fcd34d',
+    borderColor: palette.amber200,
     borderRadius: radius['2xl'],
     padding: 12,
     marginBottom: 12,

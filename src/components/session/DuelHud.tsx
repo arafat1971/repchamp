@@ -429,7 +429,7 @@ const styles = StyleSheet.create({
     width: 3,
     height: '100%',
     backgroundColor: palette.white,
-    shadowColor: '#ffffff',
+    shadowColor: palette.white,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
     shadowRadius: 6,
@@ -447,7 +447,7 @@ const styles = StyleSheet.create({
   horizontalDepthFill: {
     height: 3,
     borderRadius: 1.5,
-    shadowColor: '#22c55e',
+    shadowColor: palette.green500,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 4,

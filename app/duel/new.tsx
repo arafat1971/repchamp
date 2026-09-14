@@ -424,7 +424,7 @@ export default function DuelNewScreen() {
               >
                 {selected ? (
                   <LinearGradient
-                    colors={['#22c55e', '#15803d']}
+                    colors={[palette.green500, palette.green700]}
                     start={{ x: 0.2, y: 0 }}
                     end={{ x: 0.85, y: 1 }}
                     style={[styles.durationChip, styles.durationChipSelected]}
@@ -547,7 +547,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.slate900,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#0f172a',
+    shadowColor: palette.slate900,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
@@ -592,7 +592,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.white,
     gap: 8,
     position: 'relative',
-    shadowColor: '#0f172a',
+    shadowColor: palette.slate900,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.07,
     shadowRadius: 14,
@@ -650,7 +650,7 @@ const styles = StyleSheet.create({
   // Border-free at rest — a soft neutral lift matches the exercise tiles.
   durationChipDefault: {
     backgroundColor: palette.white,
-    shadowColor: '#0f172a',
+    shadowColor: palette.slate900,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.06,
     shadowRadius: 10,
@@ -658,7 +658,7 @@ const styles = StyleSheet.create({
   },
   // Selected chip carries a brand-green glow so it clearly leads the row.
   durationChipSelected: {
-    shadowColor: '#16a34a',
+    shadowColor: palette.green600,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.32,
     shadowRadius: 14,

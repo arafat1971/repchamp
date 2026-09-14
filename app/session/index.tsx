@@ -136,7 +136,7 @@ export default function SessionScreen() {
         initial: name.charAt(0).toUpperCase(),
         color: '#1e3a5f',
         borderColor: '#3b82f6',
-        repColor: '#93c5fd',
+        repColor: palette.blue300,
         level: 1,
         online: true,
         repsPerMinute: 0,

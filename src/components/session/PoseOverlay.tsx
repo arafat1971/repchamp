@@ -17,6 +17,7 @@ import {
   type SharedValue,
 } from 'react-native-reanimated';
 
+import { palette } from '@/theme/tokens';
 import { KEYPOINT_INDEX, SKELETON_BONES } from '@/vision/keypoints';
 
 /** Flat pose buffer shared with the frame processor: `[x, y, score] * 17`. */
@@ -396,7 +397,7 @@ export function PoseOverlay({ pose, frame, color, visible }: PoseOverlayProps) {
           strokeWidth={BONE_STROKE_WIDTH}
           strokeCap="round"
           strokeJoin="round"
-          color="#ffffff"
+          color={palette.white}
         />
 
         <Joints
@@ -497,7 +498,7 @@ function Joint({
       {!LIGHT_OVERLAY ? (
         // Bright-core-to-accent radial fill so joints read as light sources.
         <Circle cx={cx} cy={cy} r={r}>
-          <RadialGradient c={center} r={JOINT_RADIUS} colors={['#ffffff', color]} />
+          <RadialGradient c={center} r={JOINT_RADIUS} colors={[palette.white, color]} />
         </Circle>
       ) : (
         <Circle cx={cx} cy={cy} r={r} color={color} opacity={0.95} />
@@ -554,7 +555,7 @@ function TipDot({
       cx={cx}
       cy={cy}
       r={r}
-      color={LIGHT_OVERLAY ? color : '#ffffff'}
+      color={LIGHT_OVERLAY ? color : palette.white}
       opacity={LIGHT_OVERLAY ? 0.95 : 1}
     />
   );

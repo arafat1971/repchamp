@@ -174,8 +174,8 @@ function ProfileIcon({ color, focused }: IconProps) {
         {focused ? (
           <>
             <Circle cx={12} cy={12} r={9.3} fill={c} />
-            <Circle cx={12} cy={9.6} r={2.9} fill={'#ffffff'} />
-            <Path d="M6.8 18.9c0-2.9 2.3-4.8 5.2-4.8s5.2 1.9 5.2 4.8z" fill={'#ffffff'} />
+            <Circle cx={12} cy={9.6} r={2.9} fill={palette.white} />
+            <Path d="M6.8 18.9c0-2.9 2.3-4.8 5.2-4.8s5.2 1.9 5.2 4.8z" fill={palette.white} />
           </>
         ) : (
           <>
@@ -288,13 +288,13 @@ function PlusMark({ size }: { size: number }) {
     <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
       <Path
         d={`M${half} 3 L${half} ${size - 3}`}
-        stroke="#ffffff"
+        stroke={palette.white}
         strokeWidth={3}
         strokeLinecap="round"
       />
       <Path
         d={`M3 ${half} L${size - 3} ${half}`}
-        stroke="#ffffff"
+        stroke={palette.white}
         strokeWidth={3}
         strokeLinecap="round"
       />
@@ -640,7 +640,7 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
         >
-          <Text style={font('semibold', 12, { color: '#ffffff' })}>Hold for more</Text>
+          <Text style={font('semibold', 12, { color: palette.white })}>Hold for more</Text>
         </View>
       ) : null}
 
@@ -708,7 +708,7 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
                 Hidden while the menu is open, where it would sit over the ×. */}
             {fab.badgeCount > 0 && !open ? (
               <View style={styles.fabBadge} pointerEvents="none">
-                <Text style={font('extrabold', 10.5, { color: '#ffffff' })}>
+                <Text style={font('extrabold', 10.5, { color: palette.white })}>
                   {fab.badgeCount > 9 ? '9+' : fab.badgeCount}
                 </Text>
               </View>
@@ -738,8 +738,8 @@ export default function TabsLayout() {
         }}
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: '#16a34a',
-          tabBarInactiveTintColor: '#475569',
+          tabBarActiveTintColor: palette.green600,
+          tabBarInactiveTintColor: palette.slate600,
           tabBarStyle: [
             styles.tabBar,
             {
@@ -789,7 +789,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     marginBottom: 4,
     elevation: 8,
-    shadowColor: '#0f172a',
+    shadowColor: palette.slate900,
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.08,
     shadowRadius: 16,
@@ -811,7 +811,7 @@ const styles = StyleSheet.create({
     width: 36,
   },
   iconFocused: {
-    shadowColor: '#16a34a',
+    shadowColor: palette.green600,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 8,
     elevation: 3,
@@ -918,7 +918,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: palette.border,
-    shadowColor: '#000000',
+    shadowColor: palette.black,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.12,
     shadowRadius: 16,

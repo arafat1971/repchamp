@@ -631,7 +631,7 @@ const styles = StyleSheet.create({
   /* Sits above the price on the dark hero, in the brand green so it reads as
      the athlete's own result rather than another marketing claim. */
   ownProof: {
-    ...font('extrabold', 13, { color: '#86efac' }),
+    ...font('extrabold', 13, { color: palette.green300 }),
     marginTop: 10,
     lineHeight: 18,
   },

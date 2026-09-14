@@ -22,23 +22,43 @@
  * screen and anywhere else it is consulted.
  */
 
-/** Free reps a non-Pro athlete may do, lifetime, before the wall. */
-export const FREE_REP_LIMIT = 5;
+/**
+ * Free reps a non-Pro athlete may do, lifetime, before the wall.
+ *
+ * Raised from 5 to 50 on 2026-09-13. At 5 the wall landed on the *second*
+ * session: onboarding's last tap drops the athlete straight into a practice set
+ * (`app/onboarding.tsx`), and five reps is about twenty seconds of push-ups, so
+ * they met the pitch having never finished a routine, seen a form report or
+ * started a streak. That is a paywall placed before the core value, which is
+ * the same reasoning that removed the wall entirely on 2026-08-06.
+ *
+ * 50 buys several complete sessions first. The wall still exists — this tunes
+ * where it falls, it does not retreat from it. Everything downstream (the
+ * countdown, the warning, the tests) reads this constant, so moving the number
+ * is the whole change.
+ */
+export const FREE_REP_LIMIT = 50;
 
 /**
- * Master switch — **on** as of 2026-08-31, Play review having cleared.
+ * Master switch — **off** as of 2026-09-13. The wall is stood down.
  *
- * It was held off while the app sat under a rejection for being paywalled.
- * Setting it back to `false` is the whole of the retreat if that judgement
- * returns: every caller then behaves as though the wall does not exist, and
- * the rules stay under test via `evaluateHardWallRule` either way.
+ * Turned off because gating the core experience hurts retention: an athlete
+ * who cannot build a routine never subscribes and never invites a partner.
+ * That is the same conclusion as 2026-08-06, reached again after the 50-rep
+ * allowance earlier the same day proved to be treating the symptom — moving
+ * where the wall falls does not change that it eventually stops training.
  *
- * This is the second time this model has shipped. It was removed once before,
- * on 2026-08-06, because an athlete who cannot build a routine never
- * subscribes and never invites a partner — worth re-reading if the numbers
- * after this turn out the same way.
+ * History, because this decision has now turned over four times: shipped
+ * (`4ef36a4`), removed 2026-08-06 on this reasoning, restored 2026-08-31 once
+ * Play review cleared, stood down again here. Setting this back to `true` is
+ * the whole of the return — nothing else needs editing, and no app code calls
+ * the rules directly around it.
+ *
+ * The rules underneath stay live and under test via `evaluateHardWallRule` /
+ * `repsRemainingRule`, so nothing rots while the switch is off. That split is
+ * exactly why this is a one-line change rather than git archaeology.
  */
-export const HARD_WALL_ENABLED = true;
+export const HARD_WALL_ENABLED = false;
 
 export interface HardWallInput {
   /** RevenueCat entitlement truth. Pro is never walled. */
@@ -114,12 +134,23 @@ export function repsRemainingRule(input: HardWallInput): number {
 }
 
 /**
+ * How many reps out the "nearly gone" warning starts.
+ *
+ * Widened from 2 to 8 on 2026-09-13, alongside the move to a 50-rep allowance.
+ * Two reps was a fifth of the old budget and read as a real heads-up; against
+ * 50 it is the last 4%, firing only after the athlete has already done 48 and
+ * far too late to act on. Eight keeps the warning something you can still
+ * finish a set around.
+ */
+export const NEARING_WALL_REPS = 8;
+
+/**
  * Whether to warn that the allowance is nearly gone.
  *
  * A wall that arrives with no warning reads as a crash. This lets the session
- * say "1 rep left" before it stops rather than after.
+ * say "8 reps left" while there is still room to decide, rather than after.
  */
 export function isNearingWall(input: HardWallInput): boolean {
   const left = repsRemaining(input);
-  return Number.isFinite(left) && left > 0 && left <= 2;
+  return Number.isFinite(left) && left > 0 && left <= NEARING_WALL_REPS;
 }

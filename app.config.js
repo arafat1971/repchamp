@@ -25,6 +25,10 @@ module.exports = () => {
     extra.revenueCatApple = env.EXPO_PUBLIC_REVENUECAT_APPLE;
   }
   if (env.EXPO_PUBLIC_SENTRY_DSN) extra.sentryDsn = env.EXPO_PUBLIC_SENTRY_DSN;
+  // App Check debug token — development installs only. See src/lib/config.ts.
+  if (env.EXPO_PUBLIC_APP_CHECK_DEBUG_TOKEN) {
+    extra.appCheckDebugToken = env.EXPO_PUBLIC_APP_CHECK_DEBUG_TOKEN;
+  }
 
   return {
     ...expo,

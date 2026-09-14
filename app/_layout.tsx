@@ -18,6 +18,9 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { DialogHost } from '@/components/ui/DialogHost';
 import { prepareAudio, releaseAudio } from '@/lib/feedback';
 import { identify, track } from '@/lib/analytics';
+import { dayKey } from '@/domain/progression';
+import { returnVisit } from '@/domain/retention';
+import { storage } from '@/lib/storage';
 import { initAppCheck } from '@/lib/appCheck';
 import { initCrashReporting, setCrashUser } from '@/lib/crash';
 import {
@@ -38,12 +41,16 @@ import { cancelDuel } from '@/services/duelService';
 import {
   resumePendingLiveSettles,
 } from '@/services/liveResultSettle';
+import { emitRetention, retentionSnapshot } from '@/services/recordSessionWithRetention';
 import { AppState } from 'react-native';
 
 import { selectTotalReps, useProfileStore } from '@/state/profileStore';
 import { isWalled } from '@/domain/hardPaywall';
 import { isPurchasesConfigured } from '@/services/purchases';
 import { preloadPoseModel } from '@/vision/modelCache';
+/** Persisted visit markers for `day_n_return` — nothing else recorded a date. */
+const RETENTION_FIRST_DAY = 'retention.firstDay';
+const RETENTION_LAST_SEEN = 'retention.lastSeenDay';
 
 // Hold the splash until fonts are ready, so the first frame never shows
 // fallback system type in place of Plus Jakarta Sans.
@@ -102,6 +109,10 @@ export default function RootLayout() {
 
     const routeFromData = (data: Record<string, unknown>) => {
       const type = data.type;
+      /* Delivery is not engagement: this fires only when a nudge is actually
+         tapped, which is the number that says whether the reminders earn their
+         interruption or quietly train people to swipe them away. */
+      if (typeof type === 'string') track('notification_opened', { kind: type });
       if (type === 'weekly-recap') {
         router.push('/modal/recap');
       } else if (type === 'challenge' && typeof data.duelId === 'string') {
@@ -182,6 +193,24 @@ export default function RootLayout() {
   useEffect(() => {
     initCrashReporting();
     track('app_opened');
+
+    /* First open of a calendar day, with `dayN` counted from install so D1/D7
+       are computable. `app_opened` fires on every foreground, which conflates
+       one commuter checking four times with four separate people; this fires
+       once a day. The install-day open is included deliberately — `dayN: 0` is
+       the baseline every retention ratio is divided by. */
+    {
+      const today = dayKey();
+      const stored = storage.getString(RETENTION_FIRST_DAY);
+      const firstDay = stored ?? today;
+      if (!stored) storage.set(RETENTION_FIRST_DAY, today);
+
+      const visit = returnVisit(firstDay, storage.getString(RETENTION_LAST_SEEN) ?? null);
+      if (visit) {
+        track('day_n_return', visit);
+        storage.set(RETENTION_LAST_SEEN, today);
+      }
+    }
     // Warm MoveNet after first paint so session camera is not blocked on load.
     void preloadPoseModel().catch(() => {
       // Session hook retries; a failed preload must not crash the shell.
@@ -231,6 +260,10 @@ export default function RootLayout() {
     // Re-arm live-duel XP settles that survived process death.
     resumePendingLiveSettles((item, bank) => {
       if (useAuthStore.getState().user?.uid !== item.uid) return false;
+      // A duel banked on cold resume is a real training day: it extends a real
+      // streak and can move a real league. Snapshot before the write — after it
+      // the state would be compared with itself and report nothing.
+      const before = retentionSnapshot();
       useProfileStore.getState().recordSession({
         exercise: item.record.exercise,
         mode: item.record.sessionMode,
@@ -245,6 +278,7 @@ export default function RootLayout() {
         formScore: item.record.formScore,
         durationSec: item.record.durationSec,
       });
+      emitRetention(before.days, before.league);
       void useAuthStore.getState().pushProfile();
       return true;
     });
@@ -280,6 +314,10 @@ export default function RootLayout() {
                 app/duel/_layout. Card presentation so Cancel owns the exit. */}
             <Stack.Screen name="duel" options={{ animation: 'slide_from_bottom' }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+            {/* Couple stack — the bond tracker plus the `?code=` join landing.
+                Declared so the tracker gets a normal push animation; `join`
+                only ever redirects, like `[handle]`. */}
+            <Stack.Screen name="couple" />
             {/* `/@username` friend invites. Declared last and rendered without
                 animation because it only ever redirects — it is a landing pad for
                 the deep link, never a screen anyone should see slide in. Static

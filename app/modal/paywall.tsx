@@ -178,6 +178,18 @@ export default function PaywallScreen() {
       return;
     }
 
+    /* Paid, but the entitlement did not attach.
+     *
+     * The RevenueCat wording is deliberate and must not be softened into
+     * generic "contact support" copy. On 2026-08-09 this dialog was what
+     * identified the second of two faults blocking every purchase the app had
+     * ever attempted: the `pro` entitlement had no products attached, so a
+     * validated purchase left `entitlements.active['pro']` empty and Pro never
+     * switched on. The fault was invisible until a separate service-account
+     * credentials failure cleared, and this string named the cause outright.
+     *
+     * It is rare, it is actionable, and the person most likely to see it is
+     * whoever can fix it. Leave it specific. */
     if (result.ok && !result.isPro) {
       showDialog({
         title: 'Almost there',
@@ -255,9 +267,15 @@ export default function PaywallScreen() {
   return (
     <Screen scroll={false} style={styles.root} contentStyle={styles.rootContent}>
       <View style={styles.body}>
+        {/* `onBack` is not optional here. ModalHeader falls back to
+            `router.back()`, which is exactly the exit `leave` exists to avoid:
+            the rep wall arrives via <Redirect>, so back lands on whatever
+            preceded the session and can re-wall straight back into this
+            screen. The chevron has to be the same door as "Maybe later". */}
         <ModalHeader
           title="RepChamp Pro"
           subtitle="Unlock depth. Keep the free staples."
+          onBack={leave}
         />
 
         <Animated.ScrollView
@@ -328,12 +346,20 @@ export default function PaywallScreen() {
           <Text style={styles.plansLabel}>CHOOSE YOUR PLAN</Text>
 
           <View style={styles.plans}>
+            {/* No billing key on this build. Unlike the entitlement dialog
+                above — a rare, genuinely diagnostic message — this renders on
+                *every* paywall visit in dev, so it is the athlete's copy, not
+                a developer note; the setup pointer that used to live here
+                (REVENUECAT_SETUP.md) belongs in the repo, not on screen.
+                `isPurchasesConfigured()` returning false is itself the signal,
+                and the hard wall stands down when it does (see
+                domain/hardPaywall.ts), so nobody is ever locked out here. */}
             {!billingReady ? (
               <View style={styles.statusCard}>
-                <Text style={styles.statusTitle}>Billing connects on release builds</Text>
+                <Text style={styles.statusTitle}>Subscriptions aren’t available here</Text>
                 <Text style={styles.statusBody}>
-                  Push-ups, squats, duels and couple mode stay free. See REVENUECAT_SETUP.md to
-                  wire live plans.
+                  Push-ups, squats, duels and couple mode stay free — keep training and nothing
+                  is locked.
                 </Text>
               </View>
             ) : loadFailed ? (
@@ -418,19 +444,23 @@ export default function PaywallScreen() {
               <Text style={styles.footerLink}>Restore purchase</Text>
             </PressableScale>
             <Text style={styles.footerSep}>·</Text>
-            {showRetry ? (
-              <>
-                <PressableScale
-                  onPress={leave}
-                  accessibilityRole="button"
-                  accessibilityLabel="Maybe later"
-                  style={styles.footerLinkHit}
-                >
-                  <Text style={styles.footerLink}>Maybe later</Text>
-                </PressableScale>
-                <Text style={styles.footerSep}>·</Text>
-              </>
-            ) : null}
+            {/* Unconditional. This used to render only when `showRetry` was
+                true, so on the ordinary loaded paywall — plans fetched, prices
+                on screen — the only ways out were the header chevron (which
+                was unwired, see above) and Android back. On the rep wall that
+                left an iOS athlete with no visible decline at all, which is
+                the dead end the store rejection was about. Declining must
+                always be one obvious tap. */}
+            <PressableScale
+              onPress={leave}
+              accessibilityRole="button"
+              accessibilityLabel="Maybe later"
+              disabled={busy}
+              style={styles.footerLinkHit}
+            >
+              <Text style={styles.footerLink}>Maybe later</Text>
+            </PressableScale>
+            <Text style={styles.footerSep}>·</Text>
             <PressableScale
               onPress={() => void Linking.openURL(TERMS_URL)}
               accessibilityRole="link"

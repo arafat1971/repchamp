@@ -28,6 +28,7 @@
 // is a real runtime value — rather than `new`-ing the type-only export.
 import '@react-native-firebase/app-check';
 
+import { appCheckDebugToken } from '@/lib/config';
 import { firebase, isFirebaseConfigured } from '@/lib/firebase';
 import { captureError } from '@/lib/crash';
 
@@ -53,10 +54,38 @@ export async function initAppCheck(): Promise<void> {
       // DeviceCheck/App Attest on iOS. `isTokenAutoRefreshEnabled` keeps a fresh
       // token ready so live requests never block on minting one.
       const provider = appCheck.newReactNativeFirebaseAppCheckProvider();
-      provider.configure({
-        android: { provider: 'playIntegrity' },
-        apple: { provider: 'appAttestWithDeviceCheckFallback' },
-      });
+
+      /* A sideloaded debug build can never satisfy Play Integrity — it is not a
+       * Play-installed binary — so with enforcement on for Firestore its writes
+       * are rejected before the rules run, while reads still pass. That is what
+       * made pairing fail on device on 2026-09-13 with
+       * `[firestore/unknown] PERMISSION_DENIED`, and no rules change could fix
+       * it because the rules were never reached.
+       *
+       * The debug provider is the documented escape hatch: register the token
+       * in the Firebase console (App Check → Android app → Manage debug tokens)
+       * and that one install attests without relaxing enforcement for anyone
+       * else.
+       *
+       * Gated on `__DEV__` *and* a configured token, so a release build cannot
+       * take this path even if the env var leaks into its config, and a debug
+       * build without a token behaves exactly as before. */
+      const debugToken = __DEV__ ? appCheckDebugToken() : undefined;
+
+      if (debugToken) {
+        provider.configure({
+          android: { provider: 'debug', debugToken },
+          apple: { provider: 'debug', debugToken },
+        });
+      } else {
+        // The RN Firebase provider picks Play Integrity on Android and
+        // DeviceCheck/App Attest on iOS. `isTokenAutoRefreshEnabled` keeps a
+        // fresh token ready so live requests never block on minting one.
+        provider.configure({
+          android: { provider: 'playIntegrity' },
+          apple: { provider: 'appAttestWithDeviceCheckFallback' },
+        });
+      }
       await appCheck.initializeAppCheck({
         provider,
         isTokenAutoRefreshEnabled: true,

@@ -81,32 +81,27 @@ export const playLoseSound = () => play('lose');
 
 export function repHaptic(): void {
   if (!useSettingsStore.getState().haptics) return;
-  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
 }
 
 export function lightImpactHaptic(): void {
   if (!useSettingsStore.getState().haptics) return;
-  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
 }
 
 export function selectionHaptic(): void {
   if (!useSettingsStore.getState().haptics) return;
-  void Haptics.selectionAsync();
+  void Haptics.selectionAsync().catch(() => {});
 }
 
 export function successHaptic(): void {
   if (!useSettingsStore.getState().haptics) return;
-  void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-}
-
-export function failureHaptic(): void {
-  if (!useSettingsStore.getState().haptics) return;
-  void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+  void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
 }
 
 export function lockHaptic(): void {
   if (!useSettingsStore.getState().haptics) return;
-  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
 }
 
 /** Combined beep + tick fired on each counted rep. */

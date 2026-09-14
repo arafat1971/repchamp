@@ -330,8 +330,23 @@ service cloud.firestore {
 
       // Get: members always; pending invites readable by code so a partner can join.
       // List: only docs where the caller is already a member (my-couples query).
+      //
+      // `resource == null` first, and not merely for tidiness: `createCouple`
+      // opens its transaction with `tx.get(ref)` on a freshly minted pair code,
+      // a document that by definition does not exist yet. Without this branch
+      // both conditions below dereference a null `resource` and the rule throws
+      //     Null value error  @ L333
+      // so the read is denied and creation fails before it ever attempts a
+      // write — surfacing to the athlete as
+      //     [firestore/unknown] PERMISSION_DENIED
+      // which reads like a write-permission problem and is not one.
+      //
+      // Allowing the read of a missing document leaks nothing: there is no data
+      // to return, and `allow create` below still decides whether anything may
+      // be written there.
       allow get: if isAuthed() && (
-        request.auth.uid in resource.data.memberUids
+        resource == null
+        || request.auth.uid in resource.data.memberUids
         || resource.data.pending == true
       );
       allow list: if isAuthed() && request.auth.uid in resource.data.memberUids;

@@ -26,8 +26,10 @@ import {
   EXERCISE_SAFETY_CHIP,
 } from '@/domain/exerciseSafety';
 import { OpponentPacer, getOpponent, type Opponent } from '@/domain/opponent';
+import { FIRST_REP_MARKER, firstRepOutcome } from '@/domain/activation';
+import { storage } from '@/lib/storage';
 import { shouldPromptUpgrade } from '@/domain/paywallGate';
-import { isWalled, repsRemaining } from '@/domain/hardPaywall';
+import { NEARING_WALL_REPS, isWalled, repsRemaining } from '@/domain/hardPaywall';
 import type { SessionMode } from '@/domain/progression';
 import { isPurchasesConfigured } from '@/services/purchases';
 import { useAuthStore } from '@/state/authStore';
@@ -162,8 +164,9 @@ export default function SessionScreen() {
   const isPro = useEffectivePro();
   const proReady = useProStore((s) => s.ready);
   /* Lifetime reps already banked, which the free allowance counts against.
-     Capped at the store's 500-session history, which is far beyond a 5-rep
-     limit and so cannot matter here. */
+     Capped at the store's 500-session history — still far beyond the 50-rep
+     allowance, since the cap drops whole sessions only after 500 of them, so
+     the truncation cannot pull a spent athlete back under the limit. */
   const bankedReps = useProfileStore(selectTotalReps);
 
   // Freemium gate: latch once billing readiness resolves. Re-evaluating every
@@ -397,11 +400,27 @@ export default function SessionScreen() {
         }
         if (completedRep.index === 1) {
           track('first_rep_counted', { exercise });
+
+          /* The athlete's first rep *ever* is a different question from the
+             first rep of this set, and only the former closes the activation
+             funnel: `first_rep_counted` fires several times a week for a
+             regular, so install → first counted rep was not computable from it.
+             The marker is instrumentation, so it lives in MMKV beside the
+             `day_n_return` markers rather than in `profileStore`, which
+             deliberately does not know analytics exists. */
+          const activation = firstRepOutcome(
+            completedRep.index,
+            storage.getString(FIRST_REP_MARKER) ?? null,
+          );
+          if (activation.isFirstEver && activation.markAt) {
+            storage.set(FIRST_REP_MARKER, activation.markAt);
+            track('first_rep_ever', { exercise, mode });
+          }
         }
       }
       useSessionStore.getState().applyPose({ depth, tracking, completedRep, formCue });
     },
-    [exercise],
+    [exercise, mode],
   );
 
   /**
@@ -1025,10 +1044,16 @@ export default function SessionScreen() {
         ) : null}
 
         {/* The allowance running out, said before it does.
-            A set that simply stops reads as a crash; this makes the last two
-            reps deliberate. Rendered over both HUDs rather than threaded
-            through each, since it is about the account, not the exercise. */}
-        {phase === 'active' && Number.isFinite(repsLeft) && repsLeft > 0 && repsLeft <= 2 ? (
+            A set that simply stops reads as a crash; this makes the closing
+            reps deliberate. The threshold comes from `NEARING_WALL_REPS` rather
+            than a literal, so this cannot drift from the domain rule the way it
+            did when both hardcoded 2. Rendered over both HUDs rather than
+            threaded through each, since it is about the account, not the
+            exercise. */}
+        {phase === 'active' &&
+        Number.isFinite(repsLeft) &&
+        repsLeft > 0 &&
+        repsLeft <= NEARING_WALL_REPS ? (
           <View style={styles.repAllowance} pointerEvents="none">
             <Text style={styles.repAllowanceText}>
               {repsLeft === 1 ? '1 free rep left' : `${repsLeft} free reps left`}

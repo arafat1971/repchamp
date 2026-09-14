@@ -2,7 +2,7 @@ import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, {
   FadeInDown,
@@ -35,7 +35,7 @@ import { useCouple } from '@/state/useCouple';
 import { showDialog } from '@/state/useDialog';
 import { selectPairingBonusActive, useProfileStore } from '@/state/profileStore';
 import { font, text } from '@/theme/typography';
-import { palette, radius, shadow } from '@/theme/tokens';
+import { gradients, palette, radius, shadow } from '@/theme/tokens';
 
 /**
  * Pair up with a partner — the entry point to couple mode, and the app's viral
@@ -64,6 +64,11 @@ export default function CoupleInviteScreen() {
   useEffect(() => {
     if (!paired) void cancelStreakReminder();
   }, [paired]);
+
+  /* Auto-create fires at most once per mount. Without this, any re-render
+     while `code` is still null — an auth tick, a profile write — would queue a
+     second `createCouple` and leave an orphaned pending invite behind. */
+  const autoCreated = useRef(false);
 
   const [creating, setCreating] = useState(false);
   const [joining, setJoining] = useState(false);
@@ -118,14 +123,24 @@ export default function CoupleInviteScreen() {
     });
   };
 
-  const startInvite = async () => {
+  /**
+   * Create the pair code.
+   *
+   * `silent` is for the arrival effect: nobody asked for that attempt, so a
+   * failure must not throw a red dialog in front of someone who has only just
+   * opened the screen. The manual button keeps every message — there the
+   * athlete pressed something and is owed an answer.
+   */
+  const createInvite = async ({ silent }: { silent: boolean }) => {
     // Never let a primary button be a silent no-op — say why instead.
-    if (!uid) return requireAccount();
+    if (!uid) return silent ? undefined : requireAccount();
     setCreating(true);
     try {
       const created = await createCouple({ uid, displayName, avatarUrl: avatarUri });
       if (created) {
         track('couple_invite_created');
+      } else if (silent) {
+        // Unconfigured build — the screen already says so in its own card.
       } else {
         showDialog({
           title: 'Not available yet',
@@ -135,18 +150,51 @@ export default function CoupleInviteScreen() {
         });
       }
     } catch (error) {
-      // Surface the real reason rather than a dead end — a pairing failure the
-      // athlete can't act on is worse than none.
-      showDialog({
-        title: 'Could not create a code',
-        message: error instanceof Error ? error.message : 'Please try again.',
-        tone: 'danger',
-        actions: [{ label: 'Try again', variant: 'primary' }],
-      });
+      if (silent) {
+        /* Arrival attempt. Report it, but do not interrupt: the athlete can
+           still tap "Invite My Partner" and get the full message then. This is
+           also what keeps a Firestore outage (or App Check rejecting an
+           un-attested build) from greeting every visit with a red dialog. */
+        captureError(error);
+      } else {
+        // Surface the real reason rather than a dead end — a pairing failure the
+        // athlete can't act on is worse than none.
+        showDialog({
+          title: 'Could not create a code',
+          message: error instanceof Error ? error.message : 'Please try again.',
+          tone: 'danger',
+          actions: [{ label: 'Try again', variant: 'primary' }],
+        });
+      }
     } finally {
       setCreating(false);
     }
   };
+
+  const startInvite = () => createInvite({ silent: false });
+
+  /* Have a code ready on arrival, so the QR is on screen without a tap.
+   *
+   * Guarded hard, because this writes to Firestore: only for a signed-in
+   * athlete on a configured build, only once the couple subscription has
+   * settled (`loading`), and only when there is genuinely no couple yet —
+   * `code` covers an invite already open, `paired` covers a live bond. Firing
+   * on a half-loaded state would create a second couple for someone who
+   * already has one, which `createCouple` refuses anyway, but the refusal
+   * would surface as an error nobody asked for. */
+  useEffect(() => {
+    if (autoCreated.current) return;
+    if (!cloudConfigured || !uid || loading || paired || code) return;
+    autoCreated.current = true;
+    /* `createInvite` flips `creating` synchronously, which the lint rule reads
+       as a cascading render. It is bounded here: `autoCreated` makes this a
+       once-per-mount write, and the render it triggers is the spinner the
+       athlete should see while the code is minted. Same shape as the offering
+       fetch in `modal/paywall.tsx`, suppressed the same way. */
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void createInvite({ silent: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cloudConfigured, uid, loading, paired, code]);
 
   const redeem = async () => {
     if (!uid) return requireAccount();
@@ -571,7 +619,7 @@ export default function CoupleInviteScreen() {
             </PressableScale>
             <PressableScale onPress={shareCode} accessibilityRole="button">
               <LinearGradient
-                colors={['#22c55e', '#15803d']}
+                colors={gradients.brandStrong}
                 style={styles.actionPrimaryGrad}
               >
                 <Text style={font('extrabold', 14, { color: palette.white })}>Share invite</Text>
@@ -633,8 +681,13 @@ export default function CoupleInviteScreen() {
       {!loading && !paired && !code ? (
         <>
           <Animated.View entering={FadeInDown.duration(600)}>
+            {/* `gradients.brandDeep` — the same hero gradient the couple
+                tracker uses. This was a hardcoded mint wash
+                (#059669→#10b981→#6ee7b7), visibly lighter and cooler than every
+                other hero in the app, so the two halves of the pairing flow
+                read as different products one tap apart. */}
             <LinearGradient
-              colors={['#059669', '#10b981', '#6ee7b7']}
+              colors={gradients.brandDeep}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={[styles.pitchCard, shadow.brand]}
@@ -649,10 +702,20 @@ export default function CoupleInviteScreen() {
                   )}
                 </View>
                 <View style={styles.pitchHeartBubble}>
-                  <Text style={styles.pitchPlus}>+</Text>
+                  <Text style={styles.pitchCouple}>🫶</Text>
                 </View>
+                {/* The empty seat. A bare "?" read as an error state rather
+                    than an invitation — this is the one slot on the screen that
+                    is meant to feel like someone is missing from it. The
+                    athlete's own initial stays on the left, because that circle
+                    is them and identity beats decoration. */}
                 <View style={styles.pitchAvatarPartner}>
-                  <Text style={styles.pitchAvatarInitial}>?</Text>
+                  <Image
+                    source={require('../../assets/logo.png')}
+                    style={styles.pitchPartnerLogo}
+                    contentFit="cover"
+                    accessibilityLabel="Your partner's empty seat"
+                  />
                 </View>
               </View>
 
@@ -662,19 +725,27 @@ export default function CoupleInviteScreen() {
                 streak only survives if you both show up.
               </Text>
 
-              {/* Feature pills */}
+              {/* Feature pills. The emoji replace a decorative dot that said
+                  nothing — each one now names its pill at a glance, which is
+                  how `settings.tsx` uses emoji too (one per row, labelling a
+                  structured element rather than loose in prose).
+                  Labels are one word each on purpose: "Shared streak" etc. plus
+                  an emoji needs ~320dp on a 360dp phone against ~264dp of
+                  usable row, which wrapped the third pill onto its own line.
+                  One word apiece comes to ~202dp and the emoji carries the
+                  meaning the extra word was doing. */}
               <View style={styles.featurePills}>
                 <View style={styles.featurePill}>
-                  <View style={styles.featurePillDot} />
-                  <Text style={styles.featurePillText}>Shared streak</Text>
+                  <Text style={styles.featurePillEmoji}>🔥</Text>
+                  <Text style={styles.featurePillText}>Streak</Text>
                 </View>
                 <View style={styles.featurePill}>
-                  <View style={styles.featurePillDot} />
-                  <Text style={styles.featurePillText}>Combined reps</Text>
+                  <Text style={styles.featurePillEmoji}>💪</Text>
+                  <Text style={styles.featurePillText}>Reps</Text>
                 </View>
                 <View style={styles.featurePill}>
-                  <View style={styles.featurePillDot} />
-                  <Text style={styles.featurePillText}>Couple badges</Text>
+                  <Text style={styles.featurePillEmoji}>🏆</Text>
+                  <Text style={styles.featurePillText}>Badges</Text>
                 </View>
               </View>
             </LinearGradient>
@@ -688,7 +759,7 @@ export default function CoupleInviteScreen() {
               disabled={creating}
             >
               <LinearGradient
-                colors={['#22c55e', '#059669']}
+                colors={gradients.brandStrong}
                 style={[styles.ctaButton, shadow.brand]}
               >
                 <Text style={font('extrabold', 16, { color: palette.white })}>
@@ -996,7 +1067,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 20,
-    shadowColor: '#22c55e',
+    shadowColor: palette.green500,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -1090,6 +1161,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: palette.green700,
   },
+  /* #059669 and #047857 below are deliberately NOT swapped for green600/green700.
+     Measured against this card's own ground (tintGreenTop #f0fdf4 →
+     tintGreenBottom #dcfce7) the tokens are worse on contrast, not better:
+       waitingCode  #059669 3.60:1 / 3.43:1  vs  green600 3.15:1 / 3.00:1
+       waitingLabel #047857 5.24:1 / 4.99:1  vs  green700 4.79:1 / 4.57:1
+     The label would still pass AA on the token, but tokenising here trades
+     legibility for tidiness on the one surface that shows a 6-character code
+     someone has to read off a screen and type into another phone. */
   waitingCode: {
     ...font('extrabold', 40, { color: '#059669' }),
     letterSpacing: 8,
@@ -1099,7 +1178,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#22c55e',
+    backgroundColor: palette.green500,
   },
   waitingLabel: font('semibold', 13, { color: '#047857' }),
 
@@ -1138,12 +1217,25 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.1)',
     alignItems: 'center',
     justifyContent: 'center',
+    // Clips the logo tile to the ring. `pitchAvatarMe` has always had this —
+    // it is why a real avatar photo crops round — but this seat never needed
+    // it while it held only a text glyph.
+    overflow: 'hidden',
     marginLeft: -12,
     zIndex: 1,
   },
   pitchAvatarImg: { width: '100%', height: '100%' },
   pitchAvatarInitial: font('extrabold', 24, { color: palette.white }),
-  pitchPlus: font('extrabold', 22, { color: palette.green600 }),
+  /* One figure, not a pair: this circle is the single empty seat, and
+     🧑‍🤝‍🧑 rendered as two people so the cluster read as three. Held slightly
+     transparent so the filled seat opposite stays the dominant one. */
+  /* The app's own 3D couple mark fills the empty seat.
+     `cover` at 100%, not `contain` at 72%: logo.png is RGB with no alpha, so at
+     72% it rendered as a green SQUARE sitting inside the round ring. Filling the
+     container lets `overflow: hidden` above clip it to a circle like any avatar
+     photo. Slightly under full opacity so the filled seat opposite stays the
+     dominant one. */
+  pitchPartnerLogo: { width: '100%', height: '100%', opacity: 0.9 },
   pitchHeartBubble: {
     zIndex: 10,
     backgroundColor: 'rgba(255,255,255,0.9)',
@@ -1170,7 +1262,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
-  featurePillDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: 'rgba(255,255,255,0.85)' },
+  featurePillEmoji: { fontSize: 11 },
+  pitchCouple: { fontSize: 19 },
   featurePillText: font('bold', 10, { color: palette.white }),
   ctaButton: {
     height: 58,

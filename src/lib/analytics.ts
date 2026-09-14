@@ -32,7 +32,18 @@ export interface AnalyticsEvents {
   onboarding_step: { step: number; name: string; percent: number };
   session_started: { exercise: string; mode: string };
   session_finished: { exercise: string; mode: string; reps: number; won: boolean };
+  /** First rep of *a session*. Fires several times a week for a regular. */
   first_rep_counted: { exercise: string };
+  /**
+   * First rep of the athlete's *life* — fires exactly once, ever.
+   *
+   * The terminal step of the activation funnel: `onboarding_step` →
+   * `onboarding_completed` → this. Kept separate from `first_rep_counted`
+   * rather than added to it as a flag, because that event answers a real and
+   * different question (did this set start producing reps) that would be lost
+   * if its shape changed.
+   */
+  first_rep_ever: { exercise: string; mode: string };
 
   home_hero_shown: { kind: string };
   home_hero_tapped: { kind: string };
@@ -54,6 +65,22 @@ export interface AnalyticsEvents {
   restore_completed: { restored: boolean };
 
   share_opened: { kind: string };
+
+  /* ── Retention ──
+   * The app ships streaks, leagues and three kinds of nudge, and until these
+   * events existed there was no way to tell which of them brought anyone back.
+   * Each one answers a question that was previously unfalsifiable. */
+
+  /** A training day extended a live run. `previous`/`length` bracket the change. */
+  streak_continued: { length: number; previous: number };
+  /** Reported on the return *after* a gap — nothing runs on a day nobody opens. */
+  streak_broken: { length: number; previous: number; daysMissed: number };
+  /** A nudge was actually tapped, rather than merely delivered. */
+  notification_opened: { kind: string };
+  /** First open of a calendar day. `dayN` counts from install, for D1/D7. */
+  day_n_return: { dayN: number; daysSinceLast: number };
+  /** Movement on the weekly-XP ladder. Demotion is the more telling direction. */
+  league_promoted: { from: string; to: string; direction: 'promoted' | 'demoted' };
 }
 
 type EventName = keyof AnalyticsEvents;

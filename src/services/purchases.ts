@@ -112,6 +112,39 @@ export function isEmptyOfferingsConfigError(error: unknown): boolean {
 }
 
 /**
+ * True when RevenueCat's server could not authenticate against Google Play.
+ *
+ * This is a *server-side* fault and nothing the athlete did: RevenueCat called
+ * Google's API with the Play service-account credentials and Google refused.
+ * Documented at length in REVENUECAT_SETUP.md — it blocked every purchase the
+ * app ever attempted until 2026-08-09, and the usual cause is a Play Console
+ * invite still sitting on "Invitation pending", or Google not having propagated
+ * the permission yet (up to 36 hours).
+ *
+ * Worth naming separately because the raw SDK text is "Invalid Play Store
+ * credentials.", which an athlete reads as a problem with *their* card. It is
+ * not; while this is live, no purchase can succeed for anyone.
+ */
+export function isPlayCredentialsError(error: unknown): boolean {
+  if (typeof error !== 'object' || error == null) return false;
+  const code = 'code' in error ? String((error as { code?: unknown }).code) : '';
+  const message = error instanceof Error ? error.message : String(error);
+  const underlying =
+    'underlyingErrorMessage' in error
+      ? String((error as { underlyingErrorMessage?: unknown }).underlyingErrorMessage)
+      : '';
+  return (
+    /InvalidCredentials/i.test(code) ||
+    /invalid play store credentials/i.test(message) ||
+    /invalid play store credentials/i.test(underlying)
+  );
+}
+
+/** Athlete-facing copy for a fault that is entirely on the store/config side. */
+export const STORE_UNAVAILABLE_MESSAGE =
+  'The store isn’t reachable right now, so nothing was charged. This is on our side, not yours — please try again later.';
+
+/**
  * The current (or best fallback) offering, or null when none have packages.
  * Empty-dashboard configuration returns null (paywall shows retry / setup copy)
  * instead of throwing a scary ConfigurationError up the tree.
@@ -172,12 +205,32 @@ export async function purchase(
         '[RepChamp] purchase failed:',
         error instanceof Error ? error.message : String(error),
       );
+      /* Name the store-side fault explicitly rather than leaving it as one more
+         "purchase failed" line. REVENUECAT_SETUP.md's check greps logcat for
+         InvalidCredentialsError, so keeping that token in the output is what
+         makes the documented verification work from a purchase attempt and not
+         only from app launch. */
+      if (isPlayCredentialsError(error)) {
+        console.warn(
+          '[RepChamp] InvalidCredentialsError — RevenueCat cannot authenticate to Google Play. ' +
+            'Server-side config, not the athlete. See REVENUECAT_SETUP.md (check the Play ' +
+            'Console invite reads Active, not Invitation pending).',
+        );
+      }
     }
     return {
       ok: false,
       isPro: false,
       cancelled,
-      message: error instanceof Error ? error.message : 'Purchase failed.',
+      /* A credentials failure is ours, not theirs — showing the raw "Invalid
+         Play Store credentials." made athletes check their card for a fault
+         that no card could fix. The real text still reaches the `console.warn`
+         above, which is the developer's trace on a release build. */
+      message: isPlayCredentialsError(error)
+        ? STORE_UNAVAILABLE_MESSAGE
+        : error instanceof Error
+          ? error.message
+          : 'Purchase failed.',
     };
   }
 }
@@ -211,7 +264,11 @@ export async function restore(uid?: string | null): Promise<PurchaseResult> {
       ok: false,
       isPro: false,
       cancelled: false,
-      message: error instanceof Error ? error.message : 'Could not restore purchases.',
+      message: isPlayCredentialsError(error)
+        ? STORE_UNAVAILABLE_MESSAGE
+        : error instanceof Error
+          ? error.message
+          : 'Could not restore purchases.',
     };
   }
 }

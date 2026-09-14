@@ -188,7 +188,16 @@ export default function HomeScreen() {
 
   const onCoupleAction = async (action: 'train' | 'nudge' | 'open') => {
     track('home_couple_strip', { action });
-    if (action === 'nudge' || action === 'open') {
+    /* `open` is the celebrate / default tap, and it now lands on the bond's own
+       tracker rather than the invite modal — the invite is the wrong
+       destination for two people already paired, and every number the strip
+       teases (streak, combined reps, who trained which day) is there in full.
+       `nudge` still goes to the invite modal, which owns the poke controls. */
+    if (action === 'open') {
+      router.push('/couple');
+      return;
+    }
+    if (action === 'nudge') {
       router.push('/modal/couple-invite');
       return;
     }

@@ -1,0 +1,76 @@
+# Typecheck, lint, and unit tests on every push and pull request.
+#
+# The repo already had the hard part — 967 tests, a typecheck and a lint config
+# that all pass in a few seconds — and no workflow running any of it, so a green
+# PR meant "someone said it passed locally" rather than something the PR asserts.
+#
+# Deliberately not here:
+#
+#   * `npm run test:rules` — needs JDK 21+ and the Firestore emulator, and must
+#     run serially. That is a different job with different setup; folding it in
+#     would make every PR wait on an emulator boot to learn that a typo is a
+#     typo. Worth adding separately.
+#   * Any build/prebuild step — an EAS native build is minutes and credentials,
+#     not a per-push check.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A second push to the same PR makes the first run's answer irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Typecheck, lint, test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # No `engines` field or .nvmrc in the repo; 24 is what this is
+          # developed against. Pin the major so a runner image bump cannot
+          # change the answer on an unrelated PR.
+          node-version: '24'
+          cache: npm
+
+      # `--ignore-scripts` skips `postinstall`, which generates sound assets and
+      # downloads the ~MB pose model. Neither is needed to typecheck, lint or run
+      # unit tests, and the model fetch is a slow network dependency that would
+      # fail CI for reasons that have nothing to do with the change under test.
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      # The root tsconfig includes `**/*.ts` and excludes only node_modules and
+      # design, so `tsc --noEmit` typechecks functions/src, and `eslint .` walks
+      # into it as well. Both resolve firebase-admin / firebase-functions out of
+      # functions/node_modules, which is gitignored — so without this the two
+      # checks fail on the Cloud Functions imports and nothing else.
+      #
+      # It passes locally only because that directory is left over from an
+      # earlier install; a clean clone reproduces the runner exactly. Installed
+      # separately rather than as a workspace because functions/ carries its own
+      # lockfile and its own TypeScript version.
+      - name: Install Cloud Functions dependencies
+        run: npm ci --ignore-scripts --prefix functions
+
+      # Each step runs even when an earlier one failed: a push with both a type
+      # error and a lint error should report both, rather than making the author
+      # fix one, push, and wait to discover the other.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        if: '!cancelled()'
+        run: npm run lint
+
+      - name: Test
+        if: '!cancelled()'
+        run: npm test -- --ci

@@ -14,6 +14,8 @@ import { PressableScale } from '@/components/ui';
 import { getOpponent } from '@/domain/opponent';
 import { canUse } from '@/domain/pro';
 import { track } from '@/lib/analytics';
+import { LEAGUES } from '@/domain/progression';
+import { leagueMove, streakOutcome } from '@/domain/retention';
 import { captureError } from '@/lib/crash';
 import { playLoseSound, playWinSound } from '@/lib/feedback';
 import {
@@ -21,8 +23,9 @@ import {
   isLiveSettleArmed,
   wasLiveSettleBanked,
 } from '@/services/liveResultSettle';
+import { emitRetention, retentionSnapshot } from '@/services/recordSessionWithRetention';
 import { shareWorthyLine } from '@/domain/progressProof';
-import { useProfileStore, selectStreak } from '@/state/profileStore';
+import { useProfileStore, selectLeague, selectStreak } from '@/state/profileStore';
 import { useIsPro } from '@/state/proStore';
 import { useAuthStore } from '@/state/authStore';
 import { useSessionStore } from '@/state/sessionStore';
@@ -94,6 +97,14 @@ export default function ResultScreen() {
       }
       persisted.current = true;
 
+      /* Read the history and league *before* the write — `streakOutcome` needs
+         the training days as they were, and a league is only "changed" relative
+         to what it was a moment ago. Emitting after the fact would compare the
+         new state with itself. */
+      const before = useProfileStore.getState();
+      const beforeDays = before.sessions.map((s) => s.day);
+      const beforeLeague = selectLeague(before).id;
+
       recordSession({
         exercise: config.exercise,
         mode: config.mode,
@@ -107,6 +118,31 @@ export default function ResultScreen() {
         formScore,
         durationSec: config.duration,
       });
+
+      /* Retention signal. The mechanics have always been here; what was
+         missing was any way to tell whether they bring anyone back, so every
+         retention claim was unfalsifiable. A second set on a day already
+         trained reports `same-day` and emits nothing — three sets in an
+         evening are one day of retention, not three. */
+      const streak = streakOutcome(beforeDays);
+      if (streak.kind === 'continued') {
+        track('streak_continued', { length: streak.length, previous: streak.previous });
+      } else if (streak.kind === 'broken') {
+        track('streak_broken', {
+          length: streak.length,
+          previous: streak.previous,
+          daysMissed: streak.previous,
+        });
+      }
+
+      const move = leagueMove(
+        beforeLeague,
+        selectLeague(useProfileStore.getState()).id,
+        LEAGUES.map((l) => l.id),
+      );
+      if (move.kind !== 'unchanged') {
+        track('league_promoted', { from: move.from, to: move.to, direction: move.kind });
+      }
 
       if (input.won) playWinSound();
       else if (!input.drew) playLoseSound();
@@ -247,6 +283,9 @@ export default function ResultScreen() {
             if (useAuthStore.getState().user?.uid !== uid) return false;
             if (persisted.current) return true;
             persisted.current = true;
+            // Same signal as the normal finish above — a detached settle is
+            // the same training day, just banked later.
+            const before = retentionSnapshot();
             useProfileStore.getState().recordSession({
               exercise: cfg.exercise,
               mode: cfg.mode,
@@ -260,6 +299,7 @@ export default function ResultScreen() {
               formScore,
               durationSec: cfg.duration,
             });
+            emitRetention(before.days, before.league);
             void useAuthStore.getState().pushProfile();
             return true;
           },

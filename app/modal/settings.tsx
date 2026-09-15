@@ -24,9 +24,10 @@ import { track } from '@/lib/analytics';
 import { useAuthStore } from '@/state/authStore';
 import { useProStore } from '@/state/proStore';
 import { showDialog } from '@/state/useDialog';
+import { daysSinceLastSession } from '@/domain/dormantReminder';
 import { dayKey } from '@/domain/progression';
 import { useCouple } from '@/state/useCouple';
-import { useProfileStore } from '@/state/profileStore';
+import { selectStreak, useProfileStore } from '@/state/profileStore';
 import { useSettingsStore, type SettingsToggle } from '@/state/settingsStore';
 import { reservedControlHeight } from '@/theme/fontScale';
 import { font, scaleForRole, text } from '@/theme/typography';
@@ -310,13 +311,27 @@ export default function SettingsScreen() {
                 // The daily-reminder toggle owns real OS schedules, so arm or
                 // clear them the moment it flips.
                 if (row.key === 'dailyReminder') {
-                  const trainedToday = sessions.some((s) => s.day === dayKey());
+                  const today = dayKey();
+                  const trainedToday = sessions.some((s) => s.day === today);
                   if (next) {
                     void syncLocalReminders({
                       dailyReminderEnabled: true,
                       trainedToday,
                       coupleAtRisk: couple.paired && couple.atRisk,
                       partnerName: couple.partner?.displayName ?? null,
+                      /* `sessions` is what the schedule is *derived* from, not
+                         extra detail: `reminderHourFor` reads the training hours
+                         out of it, and `buildDormantReminder` the headline. Omit
+                         it and this call re-arms at a flat 19:00 with the generic
+                         copy — so toggling the switch off and on silently undid
+                         the learned hour for the athlete it was learned for. */
+                      sessions,
+                      streak: selectStreak({ sessions }, today),
+                      daysSinceLastSession: daysSinceLastSession(
+                        sessions.reduce((latest, s) => (s.day > latest ? s.day : latest), '') ||
+                          null,
+                        today,
+                      ),
                     });
                   } else {
                     void cancelDailyTrainingReminder();

@@ -1,4 +1,9 @@
-import { exerciseProgress, headlineProof, shareWorthyLine } from '../progressProof';
+import {
+  exerciseProgress,
+  headlineProof,
+  shareWorthyLine,
+  startingPointProof,
+} from '../progressProof';
 import type { SessionSummary } from '@/state/profileStore';
 
 let seq = 0;
@@ -86,6 +91,54 @@ describe('headlineProof', () => {
   it('says nothing to an athlete who has just arrived', () => {
     expect(headlineProof([], 0)).toBeNull();
     expect(headlineProof([session(5)], 0)).toBeNull();
+  });
+});
+
+describe('startingPointProof', () => {
+  /* The gap this closes: `headlineProof` refuses everything for an athlete one
+     or two sessions in, which left the dormant slot silent for exactly the
+     athlete most likely to leave. */
+  it('speaks for the athlete headlineProof refuses', () => {
+    const sessions = [session(12)];
+    expect(headlineProof(sessions, 0)).toBeNull();
+    expect(startingPointProof(sessions)).toBe('Your first set was 12 reps');
+  });
+
+  it('reads the earliest session, not the most recent', () => {
+    // `session()` stamps ascending days, so this is first-on-record.
+    expect(startingPointProof([session(8), session(20)])).toBe('Your first set was 8 reps');
+  });
+
+  /* The store writes newest-first; the claim must not depend on that. */
+  it('is not fooled by the order sessions arrive in', () => {
+    const [a, b] = [session(8), session(20)];
+    expect(startingPointProof([b!, a!])).toBe('Your first set was 8 reps');
+  });
+
+  /* Claims a starting point, never a gain or a trend — those need the
+     thresholds in `headlineProof`, which this deliberately does not relax. */
+  it('claims no progress, only where they began', () => {
+    const line = startingPointProof([session(12), session(4)]) ?? '';
+    for (const word of ['improv', 'progress', 'gain', 'better', 'up ']) {
+      expect(line.toLowerCase()).not.toContain(word);
+    }
+  });
+
+  /* Hands the slot back once the real tiers can speak, so the two never
+     compete to fill the same sentence. */
+  it('stands down as soon as headlineProof can speak', () => {
+    const three = [session(4), session(5), session(11)];
+    expect(headlineProof(three, 0)).not.toBeNull();
+    expect(startingPointProof(three)).toBeNull();
+  });
+
+  it('says nothing to an athlete with no record at all', () => {
+    expect(startingPointProof([])).toBeNull();
+  });
+
+  /* An abandoned set banks zero reps and is not a starting point. */
+  it('treats a zero-rep set as no starting point', () => {
+    expect(startingPointProof([session(0)])).toBeNull();
   });
 });
 

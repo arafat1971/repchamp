@@ -39,7 +39,7 @@
  * notification permission.
  */
 
-import { headlineProof } from '@/domain/progressProof';
+import { headlineProof, startingPointProof } from '@/domain/progressProof';
 import type { ReminderCopy } from '@/domain/reminderCopy';
 import type { SessionSummary } from '@/state/profileStore';
 
@@ -115,13 +115,31 @@ export function buildDormantReminder(input: {
   if (daysAway === null || daysAway < DORMANT_AFTER_DAYS) return null;
 
   const proof = headlineProof(input.sessions, input.streak ?? 0);
-  if (!proof) return null;
+  if (proof) {
+    return {
+      /* No day count in the title. "3 days away" is a fact about their absence,
+         which they already know and did not enjoy; the title is for the part
+         worth unlocking the phone to read. */
+      title: 'Your progress is still here',
+      body: `${proof}. Pick up where you left off.`,
+    };
+  }
 
-  return {
-    /* No day count in the title. "3 days away" is a fact about their absence,
-       which they already know and did not enjoy; the title is for the part
-       worth unlocking the phone to read. */
-    title: 'Your progress is still here',
-    body: `${proof}. Pick up where you left off.`,
-  };
+  /* An athlete one or two sessions in has earned no headline — and is the one
+     most likely to leave. `headlineProof` is right to refuse (they have not
+     improved yet), but the result was that this slot went silent for exactly
+     that athlete and the generic evening line fired instead: the same words
+     that already failed on days one and two.
+     `startingPointProof` states where they began, which is true after a single
+     set and claims nothing about progress. Same slot, same cap, same refusal
+     to overstate — just a sentence that exists for someone this new. */
+  const start = startingPointProof(input.sessions);
+  if (start) {
+    return {
+      title: 'Your progress is still here',
+      body: `${start}. Pick up where you left off.`,
+    };
+  }
+
+  return null;
 }

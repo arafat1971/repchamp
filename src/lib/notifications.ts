@@ -5,9 +5,9 @@
  *
  * | Kind                    | Frequency              | When it fires                          |
  * |-------------------------|------------------------|----------------------------------------|
- * | Workout reminder        | ≤1 / day               | Evening, only if not trained today     |
- * | Couple streak reminder  | ≤1 / day               | Evening, only if shared streak at risk |
- * | Dormant reminder        | ≤1 / day (replaces ↑)  | Evening, only after 3 days away        |
+ * | Workout reminder        | ≤1 / day               | Learned hour, only if not trained today|
+ * | Couple streak reminder  | ≤1 / day               | Learned hour, only if streak at risk   |
+ * | Dormant reminder        | ≤1 / day (replaces ↑)  | Learned hour, only after 3 days away   |
  * | Weekly summary          | 1 / week (Sunday 18:00)| Always (low-frequency payoff)          |
  * | Challenge invitation    | Event-driven           | When a friend challenges you (push)    |
  * | Couple nudge            | Event-driven           | Partner taps Nudge (push + in-app)     |
@@ -31,6 +31,17 @@
  * wins (more urgent). Turning "Daily reminders" off cancels the workout slot;
  * streak-at-risk still schedules while paired (protecting the bond).
  *
+ * ## Why "learned hour" rather than a fixed evening
+ *
+ * These slots all fired at 19:00/20:00 regardless of when the athlete trains,
+ * so the 07:00 athlete was reminded twelve hours after the moment that would
+ * have worked — a nag that cannot be acted on without rearranging the day.
+ * `domain/reminderSchedule` reads the hours already recorded on every session
+ * and returns the one they reliably train at, clamped to waking hours and
+ * offset an hour early. It returns the old 19:00 whenever history has not
+ * earned anything else, so this changes nothing for an athlete whose routine is
+ * genuinely scattered. Again: same slots, same volume, same words.
+ *
  * Two transports: local (`expo-notifications`) for schedules, Expo Push for
  * remote social events. Never throws — refused permission is a quiet no-op.
  */
@@ -43,6 +54,11 @@ import { buildDormantReminder } from '@/domain/dormantReminder';
 import { buildInviteNotification } from '@/domain/inviteNotification';
 import { parseInviteKind } from '@/domain/presence';
 import { buildDailyReminder, buildWeeklyRecap } from '@/domain/reminderCopy';
+import {
+  DEFAULT_REMINDER_HOUR,
+  LATEST_REMINDER_HOUR,
+  reminderHourFor,
+} from '@/domain/reminderSchedule';
 import { storage } from '@/lib/storage';
 import type { SessionSummary } from '@/state/profileStore';
 import { syncMyCouplePushToken } from '@/services/coupleService';
@@ -108,6 +124,17 @@ const WEEKLY_RECAP_ID = 'weekly-recap';
 const RIVAL_PASSED_ID = 'rival-passed-weekly';
 
 const RIVAL_PASSED_KEY = 'repchamp.notif.rivalPassedWeek';
+
+/**
+ * Fallback hour for the couple streak-at-risk slot.
+ *
+ * An hour later than the solo default, which is how this slot has always been
+ * scheduled: it is the last call of the day for a streak that dies at midnight,
+ * so it sits behind the reminder that merely suggests training. Used when
+ * `reminderHourFor` has learned nothing; a learned hour shifts this slot too,
+ * still one hour behind the athlete's habit.
+ */
+const STREAK_REMINDER_HOUR = 20;
 
 let configured = false;
 let suppressCoupleNudgeInForeground = false;
@@ -272,6 +299,13 @@ export async function syncLocalReminders(ctx: ReminderContext): Promise<void> {
   try {
     await cancelIds(LEGACY_IDS);
 
+    /* When the evening slot fires, learned from the hours this athlete actually
+       trains at. Computed once and threaded into every slot below so the three
+       of them cannot drift apart. `reminderHourFor` returns the hour the app
+       has always used whenever history has not earned anything else, so an
+       athlete with no clear routine sees exactly the schedule they saw before. */
+    const reminderHour = reminderHourFor(ctx.sessions ?? []);
+
     // Weekly summary — always one quiet ping (not gated by daily toggle).
     await scheduleWeeklyRecap(1, 18, {
       sessions: ctx.sessions ?? [],
@@ -288,7 +322,20 @@ export async function syncLocalReminders(ctx: ReminderContext): Promise<void> {
     if (ctx.coupleAtRisk) {
       // Streak protection beats a generic workout nag — never both.
       await cancelIds([WORKOUT_REMINDER_ID, DORMANT_REMINDER_ID]);
-      await scheduleStreakReminder(ctx.partnerName ?? 'your partner');
+      await scheduleStreakReminder(
+        ctx.partnerName ?? 'your partner',
+        /* Keep this slot's hour behind the daily one, as it has always been:
+           shift the learned hour by the same gap rather than pinning it to 20.
+           The ceiling is `LATEST_REMINDER_HOUR` rather than a literal 21 so the
+           two slots share one definition of "too late to send" — written twice,
+           raising it would move the daily slot and leave this one pinned. */
+        reminderHour === DEFAULT_REMINDER_HOUR
+          ? STREAK_REMINDER_HOUR
+          : Math.min(
+              reminderHour + (STREAK_REMINDER_HOUR - DEFAULT_REMINDER_HOUR),
+              LATEST_REMINDER_HOUR,
+            ),
+      );
       return;
     }
 
@@ -305,20 +352,23 @@ export async function syncLocalReminders(ctx: ReminderContext): Promise<void> {
        work; a third identical nag is the one that gets notifications disabled.
        Scheduling is all-or-nothing — when `buildDormantReminder` declines
        (no history, or no honest claim), fall through to the daily line. */
-    if (await scheduleDormantReminder(ctx)) {
+    if (await scheduleDormantReminder(ctx, reminderHour)) {
       await cancelIds([WORKOUT_REMINDER_ID]);
       return;
     }
 
     await cancelIds([DORMANT_REMINDER_ID]);
-    await scheduleDailyTrainingReminder(ctx.streak ?? 0);
+    await scheduleDailyTrainingReminder(ctx.streak ?? 0, reminderHour);
   } catch {
     // Best-effort.
   }
 }
 
 /** @deprecated Prefer syncLocalReminders — kept for couple-invite call sites. */
-export async function scheduleStreakReminder(partnerName: string): Promise<void> {
+export async function scheduleStreakReminder(
+  partnerName: string,
+  hour = STREAK_REMINDER_HOUR,
+): Promise<void> {
   if (!(await ensureNotificationPermission())) return;
   try {
     await cancelIds([STREAK_REMINDER_ID, ...LEGACY_IDS.filter((id) => id.includes('streak'))]);
@@ -332,7 +382,7 @@ export async function scheduleStreakReminder(partnerName: string): Promise<void>
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
-        hour: 20,
+        hour,
         minute: 0,
       },
     });
@@ -348,7 +398,10 @@ export async function scheduleStreakReminder(partnerName: string): Promise<void>
  * without it the copy is exactly what it always was, so an older caller
  * schedules the same reminder it used to.
  */
-export async function scheduleDailyTrainingReminder(streak = 0): Promise<void> {
+export async function scheduleDailyTrainingReminder(
+  streak = 0,
+  hour = DEFAULT_REMINDER_HOUR,
+): Promise<void> {
   if (!(await ensureNotificationPermission())) return;
   try {
     await cancelIds([WORKOUT_REMINDER_ID, ...LEGACY_IDS.filter((id) => id.startsWith('daily-'))]);
@@ -363,7 +416,7 @@ export async function scheduleDailyTrainingReminder(streak = 0): Promise<void> {
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
-        hour: 19,
+        hour,
         minute: 0,
       },
     });
@@ -383,7 +436,7 @@ export async function scheduleDailyTrainingReminder(streak = 0): Promise<void> {
  * Same evening hour as the workout reminder it replaces: this is a different
  * sentence in the existing slot, not an extra ping.
  */
-async function scheduleDormantReminder(ctx: ReminderContext): Promise<boolean> {
+async function scheduleDormantReminder(ctx: ReminderContext, hour: number): Promise<boolean> {
   const copy = buildDormantReminder({
     daysAway: ctx.daysSinceLastSession ?? null,
     sessions: ctx.sessions ?? [],
@@ -403,7 +456,7 @@ async function scheduleDormantReminder(ctx: ReminderContext): Promise<boolean> {
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
-        hour: 19,
+        hour,
         minute: 0,
       },
     });

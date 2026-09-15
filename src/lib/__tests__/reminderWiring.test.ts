@@ -273,3 +273,107 @@ describe('the callers pass what the schedule is derived from', () => {
     expect(deps).toContain('reminderHour');
   });
 });
+
+/**
+ * The weekly recap — the one slot that deliberately does NOT learn an hour.
+ *
+ * It also fires on the wrong day until this branch: `expo-notifications`
+ * numbers weekdays 1–7 with 1 = Sunday, and this app's week is Mon–Sun
+ * everywhere else, so "Your week in reps" arrived six hours before the week it
+ * described had ended.
+ */
+describe('the weekly recap', () => {
+  const WEEKLY_RECAP_ID = 'weekly-recap';
+
+  /** The full scheduled arg for the recap, or null. */
+  function recapCall(): { trigger?: { weekday?: number; hour?: number }; content?: { body?: string } } | null {
+    const call = mockSchedule.mock.calls
+      .map(([arg]) => arg as { identifier?: string; trigger?: { weekday?: number; hour?: number }; content?: { body?: string } })
+      .reverse()
+      .find((arg) => arg?.identifier === WEEKLY_RECAP_ID);
+    return call ?? null;
+  }
+
+  /* Monday, so the week being summarised is actually over. 2 = Monday under
+     expo's 1 = Sunday numbering. */
+  it('fires on Monday, after the week it describes has ended', async () => {
+    await syncLocalReminders({
+      dailyReminderEnabled: true,
+      trainedToday: false,
+      coupleAtRisk: false,
+      sessions: routineAt(7),
+      streak: 3,
+      daysSinceLastSession: 1,
+    });
+    expect(recapCall()?.trigger?.weekday).toBe(2);
+  });
+
+  /* The deliberate decision, pinned: every other slot moves to the learned
+     hour, and this one must not. A recap asks the athlete to do nothing, so
+     there is no moment for it to beat — and a 07:00 routine would otherwise
+     drag the weekly summary to 06:00 on a Monday. */
+  it('keeps its fixed hour even when a training hour has been learned', async () => {
+    await syncLocalReminders({
+      dailyReminderEnabled: true,
+      trainedToday: false,
+      coupleAtRisk: false,
+      sessions: routineAt(7),
+      streak: 3,
+      daysSinceLastSession: 1,
+    });
+    // The daily slot moved to 06:00; the recap stayed put.
+    expect(scheduledHourFor(WORKOUT_REMINDER_ID)).toBe(6);
+    expect(recapCall()?.trigger?.hour).toBe(18);
+  });
+
+  /* The copy is baked in at schedule time, so it must be built from the history
+     handed to THIS sync — that is the whole reason the sync re-runs on
+     foreground. A recap carrying last week's claim is a stale fact presented as
+     current. */
+  it('bakes in a claim built from the history it was given', async () => {
+    const improving = [
+      sessionAt(7, 0),
+      sessionAt(7, 1),
+      sessionAt(7, 2),
+      { ...sessionAt(7, 3), reps: 40 },
+    ];
+    await syncLocalReminders({
+      dailyReminderEnabled: true,
+      trainedToday: false,
+      coupleAtRisk: false,
+      sessions: improving,
+      streak: 4,
+      daysSinceLastSession: 1,
+    });
+    // 20 -> 40 is a real gain, so the recap states it rather than the generic line.
+    expect(recapCall()?.content?.body).toContain('best set has gone from');
+  });
+
+  /* Still exactly one recap per sync, whatever else changed. */
+  it('schedules exactly one recap', async () => {
+    await syncLocalReminders({
+      dailyReminderEnabled: true,
+      trainedToday: false,
+      coupleAtRisk: false,
+      sessions: routineAt(7),
+      streak: 3,
+      daysSinceLastSession: 1,
+    });
+    const recaps = mockSchedule.mock.calls
+      .map(([arg]) => (arg as { identifier?: string }).identifier)
+      .filter((id) => id === WEEKLY_RECAP_ID);
+    expect(recaps).toHaveLength(1);
+  });
+});
+
+describe('the sync refreshes when the app is reopened', () => {
+  /* The recap's copy is frozen at schedule time, so the only defence against a
+     stale claim is re-syncing. Source-text assertion for the same reason as the
+     call-site checks above: `app/` and the hooks have no component tests here. */
+  it('re-syncs on foreground', () => {
+    const source = readFileSync(join(ROOT, 'src', 'state', 'useNotificationSync.ts'), 'utf8');
+    expect(source).toContain("AppState.addEventListener");
+    const deps = source.slice(source.lastIndexOf('}, ['), source.lastIndexOf(']'));
+    expect(deps).toContain('foregroundTick');
+  });
+});

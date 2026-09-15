@@ -8,7 +8,7 @@
  * | Workout reminder        | ≤1 / day               | Learned hour, only if not trained today|
  * | Couple streak reminder  | ≤1 / day               | Learned hour, only if streak at risk   |
  * | Dormant reminder        | ≤1 / day (replaces ↑)  | Learned hour, only after 3 days away   |
- * | Weekly summary          | 1 / week (Sunday 18:00)| Always (low-frequency payoff)          |
+ * | Weekly summary          | 1 / week (Monday 18:00)| Always (low-frequency payoff)          |
  * | Challenge invitation    | Event-driven           | When a friend challenges you (push)    |
  * | Couple nudge            | Event-driven           | Partner taps Nudge (push + in-app)     |
  * | Rival passed you        | ≤1 / week              | Soft alert if a rival overtakes weekly |
@@ -135,6 +135,37 @@ const RIVAL_PASSED_KEY = 'repchamp.notif.rivalPassedWeek';
  * still one hour behind the athlete's habit.
  */
 const STREAK_REMINDER_HOUR = 20;
+
+/**
+ * When the weekly recap fires — Monday 18:00.
+ *
+ * `expo-notifications` numbers weekdays 1–7 with **1 = Sunday**, so the old
+ * `weekday: 1` genuinely was Sunday, exactly as the cadence table claimed. That
+ * was the bug: this app's week is Monday–Sunday everywhere else (`isoWeekKey`,
+ * `currentWeekDayKeys`, `selectWeekSessions`, `daysLeftInWeek` returning 1 on
+ * Sunday). A summary titled "Your week in reps" sent Sunday at 18:00 reports on
+ * a week with six hours still to run, and any set trained Sunday evening lands
+ * in the very week the recap just finished summarising.
+ *
+ * Monday (`2`) is the first moment the week being described is actually over.
+ * It also reads better: a recap on Monday evening is a week closed and the next
+ * one already begun, rather than a verdict delivered before the final whistle.
+ *
+ * ## Why this slot keeps a fixed hour when every other slot learned one
+ *
+ * `reminderHourFor` moves the daily, dormant and streak slots to the hour the
+ * athlete trains, because each of those asks them to *train today* and a
+ * prompt that lands after the moment has passed cannot be acted on. `LEAD_HOURS`
+ * exists for exactly that: arrive an hour early, while the choice is still open.
+ *
+ * The recap asks for nothing. It is a report on a finished week, and there is no
+ * moment it must beat. Applying the training hour would put a 07:00 athlete's
+ * weekly summary at 06:00 on a Monday — worse than 18:00, for no benefit anyone
+ * can name. So this is a decision rather than an oversight: the recap is the one
+ * slot where the learned hour is the wrong input, and it stays where it is.
+ */
+const WEEKLY_RECAP_WEEKDAY = 2;
+const WEEKLY_RECAP_HOUR = 18;
 
 let configured = false;
 let suppressCoupleNudgeInForeground = false;
@@ -306,8 +337,11 @@ export async function syncLocalReminders(ctx: ReminderContext): Promise<void> {
        athlete with no clear routine sees exactly the schedule they saw before. */
     const reminderHour = reminderHourFor(ctx.sessions ?? []);
 
-    // Weekly summary — always one quiet ping (not gated by daily toggle).
-    await scheduleWeeklyRecap(1, 18, {
+    /* Weekly summary — always one quiet ping (not gated by daily toggle).
+       Monday rather than Sunday, and deliberately NOT the learned hour: see
+       `scheduleWeeklyRecap`. Re-scheduled on every sync so the claim it carries
+       is as fresh as the last time the app was open. */
+    await scheduleWeeklyRecap(WEEKLY_RECAP_WEEKDAY, WEEKLY_RECAP_HOUR, {
       sessions: ctx.sessions ?? [],
       streak: ctx.streak ?? 0,
     });
@@ -476,16 +510,26 @@ export async function cancelDailyTrainingReminder(): Promise<void> {
 }
 
 /**
- * The Sunday recap.
+ * The Monday recap.
  *
  * `proof` carries the athlete's history so the banner can state a fact rather
  * than invite them to go and look. Optional for the same reason as
  * `scheduleDailyTrainingReminder`'s streak: absent it, the copy is the generic
  * line this always sent.
+ *
+ * The defaults are the named constants rather than bare numbers: they used to
+ * be `weekday = 1, hour = 18`, and `1` is Sunday, which is the bug
+ * `WEEKLY_RECAP_WEEKDAY` documents. A default spelled as a literal is how that
+ * would come back — a caller omitting the argument would quietly reinstate it.
+ *
+ * Note the copy is built HERE, at schedule time, and handed to the OS as a
+ * fixed string: `expo-notifications` has no way to compute content at delivery.
+ * So the freshness of the claim is exactly the freshness of the last sync,
+ * which is why `useNotificationSync` re-syncs when the app is foregrounded.
  */
 export async function scheduleWeeklyRecap(
-  weekday = 1,
-  hour = 18,
+  weekday = WEEKLY_RECAP_WEEKDAY,
+  hour = WEEKLY_RECAP_HOUR,
   proof?: { sessions: readonly SessionSummary[]; streak: number },
 ): Promise<void> {
   if (!(await ensureNotificationPermission())) return;

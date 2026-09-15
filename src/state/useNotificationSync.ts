@@ -5,7 +5,8 @@
  * low-volume policy (see `syncLocalReminders` in lib/notifications.ts).
  */
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { AppState } from 'react-native';
 
 import { daysSinceLastSession } from '@/domain/dormantReminder';
 import { dayKey } from '@/domain/progression';
@@ -37,6 +38,34 @@ export function useNotificationSync(): void {
      changes when it does. */
   const reminderHour = reminderHourFor(sessions);
 
+  /**
+   * Bumped whenever the app returns to the foreground, to force a re-sync.
+   *
+   * `expo-notifications` bakes a notification's text in at *schedule* time, so
+   * the weekly recap carries whatever `buildWeeklyRecap` returned on the last
+   * sync — and that claim is a fact about training ("your best set has gone
+   * from 8 to 14"), not a static string. Nothing below re-runs on its own while
+   * the app sits closed, so a recap scheduled early in the week could fire on
+   * Monday describing a week that had barely started. That is a stale progress
+   * claim delivered as current, which is the fabrication `progressProof` exists
+   * to refuse, arriving through the one channel nothing was checking.
+   *
+   * Re-syncing on foreground bounds the staleness to "since you last opened the
+   * app" instead of "since you last trained". It cannot close the gap entirely
+   * — nothing can, while the OS owns the pending notification — but an athlete
+   * who never opens the app all week is not the one whose recap is wrong.
+   *
+   * Costs nothing when nothing changed: `syncLocalReminders` cancels and
+   * rewrites the same identifiers, so a re-sync is idempotent.
+   */
+  const [foregroundTick, setForegroundTick] = useState(0);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') setForegroundTick((n) => n + 1);
+    });
+    return () => sub.remove();
+  }, []);
+
   useEffect(() => {
     void syncLocalReminders({
       dailyReminderEnabled: dailyReminder,
@@ -62,7 +91,11 @@ export function useNotificationSync(): void {
        `learnTrainingHour` that exists precisely to follow such a move.
 
        `reminderHour` is that third reading, reduced to a number, so it belongs
-       here on the same terms as the other two. */
+       here on the same terms as the other two.
+
+       `foregroundTick` is not read by the sync at all — it is here purely to
+       re-run it when the app is reopened, so the weekly recap's baked-in copy
+       is rebuilt from current history. See its declaration above. */
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     dailyReminder,
@@ -70,6 +103,7 @@ export function useNotificationSync(): void {
     streak,
     reminderHour,
     daysAway,
+    foregroundTick,
     couple.paired,
     couple.atRisk,
     couple.partner?.displayName,

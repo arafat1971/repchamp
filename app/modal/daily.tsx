@@ -5,12 +5,12 @@ import Svg, { Circle } from 'react-native-svg';
 
 import { ModalHeader } from '@/components/ModalHeader';
 import { Card, PrimaryButton, ProgressBar, Screen, SectionLabel } from '@/components/ui';
+import { challengeXpReward, dailyChallengeProgress } from '@/domain/dailyChallenge';
 import { dayKey } from '@/domain/progression';
 import { useProfileStore } from '@/state/profileStore';
 import { font } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
 
-const DAILY_TARGET = 25;
 
 /** Hours until the challenge resets at local midnight. */
 function hoursUntilReset(now = new Date()): number {
@@ -24,13 +24,10 @@ export default function DailyChallengeScreen() {
   const sessions = useProfileStore((s) => s.sessions);
 
   const today = dayKey();
-  const todaysBest = sessions
-    .filter((s) => s.day === today && s.exercise === 'push')
-    .reduce((max, s) => Math.max(max, s.reps), 0);
-
-  const cleared = todaysBest >= DAILY_TARGET;
-  const remaining = Math.max(0, DAILY_TARGET - todaysBest);
-  const percent = Math.min(100, Math.round((todaysBest / DAILY_TARGET) * 100));
+  const { best: todaysBest, target, cleared, remaining, percent } = dailyChallengeProgress(
+    sessions,
+    today,
+  );
 
   return (
     <Screen>
@@ -48,7 +45,7 @@ export default function DailyChallengeScreen() {
           </Text>
         </View>
         <Text style={font('extrabold', 26, { color: palette.white, marginTop: 12 })}>
-          Beat {DAILY_TARGET} Push-ups
+          Beat {target} Push-ups
         </Text>
         <Text style={styles.heroCopy}>
           Do as many push-ups as you can before the timer runs out. Beat the target to keep your
@@ -56,7 +53,12 @@ export default function DailyChallengeScreen() {
         </Text>
         <View style={styles.heroStats}>
           <View>
-            <Text style={font('extrabold', 22, { color: palette.white })}>+300</Text>
+            {/* Derived, not typed: `challengeXpReward` reads the same
+                `xpForSession` that actually grants it, so the advertised
+                number cannot drift from the paid one. */}
+            <Text style={font('extrabold', 22, { color: palette.white })}>
+              +{challengeXpReward()}
+            </Text>
             <Text style={styles.heroStatLabel}>XP REWARD</Text>
           </View>
         </View>
@@ -66,7 +68,7 @@ export default function DailyChallengeScreen() {
         <View style={styles.progressHeader}>
           <SectionLabel>Your best today</SectionLabel>
           <Text style={font('extrabold', 12, { color: palette.grey600 })}>
-            {todaysBest} / {DAILY_TARGET}
+            {todaysBest} / {target}
           </Text>
         </View>
         <ProgressBar percent={percent} height={12} fillColors={gradients.brand} />
@@ -85,7 +87,7 @@ export default function DailyChallengeScreen() {
         onPress={() =>
           router.replace({
             pathname: '/session',
-            params: { exercise: 'push', mode: 'solo', target: String(DAILY_TARGET) },
+            params: { exercise: 'push', mode: 'solo', target: String(target) },
           })
         }
         style={{ marginTop: 20 }}

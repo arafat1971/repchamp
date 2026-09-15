@@ -21,6 +21,7 @@ import { CountUp, PopOnChange, StaggerIn } from '@/components/motion';
 import { Card, PressableScale, Screen, SectionLabel } from '@/components/ui';
 import { exerciseHomeStats } from '@/domain/exerciseHomeStats';
 import { firstNameOf, selectHomeGreeting } from '@/domain/homeGreeting';
+import { dailyChallengeProgress } from '@/domain/dailyChallenge';
 import { selectHomeFocus, type HomeFocus } from '@/domain/homeFocus';
 import { leagueProgressFromWeeklyXp } from '@/domain/leagueProgress';
 import { liveActivity } from '@/domain/liveActivity';
@@ -41,13 +42,14 @@ import { useCouple } from '@/state/useCouple';
 import { useIncomingDuelCount } from '@/state/useIncomingDuelCount';
 import { useLiveActivityCount } from '@/state/useLiveActivityCount';
 import { useSelfPlayer } from '@/state/useSelfPlayer';
-import type { ExerciseId } from '@/vision/exercises';
 import { font } from '@/theme/typography';
 import { gradients, palette, shadow, radius } from '@/theme/tokens';
 
 /** Push-ups is the featured daily challenge; mirrors `app/modal/daily.tsx`. */
-const DAILY_EXERCISE: ExerciseId = 'push';
-const DAILY_TARGET = 25;
+/* The challenge itself lives in `domain/dailyChallenge`, which Home, the tab
+   layout's FAB and the daily modal all read — it used to be declared once in
+   each of the three, so changing the target left them contradicting one
+   another about whether it was cleared. */
 
 const MEDAL_BRONZE = require('../../assets/medal-bronze.png');
 const TROPHY_BRONZE = require('../../assets/trophy-bronze.png');
@@ -85,9 +87,10 @@ export default function HomeScreen() {
 
   const today = dayKey();
   const trainedToday = profile.sessions.some((s) => s.day === today);
-  const dailyBest = profile.sessions
-    .filter((s) => s.day === today && s.exercise === DAILY_EXERCISE)
-    .reduce((best, s) => Math.max(best, s.reps), 0);
+  const daily = useMemo(
+    () => dailyChallengeProgress(profile.sessions, today),
+    [profile.sessions, today],
+  );
 
   const greetingCopy = useMemo(
     () => selectHomeGreeting({ streak, trainedToday, firstName }),
@@ -118,12 +121,12 @@ export default function HomeScreen() {
           partnerTrainedToday: couple.partner?.trainedDays.includes(today) ?? false,
         },
         dailyChallenge: {
-          exercise: DAILY_EXERCISE,
-          target: DAILY_TARGET,
-          done: dailyBest >= DAILY_TARGET,
+          exercise: daily.exercise,
+          target: daily.target,
+          done: daily.cleared,
         },
       }),
-    [profile.sessions.length, trainedToday, daysTrained, goal, couple, today, dailyBest],
+    [profile.sessions.length, trainedToday, daysTrained, goal, couple, today, daily],
   );
 
   useEffect(() => {
@@ -204,7 +207,13 @@ export default function HomeScreen() {
     startCoupleTrain();
   };
 
-  const daysToReward = Math.max(0, goal - daysTrained);
+  /* Named for the goal, not for a reward. This was `daysToReward`, and the
+     caption below promised one — but nothing in the app pays out for hitting a
+     weekly goal: the only XP grant is `xpForSession` on a finished set. The
+     bar itself is honest (real days against a target the athlete chose in
+     onboarding); the promise underneath it was not, and a progress indicator
+     that pays nothing teaches the athlete to discount the next one. */
+  const daysToGoal = Math.max(0, goal - daysTrained);
 
   return (
     <View style={{ flex: 1 }}>
@@ -320,9 +329,9 @@ export default function HomeScreen() {
                 ))}
               </View>
               <Text style={font('regular', 11, { color: palette.green700, marginTop: 8 })}>
-                {daysToReward === 0
-                  ? 'Weekly reward unlocked'
-                  : `${daysToReward} day${daysToReward === 1 ? '' : 's'} until reward`}
+                {daysToGoal === 0
+                  ? `Weekly goal met — ${daysTrained} of ${goal} days`
+                  : `${daysToGoal} day${daysToGoal === 1 ? '' : 's'} to your weekly goal`}
               </Text>
             </View>
           </Card>

@@ -38,6 +38,7 @@ import {
   shouldShowFabHint,
 } from '@/domain/fabHint';
 import { dayKey } from '@/domain/progression';
+import { dailyChallengeProgress } from '@/domain/dailyChallenge';
 import type { ExerciseId } from '@/vision/exercises';
 import { useIsPro } from '@/state/proStore';
 import { canStartExercise } from '@/domain/pro';
@@ -209,9 +210,9 @@ type FabAction = {
 
 /** Movements the FAB offers, in authored order — the ranking reorders them. */
 const FAB_EXERCISES: readonly ExerciseId[] = ['push', 'squat', 'situp'];
-/** Mirrors app/(tabs)/index.tsx and app/modal/daily.tsx. */
-const FAB_DAILY_EXERCISE: ExerciseId = 'push';
-const FAB_DAILY_TARGET = 25;
+/* The daily challenge used to be re-declared here to mirror Home and the
+   modal. It now comes from `domain/dailyChallenge`, so the three cannot
+   disagree about what today's challenge is or whether it is cleared. */
 /** Where the "Hold for more" teaching state lives. See `@/domain/fabHint`. */
 const FAB_HINT_KEY = 'fab.hint.v1';
 /**
@@ -341,9 +342,7 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
   const sessions = useProfileStore((st) => st.sessions);
   const pendingDuels = useIncomingDuelCount();
   const today = dayKey();
-  const dailyBest = sessions
-    .filter((x) => x.day === today && x.exercise === FAB_DAILY_EXERCISE)
-    .reduce((best, x) => Math.max(best, x.reps), 0);
+  const daily = useMemo(() => dailyChallengeProgress(sessions, today), [sessions, today]);
 
   const fab = useMemo(
     () =>
@@ -353,9 +352,9 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
         isPro,
         candidates: FAB_EXERCISES,
         pendingDuels,
-        daily: { exercise: FAB_DAILY_EXERCISE, done: dailyBest >= FAB_DAILY_TARGET },
+        daily: { exercise: daily.exercise, done: daily.cleared },
       }),
-    [sessions, today, isPro, pendingDuels, dailyBest],
+    [sessions, today, isPro, pendingDuels, daily],
   );
 
   const reduced = useReducedMotion();

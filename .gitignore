@@ -94,3 +94,6 @@ credentials.json
 # Google Play service account key (publishing credentials)
 play-publisher*.json
 repchamp-*-*.json
+
+# Editor preferences — personal, not project config
+.vscode/

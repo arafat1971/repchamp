@@ -2,7 +2,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { AppState, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -107,6 +107,19 @@ export default function ArenaScreen() {
   const league = selectLeague(profile);
   const seed = usePhantomSeed();
   const username = profile.username || 'You';
+
+  /* The instant the weekly card renders against. Owned here rather than read
+     inside the card so its countdown, challenge and day-set all describe the
+     same moment; re-read whenever the screen returns to the foreground, since
+     this tab has no other reason to re-render and the card would otherwise sit
+     frozen on the week it mounted in. */
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') setNow(new Date());
+    });
+    return () => sub.remove();
+  }, []);
 
   // Local board paints instantly; swap to Firestore once it resolves.
   const [cloudBoard, setCloudBoard] = useState<LeaderboardRow[] | null>(null);
@@ -213,7 +226,7 @@ export default function ArenaScreen() {
       </StaggerIn>
 
       <StaggerIn index={2} style={{ marginTop: 12 }}>
-        <WeeklyChallengeCard />
+        <WeeklyChallengeCard now={now} />
       </StaggerIn>
 
       {/* ── Weekly leaderboard ── */}

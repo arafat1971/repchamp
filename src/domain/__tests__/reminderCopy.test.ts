@@ -109,3 +109,54 @@ describe('buildWeeklyRecap', () => {
     );
   });
 });
+
+/*
+ * The last night of a streak.
+ *
+ * `calculateStreak` tolerates one rest day, so an athlete who last trained two
+ * days ago still has a non-zero streak — and this slot used to tell them "one
+ * set today and the streak holds". That is the ordinary-evening line, and it was
+ * false exactly when it mattered: the rest day is already spent, so the streak
+ * dies at midnight unless they train now. The one person with something urgent
+ * at stake was the one told there was no hurry.
+ */
+describe('buildDailyReminder — the last night of a streak', () => {
+  it('warns when the rest day is already spent', () => {
+    const copy = buildDailyReminder({ streak: 10, daysAway: 2 });
+    expect(copy.title).toBe('Day 10 ends today');
+    expect(copy.body).toContain('rest day is already used');
+  });
+
+  it('does not cry wolf on an ordinary evening', () => {
+    // Trained today or yesterday: the streak genuinely does hold.
+    for (const daysAway of [0, 1]) {
+      const copy = buildDailyReminder({ streak: 10, daysAway });
+      expect(copy.title).toBe('Day 10 — keep it going');
+      expect(copy.body).toBe('One set today and the streak holds.');
+    }
+  });
+
+  /* The claim must never contradict itself: a reminder cannot say the streak
+     holds while the streak is on its final night. */
+  it('never promises the streak holds once it does not', () => {
+    for (let daysAway = 2; daysAway <= 5; daysAway++) {
+      const copy = buildDailyReminder({ streak: 7, daysAway });
+      expect(`${copy.title} ${copy.body}`).not.toContain('streak holds');
+    }
+  });
+
+  /* Absent `daysAway` the copy is exactly what it always was, so an older
+     caller schedules the reminder it used to. */
+  it('falls back to the original wording when days away is unknown', () => {
+    const copy = buildDailyReminder({ streak: 10 });
+    expect(copy.title).toBe('Day 10 — keep it going');
+    expect(buildDailyReminder({ streak: 10, daysAway: null }).title).toBe('Day 10 — keep it going');
+  });
+
+  /* Below the naming threshold there is no streak to lose, so the urgent line
+     must not appear — it would be a demand made of someone with nothing at stake. */
+  it('stays generic below the streak-naming threshold', () => {
+    const copy = buildDailyReminder({ streak: 1, daysAway: 2 });
+    expect(copy.title).toBe('Time for a quick set');
+  });
+});

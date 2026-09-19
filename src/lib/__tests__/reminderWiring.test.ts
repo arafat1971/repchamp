@@ -377,3 +377,64 @@ describe('the sync refreshes when the app is reopened', () => {
     expect(deps).toContain('foregroundTick');
   });
 });
+
+/**
+ * The last-night warning has to reach the OS, not just the pure function.
+ *
+ * `buildDailyReminder` learning about `daysAway` is inert unless
+ * `syncLocalReminders` actually passes it down — the same adapter gap that hid
+ * the learned hour from the Settings toggle.
+ */
+describe('the daily reminder knows when the streak is on its last night', () => {
+  /** The content scheduled under the workout slot, or null. */
+  function workoutContent(): { title?: string; body?: string } | null {
+    const call = mockSchedule.mock.calls
+      .map(([arg]) => arg as { identifier?: string; content?: { title?: string; body?: string } })
+      .reverse()
+      .find((arg) => arg?.identifier === WORKOUT_REMINDER_ID);
+    return call?.content ?? null;
+  }
+
+  it('warns that the streak ends today once the rest day is spent', async () => {
+    await syncLocalReminders({
+      dailyReminderEnabled: true,
+      trainedToday: false,
+      coupleAtRisk: false,
+      sessions: routineAt(7),
+      streak: 9,
+      // Two days since the last session: the grace day is already used.
+      daysSinceLastSession: 2,
+    });
+    expect(workoutContent()?.title).toBe('Day 9 ends today');
+  });
+
+  it('sends the ordinary line when the streak genuinely holds', async () => {
+    await syncLocalReminders({
+      dailyReminderEnabled: true,
+      trainedToday: false,
+      coupleAtRisk: false,
+      sessions: routineAt(7),
+      streak: 9,
+      daysSinceLastSession: 1,
+    });
+    expect(workoutContent()?.title).toBe('Day 9 — keep it going');
+    expect(workoutContent()?.body).toBe('One set today and the streak holds.');
+  });
+
+  /* Day 3 and beyond belongs to the dormant slot, which replaces this one — so
+     the two must never both be armed, whatever the streak says. */
+  it('hands over to the dormant slot rather than doubling up', async () => {
+    await syncLocalReminders({
+      dailyReminderEnabled: true,
+      trainedToday: false,
+      coupleAtRisk: false,
+      sessions: routineAt(7),
+      streak: 0,
+      daysSinceLastSession: 4,
+    });
+    const armed = mockSchedule.mock.calls
+      .map(([arg]) => (arg as { identifier?: string }).identifier)
+      .filter((id) => id === WORKOUT_REMINDER_ID || id === DORMANT_REMINDER_ID);
+    expect(armed).toEqual([DORMANT_REMINDER_ID]);
+  });
+});

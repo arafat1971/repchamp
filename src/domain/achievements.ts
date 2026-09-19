@@ -43,7 +43,21 @@ export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
   {
     id: 'streak-3',
     title: '3-Day Streak',
-    description: 'Train 3 days in a row',
+    /* "3 days in a row" was a promise this badge does not keep. Its progress is
+       `bestStreak`, and both `selectBestStreak` and `calculateStreak`
+       deliberately keep a run alive across a single rest day — so training
+       Monday, Wednesday and Friday unlocked a badge for three consecutive days
+       that were never consecutive. The module contract above is that a badge is
+       never shown for something the athlete has not actually done, and this was
+       the one definition breaking it.
+
+       The wording changes rather than the streak rule. The rest-day tolerance is
+       load-bearing and well argued (see `selectBestStreak`'s tests: a "best"
+       that fell below the athlete's live streak would read as a bug in their own
+       history), and tightening it here would also silently revoke badges people
+       have already earned. So the text now describes what the number means — a
+       streak, rest days and all — instead of promising a stricter thing. */
+    description: 'Reach a 3-day streak (a rest day keeps it alive)',
     emoji: '🔥',
     goal: 3,
     progress: ({ bestStreak }) => bestStreak,

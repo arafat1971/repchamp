@@ -392,7 +392,11 @@ export async function syncLocalReminders(ctx: ReminderContext): Promise<void> {
     }
 
     await cancelIds([DORMANT_REMINDER_ID]);
-    await scheduleDailyTrainingReminder(ctx.streak ?? 0, reminderHour);
+    await scheduleDailyTrainingReminder(
+      ctx.streak ?? 0,
+      reminderHour,
+      ctx.daysSinceLastSession ?? null,
+    );
   } catch {
     // Best-effort.
   }
@@ -435,11 +439,15 @@ export async function scheduleStreakReminder(
 export async function scheduleDailyTrainingReminder(
   streak = 0,
   hour = DEFAULT_REMINDER_HOUR,
+  daysAway: number | null = null,
 ): Promise<void> {
   if (!(await ensureNotificationPermission())) return;
   try {
     await cancelIds([WORKOUT_REMINDER_ID, ...LEGACY_IDS.filter((id) => id.startsWith('daily-'))]);
-    const copy = buildDailyReminder({ streak });
+    /* `daysAway` distinguishes an ordinary evening from the last night of a
+       streak that has already spent its rest day. Optional and defaulted to
+       null, so the deprecated call sites below send exactly what they did. */
+    const copy = buildDailyReminder({ streak, daysAway });
     await Notifications.scheduleNotificationAsync({
       identifier: WORKOUT_REMINDER_ID,
       content: {

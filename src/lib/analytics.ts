@@ -60,6 +60,26 @@ export interface AnalyticsEvents {
   paywall_viewed: { source: string };
   /** The athlete saw the price and chose not to buy — the other half of the funnel. */
   paywall_dismissed: { source: string };
+  /**
+   * The store sheet opened and the athlete backed out of it.
+   *
+   * Distinct from `paywall_dismissed`, and the distinction is the point: someone
+   * who never tapped Subscribe rejected the *offer*, while someone who reached
+   * Apple's or Google's confirmation sheet and cancelled had already accepted it
+   * and stopped at the payment. Those are different problems — the first is
+   * pricing or framing, the second is friction, a payment method, or second
+   * thoughts at the last step. Collapsing them into one number hides whichever
+   * is actually happening.
+   */
+  purchase_cancelled: { plan: string; source: string };
+  /**
+   * The purchase was attempted and failed — a declined card, a store error, a
+   * network drop. Never a cancellation; that is `purchase_cancelled`.
+   *
+   * `reason` is the store's own message, which is what distinguishes a billing
+   * outage the app cannot fix from a configuration fault it can.
+   */
+  purchase_failed: { plan: string; source: string; reason: string };
   trial_started: { plan: string };
   subscribed: { plan: string };
   restore_completed: { restored: boolean };

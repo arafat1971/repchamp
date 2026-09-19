@@ -105,6 +105,26 @@ export default function PaywallScreen() {
     router.back();
   }, [fromRepWall, router]);
 
+  /**
+   * Leaving without buying — the half of the funnel that was never measured.
+   *
+   * `paywall_dismissed` has been in the event catalogue since it was written,
+   * described there as "the other half of the funnel", and only `onboarding`
+   * ever fired it. This screen is reached from sixteen call sites — the rep
+   * wall, the exercise library, form reports, programmes, duels, Profile — and
+   * from every one of them a decline was invisible. `paywall_viewed` and
+   * `subscribed` alone cannot tell a source that converts badly from one nobody
+   * reaches; both look identical when the only signal is a view count.
+   *
+   * Deliberately separate from `leave`, which is also the exit after a
+   * successful purchase. Firing there would count every subscriber as a
+   * dismissal too and make the number meaningless.
+   */
+  const leaveWithoutBuying = useCallback(() => {
+    track('paywall_dismissed', { source: params.source ?? 'unknown' });
+    leave();
+  }, [leave, params.source]);
+
   useEffect(() => {
     track('paywall_viewed', { source: params.source ?? 'unknown' });
   }, [params.source]);
@@ -118,11 +138,14 @@ export default function PaywallScreen() {
   useEffect(() => {
     if (!fromRepWall) return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      leave();
+      /* Backing out is a decline like any other, and on the rep wall it is the
+         most likely exit of all — so it must not be the one path that goes
+         unmeasured. */
+      leaveWithoutBuying();
       return true;
     });
     return () => sub.remove();
-  }, [fromRepWall, leave]);
+  }, [fromRepWall, leaveWithoutBuying]);
 
   useEffect(() => {
     let cancelled = false;
@@ -165,7 +188,16 @@ export default function PaywallScreen() {
     const result = await purchase(selected, uid);
     setBusy(false);
 
-    if (result.cancelled) return;
+    /* Backed out of the store's own confirmation sheet. Tracked separately
+       from `paywall_dismissed`: this athlete accepted the offer and stopped at
+       the payment, which is a friction problem, not a pricing one. */
+    if (result.cancelled) {
+      track('purchase_cancelled', {
+        plan: selected.packageType,
+        source: params.source ?? 'unknown',
+      });
+      return;
+    }
 
     if (result.ok && result.isPro) {
       setPro(true);
@@ -201,13 +233,22 @@ export default function PaywallScreen() {
       return;
     }
 
+    /* A real failure: declined card, store outage, misconfiguration. The
+       store's own message is carried through because it is what separates a
+       fault the app can fix from one it cannot — the 2026-08-09 entitlement
+       bug was diagnosed from exactly this kind of specific wording. */
+    track('purchase_failed', {
+      plan: selected.packageType,
+      source: params.source ?? 'unknown',
+      reason: result.message ?? 'unknown',
+    });
     showDialog({
       title: 'Purchase failed',
       message: result.message ?? 'Please try again.',
       tone: 'danger',
       actions: [{ label: 'Try again', variant: 'primary' }],
     });
-  }, [selected, setPro, refresh, uid, leave]);
+  }, [selected, setPro, refresh, uid, leave, params.source]);
 
   const onRestore = useCallback(async () => {
     setBusy(true);
@@ -275,7 +316,7 @@ export default function PaywallScreen() {
         <ModalHeader
           title="RepChamp Pro"
           subtitle="Unlock depth. Keep the free staples."
-          onBack={leave}
+          onBack={leaveWithoutBuying}
         />
 
         <Animated.ScrollView
@@ -452,7 +493,7 @@ export default function PaywallScreen() {
                 the dead end the store rejection was about. Declining must
                 always be one obvious tap. */}
             <PressableScale
-              onPress={leave}
+              onPress={leaveWithoutBuying}
               accessibilityRole="button"
               accessibilityLabel="Maybe later"
               disabled={busy}
@@ -481,7 +522,7 @@ export default function PaywallScreen() {
           </View>
         ) : (
           <PressableScale
-            onPress={leave}
+            onPress={leaveWithoutBuying}
             accessibilityRole="button"
             accessibilityLabel="Maybe later"
             style={styles.footerLinkHit}

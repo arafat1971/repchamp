@@ -141,7 +141,10 @@ export function startingPointProof(sessions: readonly SessionSummary[]): string 
   const [first] = [...sessions].sort((a, b) => a.completedAt.localeCompare(b.completedAt));
   if (!first || first.reps <= 0) return null;
 
-  return `Your first set was ${first.reps} reps`;
+  /* Pluralised: a single-rep first set is exactly the athlete this line exists
+     for, and "1 reps" in the sentence meant to make them feel credited is the
+     one place sloppiness is least affordable. */
+  return `Your first set was ${first.reps} rep${first.reps === 1 ? '' : 's'}`;
 }
 
 /**

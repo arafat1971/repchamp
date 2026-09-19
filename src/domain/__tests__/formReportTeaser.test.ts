@@ -78,7 +78,18 @@ describe('teaserLockLine', () => {
 
   it('tracks the real rep count', () => {
     const t = formReportTeaser(report({ bars: [{ height: 1, fullDepth: true }] }));
-    expect(teaserLockLine(t!)).toContain('1 reps analysed');
+    expect(teaserLockLine(t!)).toContain('1 rep analysed');
+  });
+
+  /* The singular. This test previously asserted "1 reps analysed" — it pinned
+     the bug rather than catching it, which is how the wording shipped. */
+  it('says "1 rep", not "1 reps"', () => {
+    const one = formReportTeaser(report({ bars: [{ height: 1, fullDepth: true }] }));
+    expect(teaserLockLine(one!)).not.toContain('1 reps');
+    const two = formReportTeaser(
+      report({ bars: [{ height: 1, fullDepth: true }, { height: 1, fullDepth: true }] }),
+    );
+    expect(teaserLockLine(two!)).toContain('2 reps analysed');
   });
 
   /* The line advertises the locked detail; it must never leak a value. */
@@ -87,5 +98,55 @@ describe('teaserLockLine', () => {
     for (const pct of ['81', '74', '60', '%']) {
       expect(line).not.toContain(pct);
     }
+  });
+});
+
+/*
+ * The over-promise. `buildFormReport` marks a metric it could not judge with
+ * `pct: -1` — alignment goes unmeasured whenever the joints were never visible
+ * enough — and the paid report renders those as "not measured". The teaser
+ * listed every metric name unconditionally, so it sold "Back alignment" on a
+ * set where buying reveals no alignment reading at all.
+ *
+ * That is the bait-and-switch the module was written to avoid, committed inside
+ * the very change that argued against it.
+ */
+describe('never advertises a metric this set could not measure', () => {
+  const unmeasurable = () =>
+    report({
+      metrics: [
+        { label: 'Range of motion', pct: 80 },
+        { label: 'Back alignment', pct: -1 },
+        { label: 'Tempo consistency', pct: 73 },
+      ],
+    });
+
+  it('drops the metric the report will show as "not measured"', () => {
+    const t = formReportTeaser(unmeasurable());
+    expect(t?.lockedMetrics).toEqual(['Range of motion', 'Tempo consistency']);
+    expect(t?.lockedMetrics).not.toContain('Back alignment');
+  });
+
+  it('keeps it out of the lock line too', () => {
+    const line = teaserLockLine(formReportTeaser(unmeasurable())!);
+    expect(line.toLowerCase()).not.toContain('alignment');
+    expect(line).toBe('18 reps analysed — range of motion, tempo consistency and your coaching tip');
+  });
+
+  /* A set with no readable metric has no quality verdict to sell, whatever the
+     headline score says — so there is nothing honest to tease. */
+  it('stays silent when nothing at all could be measured', () => {
+    const none = report({
+      metrics: [
+        { label: 'Range of motion', pct: -1 },
+        { label: 'Back alignment', pct: -1 },
+        { label: 'Tempo consistency', pct: -1 },
+      ],
+    });
+    expect(formReportTeaser(none)).toBeNull();
+  });
+
+  it('still lists all three when all three were measured', () => {
+    expect(formReportTeaser(report())?.lockedMetrics).toHaveLength(3);
   });
 });

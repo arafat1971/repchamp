@@ -37,10 +37,17 @@ export interface FormReportTeaser {
   /** The real grade for that score. */
   grade: string;
   /**
-   * What the full report measures, by name only.
+   * What the full report measures *for this set*, by name only.
    *
    * Names, never values: "Depth" tells the athlete the report has something to
    * say about depth, which is the pitch. `62%` would be the product.
+   *
+   * A metric the report could not actually judge is left out. `buildFormReport`
+   * marks those with `pct: -1` — alignment goes unmeasured whenever the joints
+   * were never visible enough — and the paid report renders them "not
+   * measured". Advertising one here would sell something the purchase does not
+   * deliver, which is precisely the bait-and-switch this module exists to
+   * avoid.
    */
   lockedMetrics: readonly string[];
   /** How many per-rep bars the full chart holds — a count, not the chart. */
@@ -60,10 +67,20 @@ export function formReportTeaser(report: FormReport | null | undefined): FormRep
   const repCount = report.bars.length;
   if (repCount === 0) return null;
 
+  /* Only the metrics this set actually produced a reading for. A negative
+     `pct` is `buildFormReport`'s marker for "the joints were never visible
+     enough to judge", and the full report shows those as "not measured" —
+     so naming one in the pitch would promise a number that is not there. */
+  const lockedMetrics = report.metrics.filter((m) => m.pct >= 0).map((m) => m.label);
+
+  /* Every metric unreadable means the report has no quality verdict to sell,
+     whatever the headline score says. Nothing honest left to tease. */
+  if (lockedMetrics.length === 0) return null;
+
   return {
     score: report.score,
     grade: report.grade,
-    lockedMetrics: report.metrics.map((m) => m.label),
+    lockedMetrics,
     repCount,
   };
 }
@@ -78,5 +95,9 @@ export function formReportTeaser(report: FormReport | null | undefined): FormRep
  */
 export function teaserLockLine(teaser: FormReportTeaser): string {
   const metrics = teaser.lockedMetrics.join(', ').toLowerCase();
-  return `${teaser.repCount} reps analysed — ${metrics} and your coaching tip`;
+  /* Pluralised, matching every other count in the app. "1 reps analysed" in a
+     sentence written to sound precise about the athlete's own set undercuts the
+     precision it is trading on. */
+  const reps = `${teaser.repCount} rep${teaser.repCount === 1 ? '' : 's'}`;
+  return `${reps} analysed — ${metrics} and your coaching tip`;
 }

@@ -158,3 +158,18 @@ describe('shareWorthyLine', () => {
     expect(shareWorthyLine([session(10), session(10), session(10)], 2)).toBeNull();
   });
 });
+
+describe('startingPointProof — count grammar', () => {
+  /* A one-rep first set is not hypothetical: it is the athlete who opened the
+     app, managed a single rep and stopped, which is exactly who the dormant
+     win-back line is written for. "1 reps" in the sentence meant to credit them
+     is the least affordable place for it. */
+  it('says "1 rep", not "1 reps"', () => {
+    expect(startingPointProof([session(1)])).toBe('Your first set was 1 rep');
+  });
+
+  it('still pluralises everything above one', () => {
+    expect(startingPointProof([session(2)])).toBe('Your first set was 2 reps');
+    expect(startingPointProof([session(12)])).toBe('Your first set was 12 reps');
+  });
+});

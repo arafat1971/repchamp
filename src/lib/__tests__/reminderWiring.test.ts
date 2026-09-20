@@ -48,7 +48,7 @@ jest.mock('expo-notifications', () => ({
 jest.mock('@/services/coupleService', () => ({ syncMyCouplePushToken: jest.fn() }));
 jest.mock('@/services/userService', () => ({ saveExpoPushToken: jest.fn() }));
 
-import { syncLocalReminders } from '@/lib/notifications';
+import { streakReminderHour, syncLocalReminders } from '@/lib/notifications';
 import {
   DEFAULT_REMINDER_HOUR,
   EARLIEST_REMINDER_HOUR,
@@ -436,5 +436,57 @@ describe('the daily reminder knows when the streak is on its last night', () => 
       .map(([arg]) => (arg as { identifier?: string }).identifier)
       .filter((id) => id === WORKOUT_REMINDER_ID || id === DORMANT_REMINDER_ID);
     expect(armed).toEqual([DORMANT_REMINDER_ID]);
+  });
+});
+
+/**
+ * The streak slot's hour, including the case where its rule cannot hold.
+ *
+ * The slot trails the daily one by an hour — it is the last call of the day for
+ * a streak that dies at midnight. That gap is a preference; the waking-window
+ * ceiling is a promise, and at `LATEST_REMINDER_HOUR` there is nowhere later to
+ * go, so the gap yields. Pinned here because the arithmetic used to be inline
+ * and the comment beside it claimed the gap always held.
+ */
+describe('streakReminderHour', () => {
+  it('keeps its historical 20:00 when nothing was learned', () => {
+    expect(streakReminderHour(DEFAULT_REMINDER_HOUR)).toBe(20);
+  });
+
+  it('trails a learned hour by one', () => {
+    for (const hour of [6, 7, 10, 15, 18, 20]) {
+      expect(streakReminderHour(hour)).toBe(hour + 1);
+    }
+  });
+
+  /* The exception. A 22:00 or 23:00 routine learns 21 — the ceiling — and a
+     22:00 reminder would break the one guarantee the clamp exists to make. */
+  it('yields the gap to the ceiling rather than waking anyone', () => {
+    expect(streakReminderHour(LATEST_REMINDER_HOUR)).toBe(LATEST_REMINDER_HOUR);
+  });
+
+  it('never schedules past the ceiling, whatever it is handed', () => {
+    for (let hour = 0; hour <= 23; hour++) {
+      expect(streakReminderHour(hour)).toBeLessThanOrEqual(LATEST_REMINDER_HOUR);
+    }
+  });
+
+  /* The collision is harmless only because the two slots never coexist. If that
+     ever changes, this is the test that should start failing. */
+  it('is the only evening slot armed when a couple streak is at risk', async () => {
+    await syncLocalReminders({
+      dailyReminderEnabled: true,
+      trainedToday: false,
+      coupleAtRisk: true,
+      partnerName: 'Sam',
+      sessions: routineAt(23),
+      streak: 5,
+      daysSinceLastSession: 1,
+    });
+    const armed = mockSchedule.mock.calls
+      .map(([arg]) => (arg as { identifier?: string }).identifier)
+      .filter((id) => id === WORKOUT_REMINDER_ID || id === DORMANT_REMINDER_ID);
+    expect(armed).toEqual([]);
+    expect(scheduledHourFor(STREAK_REMINDER_ID)).toBe(LATEST_REMINDER_HOUR);
   });
 });

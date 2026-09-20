@@ -131,10 +131,35 @@ const RIVAL_PASSED_KEY = 'repchamp.notif.rivalPassedWeek';
  * An hour later than the solo default, which is how this slot has always been
  * scheduled: it is the last call of the day for a streak that dies at midnight,
  * so it sits behind the reminder that merely suggests training. Used when
- * `reminderHourFor` has learned nothing; a learned hour shifts this slot too,
- * still one hour behind the athlete's habit.
+ * `reminderHourFor` has learned nothing; a learned hour shifts this slot too.
+ *
+ * The one-hour gap cannot always be honoured. A late-night athlete — a 22:00 or
+ * 23:00 routine — learns the hour 21, which is `LATEST_REMINDER_HOUR`, and
+ * there is no 22 to shift to: the waking-window ceiling exists precisely so the
+ * app is never the reason a phone lights up late. The gap yields to it rather
+ * than the other way round, so at the ceiling both slots would name 21:00.
+ *
+ * That costs nothing in practice, because the two never coexist —
+ * `syncLocalReminders` cancels the workout slot before arming this one and
+ * returns — but the arithmetic is written to say so explicitly rather than
+ * leave a reader to derive it. See `streakReminderHour`.
  */
 const STREAK_REMINDER_HOUR = 20;
+
+/**
+ * The hour the couple streak-at-risk slot fires at, given the learned hour.
+ *
+ * Named rather than inlined because the rule has an exception worth stating:
+ * the slot trails the daily one by the same gap it has always had, *except* at
+ * `LATEST_REMINDER_HOUR`, where there is nowhere later to go and it lands on
+ * the ceiling instead. The ceiling wins because it is the promise that the app
+ * never wakes anyone; the gap is only a preference about ordering.
+ */
+export function streakReminderHour(reminderHour: number): number {
+  if (reminderHour === DEFAULT_REMINDER_HOUR) return STREAK_REMINDER_HOUR;
+  const gap = STREAK_REMINDER_HOUR - DEFAULT_REMINDER_HOUR;
+  return Math.min(reminderHour + gap, LATEST_REMINDER_HOUR);
+}
 
 /**
  * When the weekly recap fires — Monday 18:00.
@@ -358,17 +383,7 @@ export async function syncLocalReminders(ctx: ReminderContext): Promise<void> {
       await cancelIds([WORKOUT_REMINDER_ID, DORMANT_REMINDER_ID]);
       await scheduleStreakReminder(
         ctx.partnerName ?? 'your partner',
-        /* Keep this slot's hour behind the daily one, as it has always been:
-           shift the learned hour by the same gap rather than pinning it to 20.
-           The ceiling is `LATEST_REMINDER_HOUR` rather than a literal 21 so the
-           two slots share one definition of "too late to send" — written twice,
-           raising it would move the daily slot and leave this one pinned. */
-        reminderHour === DEFAULT_REMINDER_HOUR
-          ? STREAK_REMINDER_HOUR
-          : Math.min(
-              reminderHour + (STREAK_REMINDER_HOUR - DEFAULT_REMINDER_HOUR),
-              LATEST_REMINDER_HOUR,
-            ),
+        streakReminderHour(reminderHour),
       );
       return;
     }

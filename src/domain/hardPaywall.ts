@@ -40,25 +40,40 @@
 export const FREE_REP_LIMIT = 50;
 
 /**
- * Master switch — **off** as of 2026-09-13. The wall is stood down.
+ * Master switch — **on** as of 2026-09-20.
  *
- * Turned off because gating the core experience hurts retention: an athlete
- * who cannot build a routine never subscribes and never invites a partner.
- * That is the same conclusion as 2026-08-06, reached again after the 50-rep
- * allowance earlier the same day proved to be treating the symptom — moving
- * where the wall falls does not change that it eventually stops training.
+ * History, because this decision has now turned over six times and no note
+ * about it should be trusted over the constant itself: shipped (`4ef36a4`),
+ * removed 2026-08-06 (gating the core hurts retention), held back 2026-08-31
+ * (`ab0cd21`) while a Play rejection appeal was open, turned on 2026-08-31
+ * (`81a4d5c`) once review cleared, allowance raised 5 → 50 on 2026-09-13
+ * (`db6201c`), stood down the same day (`def3995`), and on again here.
  *
- * History, because this decision has now turned over four times: shipped
- * (`4ef36a4`), removed 2026-08-06 on this reasoning, restored 2026-08-31 once
- * Play review cleared, stood down again here. Setting this back to `true` is
- * the whole of the return — nothing else needs editing, and no app code calls
- * the rules directly around it.
+ * The standing argument *against* is real and unchanged: an athlete who cannot
+ * build a routine never subscribes and never invites a partner, so a wall that
+ * lands before the habit forms costs more than the conversions it buys. What
+ * makes this turn different from 2026-08-06 is where the wall now falls and
+ * what the athlete meets when it does:
  *
- * The rules underneath stay live and under test via `evaluateHardWallRule` /
- * `repsRemainingRule`, so nothing rots while the switch is off. That split is
- * exactly why this is a one-line change rather than git archaeology.
+ *  - **50 reps, not 5.** At 5 the wall landed on the second session, because
+ *    onboarding's last tap drops straight into a practice set. 50 buys several
+ *    complete sessions, a first streak and a form report first.
+ *  - **The form report is no longer a blind redirect.** A free athlete now sees
+ *    their real score with the detail locked, so the paywall arrives after
+ *    proof the measurement is real rather than before it.
+ *  - **The refusal is measured.** `paywall_dismissed`, `purchase_cancelled` and
+ *    `purchase_failed` all fire with a source, so if the wall does suppress
+ *    training the funnel will show it instead of it being argued about.
+ *
+ * That last point is the substantive change. The previous two reversals were
+ * decided on reasoning alone, because the decline half of the funnel did not
+ * exist. It does now, and `rep-limit` is its own source — so this can be judged
+ * on what athletes actually do rather than turned over a seventh time.
+ *
+ * Setting this back to `false` remains the whole of the retreat: nothing else
+ * needs editing, and no app code calls the rules directly around it.
  */
-export const HARD_WALL_ENABLED = false;
+export const HARD_WALL_ENABLED = true;
 
 export interface HardWallInput {
   /** RevenueCat entitlement truth. Pro is never walled. */

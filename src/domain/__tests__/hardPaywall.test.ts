@@ -144,38 +144,64 @@ describe('the allowance is spent by banked reps, not live ones', () => {
 
 /* The master switch itself.
  *
- * Off since 2026-09-13 — gating the core experience hurts retention. These
- * assert that the switch is genuinely all that separates the shipped app from
- * the rules tested above, so the two stay distinguishable: the rules keep their
- * own coverage via the `*Rule` functions, and these pin what athletes actually
- * meet, which is no wall at all. */
+ * On since 2026-09-20. These pin what athletes actually meet, which the `*Rule`
+ * tests above cannot: those exercise the logic regardless of the switch, and
+ * these assert the switch is passing that logic through to the shipped app.
+ *
+ * If the wall is ever stood down again, this block is the honest record of what
+ * changed — flip the expectations rather than deleting them, so the difference
+ * between "the rules say walled" and "an athlete is walled" stays visible. */
 describe('HARD_WALL_ENABLED', () => {
-  it('is off — the wall is stood down', () => {
-    expect(HARD_WALL_ENABLED).toBe(false);
+  it('is on — the wall is live', () => {
+    expect(HARD_WALL_ENABLED).toBe(true);
   });
 
-  /* The point of the switch: nobody is walled, at any rep total, ever. If this
-     fails the wall is live again and athletes are being stopped mid-habit. */
-  it('never walls anyone, however many reps they have spent', () => {
-    expect(isWalled(input({ repsSoFar: FREE_REP_LIMIT }))).toBe(false);
+  /* The allowance, as an athlete meets it. The boundary matters more than the
+     extremes: 49 reps trains, 50 stops. */
+  it('walls exactly when the allowance is spent, not before', () => {
     expect(isWalled(input({ repsSoFar: FREE_REP_LIMIT - 1 }))).toBe(false);
-    expect(isWalled(input({ repsSoFar: 10_000 }))).toBe(false);
-    expect(evaluateHardWall(input({ repsSoFar: 10_000 }))).toEqual({ walled: false });
+    expect(isWalled(input({ repsSoFar: FREE_REP_LIMIT }))).toBe(true);
+    expect(evaluateHardWall(input({ repsSoFar: FREE_REP_LIMIT }))).toEqual({
+      walled: true,
+      reason: 'rep-limit',
+    });
   });
 
-  /* With the switch off the countdown is unbounded, so the session renders no
-     allowance warning — `Number.isFinite` at the call site is what hides it. */
-  it('shows no countdown and no warning', () => {
-    expect(repsRemaining(input({ repsSoFar: FREE_REP_LIMIT - 2 }))).toBe(Number.POSITIVE_INFINITY);
-    expect(repsRemaining(input({ repsSoFar: 10_000 }))).toBe(Number.POSITIVE_INFINITY);
-    expect(isNearingWall(input({ repsSoFar: FREE_REP_LIMIT - 1 }))).toBe(false);
-    expect(isNearingWall(input({ repsSoFar: FREE_REP_LIMIT - NEARING_WALL_REPS }))).toBe(false);
+  /* The exemptions are the part that must survive the switch being on, because
+     each one protects something worth more than the conversion it costs: Pro
+     already paid, couple mode is the invite loop, and a build with no billing
+     would be a lock with nothing to buy. */
+  it('still exempts Pro, couple mode and unconfigured billing', () => {
+    const spent = { repsSoFar: 10_000 };
+    expect(isWalled(input({ ...spent, isPro: true }))).toBe(false);
+    expect(isWalled(input({ ...spent, isCoupleMode: true }))).toBe(false);
+    expect(isWalled(input({ ...spent, billingReady: false }))).toBe(false);
   });
 
-  /* The switch only gates — it must not have edited the rules on its way out.
-     Every case the public functions now wave through is still a case the rule
-     functions decide correctly, ready for the switch being turned back on. */
-  it('leaves the rules underneath intact', () => {
+  /* The countdown and its warning are now live, and `Number.isFinite` at the
+     call site is what decides whether the session renders them. */
+  it('counts down and warns as the allowance closes', () => {
+    expect(repsRemaining(input({ repsSoFar: FREE_REP_LIMIT - 2 }))).toBe(2);
+    expect(Number.isFinite(repsRemaining(input({ repsSoFar: FREE_REP_LIMIT - 2 })))).toBe(true);
+    expect(isNearingWall(input({ repsSoFar: FREE_REP_LIMIT - NEARING_WALL_REPS }))).toBe(true);
+    expect(isNearingWall(input({ repsSoFar: 0 }))).toBe(false);
+  });
+
+  /* Anyone exempt keeps an unbounded countdown, so a countdown UI can render
+     "∞" or hide itself without special-casing each exemption. */
+  it('leaves the countdown unbounded for the exempt', () => {
+    expect(repsRemaining(input({ repsSoFar: 10_000, isPro: true }))).toBe(
+      Number.POSITIVE_INFINITY,
+    );
+    expect(repsRemaining(input({ repsSoFar: 10_000, isCoupleMode: true }))).toBe(
+      Number.POSITIVE_INFINITY,
+    );
+  });
+
+  /* The switch gates and nothing else: with it on, the public functions and the
+     rule functions must agree everywhere. If they ever diverge, one of them has
+     grown logic the other does not have. */
+  it('passes the rules through unchanged', () => {
     expect(evaluateHardWallRule(input({ repsSoFar: FREE_REP_LIMIT }))).toEqual({
       walled: true,
       reason: 'rep-limit',
@@ -191,10 +217,10 @@ describe('HARD_WALL_ENABLED', () => {
     expect(evaluateHardWallRule(input({ ...spent, billingReady: false })).walled).toBe(false);
   });
 
-  /* The literal values stay pinned while the switch is off. They are what the
-     wall would come back as, and a silent drift now would only surface on the
-     day someone turns it on. */
-  it('still records the allowance it would return as', () => {
+  /* The literal values, pinned. 50 rather than 5 is the substance of this turn:
+     at 5 the wall landed on the second session, since onboarding's last tap
+     drops straight into a practice set. */
+  it('records the allowance athletes actually get', () => {
     expect(FREE_REP_LIMIT).toBe(50);
     expect(NEARING_WALL_REPS).toBe(8);
   });

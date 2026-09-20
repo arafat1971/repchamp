@@ -43,6 +43,7 @@ import { selectStreak, useProfileStore } from '@/state/profileStore';
 import {
   commitmentLine,
   granularPrice,
+  monthlyEquivalent,
   priceAnchor,
   savingsPercent,
   type PlanPrice,
@@ -460,6 +461,8 @@ export default function PaywallScreen() {
                     title={planTitle(pkg)}
                     subtitle={perWeekHint(pkg) ?? (pkg.product.description || 'Full Pro access')}
                     price={pkg.product.priceString}
+                    perMonth={monthlyFor(pkg)?.perMonth}
+                    billedAs={monthlyFor(pkg)?.billedAs}
                     badge={
                       pkg.packageType === 'ANNUAL'
                         ? [trialRibbon(pkg), savingsBadge(pkg, packages)]
@@ -566,6 +569,8 @@ function PlanRow({
   title,
   subtitle,
   price,
+  perMonth,
+  billedAs,
   badge,
   featured,
 }: {
@@ -574,6 +579,10 @@ function PlanRow({
   title: string;
   subtitle: string;
   price: string;
+  /** Monthly-equivalent headline, e.g. "$5" — absent for already-monthly plans. */
+  perMonth?: string | null;
+  /** The charge that actually lands, e.g. "paid $60 annually". */
+  billedAs?: string | null;
   badge?: string | null;
   featured?: boolean;
 }) {
@@ -582,7 +591,13 @@ function PlanRow({
       onPress={onPress}
       accessibilityRole="radio"
       accessibilityState={{ selected }}
-      accessibilityLabel={`${title}, ${price}${badge ? `, ${badge}` : ''}`}
+      /* The spoken label always carries the real charge. A screen-reader user
+         must not hear "$5 a month" and be billed $60 without being told. */
+      accessibilityLabel={
+        perMonth && billedAs
+          ? `${title}, ${perMonth} per month, ${billedAs}${badge ? `, ${badge}` : ''}`
+          : `${title}, ${price}${badge ? `, ${badge}` : ''}`
+      }
       style={[
         styles.plan,
         selected && styles.planSelected,
@@ -613,7 +628,22 @@ function PlanRow({
         <Text style={font('extrabold', 16, { color: palette.ink })}>{title}</Text>
         <Text style={styles.planSubtitle}>{subtitle}</Text>
       </View>
-      <Text style={font('extrabold', 17, { color: palette.ink })}>{price}</Text>
+      {/* The rate leads, the charge follows. "$60" and "$10" are not the same
+          unit, so an annual plan reads as the expensive one until the athlete
+          divides it themselves — and most will not. Both in the same unit makes
+          the comparison honest; the real charge stays attached because finding
+          out about it at the store sheet is what produces refunds. */}
+      {perMonth && billedAs ? (
+        <View style={{ alignItems: 'flex-end' }}>
+          <View style={styles.planRateRow}>
+            <Text style={font('extrabold', 19, { color: palette.ink })}>{perMonth}</Text>
+            <Text style={styles.planRateUnit}> / month</Text>
+          </View>
+          <Text style={styles.planBilledAs}>{billedAs}</Text>
+        </View>
+      ) : (
+        <Text style={font('extrabold', 17, { color: palette.ink })}>{price}</Text>
+      )}
     </PressableScale>
   );
 }
@@ -626,6 +656,11 @@ function toPlanPrice(pkg: PurchasesPackage): PlanPrice {
     weeks: weeks[pkg.packageType] ?? 0,
     symbol: pkg.product.priceString.replace(/[\d.,\s]/g, '') || '',
   };
+}
+
+/** The monthly-rate split for a plan, or null when it is already monthly. */
+function monthlyFor(pkg: PurchasesPackage) {
+  return monthlyEquivalent(toPlanPrice(pkg), pkg.product.priceString, pkg.packageType);
 }
 
 function perWeekHint(pkg: PurchasesPackage): string | null {
@@ -787,6 +822,12 @@ const styles = StyleSheet.create({
     borderColor: palette.green700,
   },
   planBadgeText: font('extrabold', 9.5, { color: palette.green700 }),
+  planRateRow: { flexDirection: 'row', alignItems: 'baseline' },
+  /* Lighter and smaller than the number: the unit is what makes the figure
+     comparable, not what the eye should land on first. */
+  planRateUnit: { ...font('bold', 12, { color: palette.grey600 }) },
+  /* The real charge — deliberately quiet, deliberately present. */
+  planBilledAs: { ...font('semibold', 11, { color: palette.grey500 }), marginTop: 2 },
   planSubtitle: { ...text.caption, marginTop: 4 },
   radio: {
     width: 24,

@@ -87,3 +87,63 @@ export function commitmentLine(hasTrial: boolean, trialLabel?: string | null): s
   if (hasTrial && trialLabel) return `${trialLabel} free · Cancel anytime · No charge until it ends`;
   return 'Cancel anytime · Keep the free staples either way';
 }
+
+/**
+ * The monthly-equivalent headline for a plan, and the charge behind it.
+ *
+ * An annual plan billed once is hard to compare against a monthly one: "$60"
+ * and "$10" are not the same unit, and the athlete has to do the division
+ * themselves to see that the yearly plan is half the price. Most of them will
+ * not, so the cheaper plan reads as the expensive one.
+ *
+ * Leading with the monthly rate puts both plans in the same unit — "$5 / month"
+ * beside "$10 / month" — and keeps the real charge directly underneath, because
+ * the athlete is about to be billed $60 and finding that out at the store sheet
+ * instead of here is the kind of surprise that produces a refund and a
+ * one-star review.
+ *
+ * Returns null for a plan with no sensible monthly reading: a weekly plan is
+ * already granular, and a lifetime purchase is not a rate at all. The caller
+ * falls back to the plain price for those.
+ */
+export interface MonthlyEquivalent {
+  /** The headline — what a month of this plan costs, e.g. "$5". */
+  perMonth: string;
+  /** The charge that actually lands, e.g. "paid $60 annually". */
+  billedAs: string;
+}
+
+export function monthlyEquivalent(
+  plan: PlanPrice,
+  priceString: string,
+  packageType: string,
+): MonthlyEquivalent | null {
+  if (!plan.price || !plan.weeks) return null;
+  /* Only plans billed less often than monthly gain anything from this. A
+     monthly plan already *is* its own rate, and restating it would add a line
+     that says the same thing twice. */
+  if (plan.weeks < 8) return null;
+
+  /* Months from weeks directly — 52/12, not 52/4.345. The weekly constant is a
+     rounded average, and routing an annual price through it turns $60 a year
+     into "$5.01 a month": an arithmetic artefact that reads as a suspiciously
+     precise price and is, strictly, not what a twelfth of the charge is. */
+  const months = Math.round((plan.weeks / 52) * 12);
+  if (months < 2) return null;
+
+  const perMonth = plan.price / months;
+  if (!Number.isFinite(perMonth) || perMonth <= 0) return null;
+
+  /* Two decimals unless the rate is clean — "$5 / month" reads better than
+     "$5.00 / month", and a rounded-looking price should not be shown rounder
+     than it is. */
+  const rounded = Math.round(perMonth * 100) / 100;
+  const formatted = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2);
+
+  const cadence = packageType === 'ANNUAL' ? 'annually' : `every ${Math.round(months)} months`;
+
+  return {
+    perMonth: `${plan.symbol}${formatted}`,
+    billedAs: `paid ${priceString} ${cadence}`,
+  };
+}

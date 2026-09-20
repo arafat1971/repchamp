@@ -14,7 +14,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import type { PurchasesPackage } from 'react-native-purchases';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { track } from '@/lib/analytics';
+import { track, truncateReason } from '@/lib/analytics';
 import { captureError } from '@/lib/crash';
 import { PRIVACY_URL, TERMS_URL } from '@/lib/urls';
 import { ModalHeader } from '@/components/ModalHeader';
@@ -240,7 +240,9 @@ export default function PaywallScreen() {
     track('purchase_failed', {
       plan: selected.packageType,
       source: params.source ?? 'unknown',
-      reason: result.message ?? 'unknown',
+      /* Bounded: this is a raw store-SDK string, the only free text in the
+         event catalogue. See `truncateReason`. */
+      reason: truncateReason(result.message),
     });
     showDialog({
       title: 'Purchase failed',

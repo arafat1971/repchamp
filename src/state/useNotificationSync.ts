@@ -66,6 +66,29 @@ export function useNotificationSync(): void {
     return () => sub.remove();
   }, []);
 
+  /* `today` is read at render time, and `daysAway` is derived from it, so a day
+     boundary only reaches the schedule when something re-renders this hook. Its
+     other triggers are all user actions — training, a settings change, pairing
+     — plus the foreground tick above, which covers the usual case of the app
+     being backgrounded overnight.
+
+     What none of them cover is the app left open and untouched across midnight:
+     `AppState` stays 'active', nothing re-renders, and an athlete who crossed
+     into day three stays scheduled as day two — the dormant slot never takes
+     over from the daily one. Narrow, but it is exactly the lapsing athlete the
+     dormant slot exists for.
+
+     One timer, aligned to the next local midnight rather than polling. */
+  useEffect(() => {
+    const now = new Date();
+    const midnight = new Date(now);
+    midnight.setHours(24, 0, 5, 0); // five seconds past, so `dayKey()` has rolled
+    const ms = midnight.getTime() - now.getTime();
+    const id = setTimeout(() => setForegroundTick((n) => n + 1), ms);
+    return () => clearTimeout(id);
+    /* Re-armed after each tick, so a session left open for days keeps rolling. */
+  }, [foregroundTick]);
+
   useEffect(() => {
     void syncLocalReminders({
       dailyReminderEnabled: dailyReminder,

@@ -80,6 +80,21 @@ export interface AnalyticsEvents {
    * outage the app cannot fix from a configuration fault it can.
    */
   purchase_failed: { plan: string; source: string; reason: string };
+  /**
+   * Longest `reason` sent with `purchase_failed`.
+   *
+   * Every other property in this catalogue is a number or a short enum. `reason`
+   * is the one place a raw third-party string — a store SDK's error message, of
+   * unbounded length and content — reaches an outbound payload, and nothing
+   * downstream bounds a single property: `MAX_BATCH` and `MAX_QUEUE` cap how
+   * many events are sent, not how large one is.
+   *
+   * 180 characters keeps the distinguishing part of every real message
+   * ("Invalid Play Store credentials.", "BILLING_UNAVAILABLE", a declined-card
+   * line) while making a pathological one impossible. Truncation is marked, so
+   * a cut message is never mistaken for the whole fault when someone is
+   * diagnosing from the dashboard.
+   */
   trial_started: { plan: string };
   subscribed: { plan: string };
   restore_completed: { restored: boolean };
@@ -114,6 +129,23 @@ interface QueuedEvent {
 const POSTHOG_HOST = 'https://us.i.posthog.com';
 /** Events are batched and flushed on this cadence to avoid a request per rep. */
 const FLUSH_INTERVAL_MS = 10_000;
+/** See `purchase_failed` — bounds the one free-text property in the catalogue. */
+export const MAX_REASON_LENGTH = 180;
+
+/**
+ * Trims a store error to something safe to send, marking the cut.
+ *
+ * Returns a stable placeholder for an absent or blank message so the event
+ * still records *that* a purchase failed — a missing reason is itself worth
+ * seeing, and an empty string in a dashboard reads as a bug in the chart.
+ */
+export function truncateReason(reason: string | null | undefined): string {
+  const trimmed = (reason ?? '').trim();
+  if (!trimmed) return 'unknown';
+  if (trimmed.length <= MAX_REASON_LENGTH) return trimmed;
+  return `${trimmed.slice(0, MAX_REASON_LENGTH - 1)}…`;
+}
+
 const MAX_BATCH = 20;
 /** Hard ceiling so a long offline session cannot grow the queue forever. */
 const MAX_QUEUE = 200;

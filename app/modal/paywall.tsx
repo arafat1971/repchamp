@@ -38,6 +38,7 @@ import { useAuthStore } from '@/state/authStore';
 import { useProStore } from '@/state/proStore';
 import { showDialog } from '@/state/useDialog';
 import { headlineProof } from '@/domain/progressProof';
+import { orderBenefits, type BenefitId } from '@/domain/paywallBenefits';
 import { selectStreak, useProfileStore } from '@/state/profileStore';
 import {
   commitmentLine,
@@ -49,13 +50,30 @@ import {
 import { font, text } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
 
-/** Compact value props — not card chrome. Push-ups & squats stay free. */
-const BENEFITS = [
-  { title: 'Full exercise library', detail: 'Every movement beyond push-ups & squats' },
-  { title: 'Guided programmes', detail: 'Adaptive multi-week plans that scale with you' },
-  { title: 'Form reports', detail: 'Depth, tempo and alignment after every set' },
-  { title: 'Always free staples', detail: 'Push-ups, squats, duels & couple mode stay free' },
-];
+/**
+ * Compact value props — not card chrome. Push-ups & squats stay free.
+ *
+ * Keyed by id so `orderBenefits` can lead with whatever the athlete was just
+ * refused. All four always render, in these exact words; only the order moves.
+ */
+const BENEFITS: Record<BenefitId, { title: string; detail: string }> = {
+  library: {
+    title: 'Full exercise library',
+    detail: 'Every movement beyond push-ups & squats',
+  },
+  programmes: {
+    title: 'Guided programmes',
+    detail: 'Adaptive multi-week plans that scale with you',
+  },
+  reports: {
+    title: 'Form reports',
+    detail: 'Depth, tempo and alignment after every set',
+  },
+  'free-staples': {
+    title: 'Always free staples',
+    detail: 'Push-ups, squats, duels & couple mode stay free',
+  },
+};
 
 /**
  * Pro upgrade screen — live RevenueCat packages, sticky CTA, honest empty states.
@@ -369,9 +387,13 @@ export default function PaywallScreen() {
           </Animated.View>
 
           <View style={styles.benefits}>
-            {BENEFITS.map((b, i) => (
+            {/* Ordered by what this source blocked, so the promise that answers
+                the refusal is read first. See `domain/paywallBenefits`. */}
+            {orderBenefits(params.source).map((id, i) => {
+              const b = BENEFITS[id];
+              return (
               <Animated.View
-                key={b.title}
+                key={id}
                 entering={FadeInDown.delay(80 + i * 45).duration(320)}
                 style={styles.benefit}
               >
@@ -383,7 +405,8 @@ export default function PaywallScreen() {
                   <Text style={styles.benefitDetail}>{b.detail}</Text>
                 </View>
               </Animated.View>
-            ))}
+              );
+            })}
           </View>
 
           <Text style={styles.plansLabel}>CHOOSE YOUR PLAN</Text>

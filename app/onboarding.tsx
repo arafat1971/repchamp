@@ -37,6 +37,7 @@ import { GrowthChart } from '@/components/charts/GrowthChart';
 import { ProgressRing } from '@/components/session/ProgressRing';
 import { Card, PressableScale, PrimaryButton, ProgressBar } from '@/components/ui';
 import { captureError } from '@/lib/crash';
+import { pluralise } from '@/domain/plural';
 import { OPPONENTS } from '@/domain/opponent';
 import { track } from '@/lib/analytics';
 import { onboardingProgressPercent, onboardingStepName } from '@/domain/onboardingFunnel';
@@ -1636,14 +1637,18 @@ function YourFirstWeek({
         <View style={styles.commitRow}>
           <Text style={{ fontSize: 16 }}>🔥</Text>
           <Text style={[text.captionMd, { flex: 1 }]}>
-            Day one is the smallest day of the week — {opener?.target ?? 0} reps. It only gets
+            Day one is the smallest day of the week —{' '}
+            {pluralise(opener?.target ?? 0, 'rep')}. It only gets
             heavier once you&apos;ve proved you&apos;ll show up.
           </Text>
         </View>
       </StaggerIn>
 
       <View style={{ flex: 1 }} />
-      <PrimaryButton label={`Start day one — ${opener?.target ?? 0} reps`} onPress={onNext} />
+      <PrimaryButton
+        label={`Start day one — ${pluralise(opener?.target ?? 0, 'rep')}`}
+        onPress={onNext}
+      />
       <Text style={styles.commitFootnote}>Takes about 2 minutes · no equipment</Text>
     </View>
   );

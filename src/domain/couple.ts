@@ -12,6 +12,7 @@
  * breaks it — and it is why couple mode cannot be used alone.
  */
 
+import { pluralise } from './plural';
 import { calculateStreak } from './progression';
 
 /** One half of a couple. */
@@ -405,7 +406,7 @@ export function coupleBondPresentation(input: {
   return {
     eyebrow: input.levelName,
     headline: milestone
-      ? `${milestone - input.combined} reps to your next milestone`
+      ? `${pluralise(milestone - input.combined, 'rep')} to your next milestone`
       : 'Show up together — streak starts today',
     cta: 'Train together',
     tone: 'steady',

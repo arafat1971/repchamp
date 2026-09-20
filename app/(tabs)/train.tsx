@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
+import { pluralise } from '@/domain/plural';
 import { ExerciseLibrary } from '@/components/ExerciseLibrary';
 import { ProgrammeCard } from '@/components/ProgrammeCard';
 import { Card, Chevron, PressableScale, ProgressBar, Screen, SectionLabel } from '@/components/ui';
@@ -238,7 +239,7 @@ export default function TrainScreen() {
                 ? 'Finish a set to log your first max'
                 : best >= nextMilestone
                   ? 'Top milestone cleared — keep pushing'
-                  : `${nextMilestone - best} reps to your next milestone`}
+                  : `${pluralise(nextMilestone - best, 'rep')} to your next milestone`}
             </Text>
           </View>
         </View>

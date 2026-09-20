@@ -4,7 +4,6 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { ProgressRing } from '@/components/session/ProgressRing';
 import { Card, IconButton, PressableScale, PrimaryButton, Screen, SectionLabel } from '@/components/ui';
-import { track } from '@/lib/analytics';
 import { canUse } from '@/domain/pro';
 import { formReportTeaser, teaserLockLine } from '@/domain/formReportTeaser';
 import { useIsPro } from '@/state/proStore';
@@ -78,7 +77,11 @@ export default function FormReportScreen() {
 
         <PressableScale
           onPress={() => {
-            track('paywall_viewed', { source: 'form-report-teaser' });
+            /* No `paywall_viewed` here. The paywall fires that itself on mount,
+               from the `source` passed below — firing it again would count one
+               athlete as two views, and only on this source, which is exactly
+               the one the teaser exists to measure against `form-report`. The
+               comparison would have read as half the conversion it really is. */
             router.push({
               pathname: '/modal/paywall',
               params: { source: 'form-report-teaser' },
@@ -179,7 +182,9 @@ export default function FormReportScreen() {
       <Card style={styles.section}>
         <View style={styles.metricHeader}>
           <SectionLabel>Per-rep depth</SectionLabel>
-          <Text style={font('bold', 10, { color: palette.grey600 })}>{reps} reps tracked</Text>
+          <Text style={font('bold', 10, { color: palette.grey600 })}>
+            {reps} {reps === 1 ? 'rep' : 'reps'} tracked
+          </Text>
         </View>
 
         {report.bars.length > 0 ? (

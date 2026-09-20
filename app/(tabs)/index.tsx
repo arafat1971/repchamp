@@ -622,7 +622,7 @@ function QuickTile({
           <Text style={font('regular', 12, { color: palette.grey500 })}>reps</Text>
         </View>
         <Text style={font('regular', 11, { color: palette.grey500, marginTop: 4 })}>
-          Last {stats.lastBest} reps
+          Last {stats.lastBest} {stats.lastBest === 1 ? 'rep' : 'reps'}
         </Text>
       </LinearGradient>
     </PressableScale>

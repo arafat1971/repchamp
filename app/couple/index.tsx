@@ -363,7 +363,7 @@ function ContributionRow({
         {name}
       </Text>
       <Text style={styles.contribStat}>
-        {reps} reps · {days} {days === 1 ? 'day' : 'days'}
+        {reps} {reps === 1 ? 'rep' : 'reps'} · {days} {days === 1 ? 'day' : 'days'}
       </Text>
     </View>
   );

@@ -249,3 +249,105 @@ export function sideTotals(days: readonly CoupleDay[]): SideTotals {
     sharedDays: days.filter((d) => d.both).length,
   };
 }
+
+/* ------------------------------------------------------------------ *
+ * Home widget
+ * ------------------------------------------------------------------ */
+
+/**
+ * What the Home widget says about a partner right now.
+ *
+ * `CoupleStrip` already carries the bond's headline numbers — streak, combined
+ * reps, a seven-day dot row. What it never answers is the question a partner
+ * actually opens the app to ask: *have they trained today, and how do we
+ * compare this week?*
+ *
+ * "Live" is meant literally. `watchMyCouple` holds an `onSnapshot` on
+ * `couples/{id}`, so a partner finishing a set updates `trainedDays` and
+ * `totalReps` on this device within seconds without a refresh. This module
+ * turns that stream into one sentence and a small set of numbers.
+ *
+ * The same asymmetry as everywhere else applies and is not hidden: their reps
+ * *today* are not knowable — only that they trained — so the widget reports
+ * their day as a state, not a count, and reports mine as a real number.
+ */
+export type PartnerPulse =
+  /** They have trained today. The strongest thing this widget can say. */
+  | { kind: 'trained-today'; sharedToday: boolean }
+  /** Not yet today, but they trained within the last few days. */
+  | { kind: 'recent'; daysAgo: number }
+  /** Nothing for a while — the bond is going quiet. */
+  | { kind: 'quiet'; daysAgo: number }
+  /** They have never trained, or there is no history at all. */
+  | { kind: 'no-history' };
+
+export interface PartnerWidget {
+  pulse: PartnerPulse;
+  /** Days they trained in the window. */
+  theirDays: number;
+  /** Days I trained in the window. */
+  myDays: number;
+  /** Days we both trained — what the shared streak counts. */
+  sharedDays: number;
+  /** My reps in the window. Theirs is deliberately absent; see above. */
+  myReps: number;
+}
+
+/**
+ * The widget's state, from the same day rows the tracker uses.
+ *
+ * `today` is passed rather than read from a clock so the result is provable in
+ * a test and stays consistent with whatever day the rest of the screen thinks
+ * it is.
+ */
+export function partnerWidget(
+  history: readonly DayStatusRow[],
+  sessions: readonly ExerciseSession[],
+  today: string,
+): PartnerWidget {
+  const past = history.filter((h) => !h.isFuture);
+  const days = coupleDailyDetail(past, sessions, past.length || 1);
+  const totals = sideTotals(days);
+
+  return {
+    pulse: pulseOf(past, today),
+    theirDays: totals.theirDays,
+    myDays: totals.myDays,
+    sharedDays: totals.sharedDays,
+    myReps: totals.myReps,
+  };
+}
+
+/** Days since the partner last trained, or null when they never have. */
+function daysSinceTheirs(past: readonly DayStatusRow[], today: string): number | null {
+  const theirs = past
+    .filter((h) => h.status === 'both' || h.status === 'theirs')
+    .map((h) => h.day)
+    .sort();
+  const last = theirs[theirs.length - 1];
+  if (!last) return null;
+
+  const ms = Date.parse(`${today}T00:00:00Z`) - Date.parse(`${last}T00:00:00Z`);
+  if (!Number.isFinite(ms)) return null;
+  return Math.max(0, Math.round(ms / 86_400_000));
+}
+
+/**
+ * Three days is where "recent" ends, matching `DORMANT_AFTER_DAYS`.
+ *
+ * The same number the win-back reminder uses, deliberately: an athlete the app
+ * considers dormant should not be described to their partner as recently
+ * active.
+ */
+export const PARTNER_QUIET_AFTER_DAYS = 3;
+
+function pulseOf(past: readonly DayStatusRow[], today: string): PartnerPulse {
+  const ago = daysSinceTheirs(past, today);
+  if (ago === null) return { kind: 'no-history' };
+  if (ago === 0) {
+    const row = past.find((h) => h.day === today);
+    return { kind: 'trained-today', sharedToday: row?.status === 'both' };
+  }
+  if (ago < PARTNER_QUIET_AFTER_DAYS) return { kind: 'recent', daysAgo: ago };
+  return { kind: 'quiet', daysAgo: ago };
+}

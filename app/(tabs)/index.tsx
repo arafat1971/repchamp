@@ -17,11 +17,14 @@ import { track } from '@/lib/analytics';
 import { HomeAmbient } from '@/components/home/HomeAmbient';
 import { HeroCard } from '@/components/home/HeroCard';
 import { CoupleStrip } from '@/components/home/CoupleStrip';
+import { PartnerPulseCard } from '@/components/home/PartnerPulseCard';
 import { CountUp, PopOnChange, StaggerIn } from '@/components/motion';
 import { Card, PressableScale, Screen, SectionLabel } from '@/components/ui';
 import { exerciseHomeStats } from '@/domain/exerciseHomeStats';
 import { firstNameOf, selectHomeGreeting } from '@/domain/homeGreeting';
 import { dailyChallengeProgress } from '@/domain/dailyChallenge';
+import { myExerciseBreakdown, partnerWidget } from '@/domain/coupleExercises';
+import { trackerHistory } from '@/domain/coupleTracker';
 import { selectHomeFocus, type HomeFocus } from '@/domain/homeFocus';
 import { leagueProgressFromWeeklyXp } from '@/domain/leagueProgress';
 import { liveActivity } from '@/domain/liveActivity';
@@ -91,6 +94,22 @@ export default function HomeScreen() {
     () => dailyChallengeProgress(profile.sessions, today),
     [profile.sessions, today],
   );
+
+  /* The partner's live week. `watchMyCouple` holds an `onSnapshot` on the
+     couple document, so these numbers move when they finish a set — no
+     polling, no refresh. Their *days* sync; their reps never leave their
+     phone, which is why the widget counts days on their side and reps on
+     mine. */
+  const partnerPulse = useMemo(() => {
+    const uid = couple.me?.uid;
+    if (!couple.paired || !couple.partner || !uid) return null;
+    const history = trackerHistory(couple.couple, uid, today, 7);
+    const week = new Set(history.filter((h) => !h.isFuture).map((h) => h.day));
+    return {
+      widget: partnerWidget(history, profile.sessions, today),
+      mine: myExerciseBreakdown(profile.sessions, week).mine,
+    };
+  }, [couple.paired, couple.partner, couple.couple, couple.me?.uid, profile.sessions, today]);
 
   const greetingCopy = useMemo(
     () => selectHomeGreeting({ streak, trainedToday, firstName }),
@@ -297,6 +316,18 @@ export default function HomeScreen() {
             levelName={couple.level.name}
             today={today}
             onAction={(action) => void onCoupleAction(action)}
+          />
+        </StaggerIn>
+      ) : null}
+
+      {/* The partner's week in detail, under the bond headline above. */}
+      {partnerPulse ? (
+        <StaggerIn index={1} style={{ marginTop: 12 }}>
+          <PartnerPulseCard
+            partnerName={couple.partner?.displayName ?? 'Partner'}
+            widget={partnerPulse.widget}
+            myExercises={partnerPulse.mine}
+            onPress={() => router.push('/couple')}
           />
         </StaggerIn>
       ) : null}

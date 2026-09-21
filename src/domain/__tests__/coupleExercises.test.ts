@@ -233,3 +233,81 @@ describe('sideTotals', () => {
     expect(sideTotals([])).toEqual({ myReps: 0, myDays: 0, theirDays: 0, sharedDays: 0 });
   });
 });
+
+import { PARTNER_QUIET_AFTER_DAYS, partnerWidget } from '@/domain/coupleExercises';
+import { DORMANT_AFTER_DAYS } from '@/domain/dormantReminder';
+
+describe('partnerWidget', () => {
+  const base = [
+    row('2026-09-15', 'mine'),
+    row('2026-09-16', 'both'),
+    row('2026-09-17', 'theirs'),
+    row('2026-09-18', 'neither'),
+    row('2026-09-19', 'mine', { isToday: true }),
+  ];
+  const sessions = [s('2026-09-15', 'push', 20), s('2026-09-19', 'push', 30)];
+
+  it('counts each side’s days and my reps', () => {
+    const w = partnerWidget(base, sessions, '2026-09-19');
+    expect(w).toMatchObject({ theirDays: 2, myDays: 2, sharedDays: 1, myReps: 50 });
+  });
+
+  /* The asymmetry, again: their reps are not on this device, so the widget has
+     no field to put them in. */
+  it('carries no partner rep count', () => {
+    const w = partnerWidget(base, sessions, '2026-09-19');
+    expect(Object.keys(w)).not.toContain('theirReps');
+  });
+
+  it('leads with today when they have trained', () => {
+    const w = partnerWidget(
+      [...base, row('2026-09-19', 'theirs', { isToday: true })],
+      sessions,
+      '2026-09-19',
+    );
+    expect(w.pulse.kind).toBe('trained-today');
+  });
+
+  it('knows whether today was shared', () => {
+    const shared = partnerWidget([row('2026-09-19', 'both', { isToday: true })], [], '2026-09-19');
+    expect(shared.pulse).toEqual({ kind: 'trained-today', sharedToday: true });
+
+    const solo = partnerWidget([row('2026-09-19', 'theirs', { isToday: true })], [], '2026-09-19');
+    expect(solo.pulse).toEqual({ kind: 'trained-today', sharedToday: false });
+  });
+
+  it('reports a recent partner by days ago', () => {
+    const w = partnerWidget(base, sessions, '2026-09-19');
+    expect(w.pulse).toEqual({ kind: 'recent', daysAgo: 2 });
+  });
+
+  it('calls them quiet once they pass the threshold', () => {
+    const w = partnerWidget([row('2026-09-15', 'theirs')], [], '2026-09-19');
+    expect(w.pulse).toEqual({ kind: 'quiet', daysAgo: 4 });
+  });
+
+  /* An athlete the app already considers dormant must not be described to
+     their partner as recently active. */
+  it('goes quiet exactly when the app calls someone dormant', () => {
+    expect(PARTNER_QUIET_AFTER_DAYS).toBe(DORMANT_AFTER_DAYS);
+  });
+
+  it('says nothing about a partner who has never trained', () => {
+    expect(partnerWidget([row('2026-09-19', 'mine')], [], '2026-09-19').pulse).toEqual({
+      kind: 'no-history',
+    });
+    expect(partnerWidget([], [], '2026-09-19').pulse).toEqual({ kind: 'no-history' });
+  });
+
+  /* Future days are rendered by the grid to keep its shape; they are not
+     evidence a partner trained. */
+  it('ignores future rows', () => {
+    const w = partnerWidget(
+      [row('2026-09-19', 'mine', { isToday: true }), row('2026-09-20', 'theirs', { isFuture: true })],
+      [],
+      '2026-09-19',
+    );
+    expect(w.pulse.kind).toBe('no-history');
+    expect(w.theirDays).toBe(0);
+  });
+});

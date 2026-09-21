@@ -459,7 +459,18 @@ export default function PaywallScreen() {
                     selected={pkg.identifier === selectedId}
                     onPress={() => setSelectedId(pkg.identifier)}
                     title={planTitle(pkg)}
-                    subtitle={perWeekHint(pkg) ?? (pkg.product.description || 'Full Pro access')}
+                    /* The per-week hint is dropped when a monthly rate is
+                       shown: "$1.15 a week · $5 / month · paid $60.00 annually"
+                       is the same price stated three ways, and three framings
+                       of one number read as sales patter rather than clarity.
+                       The rate and the real charge are the two that matter.
+                       Plans with no monthly reading keep the hint, which is
+                       their only granular framing. */
+                    subtitle={
+                      monthlyFor(pkg)
+                        ? 'cancel anytime'
+                        : (perWeekHint(pkg) ?? pkg.product.description ?? 'Full Pro access')
+                    }
                     price={pkg.product.priceString}
                     perMonth={monthlyFor(pkg)?.perMonth}
                     billedAs={monthlyFor(pkg)?.billedAs}

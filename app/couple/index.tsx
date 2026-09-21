@@ -23,7 +23,9 @@ import {
   weeklyPace,
   type TrackerDay,
 } from '@/domain/coupleTracker';
-import { dayKey, weekdayLetter } from '@/domain/progression';
+import { coupleExerciseInsight, myExerciseBreakdown } from '@/domain/coupleExercises';
+import { dayKey, lastNDayKeys, weekdayLetter } from '@/domain/progression';
+import { getExercise } from '@/vision/exercises';
 import { useCouple } from '@/state/useCouple';
 import { useAuthStore } from '@/state/authStore';
 import { useProfileStore } from '@/state/profileStore';
@@ -51,6 +53,7 @@ export default function CoupleTrackerScreen() {
   const uid = useAuthStore((s) => s.user?.uid ?? null);
   const weeklyGoal = useProfileStore((s) => s.weeklyGoal);
   const displayName = useProfileStore((s) => s.displayName);
+  const sessions = useProfileStore((s) => s.sessions);
 
   const today = dayKey();
   const viewerUid = uid ?? '';
@@ -59,6 +62,16 @@ export default function CoupleTrackerScreen() {
     () => trackerHistory(couple, viewerUid, today, WINDOW_DAYS),
     [couple, viewerUid, today],
   );
+  /* My own movements over the same window the rest of the screen uses. Read
+     from local sessions rather than the couple doc, which stores only
+     `trainedDays` and `totalReps` — see `domain/coupleExercises` for why
+     widening that document was the wrong route. */
+  const breakdown = useMemo(
+    () => myExerciseBreakdown(sessions, new Set(lastNDayKeys(WINDOW_DAYS))),
+    [sessions],
+  );
+  const insight = useMemo(() => coupleExerciseInsight(breakdown), [breakdown]);
+
   const summary = useMemo(
     () => trackerSummary(couple, viewerUid, today, WINDOW_DAYS),
     [couple, viewerUid, today],
@@ -275,6 +288,48 @@ export default function CoupleTrackerScreen() {
                 {split.balanced
                   ? 'Evenly matched — you are carrying this together.'
                   : `${split.mine.share >= 0.5 ? 'You have' : `${partnerName} has`} logged more reps, but every shared day counts the same.`}
+              </Text>
+            </Card>
+          </Animated.View>
+        </>
+      ) : null}
+
+      {/* ── Movements ──
+          Mine only, and labelled as such. A partner's per-exercise history
+          never reaches this device — the couple document stores `trainedDays`
+          and `totalReps` and nothing else — so the honest thing is to show my
+          half and say whose half it is, rather than estimate theirs. */}
+      {breakdown.total > 0 ? (
+        <>
+          <SectionLabel>YOUR MOVEMENTS</SectionLabel>
+          <Animated.View entering={FadeInDown.delay(185).duration(320)}>
+            <Card style={styles.paddedCard}>
+              {breakdown.mine.map((habit) => (
+                <View key={habit.exercise} style={styles.habitRow}>
+                  <View style={styles.habitHead}>
+                    <Text style={styles.habitName}>{getExercise(habit.exercise).label}</Text>
+                    <Text style={styles.habitReps}>
+                      {habit.reps} {habit.reps === 1 ? 'rep' : 'reps'} ·{' '}
+                      {habit.days} {habit.days === 1 ? 'day' : 'days'}
+                    </Text>
+                  </View>
+                  <View style={styles.habitTrack}>
+                    <View
+                      style={[
+                        styles.habitFill,
+                        { flex: Math.max(habit.share, 0.02), backgroundColor: palette.purple500 },
+                      ]}
+                    />
+                    <View style={{ flex: Math.max(1 - habit.share, 0.02) }} />
+                  </View>
+                </View>
+              ))}
+
+              <Text style={[text.caption, styles.splitNote]}>
+                {insight.kind === 'mine-only'
+                  ? `Mostly ${getExercise(insight.signature).label.toLowerCase()} — ${Math.round(insight.share * 100)}% of your reps this month.`
+                  : 'A good spread across every movement this month.'}
+                {` ${partnerName}'s breakdown stays on their phone.`}
               </Text>
             </Card>
           </Animated.View>
@@ -538,6 +593,19 @@ const styles = StyleSheet.create({
   contribRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 5 },
   contribName: { flex: 1, ...font('extrabold', 14, { color: palette.ink }) },
   contribStat: font('bold', 12.5, { color: palette.grey600 }),
+  habitRow: { marginBottom: 14 },
+  habitHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  habitName: { ...font('extrabold', 14, { color: palette.ink }) },
+  habitReps: { ...font('semibold', 11, { color: palette.grey600 }) },
+  habitTrack: {
+    flexDirection: 'row',
+    height: 8,
+    borderRadius: radius.xs,
+    backgroundColor: palette.track,
+    overflow: 'hidden',
+    marginTop: 6,
+  },
+  habitFill: { height: 8 },
   splitNote: { marginTop: 8 },
 
   dot: { width: 10, height: 10, borderRadius: 5 },

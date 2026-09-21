@@ -23,7 +23,12 @@ import {
   weeklyPace,
   type TrackerDay,
 } from '@/domain/coupleTracker';
-import { coupleExerciseInsight, myExerciseBreakdown } from '@/domain/coupleExercises';
+import {
+  coupleDailyDetail,
+  coupleExerciseInsight,
+  myExerciseBreakdown,
+  sideTotals,
+} from '@/domain/coupleExercises';
 import { dayKey, lastNDayKeys, weekdayLetter } from '@/domain/progression';
 import { getExercise } from '@/vision/exercises';
 import { useCouple } from '@/state/useCouple';
@@ -71,6 +76,12 @@ export default function CoupleTrackerScreen() {
     [sessions],
   );
   const insight = useMemo(() => coupleExerciseInsight(breakdown), [breakdown]);
+
+  /* Day-by-day, newest first. Two shapes on purpose: my rows carry reps and
+     movements, my partner's carry only whether they trained — that is the
+     whole of what `couples/{id}` knows about them. */
+  const dailyLog = useMemo(() => coupleDailyDetail(history, sessions, 10), [history, sessions]);
+  const totals = useMemo(() => sideTotals(dailyLog), [dailyLog]);
 
   const summary = useMemo(
     () => trackerSummary(couple, viewerUid, today, WINDOW_DAYS),
@@ -301,7 +312,7 @@ export default function CoupleTrackerScreen() {
           half and say whose half it is, rather than estimate theirs. */}
       {breakdown.total > 0 ? (
         <>
-          <SectionLabel>YOUR MOVEMENTS</SectionLabel>
+          <SectionLabel>YOU</SectionLabel>
           <Animated.View entering={FadeInDown.delay(185).duration(320)}>
             <Card style={styles.paddedCard}>
               {breakdown.mine.map((habit) => (
@@ -331,6 +342,90 @@ export default function CoupleTrackerScreen() {
                   : 'A good spread across every movement this month.'}
                 {` ${partnerName}'s breakdown stays on their phone.`}
               </Text>
+            </Card>
+          </Animated.View>
+        </>
+      ) : null}
+
+      {/* ── Partner ──
+          Deliberately a different shape from YOU above, because the available
+          data is a different shape. `couples/{id}` carries a partner's
+          `trainedDays` and an all-time `totalReps` — no per-day reps, no
+          movements. Rendering this panel like the other one would mean
+          inventing numbers to fill the columns, so it shows what is actually
+          known and says what is not. */}
+      {split ? (
+        <>
+          <SectionLabel>{partnerName.toUpperCase()}</SectionLabel>
+          <Animated.View entering={FadeInDown.delay(195).duration(320)}>
+            <Card style={styles.paddedCard}>
+              <View style={styles.partnerStats}>
+                <View style={styles.partnerCell}>
+                  <Text style={styles.partnerNum}>{totals.theirDays}</Text>
+                  <Text style={styles.partnerLabel}>
+                    {totals.theirDays === 1 ? 'day trained' : 'days trained'}
+                  </Text>
+                </View>
+                <View style={styles.partnerCell}>
+                  <Text style={styles.partnerNum}>{split.theirs.reps}</Text>
+                  <Text style={styles.partnerLabel}>reps all-time</Text>
+                </View>
+                <View style={styles.partnerCell}>
+                  <Text style={styles.partnerNum}>{totals.sharedDays}</Text>
+                  <Text style={styles.partnerLabel}>
+                    {totals.sharedDays === 1 ? 'day with you' : 'days with you'}
+                  </Text>
+                </View>
+              </View>
+              <Text style={[text.caption, styles.splitNote]}>
+                Which days {partnerName} trained syncs to the bond. Their reps
+                per day and their movements stay on their own phone.
+              </Text>
+            </Card>
+          </Animated.View>
+        </>
+      ) : null}
+
+      {/* ── Daily log ── */}
+      {dailyLog.length > 0 ? (
+        <>
+          <SectionLabel>DAY BY DAY</SectionLabel>
+          <Animated.View entering={FadeInDown.delay(205).duration(320)}>
+            <Card style={styles.paddedCard}>
+              {dailyLog.map((d) => (
+                <View key={d.day} style={styles.logRow}>
+                  <View style={styles.logDate}>
+                    <Text style={styles.logDay}>{weekdayLetter(d.day)}</Text>
+                    <Text style={styles.logNum}>{Number(d.day.slice(8, 10))}</Text>
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.logMine}>
+                      {d.myReps > 0
+                        ? `You · ${d.myReps} ${d.myReps === 1 ? 'rep' : 'reps'}`
+                        : 'You · rest day'}
+                    </Text>
+                    {d.myExercises.length > 0 ? (
+                      <Text style={styles.logExercises}>
+                        {d.myExercises
+                          .map((e) => `${getExercise(e.exercise).label} ${e.reps}`)
+                          .join(' · ')}
+                      </Text>
+                    ) : null}
+                    <Text style={styles.logTheirs}>
+                      {d.theyTrained ? `${partnerName} trained` : `${partnerName} rested`}
+                    </Text>
+                  </View>
+
+                  {/* `both` is the only status that advances the shared streak,
+                      so it is the one the eye should find first. */}
+                  {d.both ? (
+                    <View style={styles.logBoth}>
+                      <Text style={styles.logBothText}>BOTH</Text>
+                    </View>
+                  ) : null}
+                </View>
+              ))}
             </Card>
           </Animated.View>
         </>
@@ -606,6 +701,35 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   habitFill: { height: 8 },
+  partnerStats: { flexDirection: 'row', gap: 8 },
+  partnerCell: { flex: 1, alignItems: 'center' },
+  partnerNum: { ...font('extrabold', 22, { color: palette.ink }) },
+  partnerLabel: {
+    ...font('semibold', 10, { color: palette.grey600 }),
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  logRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: palette.border,
+  },
+  logDate: { width: 34, alignItems: 'center' },
+  logDay: { ...font('bold', 10, { color: palette.grey600 }) },
+  logNum: { ...font('extrabold', 15, { color: palette.ink }) },
+  logMine: { ...font('extrabold', 13, { color: palette.ink }) },
+  logExercises: { ...font('semibold', 11, { color: palette.purple500 }), marginTop: 1 },
+  logTheirs: { ...font('semibold', 11, { color: palette.grey600 }), marginTop: 1 },
+  logBoth: {
+    backgroundColor: palette.green50,
+    borderRadius: radius.xs,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  logBothText: { ...font('extrabold', 9, { color: palette.green700 }), letterSpacing: 0.6 },
   splitNote: { marginTop: 8 },
 
   dot: { width: 10, height: 10, borderRadius: 5 },

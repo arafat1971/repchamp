@@ -141,3 +141,95 @@ describe('coupleExerciseInsight', () => {
     }
   });
 });
+
+import { coupleDailyDetail, sideTotals, type DayStatusRow } from '@/domain/coupleExercises';
+
+const row = (
+  day: string,
+  status: DayStatusRow['status'],
+  extra: Partial<DayStatusRow> = {},
+): DayStatusRow => ({ day, status, isToday: false, isFuture: false, ...extra });
+
+describe('coupleDailyDetail', () => {
+  const history = [
+    row('2026-09-15', 'mine'),
+    row('2026-09-16', 'neither'),
+    row('2026-09-17', 'both'),
+    row('2026-09-18', 'theirs'),
+    row('2026-09-19', 'both', { isToday: true }),
+    row('2026-09-20', 'neither', { isFuture: true }),
+  ];
+
+  const sessions = [
+    s('2026-09-15', 'push', 20),
+    s('2026-09-17', 'push', 30),
+    s('2026-09-17', 'squat', 10),
+    s('2026-09-19', 'situp', 25),
+  ];
+
+  it('is newest first', () => {
+    const days = coupleDailyDetail(history, sessions);
+    expect(days.map((d) => d.day)).toEqual([
+      '2026-09-19', '2026-09-18', '2026-09-17', '2026-09-15',
+    ]);
+  });
+
+  /* A list whose rows are mostly "nobody trained" buries the days that matter;
+     the history grid above already shows the month's gaps. */
+  it('drops days when neither of you trained', () => {
+    expect(coupleDailyDetail(history, sessions).some((d) => d.day === '2026-09-16')).toBe(false);
+  });
+
+  /* The grid renders the trailing edge of the week to keep its shape, but a
+     day that has not happened is not an event. */
+  it('never reports a future day', () => {
+    expect(coupleDailyDetail(history, sessions).some((d) => d.day === '2026-09-20')).toBe(false);
+  });
+
+  it('carries my reps and movements for the day', () => {
+    const day = coupleDailyDetail(history, sessions).find((d) => d.day === '2026-09-17');
+    expect(day?.myReps).toBe(40);
+    expect(day?.myExercises.map((e) => e.exercise)).toEqual(['push', 'squat']);
+  });
+
+  /* The asymmetry this module exists to be honest about: a partner's reps are
+     not on this device, so the only thing sayable is that they trained. */
+  it('reports the partner as a fact, never a number', () => {
+    const day = coupleDailyDetail(history, sessions).find((d) => d.day === '2026-09-18');
+    expect(day?.theyTrained).toBe(true);
+    expect(day?.myReps).toBe(0);
+    expect(Object.keys(day ?? {})).not.toContain('theirReps');
+  });
+
+  it('marks the days that advance the shared streak', () => {
+    const days = coupleDailyDetail(history, sessions);
+    expect(days.filter((d) => d.both).map((d) => d.day)).toEqual(['2026-09-19', '2026-09-17']);
+  });
+
+  it('honours the limit', () => {
+    expect(coupleDailyDetail(history, sessions, 2)).toHaveLength(2);
+  });
+
+  it('is empty, not broken, with no history', () => {
+    expect(coupleDailyDetail([], [])).toEqual([]);
+  });
+});
+
+describe('sideTotals', () => {
+  it('counts my reps and both sides’ days', () => {
+    const days = coupleDailyDetail(
+      [row('2026-09-17', 'both'), row('2026-09-18', 'theirs'), row('2026-09-15', 'mine')],
+      [s('2026-09-17', 'push', 30), s('2026-09-15', 'push', 20)],
+    );
+    expect(sideTotals(days)).toEqual({
+      myReps: 50,
+      myDays: 2,
+      theirDays: 2,
+      sharedDays: 1,
+    });
+  });
+
+  it('is all zeroes for an empty window', () => {
+    expect(sideTotals([])).toEqual({ myReps: 0, myDays: 0, theirDays: 0, sharedDays: 0 });
+  });
+});

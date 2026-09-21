@@ -142,3 +142,110 @@ export function coupleExerciseInsight(
   if (!lead) return { kind: 'mixed' };
   return { kind: 'mine-only', signature: breakdown.signature, share: lead.share };
 }
+
+/* ------------------------------------------------------------------ *
+ * Daily detail
+ * ------------------------------------------------------------------ */
+
+/**
+ * One day, as fully as each side can honestly be described.
+ *
+ * The two halves are deliberately different shapes, because the available data
+ * is different shapes. My own sessions give reps and movements per day; the
+ * couple document gives my partner's `trainedDays` and an all-time `totalReps`
+ * and nothing else. A dashboard that rendered both sides identically would have
+ * to invent the partner's numbers to fill the columns.
+ *
+ * So `theirs` is a boolean — they trained, or they did not — and the UI says
+ * exactly that rather than showing a zero that looks like a bad day.
+ */
+export interface CoupleDay {
+  /** ISO `YYYY-MM-DD`. */
+  day: string;
+  /** My reps that day, across every movement. */
+  myReps: number;
+  /** My movements that day, strongest first. */
+  myExercises: readonly ExerciseHabit[];
+  /** Whether my partner trained. Their rep count is not knowable here. */
+  theyTrained: boolean;
+  /** Both of us trained — the only status that advances the shared streak. */
+  both: boolean;
+  isToday: boolean;
+}
+
+/** Minimal shape of a `trackerHistory` row, so this need not import it. */
+export interface DayStatusRow {
+  day: string;
+  status: 'both' | 'mine' | 'theirs' | 'neither';
+  isToday: boolean;
+  isFuture: boolean;
+}
+
+/**
+ * Day-by-day detail, newest first, for the days something actually happened.
+ *
+ * Empty days are dropped rather than rendered as zeroes: a list whose rows are
+ * mostly "0 reps, nobody trained" buries the days that matter, and the history
+ * grid above it already shows the shape of the month including its gaps.
+ *
+ * Future days on the trailing edge of the week are excluded — the grid renders
+ * them to keep its shape, but they are not events.
+ */
+export function coupleDailyDetail(
+  history: readonly DayStatusRow[],
+  sessions: readonly ExerciseSession[],
+  limit = 14,
+): readonly CoupleDay[] {
+  const byDay = new Map<string, ExerciseSession[]>();
+  for (const s of sessions) {
+    if (s.reps <= 0) continue;
+    const list = byDay.get(s.day) ?? [];
+    list.push(s);
+    byDay.set(s.day, list);
+  }
+
+  const out: CoupleDay[] = [];
+  for (const row of [...history].reverse()) {
+    if (row.isFuture) continue;
+    const mine = byDay.get(row.day) ?? [];
+    const theyTrained = row.status === 'both' || row.status === 'theirs';
+    const iTrained = row.status === 'both' || row.status === 'mine';
+    if (!theyTrained && !iTrained && mine.length === 0) continue;
+
+    const dayWindow = new Set([row.day]);
+    const breakdown = myExerciseBreakdown(mine, dayWindow);
+
+    out.push({
+      day: row.day,
+      myReps: breakdown.total,
+      myExercises: breakdown.mine,
+      theyTrained,
+      both: row.status === 'both',
+      isToday: row.isToday,
+    });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+/**
+ * Totals for one side of the dashboard, over the days given.
+ *
+ * `myReps` is real. `theirDays` counts days rather than reps for the reason
+ * above — it is the only partner number this device can stand behind.
+ */
+export interface SideTotals {
+  myReps: number;
+  myDays: number;
+  theirDays: number;
+  sharedDays: number;
+}
+
+export function sideTotals(days: readonly CoupleDay[]): SideTotals {
+  return {
+    myReps: days.reduce((sum, d) => sum + d.myReps, 0),
+    myDays: days.filter((d) => d.myReps > 0).length,
+    theirDays: days.filter((d) => d.theyTrained).length,
+    sharedDays: days.filter((d) => d.both).length,
+  };
+}

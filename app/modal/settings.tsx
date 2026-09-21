@@ -19,6 +19,7 @@ import {
 import { flushCoupleCreditOutbox } from '@/services/coupleCreditOutbox';
 import { forceBankPendingLiveSettles } from '@/services/liveResultSettle';
 import { emitRetention, retentionSnapshot } from '@/services/recordSessionWithRetention';
+import { isWidgetSupported } from '@/services/partnerWidget';
 import { isPurchasesConfigured, resetPurchases, restore } from '@/services/purchases';
 import { track } from '@/lib/analytics';
 import { useAuthStore } from '@/state/authStore';
@@ -380,6 +381,22 @@ export default function SettingsScreen() {
                 ]}
               />
             </View>
+          </Card>
+        </>
+      ) : null}
+
+      {/* Android-only: the row is hidden rather than shown-and-disabled on a
+          build that cannot host a widget, because a dead entry point is worse
+          than no entry point. */}
+      {isWidgetSupported() ? (
+        <>
+          <Eyebrow style={styles.eyebrow}>HOME SCREEN</Eyebrow>
+          <Card style={styles.group}>
+            <LinkRow
+              emoji="📲"
+              label="Add partner widget"
+              onPress={() => router.push('/modal/widget')}
+            />
           </Card>
         </>
       ) : null}

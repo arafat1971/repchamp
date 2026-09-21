@@ -24,6 +24,8 @@ import { exerciseHomeStats } from '@/domain/exerciseHomeStats';
 import { firstNameOf, selectHomeGreeting } from '@/domain/homeGreeting';
 import { dailyChallengeProgress } from '@/domain/dailyChallenge';
 import { myExerciseBreakdown, partnerWidget } from '@/domain/coupleExercises';
+import { buildWidgetSnapshot } from '@/domain/widgetSnapshot';
+import { publishWidgetSnapshot } from '@/services/partnerWidget';
 import { trackerHistory } from '@/domain/coupleTracker';
 import { selectHomeFocus, type HomeFocus } from '@/domain/homeFocus';
 import { leagueProgressFromWeeklyXp } from '@/domain/leagueProgress';
@@ -110,6 +112,16 @@ export default function HomeScreen() {
       mine: myExerciseBreakdown(profile.sessions, week).mine,
     };
   }, [couple.paired, couple.partner, couple.couple, couple.me?.uid, profile.sessions, today]);
+
+  /* Mirror the partner card into the OS widget's SharedPreferences whenever it
+     changes. No-op on iOS and on builds without the widget plugin, so this is
+     safe to call unconditionally. */
+  useEffect(() => {
+    if (!partnerPulse) return;
+    publishWidgetSnapshot(
+      buildWidgetSnapshot(couple.partner?.displayName ?? 'Your partner', partnerPulse.widget),
+    );
+  }, [partnerPulse, couple.partner?.displayName]);
 
   const greetingCopy = useMemo(
     () => selectHomeGreeting({ streak, trainedToday, firstName }),

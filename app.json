@@ -64,13 +64,17 @@
               "pathPrefix": "/duel/join"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
     "plugins": [
       "./plugins/withUploadSigning",
       "./plugins/withVersionCode",
+      "./plugins/withPartnerWidget",
       "expo-router",
       "@react-native-firebase/app",
       "@react-native-firebase/auth",

@@ -232,6 +232,8 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:padding="16dp"
+    android:minWidth="48dp"
+    android:minHeight="48dp"
     android:background="@drawable/widget_bg">
 
     <!-- Eyebrow row: the label, and a live dot that appears only when the
@@ -248,7 +250,7 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="@string/widget_partner"
-            android:textColor="#A7F3D0"
+            android:textColor="@color/widget_eyebrow"
             android:textSize="10sp"
             android:textStyle="bold"
             android:letterSpacing="0.14" />
@@ -270,7 +272,7 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/widget_today"
-            android:textColor="#4ADE80"
+            android:textColor="@color/widget_live"
             android:textSize="9sp"
             android:textStyle="bold"
             android:letterSpacing="0.1" />
@@ -285,7 +287,7 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
         android:text="@string/widget_preview_headline"
         android:maxLines="2"
         android:ellipsize="end"
-        android:textColor="#FFFFFF"
+        android:textColor="@color/widget_headline"
         android:textSize="17sp"
         android:textStyle="bold"
         android:lineSpacingExtra="1dp" />
@@ -304,6 +306,7 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
             android:layout_marginEnd="6dp"
             android:orientation="vertical"
             android:gravity="center"
+            android:minHeight="48dp"
             android:paddingTop="7dp"
             android:paddingBottom="7dp"
             android:background="@drawable/widget_stat_bg">
@@ -312,7 +315,7 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="4"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/widget_headline"
                 android:textSize="20sp"
                 android:textStyle="bold" />
             <TextView
@@ -322,7 +325,7 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
                 android:text="@string/widget_partner_short"
                 android:maxLines="1"
                 android:ellipsize="end"
-                android:textColor="#BBF7D0"
+                android:textColor="@color/widget_stat_label"
                 android:textSize="9sp" />
         </LinearLayout>
 
@@ -333,6 +336,7 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
             android:layout_marginEnd="6dp"
             android:orientation="vertical"
             android:gravity="center"
+            android:minHeight="48dp"
             android:paddingTop="7dp"
             android:paddingBottom="7dp"
             android:background="@drawable/widget_stat_bg">
@@ -341,14 +345,14 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="5"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/widget_headline"
                 android:textSize="20sp"
                 android:textStyle="bold" />
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/widget_you"
-                android:textColor="#BBF7D0"
+                android:textColor="@color/widget_stat_label"
                 android:textSize="9sp" />
         </LinearLayout>
 
@@ -360,6 +364,7 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
             android:layout_weight="1"
             android:orientation="vertical"
             android:gravity="center"
+            android:minHeight="48dp"
             android:paddingTop="7dp"
             android:paddingBottom="7dp"
             android:background="@drawable/widget_stat_bg">
@@ -368,14 +373,14 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="3"
-                android:textColor="#FDE047"
+                android:textColor="@color/widget_shared_value"
                 android:textSize="20sp"
                 android:textStyle="bold" />
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/widget_together"
-                android:textColor="#FDE68A"
+                android:textColor="@color/widget_shared_label"
                 android:textSize="9sp" />
         </LinearLayout>
     </LinearLayout>
@@ -390,7 +395,7 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
         android:text="@string/widget_preview_nudge"
         android:maxLines="1"
         android:ellipsize="end"
-        android:textColor="#D1FAE5"
+        android:textColor="@color/widget_nudge"
         android:textSize="11sp"
         android:textStyle="bold" />
 
@@ -400,21 +405,32 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:text="@string/widget_stale"
-        android:textColor="#FDE68A"
+        android:textColor="@color/widget_shared_label"
         android:textSize="9sp"
         android:visibility="gone" />
 </LinearLayout>
 `;
 
 const INFO_XML = `<?xml version="1.0" encoding="utf-8"?>
+<!-- Sized and described to Android's widget quality guidelines rather than to
+     taste. targetCellWidth / targetCellHeight are the Android 12+ way to
+     ask for a grid size (3x2 here); minWidth / minHeight stay as the
+     pre-12 fallback, and minResize* sets the floor below which the layout
+     stops being readable rather than letting it be crushed. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:initialLayout="@layout/partner_widget"
+    android:previewLayout="@layout/partner_widget"
+    android:description="@string/widget_description"
     android:minWidth="180dp"
     android:minHeight="110dp"
+    android:minResizeWidth="180dp"
+    android:minResizeHeight="110dp"
+    android:maxResizeWidth="360dp"
+    android:maxResizeHeight="200dp"
+    android:targetCellWidth="3"
+    android:targetCellHeight="2"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
-    android:description="@string/widget_description"
-    android:previewLayout="@layout/partner_widget"
     android:updatePeriodMillis="1800000" />
 `;
 
@@ -426,26 +442,80 @@ const INFO_XML = `<?xml version="1.0" encoding="utf-8"?>
 const BG_XML = `<?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
     <gradient
-        android:startColor="#16A34A"
-        android:endColor="#065f46"
+        android:startColor="@color/widget_grad_start"
+        android:endColor="@color/widget_grad_end"
         android:angle="315" />
-    <corners android:radius="24dp" />
+    <!-- The system radius, not a number of my choosing: Android 12+ crops
+         widget backgrounds to the launcher's own radius, and a hardcoded value
+         either shows a corner seam or gets clipped. widget_radius resolves
+         to the platform dimension on v31+ and a sane fallback below. -->
+    <corners android:radius="@dimen/widget_radius" />
 </shape>
 `;
 
 /* A translucent pill behind each stat, so the numbers read as deliberate
    objects rather than text floating on a gradient. */
+
+
+/* Colours as named resources rather than literals in the layout, so a
+   `values-night` variant can override them without a second layout. The brand
+   green is deliberately kept in both themes — a widget that changes identity
+   with the system theme stops being recognisable, which is the one thing it
+   has to be. Only the contrast moves. */
+const COLORS_XML = `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="widget_grad_start">#16A34A</color>
+    <color name="widget_grad_end">#065F46</color>
+    <color name="widget_eyebrow">#A7F3D0</color>
+    <color name="widget_headline">#FFFFFF</color>
+    <color name="widget_stat_value">#FFFFFF</color>
+    <color name="widget_stat_label">#BBF7D0</color>
+    <color name="widget_shared_value">#FDE047</color>
+    <color name="widget_shared_label">#FDE68A</color>
+    <color name="widget_nudge">#D1FAE5</color>
+    <color name="widget_live">#4ADE80</color>
+    <color name="widget_pill">#26FFFFFF</color>
+</resources>
+`;
+
+/* Night: the same green identity, pushed darker so the card does not glow on a
+   dark home screen, with the text lifted to keep contrast above 4.5:1. */
+const COLORS_NIGHT_XML = `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="widget_grad_start">#15803D</color>
+    <color name="widget_grad_end">#04352A</color>
+    <color name="widget_eyebrow">#6EE7B7</color>
+    <color name="widget_stat_label">#A7F3D0</color>
+    <color name="widget_nudge">#A7F3D0</color>
+    <color name="widget_pill">#1FFFFFFF</color>
+</resources>
+`;
+
+const DIMENS_XML = `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="widget_radius">20dp</dimen>
+    <dimen name="widget_inner_radius">12dp</dimen>
+</resources>
+`;
+
+const DIMENS_V31_XML = `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="widget_radius">@android:dimen/system_app_widget_background_radius</dimen>
+    <dimen name="widget_inner_radius">@android:dimen/system_app_widget_inner_radius</dimen>
+</resources>
+`;
+
 const STAT_BG_XML = `<?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <solid android:color="#26FFFFFF" />
-    <corners android:radius="14dp" />
+    <solid android:color="@color/widget_pill" />
+    <corners android:radius="@dimen/widget_inner_radius" />
 </shape>
 `;
 
 /* The live dot — small, bright, and only drawn when the claim is about today. */
 const DOT_XML = `<?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
-    <solid android:color="#4ADE80" />
+    <solid android:color="@color/widget_live" />
 </shape>
 `;
 
@@ -487,6 +557,10 @@ const withWidgetSources = (config) =>
       write(path.join(res, 'drawable/widget_bg.xml'), BG_XML);
       write(path.join(res, 'drawable/widget_stat_bg.xml'), STAT_BG_XML);
       write(path.join(res, 'drawable/widget_dot.xml'), DOT_XML);
+      write(path.join(res, 'values/widget_colors.xml'), COLORS_XML);
+      write(path.join(res, 'values-night/widget_colors.xml'), COLORS_NIGHT_XML);
+      write(path.join(res, 'values/widget_dimens.xml'), DIMENS_XML);
+      write(path.join(res, 'values-v31/widget_dimens.xml'), DIMENS_V31_XML);
 
       /* Strings are merged rather than overwritten — `strings.xml` already
          carries the app name and Expo's own entries. */

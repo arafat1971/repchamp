@@ -116,6 +116,36 @@ export interface AnalyticsEvents {
   day_n_return: { dayN: number; daysSinceLast: number };
   /** Movement on the weekly-XP ladder. Demotion is the more telling direction. */
   league_promoted: { from: string; to: string; direction: 'promoted' | 'demoted' };
+
+  /* ── Navigation & intent ──
+   * Home was the only instrumented tab, so the funnel could see an athlete
+   * arrive and see them convert, with the competitive and social surfaces in
+   * between completely dark. These close that gap: `tab_viewed` says which
+   * surfaces are actually visited, and the intent events say what people reach
+   * for once they are there. Deliberately a handful of broad events rather than
+   * one per button — the question is which surface earns its place, and a tap
+   * count per control answers a question nobody is asking yet. */
+
+  /** A tab became the active surface. The denominator for everything below. */
+  tab_viewed: { tab: 'train' | 'arena' | 'friends' | 'profile' };
+  /**
+   * An athlete reached for a workout from the Train tab.
+   *
+   * `mode` separates solo practice from a together-set: the second is the
+   * viral loop starting, and collapsing them hides which one Train drives.
+   */
+  train_intent: { exercise: string; mode: 'practice' | 'together' };
+  /** A competitive surface was opened from Arena. Which one is the question. */
+  arena_opened: { destination: 'leaderboard' | 'daily' | 'opponent-picker' };
+  /**
+   * An invite or duel was launched at someone from the Friends tab.
+   *
+   * `kind` mirrors the invite kinds the screen already routes with, and
+   * `isAI` marks a labelled AI opponent — without it a roster padded with AI
+   * partners reads as organic social activity, which is the one number here
+   * most likely to be believed and most misleading if wrong.
+   */
+  friend_invited: { kind: 'duel' | 'train' | 'compete'; isAI: boolean };
 }
 
 type EventName = keyof AnalyticsEvents;

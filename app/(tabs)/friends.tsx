@@ -17,6 +17,8 @@ import {
 import { StaggerIn } from '@/components/motion';
 import { captureError } from '@/lib/crash';
 import { OPPONENTS, type Opponent } from '@/domain/opponent';
+import { track } from '@/lib/analytics';
+import { useTabView } from '@/lib/useTabView';
 import { usePhantomSeed } from '@/domain/seedPhantoms';
 import {
   addFriendByUsername,
@@ -94,6 +96,7 @@ function inviteParams(f: ActiveFriend, kind: InviteKind) {
 }
 
 export default function FriendsScreen() {
+  useTabView('friends');
   const router = useRouter();
   const sessions = useProfileStore((s) => s.sessions);
   const uid = useAuthStore((s) => s.user?.uid);
@@ -157,11 +160,23 @@ export default function FriendsScreen() {
         (a.username ?? '').toLowerCase().includes(q)),
   );
 
-  const duel = (opponent: Opponent) =>
+  /* Every real-friend invite routes through `inviteParams`; this wraps that so
+     the event is recorded once here rather than repeated at six buttons. The
+     roster these come from is the human one, hence `isAI: false`. */
+  const invite = (f: ActiveFriend, kind: InviteKind) => {
+    track('friend_invited', { kind, isAI: false });
+    router.push(inviteParams(f, kind));
+  };
+
+  /* Bots and phantoms are the labelled-AI roster. Marked as such so a roster
+     padded with AI never reads back as organic social activity. */
+  const duel = (opponent: Opponent) => {
+    track('friend_invited', { kind: 'duel', isAI: true });
     router.push({
       pathname: '/session',
       params: { exercise: 'push', mode: 'versus', opponent: opponent.id },
     });
+  };
 
   const record = (id: string) => {
     const duels = sessions.filter((s) => s.mode === 'versus' && s.opponentId === id);
@@ -242,7 +257,7 @@ export default function FriendsScreen() {
           {onlineFriends.map((f) => (
             <PressableScale
               key={f.uid}
-              onPress={() => router.push(inviteParams(f, 'duel'))}
+              onPress={() => invite(f, 'duel')}
               accessibilityRole="button"
               accessibilityLabel={`Invite ${f.displayName}`}
               style={styles.onlineItem}
@@ -380,12 +395,13 @@ export default function FriendsScreen() {
                   </View>
 
                   <PressableScale
-                    onPress={() =>
+                    onPress={() => {
+                      track('friend_invited', { kind: 'duel', isAI: true });
                       router.push({
                         pathname: '/session',
                         params: { exercise: 'push', mode: 'versus', opponent: p.id },
-                      })
-                    }
+                      });
+                    }}
                     accessibilityRole="button"
                     accessibilityLabel={`Duel ${p.name}`}
                     style={styles.duelButton}
@@ -533,7 +549,7 @@ export default function FriendsScreen() {
 
                   <View style={styles.actionRow}>
                     <PressableScale
-                      onPress={() => router.push(inviteParams(f, 'duel'))}
+                      onPress={() => invite(f, 'duel')}
                       accessibilityRole="button"
                       accessibilityLabel={`Duel ${f.displayName}`}
                       style={styles.actionPill}
@@ -541,7 +557,7 @@ export default function FriendsScreen() {
                       <Text style={font('extrabold', 11, { color: palette.white })}>Duel</Text>
                     </PressableScale>
                     <PressableScale
-                      onPress={() => router.push(inviteParams(f, 'train'))}
+                      onPress={() => invite(f, 'train')}
                       accessibilityRole="button"
                       accessibilityLabel={`Train with ${f.displayName}`}
                       style={[styles.actionPill, styles.actionPillSoft]}
@@ -549,7 +565,7 @@ export default function FriendsScreen() {
                       <Text style={font('extrabold', 11, { color: palette.green700 })}>Train</Text>
                     </PressableScale>
                     <PressableScale
-                      onPress={() => router.push(inviteParams(f, 'compete'))}
+                      onPress={() => invite(f, 'compete')}
                       accessibilityRole="button"
                       accessibilityLabel={`Compete with ${f.displayName}`}
                       style={[styles.actionPill, styles.actionPillSoft]}

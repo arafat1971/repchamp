@@ -1,4 +1,5 @@
 import {
+  WIDGET_SNAPSHOT_KEY,
   WIDGET_STALE_AFTER_MS,
   buildWidgetSnapshot,
   isSnapshotStale,
@@ -98,5 +99,54 @@ describe('isSnapshotStale', () => {
   it('tolerates an overnight gap', () => {
     const snap = buildWidgetSnapshot('Sam', w(), 0);
     expect(isSnapshotStale(snap, 10 * 60 * 60 * 1000)).toBe(false);
+  });
+});
+
+/**
+ * The JS→Kotlin contract, checked as text.
+ *
+ * The payload crosses a language and a process boundary: this module writes
+ * JSON, and `PartnerWidgetProvider.kt` reads it with `optString`/`optInt` keys
+ * typed by hand. Nothing in either toolchain links the two — rename a field
+ * here and the widget silently draws blanks, because `opt*` returns a default
+ * rather than throwing.
+ *
+ * The Kotlin lives in a config plugin (`plugins/withPartnerWidget.js`), which
+ * is committed, so the source of truth is readable from here. `android/` itself
+ * is generated and gitignored, so this reads the plugin rather than the output.
+ */
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
+describe('the widget payload matches what the provider reads', () => {
+  const plugin = readFileSync(
+    join(__dirname, '..', '..', '..', 'plugins', 'withPartnerWidget.js'),
+    'utf8',
+  );
+
+  it('writes every key the Kotlin provider asks for', () => {
+    const read = [...plugin.matchAll(/opt(?:String|Int|Long)\("([a-zA-Z]+)"/g)].map(
+      (m) => m[1] as string,
+    );
+    expect(read.length).toBeGreaterThan(0);
+
+    const written = Object.keys(buildWidgetSnapshot('Sam', w()));
+    for (const key of new Set(read)) {
+      expect(written).toContain(key);
+    }
+  });
+
+  /* The storage key is duplicated across the boundary by necessity — the
+     provider cannot import a TS constant. If they drift the widget reads
+     nothing and shows its empty state forever. */
+  it('agrees with the provider on the storage key', () => {
+    expect(plugin).toContain(WIDGET_SNAPSHOT_KEY);
+  });
+
+  /* Same for the staleness window: the provider hardcodes it in milliseconds
+     because it cannot read the constant either. */
+  it('agrees with the provider on the staleness window', () => {
+    expect(WIDGET_STALE_AFTER_MS).toBe(12 * 60 * 60 * 1000);
+    expect(plugin).toMatch(/12L \* 60L \* 60L \* 1000L/);
   });
 });

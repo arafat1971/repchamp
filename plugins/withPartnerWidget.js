@@ -318,10 +318,17 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
                 android:textColor="@color/widget_headline"
                 android:textSize="20sp"
                 android:textStyle="bold" />
+            <!-- One line always: a stat label that wraps breaks the alignment
+                 of the three pills. Width is bounded rather than wrap_content
+                 so a long display name ellipsises inside its pill instead of
+                 pushing the other two out of shape. -->
             <TextView
                 android:id="@+id/widget_their_label"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:gravity="center"
+                android:paddingStart="2dp"
+                android:paddingEnd="2dp"
                 android:text="@string/widget_partner_short"
                 android:maxLines="1"
                 android:ellipsize="end"
@@ -386,15 +393,24 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
     </LinearLayout>
 
     <!-- The reason-to-act line. Hidden when empty: filler trains the athlete
-         to stop reading the line that does mean something. -->
+         to stop reading the line that does mean something.
+
+         Two lines, not one. At 11sp in a 3-cell widget a single line holds
+         about 32 characters and the longest branch is 44 — "Your turn — train
+         to make it a shared day" came out as "…make it a shar…". Shortening the
+         copy to fit would have blunted the one sentence doing the persuading,
+         and there is clearly vertical room below the stat row. Still capped at
+         two with an ellipsis, so a longer string in future degrades instead of
+         pushing the card taller. -->
     <TextView
         android:id="@+id/widget_nudge"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="9dp"
         android:text="@string/widget_preview_nudge"
-        android:maxLines="1"
+        android:maxLines="2"
         android:ellipsize="end"
+        android:lineSpacingExtra="1dp"
         android:textColor="@color/widget_nudge"
         android:textSize="11sp"
         android:textStyle="bold" />

@@ -4,6 +4,7 @@ import { Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { ModalHeader } from '@/components/ModalHeader';
+import { WidgetPublishDebug } from '@/components/debug/WidgetPublishDebug';
 import { Card, PressableScale, PrimaryButton, Screen, SectionLabel } from '@/components/ui';
 import { isWidgetSupported, placedWidgetCount } from '@/services/partnerWidget';
 import { font, text } from '@/theme/typography';
@@ -118,6 +119,11 @@ export default function WidgetSetupScreen() {
           <Text style={styles.secondaryText}>Widget not in the list? Open settings</Text>
         </PressableScale>
       ) : null}
+
+      {/* Dev only — compiles out via the component's own __DEV__ guard. This is
+          the one screen where forcing a publish makes sense, because it is also
+          the screen that reports whether a widget is placed to receive it. */}
+      <WidgetPublishDebug />
 
       <PrimaryButton
         label="Done"

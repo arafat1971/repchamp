@@ -219,11 +219,16 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
         android:textStyle="bold"
         android:letterSpacing="0.1" />
 
+    <!-- Every field the provider fills carries a preview default. The widget
+         picker renders this layout raw, with no provider call, so a field left
+         empty shows a hollow card at the exact moment someone decides whether
+         to add it. The provider overwrites all of these at runtime. -->
     <TextView
         android:id="@+id/widget_headline"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
+        android:text="@string/widget_preview_headline"
         android:maxLines="2"
         android:textColor="#111827"
         android:textSize="15sp"
@@ -246,6 +251,7 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
                 android:id="@+id/widget_their_days"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:text="4"
                 android:textColor="#7C3AED"
                 android:textSize="19sp"
                 android:textStyle="bold" />
@@ -253,6 +259,7 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
                 android:id="@+id/widget_their_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:text="@string/widget_partner_short"
                 android:maxLines="1"
                 android:textColor="#6B7280"
                 android:textSize="9sp" />
@@ -268,6 +275,7 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
                 android:id="@+id/widget_my_days"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:text="5"
                 android:textColor="#16A34A"
                 android:textSize="19sp"
                 android:textStyle="bold" />
@@ -289,6 +297,7 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
                 android:id="@+id/widget_shared_days"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:text="3"
                 android:textColor="#B45309"
                 android:textSize="19sp"
                 android:textStyle="bold" />
@@ -340,6 +349,8 @@ const STRINGS = {
   widget_empty: 'Pair with someone to see their week here.',
   widget_stale: 'Open RepChamp to refresh',
   widget_description: "Your partner's training week, live.",
+  widget_preview_headline: 'You both trained today',
+  widget_partner_short: 'Partner',
 };
 
 function write(file, contents) {

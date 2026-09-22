@@ -13,6 +13,7 @@ import Animated, {
 import { useEffect } from 'react';
 
 import { PressableScale, ProgressBar } from '@/components/ui';
+import { canUse } from '@/domain/pro';
 import { PUSHUP_LADDER } from '@/domain/programme';
 import { getExercise } from '@/vision/exercises';
 import { isPurchasesConfigured } from '@/services/purchases';
@@ -130,7 +131,12 @@ export function ProgrammeCard() {
   const completeProgrammeRestDay = useProfileStore((s) => s.completeProgrammeRestDay);
   const isPro = useEffectivePro();
 
-  const gated = !isPro && isPurchasesConfigured();
+  /* The Pro decision goes through `canUse` like every other gate, so
+     `custom-programmes` has a real call site and the split stays in `pro.ts`
+     rather than in an inline `!isPro` here. The billing-readiness check stays
+     on top of it, matching the session screen: on a build with no billing
+     configured, locking this would be a dead end with nothing to buy. */
+  const gated = !canUse(isPro, 'custom-programmes') && isPurchasesConfigured();
   const enroll = (programmeId: string) => {
     if (gated) {
       router.push({ pathname: '/modal/paywall', params: { source: 'programme' } });

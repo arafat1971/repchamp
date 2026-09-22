@@ -209,7 +209,7 @@ class PartnerWidgetPackage : ReactPackage {
 `;
 
 const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
-<!-- RemoteViews-safe views only (LinearLayout, TextView, ImageView, View): a
+<!-- RemoteViews-safe views only (LinearLayout, TextView, ImageView): a
      widget cannot host arbitrary layouts, and an unsupported view makes the
      whole thing fail to inflate rather than degrading gracefully.
 
@@ -244,12 +244,17 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
             android:textStyle="bold"
             android:letterSpacing="0.14" />
 
-        <View
+        <!-- ImageView, not View. RemoteViews permits a fixed set of classes and
+             a bare android.view.View is not among them: it inflates fine in
+             the app but the launcher rejects it with "Class not allowed to be
+             inflated", and the whole widget fails rather than losing the dot. -->
+        <ImageView
             android:id="@+id/widget_dot"
             android:layout_width="7dp"
             android:layout_height="7dp"
             android:layout_marginEnd="5dp"
-            android:background="@drawable/widget_dot" />
+            android:contentDescription="@null"
+            android:src="@drawable/widget_dot" />
 
         <TextView
             android:id="@+id/widget_live"

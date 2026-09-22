@@ -150,3 +150,83 @@ describe('the widget payload matches what the provider reads', () => {
     expect(plugin).toMatch(/12L \* 60L \* 60L \* 1000L/);
   });
 });
+
+/*
+ * The nudge line — what turns a scoreboard into a reason to act.
+ *
+ * The constraint that keeps it honest: every branch restates something already
+ * visible on the widget. No invented deadline, no countdown, nothing about what
+ * the partner will think. The rest of this app refuses manufactured urgency and
+ * a home-screen widget is the last place to start.
+ */
+describe('nudge', () => {
+  it('names the one genuinely actionable state', () => {
+    const snap = buildWidgetSnapshot(
+      'Sam',
+      w({ pulse: { kind: 'trained-today', sharedToday: false } }),
+    );
+    expect(snap.nudge).toBe('Your turn — train to make it a shared day');
+  });
+
+  it('names what a shared day bought', () => {
+    const snap = buildWidgetSnapshot(
+      'Sam',
+      w({ pulse: { kind: 'trained-today', sharedToday: true }, sharedDays: 3 }),
+    );
+    expect(snap.nudge).toBe('3 shared days this week');
+  });
+
+  it('says "1 shared day", not "1 shared days"', () => {
+    const snap = buildWidgetSnapshot(
+      'Sam',
+      w({ pulse: { kind: 'trained-today', sharedToday: true }, sharedDays: 1 }),
+    );
+    expect(snap.nudge).toBe('1 shared day this week');
+  });
+
+  it('states who is ahead, in either direction', () => {
+    expect(
+      buildWidgetSnapshot('Sam', w({ pulse: { kind: 'recent', daysAgo: 1 }, theirDays: 4, myDays: 2 }))
+        .nudge,
+    ).toBe('Sam is ahead this week');
+    expect(
+      buildWidgetSnapshot('Sam', w({ pulse: { kind: 'recent', daysAgo: 1 }, theirDays: 2, myDays: 4 }))
+        .nudge,
+    ).toContain('You are ahead');
+  });
+
+  it('points at a real feature when the bond goes quiet', () => {
+    expect(
+      buildWidgetSnapshot('Sam', w({ pulse: { kind: 'quiet', daysAgo: 5 } })).nudge,
+    ).toBe('Open RepChamp to send a nudge');
+  });
+
+  /* Filler is worse than silence: a line that means nothing trains the athlete
+     to stop reading the line that does. */
+  it('says nothing rather than filler', () => {
+    expect(buildWidgetSnapshot('Sam', w({ pulse: { kind: 'no-history' } })).nudge).toBe('');
+    expect(
+      buildWidgetSnapshot('Sam', w({ pulse: { kind: 'trained-today', sharedToday: true }, sharedDays: 0 }))
+        .nudge,
+    ).toBe('');
+  });
+
+  /* The honesty guard. No branch may invent a deadline, threaten a loss, or
+     speak for the partner. */
+  it('never manufactures urgency', () => {
+    const pulses: PartnerWidget['pulse'][] = [
+      { kind: 'trained-today', sharedToday: true },
+      { kind: 'trained-today', sharedToday: false },
+      { kind: 'recent', daysAgo: 1 },
+      { kind: 'recent', daysAgo: 2 },
+      { kind: 'quiet', daysAgo: 5 },
+      { kind: 'no-history' },
+    ];
+    for (const pulse of pulses) {
+      const { nudge } = buildWidgetSnapshot('Sam', w({ pulse }));
+      for (const banned of ['don’t lose', 'hurry', 'last chance', 'expires', 'disappointed', 'failing']) {
+        expect(nudge.toLowerCase()).not.toContain(banned);
+      }
+    }
+  });
+});

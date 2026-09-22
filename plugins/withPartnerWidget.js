@@ -78,6 +78,7 @@ class ${WIDGET_CLASS} : AppWidgetProvider() {
             views.setViewVisibility(R.id.widget_stats, android.view.View.GONE)
             views.setViewVisibility(R.id.widget_dot, android.view.View.GONE)
             views.setViewVisibility(R.id.widget_live, android.view.View.GONE)
+            views.setViewVisibility(R.id.widget_nudge, android.view.View.GONE)
         } else {
             try {
                 val snap = JSONObject(raw)
@@ -89,6 +90,13 @@ class ${WIDGET_CLASS} : AppWidgetProvider() {
                 views.setTextViewText(
                     R.id.widget_their_label,
                     snap.optString("partnerName", context.getString(R.string.widget_partner))
+                )
+
+                val nudge = snap.optString("nudge", "")
+                views.setTextViewText(R.id.widget_nudge, nudge)
+                views.setViewVisibility(
+                    R.id.widget_nudge,
+                    if (nudge.isBlank()) android.view.View.GONE else android.view.View.VISIBLE
                 )
 
                 // The live dot is a claim about *today*, so it appears only when
@@ -113,6 +121,7 @@ class ${WIDGET_CLASS} : AppWidgetProvider() {
                 views.setViewVisibility(R.id.widget_stats, android.view.View.GONE)
                 views.setViewVisibility(R.id.widget_dot, android.view.View.GONE)
                 views.setViewVisibility(R.id.widget_live, android.view.View.GONE)
+                views.setViewVisibility(R.id.widget_nudge, android.view.View.GONE)
             }
         }
 
@@ -371,6 +380,20 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
         </LinearLayout>
     </LinearLayout>
 
+    <!-- The reason-to-act line. Hidden when empty: filler trains the athlete
+         to stop reading the line that does mean something. -->
+    <TextView
+        android:id="@+id/widget_nudge"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="9dp"
+        android:text="@string/widget_preview_nudge"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textColor="#D1FAE5"
+        android:textSize="11sp"
+        android:textStyle="bold" />
+
     <TextView
         android:id="@+id/widget_stale"
         android:layout_width="wrap_content"
@@ -436,6 +459,7 @@ const STRINGS = {
   widget_preview_headline: 'You both trained today',
   widget_partner_short: 'Partner',
   widget_today: 'TODAY',
+  widget_preview_nudge: 'Your turn — train to make it a shared day',
 };
 
 function write(file, contents) {

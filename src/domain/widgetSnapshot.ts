@@ -40,6 +40,15 @@ export interface WidgetSnapshot {
   myReps: number;
   /** True only when the headline is a claim about today. */
   freshToday: boolean;
+  /**
+   * One short line under the headline, or '' when there is nothing true to add.
+   *
+   * The headline reports; this is the part that gives a reason to act. It is
+   * only ever a fact already on the widget — the ball being in your court, a
+   * streak-day about to be lost, a partner who turned up first — never a
+   * manufactured deadline or a guilt line.
+   */
+  nudge: string;
   /** When the app last wrote this, epoch ms — so the widget can age it. */
   updatedAt: number;
 }
@@ -77,6 +86,7 @@ export function buildWidgetSnapshot(
   return {
     partnerName: name,
     headline,
+    nudge: nudgeFor(name, widget),
     theirDays: widget.theirDays,
     myDays: widget.myDays,
     sharedDays: widget.sharedDays,
@@ -84,6 +94,59 @@ export function buildWidgetSnapshot(
     freshToday: pulse.kind === 'trained-today',
     updatedAt: now,
   };
+}
+
+
+/**
+ * The line that turns a status into a reason.
+ *
+ * A widget that only reports is a scoreboard, and a scoreboard is easy to stop
+ * looking at. What makes this one worth keeping is that it sometimes tells the
+ * athlete the ball is in their court — *today, and only from facts already on
+ * the card*.
+ *
+ * Every branch is a restatement of something visible, which is the constraint
+ * that keeps this from becoming the fabricated urgency the rest of the app
+ * refuses. There is no countdown, no invented deadline, and nothing about what
+ * the partner will think.
+ *
+ * Returns '' rather than filler when there is nothing true to say. An empty
+ * line is better than a line that means nothing, and the layout hides it.
+ */
+function nudgeFor(name: string, widget: PartnerWidget): string {
+  const { pulse, myDays, theirDays, sharedDays } = widget;
+
+  /* They trained and you have not: the single most actionable state this
+     widget can be in, and the only one where "your turn" is literally true. */
+  if (pulse.kind === 'trained-today' && !pulse.sharedToday) {
+    return 'Your turn — train to make it a shared day';
+  }
+
+  /* Both trained. Name what it bought, because the shared day is the only
+     thing that moves the streak. */
+  if (pulse.kind === 'trained-today' && pulse.sharedToday) {
+    return sharedDays > 0
+      ? `${sharedDays} shared ${sharedDays === 1 ? 'day' : 'days'} this week`
+      : '';
+  }
+
+  /* Nobody has trained today and they went first recently — the reciprocity
+     is the fact, stated plainly. */
+  if (pulse.kind === 'recent' && theirDays > myDays) {
+    return `${name} is ahead this week`;
+  }
+  if (pulse.kind === 'recent' && myDays > theirDays) {
+    return `You are ahead — ${name} owes you one`;
+  }
+  if (pulse.kind === 'recent') {
+    return 'Level this week — one set breaks the tie';
+  }
+
+  /* Quiet. Nudging is the app's own feature, so pointing at it is a real
+     action rather than a scold. */
+  if (pulse.kind === 'quiet') return 'Open RepChamp to send a nudge';
+
+  return '';
 }
 
 /**

@@ -76,6 +76,8 @@ class ${WIDGET_CLASS} : AppWidgetProvider() {
             // rather than drawing zeroes that look like a bad week.
             views.setTextViewText(R.id.widget_headline, context.getString(R.string.widget_empty))
             views.setViewVisibility(R.id.widget_stats, android.view.View.GONE)
+            views.setViewVisibility(R.id.widget_dot, android.view.View.GONE)
+            views.setViewVisibility(R.id.widget_live, android.view.View.GONE)
         } else {
             try {
                 val snap = JSONObject(raw)
@@ -88,6 +90,13 @@ class ${WIDGET_CLASS} : AppWidgetProvider() {
                     R.id.widget_their_label,
                     snap.optString("partnerName", context.getString(R.string.widget_partner))
                 )
+
+                // The live dot is a claim about *today*, so it appears only when
+                // the headline is one. A dot that is always lit says nothing.
+                val fresh = snap.optBoolean("freshToday", false)
+                val liveVis = if (fresh) android.view.View.VISIBLE else android.view.View.GONE
+                views.setViewVisibility(R.id.widget_dot, liveVis)
+                views.setViewVisibility(R.id.widget_live, liveVis)
 
                 // A widget that silently shows week-old numbers is worse than one
                 // that admits it is stale — the athlete cannot tell otherwise.
@@ -102,6 +111,8 @@ class ${WIDGET_CLASS} : AppWidgetProvider() {
                 // A malformed payload must not crash the launcher.
                 views.setTextViewText(R.id.widget_headline, context.getString(R.string.widget_empty))
                 views.setViewVisibility(R.id.widget_stats, android.view.View.GONE)
+                views.setViewVisibility(R.id.widget_dot, android.view.View.GONE)
+                views.setViewVisibility(R.id.widget_live, android.view.View.GONE)
             }
         }
 
@@ -198,62 +209,97 @@ class PartnerWidgetPackage : ReactPackage {
 `;
 
 const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
-<!-- Kept to RemoteViews-safe views only: LinearLayout, TextView, ImageView.
-     A widget cannot host arbitrary layouts, and an unsupported view makes the
-     whole widget fail to inflate rather than degrading. -->
+<!-- RemoteViews-safe views only (LinearLayout, TextView, ImageView, View): a
+     widget cannot host arbitrary layouts, and an unsupported view makes the
+     whole thing fail to inflate rather than degrading gracefully.
+
+     Every field the provider fills carries a preview default, because the
+     widget picker renders this layout raw — it never calls onUpdate — so an
+     empty field shows a hollow card at the exact moment someone is deciding
+     whether to add it. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="14dp"
+    android:padding="16dp"
     android:background="@drawable/widget_bg">
 
-    <TextView
-        android:id="@+id/widget_title"
-        android:layout_width="wrap_content"
+    <!-- Eyebrow row: the label, and a live dot that appears only when the
+         headline is a claim about today. -->
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/widget_partner"
-        android:textColor="#6B7280"
-        android:textSize="10sp"
-        android:textStyle="bold"
-        android:letterSpacing="0.1" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
 
-    <!-- Every field the provider fills carries a preview default. The widget
-         picker renders this layout raw, with no provider call, so a field left
-         empty shows a hollow card at the exact moment someone decides whether
-         to add it. The provider overwrites all of these at runtime. -->
+        <TextView
+            android:id="@+id/widget_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/widget_partner"
+            android:textColor="#A7F3D0"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.14" />
+
+        <View
+            android:id="@+id/widget_dot"
+            android:layout_width="7dp"
+            android:layout_height="7dp"
+            android:layout_marginEnd="5dp"
+            android:background="@drawable/widget_dot" />
+
+        <TextView
+            android:id="@+id/widget_live"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/widget_today"
+            android:textColor="#4ADE80"
+            android:textSize="9sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.1" />
+    </LinearLayout>
+
+    <!-- The sentence. This is what the athlete actually reads. -->
     <TextView
         android:id="@+id/widget_headline"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="8dp"
         android:text="@string/widget_preview_headline"
         android:maxLines="2"
-        android:textColor="#111827"
-        android:textSize="15sp"
-        android:textStyle="bold" />
+        android:ellipsize="end"
+        android:textColor="#FFFFFF"
+        android:textSize="17sp"
+        android:textStyle="bold"
+        android:lineSpacingExtra="1dp" />
 
     <LinearLayout
         android:id="@+id/widget_stats"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="12dp"
         android:orientation="horizontal">
 
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
+            android:layout_marginEnd="6dp"
             android:orientation="vertical"
-            android:gravity="center">
+            android:gravity="center"
+            android:paddingTop="7dp"
+            android:paddingBottom="7dp"
+            android:background="@drawable/widget_stat_bg">
             <TextView
                 android:id="@+id/widget_their_days"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="4"
-                android:textColor="#7C3AED"
-                android:textSize="19sp"
+                android:textColor="#FFFFFF"
+                android:textSize="20sp"
                 android:textStyle="bold" />
             <TextView
                 android:id="@+id/widget_their_label"
@@ -261,7 +307,8 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
                 android:layout_height="wrap_content"
                 android:text="@string/widget_partner_short"
                 android:maxLines="1"
-                android:textColor="#6B7280"
+                android:ellipsize="end"
+                android:textColor="#BBF7D0"
                 android:textSize="9sp" />
         </LinearLayout>
 
@@ -269,43 +316,52 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
+            android:layout_marginEnd="6dp"
             android:orientation="vertical"
-            android:gravity="center">
+            android:gravity="center"
+            android:paddingTop="7dp"
+            android:paddingBottom="7dp"
+            android:background="@drawable/widget_stat_bg">
             <TextView
                 android:id="@+id/widget_my_days"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="5"
-                android:textColor="#16A34A"
-                android:textSize="19sp"
+                android:textColor="#FFFFFF"
+                android:textSize="20sp"
                 android:textStyle="bold" />
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/widget_you"
-                android:textColor="#6B7280"
+                android:textColor="#BBF7D0"
                 android:textSize="9sp" />
         </LinearLayout>
 
+        <!-- Together is the one that matters: it is the only status that
+             advances the shared streak, so it gets the brightest number. -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:orientation="vertical"
-            android:gravity="center">
+            android:gravity="center"
+            android:paddingTop="7dp"
+            android:paddingBottom="7dp"
+            android:background="@drawable/widget_stat_bg">
             <TextView
                 android:id="@+id/widget_shared_days"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="3"
-                android:textColor="#B45309"
-                android:textSize="19sp"
+                android:textColor="#FDE047"
+                android:textSize="20sp"
                 android:textStyle="bold" />
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/widget_together"
-                android:textColor="#6B7280"
+                android:textColor="#FDE68A"
                 android:textSize="9sp" />
         </LinearLayout>
     </LinearLayout>
@@ -314,9 +370,9 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
         android:id="@+id/widget_stale"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
+        android:layout_marginTop="8dp"
         android:text="@string/widget_stale"
-        android:textColor="#B45309"
+        android:textColor="#FDE68A"
         android:textSize="9sp"
         android:visibility="gone" />
 </LinearLayout>
@@ -334,11 +390,34 @@ const INFO_XML = `<?xml version="1.0" encoding="utf-8"?>
     android:updatePeriodMillis="1800000" />
 `;
 
+/* The app's signature surface: the same deep-green gradient as the paywall
+   hero, the couple card and the Arena hero (`gradients.brandDeep`). A white box
+   on a launcher reads as a system widget belonging to nobody; this one is
+   recognisably RepChamp from across the room, which is the whole job of
+   something that lives on a home screen. */
 const BG_XML = `<?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <solid android:color="#FFFFFF" />
-    <corners android:radius="20dp" />
-    <stroke android:width="1dp" android:color="#E6EAE4" />
+    <gradient
+        android:startColor="#16A34A"
+        android:endColor="#065f46"
+        android:angle="315" />
+    <corners android:radius="24dp" />
+</shape>
+`;
+
+/* A translucent pill behind each stat, so the numbers read as deliberate
+   objects rather than text floating on a gradient. */
+const STAT_BG_XML = `<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#26FFFFFF" />
+    <corners android:radius="14dp" />
+</shape>
+`;
+
+/* The live dot — small, bright, and only drawn when the claim is about today. */
+const DOT_XML = `<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <solid android:color="#4ADE80" />
 </shape>
 `;
 
@@ -351,6 +430,7 @@ const STRINGS = {
   widget_description: "Your partner's training week, live.",
   widget_preview_headline: 'You both trained today',
   widget_partner_short: 'Partner',
+  widget_today: 'TODAY',
 };
 
 function write(file, contents) {
@@ -376,6 +456,8 @@ const withWidgetSources = (config) =>
       write(path.join(res, 'layout/partner_widget.xml'), LAYOUT_XML);
       write(path.join(res, 'xml/partner_widget_info.xml'), INFO_XML);
       write(path.join(res, 'drawable/widget_bg.xml'), BG_XML);
+      write(path.join(res, 'drawable/widget_stat_bg.xml'), STAT_BG_XML);
+      write(path.join(res, 'drawable/widget_dot.xml'), DOT_XML);
 
       /* Strings are merged rather than overwritten — `strings.xml` already
          carries the app name and Expo's own entries. */

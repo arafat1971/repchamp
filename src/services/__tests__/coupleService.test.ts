@@ -25,7 +25,9 @@ import {
   nudgePartner,
   recordCoupleHydration,
   recordCoupleSession,
+  recordCoupleSteps,
   syncCouplePushToken,
+  withdrawCoupleDaily,
   watchCouple,
   watchMyCouple,
 } from '../coupleService';
@@ -530,6 +532,53 @@ describe('recordCoupleHydration', () => {
     }
     const c = mockStore.couples.get(code!) as unknown as Couple;
     expect(c.members[0]!.daily).toBeUndefined();
+  });
+});
+
+describe('withdrawCoupleDaily', () => {
+  it('removes one metric and keeps the other', async () => {
+    const code = await createCouple(ADA);
+    await joinCoupleByCode(code!, BEA);
+    await recordCoupleHydration(code!, 'ada', '2026-09-24', 1500);
+    await recordCoupleSteps(code!, 'ada', '2026-09-24', 6000);
+
+    await withdrawCoupleDaily(code!, 'ada', 'steps');
+
+    const c = mockStore.couples.get(code!) as unknown as Couple;
+    expect(c.members[0]!.daily).toEqual({ day: '2026-09-24', waterMl: 1500 });
+  });
+
+  /* Leaving `{ day }` behind would be harmless to the reader, but an absent
+     object is what every member who never logged anything looks like. */
+  it('drops the whole daily object when nothing else is left', async () => {
+    const code = await createCouple(ADA);
+    await recordCoupleHydration(code!, 'ada', '2026-09-24', 500);
+
+    await withdrawCoupleDaily(code!, 'ada', 'waterMl');
+
+    const c = mockStore.couples.get(code!) as unknown as Couple;
+    expect(c.members[0]).not.toHaveProperty('daily');
+  });
+
+  it('leaves the partner’s entry untouched', async () => {
+    const code = await createCouple(ADA);
+    await joinCoupleByCode(code!, BEA);
+    await recordCoupleHydration(code!, 'bea', '2026-09-24', 900);
+    await recordCoupleHydration(code!, 'ada', '2026-09-24', 500);
+    const before = { ...(mockStore.couples.get(code!) as unknown as Couple).members[1] };
+
+    await withdrawCoupleDaily(code!, 'ada', 'waterMl');
+
+    expect((mockStore.couples.get(code!) as unknown as Couple).members[1]).toEqual(before);
+  });
+
+  it('is a no-op when there is nothing to withdraw', async () => {
+    const code = await createCouple(ADA);
+    const before = JSON.stringify(mockStore.couples.get(code!));
+
+    await withdrawCoupleDaily(code!, 'ada', 'steps');
+
+    expect(JSON.stringify(mockStore.couples.get(code!))).toBe(before);
   });
 });
 

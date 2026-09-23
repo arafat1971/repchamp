@@ -14,7 +14,13 @@
  */
 
 import { partnerStepsToday, partnerWaterToday } from '@/domain/couple';
-import { recordCoupleHydration, recordCoupleSteps } from '@/services/coupleService';
+import { METRIC_FIELD, type SharedMetricKey } from '@/domain/partnerSharing';
+import {
+  recordCoupleHydration,
+  recordCoupleSteps,
+  withdrawCoupleDaily,
+} from '@/services/coupleService';
+import { sharingPrefs, useSharingStore } from '@/state/sharingStore';
 import { selectTodayMl, useHydrationStore } from '@/state/hydrationStore';
 import { dayKey } from '@/domain/progression';
 
@@ -44,6 +50,7 @@ export async function syncHydrationNow(
   uid: string | null | undefined,
 ): Promise<void> {
   if (!coupleId || !uid) return;
+  if (!sharingPrefs().water) return;
 
   const today = dayKey();
   const ml = selectTodayMl(useHydrationStore.getState(), today);
@@ -84,6 +91,7 @@ export async function syncStepsNow(
   steps: number,
 ): Promise<void> {
   if (!coupleId || !uid) return;
+  if (!sharingPrefs().steps) return;
   if (!Number.isFinite(steps) || steps <= 0) return;
 
   const today = dayKey();
@@ -94,6 +102,43 @@ export async function syncStepsNow(
     lastSteps = { day: today, steps };
   } catch {
     // Best-effort; the next foreground read repairs it.
+  }
+}
+
+/**
+ * Flip one sharing switch and make the couple document agree with it.
+ *
+ * Off withdraws today's figure straight away — a switch that only stopped
+ * *future* writes would leave the partner looking at a number the athlete
+ * just said they did not want shown. On clears the publish memo, so the next
+ * sync writes even a value identical to the one published before it was
+ * turned off (the memo would otherwise swallow it as "unchanged"), and
+ * republishes water at once since its total is local and to hand. Steps wait
+ * for the next count read, which Home does on focus.
+ *
+ * The local switch flips first and unconditionally: the athlete's intent must
+ * not depend on the network, and a failed withdraw is retried the next time
+ * they flip it or the day rolls over (a new day's write never carries it).
+ */
+export async function setMetricSharing(
+  coupleId: string | null | undefined,
+  uid: string | null | undefined,
+  key: SharedMetricKey,
+  on: boolean,
+): Promise<void> {
+  useSharingStore.getState().setShared(key, on);
+  if (key === 'water') lastPublished = null;
+  else lastSteps = null;
+
+  if (!coupleId || !uid) return;
+  try {
+    if (on) {
+      if (key === 'water') await syncHydrationNow(coupleId, uid);
+    } else {
+      await withdrawCoupleDaily(coupleId, uid, METRIC_FIELD[key]);
+    }
+  } catch {
+    // Best-effort, as above.
   }
 }
 

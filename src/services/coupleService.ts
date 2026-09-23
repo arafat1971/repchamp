@@ -407,6 +407,48 @@ async function recordCoupleDaily(
   });
 }
 
+/**
+ * Take one daily metric back off this member's slice.
+ *
+ * The counterpart to the sharing switches in `partnerSharing`. Stopping future
+ * writes is not enough on its own: today's figure is already on the couple
+ * document, and turning a switch off must mean the partner stops seeing it,
+ * not that it freezes where it was. `recordCoupleDaily` cannot do this — its
+ * same-day max refuses to walk a value down — so removal is its own write.
+ *
+ * Removing the key rather than writing 0 keeps the "absent means nothing
+ * honest to say" contract `partnerWaterToday` / `partnerStepsToday` rely on.
+ * When nothing but the day stamp would remain, the whole object goes.
+ */
+export async function withdrawCoupleDaily(
+  coupleId: string,
+  uid: string,
+  key: 'waterMl' | 'steps',
+): Promise<void> {
+  if (!isFirebaseConfigured()) return;
+
+  const ref = coupleDoc(coupleId);
+  await firestore().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return;
+
+    const couple = snap.data() as Couple;
+    const mine = couple.members.find((m) => m.uid === uid);
+    if (!mine?.daily || !(key in mine.daily)) return;
+
+    const members = couple.members.map((m) => {
+      if (m.uid !== uid || !m.daily) return m;
+      const rest: CoupleDailyMetrics = { ...m.daily };
+      delete rest[key];
+      const hasOther = rest.waterMl !== undefined || rest.steps !== undefined;
+      if (hasOther) return { ...m, daily: rest };
+      const { daily: _gone, ...withoutDaily } = m;
+      return withoutDaily;
+    });
+    tx.set(ref, { members }, { merge: true });
+  });
+}
+
 /** Expo's push endpoint — free, no Blaze plan, delivers to a closed app. */
 const EXPO_PUSH_ENDPOINT = 'https://exp.host/--/api/v2/push/send';
 

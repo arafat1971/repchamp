@@ -442,7 +442,7 @@ export default function HomeScreen() {
             partnerName={couple.partner?.displayName ?? 'Partner'}
             widget={partnerPulse.widget}
             myExercises={partnerPulse.mine}
-            onPress={() => router.push('/couple')}
+            onPress={() => router.push('/couple/partner')}
           />
         </StaggerIn>
       ) : null}

@@ -225,6 +225,16 @@ export default function CoupleTrackerScreen() {
         </View>
       </Animated.View>
 
+      {/* Today lives on its own screen: this one is the bond's history. */}
+      <PressableScale
+        onPress={() => router.push('/couple/partner')}
+        accessibilityRole="button"
+        accessibilityLabel={`See today with ${partnerName}`}
+        style={styles.todayLink}
+      >
+        <Text style={styles.todayLinkText}>👀 Today with {partnerName} — steps, water, who trained ›</Text>
+      </PressableScale>
+
       {/* ── Weekly pace ── */}
       <SectionLabel>THIS WEEK</SectionLabel>
       <Animated.View entering={FadeInDown.delay(60).duration(320)}>
@@ -576,6 +586,14 @@ function paceHint(
 }
 
 const styles = StyleSheet.create({
+  todayLink: {
+    marginTop: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: radius.lg,
+    backgroundColor: palette.green50,
+  },
+  todayLinkText: { ...font('bold', 14), color: palette.green700 },
   loading: { paddingVertical: 48, alignItems: 'center' },
   paddedCard: { padding: CARD_PADDING },
 

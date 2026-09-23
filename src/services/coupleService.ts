@@ -324,11 +324,9 @@ export async function recordCoupleSession(
  * publish set-to-value, and without this a phone that has been asleep could
  * clobber a live total with a stale smaller one.
  *
- * The cost is that a genuine *downward* correction — undo on one phone after
- * the other synced higher — does not reach the partner until the day rolls.
- * That is the right trade and it is deliberate: a stale phone zeroing a live
- * total is a much worse reading than an undo that lands a day late. Do not
- * "fix" this by dropping the max.
+ * Keep the max. A downward correction — an undo — goes through
+ * `lowerCoupleHydration` instead, which subtracts what was undone rather
+ * than writing a smaller total, so a stale phone still cannot zero a live one.
  *
  * A write for a different day replaces the object outright rather than
  * merging, so yesterday's numbers cannot survive into today.
@@ -402,6 +400,56 @@ async function recordCoupleDaily(
       }
 
       return { ...m, daily: merged };
+    });
+    tx.set(ref, { members }, { merge: true });
+  });
+}
+
+/**
+ * Take an undone drink back off today's published water.
+ *
+ * `recordCoupleHydration` keeps the larger of two same-day totals, so a
+ * smaller total can never correct it — which is right, because a smaller total
+ * is usually a stale phone, not an undo. An undo is different: the device that
+ * made it knows exactly how much it took back. So this subtracts that amount
+ * from whatever is published, rather than writing a new total. Water logged
+ * from another device survives, and a phone with a stale total has no undo to
+ * send and so cannot lower anything.
+ *
+ * Nothing to lower (another day, or no water published) is a no-op. Reaching
+ * zero removes the key, keeping "absent means nothing to say" intact.
+ */
+export async function lowerCoupleHydration(
+  coupleId: string,
+  uid: string,
+  day: string,
+  byMl: number,
+): Promise<void> {
+  if (!isFirebaseConfigured()) return;
+  if (!Number.isFinite(byMl) || byMl <= 0) return;
+
+  const ref = coupleDoc(coupleId);
+  await firestore().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return;
+
+    const couple = snap.data() as Couple;
+    const mine = couple.members.find((m) => m.uid === uid);
+    const current = mine?.daily?.day === day ? mine.daily.waterMl : undefined;
+    if (typeof current !== 'number') return;
+
+    const next = current - byMl;
+    const members = couple.members.map((m) => {
+      if (m.uid !== uid || !m.daily) return m;
+      const daily: CoupleDailyMetrics = { ...m.daily };
+      if (next > 0) {
+        daily.waterMl = next;
+        return { ...m, daily };
+      }
+      delete daily.waterMl;
+      if (daily.steps !== undefined) return { ...m, daily };
+      const { daily: _gone, ...withoutDaily } = m;
+      return withoutDaily;
     });
     tx.set(ref, { members }, { merge: true });
   });

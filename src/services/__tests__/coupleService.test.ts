@@ -22,6 +22,7 @@ import {
   createCouple,
   joinCoupleByCode,
   leaveCouple,
+  lowerCoupleHydration,
   nudgePartner,
   recordCoupleHydration,
   recordCoupleSession,
@@ -591,5 +592,50 @@ describe('joinCoupleByCode while in a real bond', () => {
 
     await expect(joinCoupleByCode(other!, BEA)).rejects.toThrow('Leave your current couple');
     expect(mockStore.couples.get(bond!)!.memberUids).toEqual(['bea', 'cal']);
+  });
+});
+
+describe('lowerCoupleHydration', () => {
+  it('subtracts the undone amount from today’s total', async () => {
+    const code = await createCouple(ADA);
+    await recordCoupleHydration(code!, 'ada', '2026-09-24', 1500);
+    await lowerCoupleHydration(code!, 'ada', '2026-09-24', 250);
+    const c = mockStore.couples.get(code!) as unknown as Couple;
+    expect(c.members[0]!.daily).toEqual({ day: '2026-09-24', waterMl: 1250 });
+  });
+
+  it('removes the key at zero and keeps steps', async () => {
+    const code = await createCouple(ADA);
+    await recordCoupleHydration(code!, 'ada', '2026-09-24', 500);
+    await recordCoupleSteps(code!, 'ada', '2026-09-24', 4000);
+    await lowerCoupleHydration(code!, 'ada', '2026-09-24', 500);
+    const c = mockStore.couples.get(code!) as unknown as Couple;
+    expect(c.members[0]!.daily).toEqual({ day: '2026-09-24', steps: 4000 });
+  });
+
+  it('drops the daily object when water was all there was', async () => {
+    const code = await createCouple(ADA);
+    await recordCoupleHydration(code!, 'ada', '2026-09-24', 500);
+    await lowerCoupleHydration(code!, 'ada', '2026-09-24', 900);
+    expect(mockStore.couples.get(code!)!.members[0]).not.toHaveProperty('daily');
+  });
+
+  /* Yesterday's figure is not today's to lower. */
+  it('does nothing on another day or with nothing published', async () => {
+    const code = await createCouple(ADA);
+    await recordCoupleHydration(code!, 'ada', '2026-09-23', 1500);
+    await lowerCoupleHydration(code!, 'ada', '2026-09-24', 250);
+    const c = mockStore.couples.get(code!) as unknown as Couple;
+    expect(c.members[0]!.daily).toEqual({ day: '2026-09-23', waterMl: 1500 });
+  });
+
+  it('leaves the partner’s entry untouched', async () => {
+    const code = await createCouple(ADA);
+    await joinCoupleByCode(code!, BEA);
+    await recordCoupleHydration(code!, 'bea', '2026-09-24', 900);
+    await recordCoupleHydration(code!, 'ada', '2026-09-24', 500);
+    const before = { ...(mockStore.couples.get(code!) as unknown as Couple).members[1] };
+    await lowerCoupleHydration(code!, 'ada', '2026-09-24', 250);
+    expect((mockStore.couples.get(code!) as unknown as Couple).members[1]).toEqual(before);
   });
 });

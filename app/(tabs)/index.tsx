@@ -190,10 +190,9 @@ export default function HomeScreen() {
 
   const undoWater = useCallback(() => {
     useHydrationStore.getState().undoLast();
-    /* An undo lowers the total, and `recordCoupleHydration` takes the max for
-       the same day — so this will not walk the partner's view back today. It
-       is called anyway so the *first* undo after a failed publish still gets
-       the real number up. */
+    /* Sync sees the total fell below what this phone published and sends
+       the undone amount as a subtraction, so the partner's view walks back
+       too (see `syncHydrationNow`). */
     void syncHydrationNow(coupleId, myUid);
   }, [coupleId, myUid]);
 

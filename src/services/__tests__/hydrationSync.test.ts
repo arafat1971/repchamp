@@ -6,11 +6,13 @@
 const mockRecordWater = jest.fn(async () => {});
 const mockRecordSteps = jest.fn(async () => {});
 const mockWithdraw = jest.fn(async () => {});
+const mockLower = jest.fn(async () => {});
 
 jest.mock('@/services/coupleService', () => ({
   recordCoupleHydration: (...a: unknown[]) => mockRecordWater(...(a as [])),
   recordCoupleSteps: (...a: unknown[]) => mockRecordSteps(...(a as [])),
   withdrawCoupleDaily: (...a: unknown[]) => mockWithdraw(...(a as [])),
+  lowerCoupleHydration: (...a: unknown[]) => mockLower(...(a as [])),
 }));
 
 import {
@@ -74,5 +76,38 @@ describe('setMetricSharing', () => {
     await setMetricSharing(null, null, 'water', false);
     expect(useSharingStore.getState().water).toBe(false);
     expect(mockWithdraw).not.toHaveBeenCalled();
+  });
+});
+
+describe('undo reaches the partner', () => {
+  const drink = (id: string, ml: number) => ({ id, ml, at: new Date().toISOString(), day: dayKey() });
+
+  it('sends the undone amount as a subtraction', async () => {
+    useHydrationStore.setState({ drinks: [drink('a', 500), drink('b', 250)] as never });
+    await syncHydrationNow('C1', 'ada');
+    expect(mockRecordWater).toHaveBeenLastCalledWith('C1', 'ada', dayKey(), 750);
+
+    useHydrationStore.setState({ drinks: [drink('a', 500)] as never });
+    await syncHydrationNow('C1', 'ada');
+    expect(mockLower).toHaveBeenCalledWith('C1', 'ada', dayKey(), 250);
+    expect(mockRecordWater).toHaveBeenCalledTimes(1);
+  });
+
+  /* Undoing the only drink of the day is exactly the case that must reach
+     the partner — the zero guard must not swallow it. */
+  it('takes the last drink of the day back too', async () => {
+    useHydrationStore.setState({ drinks: [drink('a', 500)] as never });
+    await syncHydrationNow('C1', 'ada');
+    useHydrationStore.setState({ drinks: [] as never });
+    await syncHydrationNow('C1', 'ada');
+    expect(mockLower).toHaveBeenCalledWith('C1', 'ada', dayKey(), 500);
+  });
+
+  /* After a restart the memo is gone: the phone cannot tell an undo from a
+     stale total, so it lowers nothing and the max holds. */
+  it('never lowers without a publish of its own to measure from', async () => {
+    useHydrationStore.setState({ drinks: [drink('a', 250)] as never });
+    await syncHydrationNow('C1', 'ada');
+    expect(mockLower).not.toHaveBeenCalled();
   });
 });

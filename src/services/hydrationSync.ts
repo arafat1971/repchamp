@@ -16,6 +16,7 @@
 import { partnerStepsToday, partnerWaterToday } from '@/domain/couple';
 import { METRIC_FIELD, type SharedMetricKey } from '@/domain/partnerSharing';
 import {
+  lowerCoupleHydration,
   recordCoupleHydration,
   recordCoupleSteps,
   withdrawCoupleDaily,
@@ -54,6 +55,22 @@ export async function syncHydrationNow(
 
   const today = dayKey();
   const ml = selectTodayMl(useHydrationStore.getState(), today);
+
+  /* Less than this phone itself published earlier today can only mean an undo
+     here — the local store never shrinks any other way. Send the difference,
+     not the new total: the doc keeps the max of totals, so only a subtraction
+     can bring it down, and a subtraction leaves water logged elsewhere alone.
+     Checked before the zero guard below, because undoing the only drink of
+     the day is exactly the case that must reach the partner. */
+  if (lastPublished && lastPublished.day === today && ml < lastPublished.ml) {
+    try {
+      await lowerCoupleHydration(coupleId, uid, today, lastPublished.ml - ml);
+      lastPublished = { day: today, ml };
+    } catch {
+      // Best-effort; the next call retries the same difference.
+    }
+    return;
+  }
 
   /* Nothing logged today is not the same as "sync a zero": a fresh day has
      no claim to make, and writing 0 would overwrite a total this athlete

@@ -20,8 +20,8 @@ import { friendInviteLink } from '@/lib/urls';
 import { reservedControlHeight } from '@/theme/fontScale';
 import { font, scaleForRole, text } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
 
 export default function AddFriendScreen() {
   const { fontScale } = useWindowDimensions();
@@ -38,7 +38,6 @@ export default function AddFriendScreen() {
     typeof params.u === 'string' ? params.u.trim().replace(/^@/, '') : '',
   );
   const [duelCode, setDuelCode] = useState('');
-  const [added, setAdded] = useState<Record<string, boolean>>({});
   const [copied, setCopied] = useState(false);
   const [searching, setSearching] = useState(false);
   /** Several accounts share the searched handle — the athlete picks which. */
@@ -49,7 +48,6 @@ export default function AddFriendScreen() {
     setCandidates(null);
     try {
       await addFriendByUid(uid, person.uid);
-      setAdded((prev) => ({ ...prev, [person.uid]: true }));
       showDialog({
         title: 'Friend added',
         message: `${person.displayName} is on your list.`,
@@ -108,7 +106,6 @@ export default function AddFriendScreen() {
     try {
       const ok = await addFriendByUsername(uid, name);
       if (ok) {
-        setAdded((prev) => ({ ...prev, [`@${name}`]: true }));
         showDialog({
           title: 'Friend added',
           message: `@${name} is on your list. They can add you back by your username.`,
@@ -173,9 +170,21 @@ export default function AddFriendScreen() {
   );
 
   /** Suggested AI partners start a paced duel — they are not cloud friends. */
+  /* Latches a duel tap until this screen is shown again. It used to be a
+     permanent `added` flag that turned the button into a "Ready" label: this
+     screen stays mounted under the session, so after one race the button was
+     dead until you left and came back. The latch only has to stop a double tap
+     from opening two sessions. */
+  const startingDuel = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      startingDuel.current = false;
+    }, []),
+  );
+
   const addSuggestion = (person: (typeof suggestionsList)[number]) => {
-    if (added[person.id]) return;
-    setAdded((prev) => ({ ...prev, [person.id]: true }));
+    if (startingDuel.current) return;
+    startingDuel.current = true;
     router.push({
       pathname: '/session',
       params: { exercise: 'push', mode: 'versus', opponent: person.id },
@@ -365,15 +374,9 @@ export default function AddFriendScreen() {
                   onPress={() => addSuggestion(person)}
                   accessibilityRole="button"
                   accessibilityLabel={`Duel ${person.name}`}
-                  style={[styles.addButton, added[person.id] && styles.addedButton]}
+                  style={styles.addButton}
                 >
-                  <Text
-                    style={font('extrabold', 12, {
-                      color: added[person.id] ? palette.green600 : palette.white,
-                    })}
-                  >
-                    {added[person.id] ? 'Ready' : 'Duel'}
-                  </Text>
+                  <Text style={font('extrabold', 12, { color: palette.white })}>Duel</Text>
                 </PressableScale>
               </View>
             </View>
@@ -479,5 +482,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: radius.lg,
   },
-  addedButton: { backgroundColor: palette.green50 },
 });

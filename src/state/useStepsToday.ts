@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Linking } from 'react-native';
 
 import { DEFAULT_STEP_GOAL, type StepsState } from '@/domain/steps';
@@ -24,23 +24,31 @@ export function useStepsToday(goal: number = DEFAULT_STEP_GOAL): {
 } {
   const [steps, setSteps] = useState<StepsState>({ status: 'loading' });
 
+  /* One flag shared by every in-flight read, rather than one per call.
+     
+     The previous shape returned a per-call `cancelled` closure, and only the
+     read started in the effect body was ever cancelled — each AppState
+     refresh created a flag nobody kept, so a foregrounded read could resolve
+     after unmount and call `setSteps` on a dead component. React reported it
+     as "Can't perform a React state update on a component that hasn't mounted
+     yet", which showed up on the physical device and nowhere in the tests,
+     since they never mount the hook. */
+  const mounted = useRef(true);
+
   const refresh = useCallback(() => {
-    let cancelled = false;
     void readStepsToday(goal).then((next) => {
-      if (!cancelled) setSteps(next);
+      if (mounted.current) setSteps(next);
     });
-    return () => {
-      cancelled = true;
-    };
   }, [goal]);
 
   useEffect(() => {
-    const cancel = refresh();
+    mounted.current = true;
+    refresh();
     const sub = AppState.addEventListener('change', (next) => {
       if (next === 'active') refresh();
     });
     return () => {
-      cancel?.();
+      mounted.current = false;
       sub.remove();
     };
   }, [refresh]);

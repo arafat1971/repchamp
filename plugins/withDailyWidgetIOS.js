@@ -25,6 +25,23 @@
  * reads — the payload keys, the copy, the thresholds — comes from
  * `src/domain/dashboardSnapshot.ts` and is unit-tested there, so the Swift
  * below stays a renderer with no decisions of its own.
+ *
+ * ## What is inert today, stated plainly
+ *
+ * Three things must all land before this widget shows real numbers, and only
+ * the first is written:
+ *
+ *   1. The Swift — done, and it compiles against the real SDKs.
+ *   2. The Xcode target and the App Group — needs a team id.
+ *   3. **An iOS publish path.** `services/partnerWidget.ts` returns null
+ *      unless `Platform.OS === 'android'`, so the dashboard publish wired
+ *      into Home is a no-op on the very platform this widget runs on. It
+ *      needs a small native module writing to the App Group suite and
+ *      calling `WidgetCenter.shared.reloadTimelines(ofKind:)`.
+ *
+ * Until (3) exists the widget renders `DashboardSnapshot.preview` and
+ * refreshes only on its hourly timeline. That is why the provider's comment
+ * does not claim a reload it never receives.
  */
 
 const { withDangerousMod } = require('@expo/config-plugins');
@@ -123,9 +140,13 @@ struct Provider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> Void) {
-        // One entry now, refreshed in an hour. The app also calls
-        // WidgetCenter.reloadTimelines whenever it publishes, so this cadence
-        // is the floor rather than the mechanism.
+        // One entry now, refreshed in an hour.
+        //
+        // The hourly policy is currently the ONLY refresh path. The app does
+        // not yet call WidgetCenter.reloadTimelines on publish, because the
+        // iOS half of publishWidgetSnapshot does not exist — see the plugin
+        // header. Until it does, a glass logged at 10:05 will not reach this
+        // widget until the next timeline refresh.
         let now = Date()
         let next = Calendar.current.date(byAdding: .hour, value: 1, to: now) ?? now
         completion(Timeline(entries: [entry(at: now)], policy: .after(next)))

@@ -1,4 +1,8 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
 import {
+  DASHBOARD_SNAPSHOT_KEY,
   DASHBOARD_STALE_AFTER_MS,
   buildDashboardSnapshot,
   isDashboardStale,
@@ -124,5 +128,59 @@ describe('staleness', () => {
      would reasonably assume one of them was broken. */
   it('uses the same window as the partner widget', () => {
     expect(DASHBOARD_STALE_AFTER_MS).toBe(12 * 60 * 60 * 1000);
+  });
+});
+
+/*
+ * The iOS widget's contract with the Swift that renders it.
+ *
+ * The extension decodes this payload field-by-field; a renamed field decodes
+ * as its default (0 or "") rather than throwing, so a drift here shows up as
+ * a widget quietly displaying zeroes. Nothing else would catch that, so read
+ * the Swift and assert the two agree — the same technique the partner
+ * widget's test uses against the Kotlin.
+ */
+describe('the payload matches the Swift that decodes it', () => {
+  const plugin = readFileSync(
+    join(__dirname, '..', '..', '..', 'plugins', 'withDailyWidgetIOS.js'),
+    'utf8',
+  );
+
+  it('declares every field the widget reads', () => {
+    const built = buildDashboardSnapshot([], 2000, UNAVAILABLE, null, TODAY);
+
+    /* Scoped to the struct: `var body:` on every SwiftUI view below would
+       otherwise be read as a payload field. */
+    const start = plugin.indexOf('struct DashboardSnapshot: Decodable {');
+    expect(start).toBeGreaterThan(-1);
+    const struct = plugin.slice(start, plugin.indexOf('\n}', start));
+
+    const declared = [...struct.matchAll(/var ([a-zA-Z]+):/g)].map((m) => m[1] as string);
+
+    expect(declared.length).toBeGreaterThan(5);
+    for (const field of declared) {
+      expect(Object.keys(built)).toContain(field);
+    }
+  });
+
+  it('agrees with the Swift on the storage key', () => {
+    expect(plugin).toContain(DASHBOARD_SNAPSHOT_KEY);
+  });
+
+  it('agrees with the Swift on the staleness window', () => {
+    expect(DASHBOARD_STALE_AFTER_MS).toBe(12 * 60 * 60 * 1000);
+    expect(plugin).toMatch(/staleAfter: TimeInterval = 12 \* 60 \* 60/);
+  });
+
+  /* The provider's comment used to claim the app calls
+     WidgetCenter.reloadTimelines on publish. It does not — there is no iOS
+     publish path at all — and a comment asserting a mechanism that does not
+     exist is worse than a missing one. Pin the honest version so it cannot
+     drift back. */
+  it('does not claim a reload the app never sends', () => {
+    const claimsReload = /The app also calls\s*\n?\s*\/\/ WidgetCenter\.reloadTimelines/.test(
+      plugin,
+    );
+    expect(claimsReload).toBe(false);
   });
 });

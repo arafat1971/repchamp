@@ -37,6 +37,12 @@ interface PartnerWidgetNative {
 }
 
 function native(): PartnerWidgetNative | null {
+  /* Android only, and deliberately so for now. The iOS dashboard widget's
+     Swift exists and compiles, but there is no iOS native module to write the
+     payload into the App Group suite — so every call here is a no-op on iOS,
+     including the dashboard publish Home makes. `isWidgetSupported()` reports
+     that truthfully, which is what keeps the setup screen from promising a
+     widget that cannot be fed. See plugins/withDailyWidgetIOS.js. */
   if (Platform.OS !== 'android') return null;
   return (NativeModules as { PartnerWidget?: PartnerWidgetNative }).PartnerWidget ?? null;
 }

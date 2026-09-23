@@ -26,6 +26,7 @@ import {
   EXERCISE_SAFETY_CHIP,
 } from '@/domain/exerciseSafety';
 import { OpponentPacer, getOpponent, type Opponent } from '@/domain/opponent';
+import { matchedPace } from '@/domain/adaptivePace';
 import { FIRST_REP_MARKER, firstRepOutcome } from '@/domain/activation';
 import { storage } from '@/lib/storage';
 import { shouldPromptUpgrade } from '@/domain/paywallGate';
@@ -368,10 +369,16 @@ export default function SessionScreen() {
     // flip live.active, which must never re-run startSession and wipe mid-set reps.
     // Do NOT depend on `opponent` / liveOpponentName — first name snapshot used to
     // recreate the opponent object and restart the whole set mid-rep.
-    pacerRef.current =
-      mode === 'versus' && !duelId
-        ? new OpponentPacer(getOpponent(opponentId), duration, Date.now() % 100000)
-        : null;
+    /* The bot races from this athlete's recent pace, not its listed one — see
+       `domain/adaptivePace`. Read once here from `getState()`, so a session
+       banked mid-set cannot re-pace a rival the athlete is already racing. */
+    let pacer: OpponentPacer | null = null;
+    if (mode === 'versus' && !duelId) {
+      const rival = getOpponent(opponentId);
+      const pace = matchedPace(rival.repsPerMinute, useProfileStore.getState().sessions, exercise);
+      pacer = new OpponentPacer({ ...rival, repsPerMinute: pace }, duration, Date.now() % 100000);
+    }
+    pacerRef.current = pacer;
 
     // Deliberately does NOT reset the session store. Navigating to the result
     // screen unmounts this one, and the result screen reads the finished

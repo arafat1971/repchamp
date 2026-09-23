@@ -76,6 +76,7 @@ import {
 } from '@/lib/notifications';
 import { isValidUsername, usernameError as usernameValidationError } from '@/domain/input';
 import { useProfileStore } from '@/state/profileStore';
+import { matchedPace } from '@/domain/adaptivePace';
 import { reservedControlHeight } from '@/theme/fontScale';
 import { font, scaleForRole, text } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
@@ -2223,6 +2224,11 @@ function DayThumb({ value }: { value: number }) {
 function Challenge({ username, onNext }: { username: string; onNext: () => void }) {
   const { fontScale } = useWindowDimensions();
   const rival = OPPONENTS[0]!;
+  /* The pace they will actually face: bots race from the athlete's own
+     history (`domain/adaptivePace`), so the listed pace would be a number
+     this athlete never meets. */
+  const sessions = useProfileStore((s) => s.sessions);
+  const pace = Math.round(matchedPace(rival.repsPerMinute, sessions, 'push'));
   const pulse = useSharedValue(0);
 
   useEffect(() => {
@@ -2250,7 +2256,7 @@ function Challenge({ username, onNext }: { username: string; onNext: () => void 
         {rival.name} is ready{'\n'}to race you
       </Text>
       <Text style={[text.body, styles.centeredCopy]}>
-        He holds {rival.repsPerMinute} reps a minute. Beat his pace and the XP is yours.
+        He races at your pace, a touch faster. Out-rep him and the XP is yours.
       </Text>
 
       <View style={styles.versusRow}>
@@ -2262,7 +2268,7 @@ function Challenge({ username, onNext }: { username: string; onNext: () => void 
             <Text style={font('extrabold', 9.5, { color: palette.green700 })}>AI</Text>
           </View>
           <Text style={styles.rivalName}>{rival.name}</Text>
-          <Text style={styles.rivalPace}>{rival.repsPerMinute}/min</Text>
+          <Text style={styles.rivalPace}>{pace}/min</Text>
         </View>
 
         <Animated.Text style={[{ fontSize: 30 }, boltStyle]}>⚡</Animated.Text>

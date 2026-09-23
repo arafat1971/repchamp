@@ -254,6 +254,19 @@ export default function FriendsScreen() {
             <Text style={styles.onlineName}>Add</Text>
           </PressableScale>
 
+          {/* Scan or show a QR — the fastest add when you're standing together. */}
+          <PressableScale
+            onPress={() => router.push('/modal/scan')}
+            accessibilityRole="button"
+            accessibilityLabel="Scan or show a QR code"
+            style={styles.onlineItem}
+          >
+            <View style={styles.addCircle}>
+              <Text style={{ fontSize: 22 }}>📷</Text>
+            </View>
+            <Text style={styles.onlineName}>Scan</Text>
+          </PressableScale>
+
           {onlineFriends.map((f) => (
             <PressableScale
               key={f.uid}

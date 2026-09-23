@@ -55,6 +55,7 @@ export interface AnalyticsEvents {
   couple_together_started: { exercise: string };
   couple_partner_dashboard: Record<string, never>;
   couple_sharing_changed: { metric: 'steps' | 'water'; on: boolean };
+  qr_scanned: { kind: 'couple' | 'duel' | 'friend' };
 
   /** Mirrors `couple_paired` so both invite surfaces are measured the same way. */
   duel_joined: { via: 'qr' | 'code' | 'invite' };

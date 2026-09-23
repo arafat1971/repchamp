@@ -254,7 +254,17 @@ export default function AddFriendScreen() {
       </Card>
 
       <LinearGradient colors={gradients.brand} style={[styles.inviteCard, shadow.brand]}>
-        <Text style={font('extrabold', 17, { color: palette.white })}>Invite a rival</Text>
+        <View style={styles.inviteHead}>
+          <Text style={font('extrabold', 17, { color: palette.white })}>Invite a rival</Text>
+          <PressableScale
+            onPress={() => router.push('/modal/scan')}
+            accessibilityRole="button"
+            accessibilityLabel="Scan or show a QR code"
+            style={styles.qrButton}
+          >
+            <Text style={font('extrabold', 12, { color: palette.green700 })}>▦ QR code</Text>
+          </PressableScale>
+        </View>
         <Text style={styles.inviteCopy}>
           Share your link — when they join, you both get 100 XP.
         </Text>
@@ -422,6 +432,13 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
   },
   inviteCard: { borderRadius: radius['4xl'], padding: 20 },
+  inviteHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  qrButton: {
+    backgroundColor: palette.white,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
   inviteCopy: {
     ...font('semibold', 12, { color: 'rgba(255,255,255,0.9)' }),
     marginTop: 4,

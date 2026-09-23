@@ -161,7 +161,14 @@ export async function joinCoupleByCode(
 
   const membershipId = await findMembershipId(input.uid);
   if (membershipId && membershipId !== code) {
-    throw new Error('Leave your current couple before joining another.');
+    /* An empty invite of my own is not a bond, it is an open door. The invite
+       screen mints one on arrival, so two partners who both tapped "invite"
+       each hold one — and refusing here left neither able to redeem the
+       other's code. Close mine and take their seat; a real bond still blocks. */
+    const outcome = await cancelCoupleInvite(membershipId);
+    if (outcome === 'paired') {
+      throw new Error('Leave your current couple before joining another.');
+    }
   }
 
   const ref = coupleDoc(code);

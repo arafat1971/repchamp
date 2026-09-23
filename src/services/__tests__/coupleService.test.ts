@@ -236,12 +236,16 @@ describe('joinCoupleByCode', () => {
     ).rejects.toThrow(/already paired up/i);
   });
 
-  it('refuses joining another couple while already a member elsewhere', async () => {
+  /* Reversed on 2026-09-24: an empty invite of my own used to block redeeming
+     a partner's code, and the invite screen mints one on arrival — so two
+     partners who both tapped "invite" could never pair. */
+  it('closes my own empty invite rather than refusing the join', async () => {
     const adaCode = await open();
     Math.random = () => 0.42;
     const beaCode = await createCouple(BEA);
-    await expect(joinCoupleByCode(adaCode, BEA)).rejects.toThrow(/Leave your current couple/i);
-    expect(mockStore.couples.get(beaCode!)!.memberUids).toEqual(['bea']);
+    const joined = await joinCoupleByCode(adaCode, BEA);
+    expect(joined?.memberUids).toEqual(['ada', 'bea']);
+    expect(mockStore.couples.has(beaCode!)).toBe(false);
   });
 
   it('refuses join when either athlete has blocked the other', async () => {
@@ -526,5 +530,17 @@ describe('recordCoupleHydration', () => {
     }
     const c = mockStore.couples.get(code!) as unknown as Couple;
     expect(c.members[0]!.daily).toBeUndefined();
+  });
+});
+
+describe('joinCoupleByCode while in a real bond', () => {
+  it('still refuses, and leaves the bond alone', async () => {
+    const bond = await createCouple(BEA);
+    await joinCoupleByCode(bond!, { uid: 'cal', displayName: 'Cal' });
+    Math.random = () => 0.42;
+    const other = await createCouple(ADA);
+
+    await expect(joinCoupleByCode(other!, BEA)).rejects.toThrow('Leave your current couple');
+    expect(mockStore.couples.get(bond!)!.memberUids).toEqual(['bea', 'cal']);
   });
 });

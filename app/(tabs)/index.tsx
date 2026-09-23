@@ -30,6 +30,7 @@ import { drinksOnDay, hydrationProgress, stepGoalMl } from '@/domain/hydration';
 import { lightImpactHaptic, selectionHaptic } from '@/lib/feedback';
 import { syncHydrationNow, syncStepsNow } from '@/services/hydrationSync';
 import { useStepsToday } from '@/state/useStepsToday';
+import { buildDashboardSnapshot } from '@/domain/dashboardSnapshot';
 import { buildWidgetSnapshot } from '@/domain/widgetSnapshot';
 import { publishWidgetSnapshot } from '@/services/partnerWidget';
 import { trackerHistory } from '@/domain/coupleTracker';
@@ -163,6 +164,16 @@ export default function HomeScreen() {
     if (stepsToday.status !== 'ready') return;
     void syncStepsNow(coupleId, myUid, stepsToday.steps);
   }, [stepsToday, coupleId, myUid]);
+
+  /* Mirror the same numbers into the daily dashboard widget. A no-op on any
+     build without the extension, so this is safe to call unconditionally —
+     on Android the bridge resolves the id to null and publishes nowhere. */
+  useEffect(() => {
+    publishWidgetSnapshot(
+      buildDashboardSnapshot(drinks, goalMl, stepsToday, partnerWater, today),
+      'dashboard',
+    );
+  }, [drinks, goalMl, stepsToday, partnerWater, today]);
 
   const logWater = useCallback(
     (ml: number) => {

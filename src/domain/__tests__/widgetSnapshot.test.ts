@@ -1,5 +1,8 @@
 import {
+  ANDROID_WIDGET_IDS,
+  WIDGET_IDS,
   WIDGET_SNAPSHOT_KEY,
+  WIDGET_SNAPSHOT_KEYS,
   WIDGET_STALE_AFTER_MS,
   buildWidgetSnapshot,
   isSnapshotStale,
@@ -141,6 +144,37 @@ describe('the widget payload matches what the provider reads', () => {
      nothing and shows its empty state forever. */
   it('agrees with the provider on the storage key', () => {
     expect(plugin).toContain(WIDGET_SNAPSHOT_KEY);
+  });
+
+  /* The widget id is the argument the bridge dispatches on. A rename on one
+     side resolves to `null` in the Kotlin `when` and publishes nowhere — no
+     crash, no log, just a card that never updates again. Nothing else would
+     catch that, so assert both directions. */
+  it('agrees with the plugin on every widget id Android ships', () => {
+    const declared = [...plugin.matchAll(/id:\s*'([a-z-]+)'/g)].map((m) => m[1] as string);
+    expect(declared.length).toBeGreaterThan(0);
+    expect([...ANDROID_WIDGET_IDS].sort()).toEqual([...declared].sort());
+  });
+
+  it('agrees with the plugin on every storage key Android ships', () => {
+    for (const id of ANDROID_WIDGET_IDS) {
+      expect(plugin).toContain(WIDGET_SNAPSHOT_KEYS[id]);
+    }
+  });
+
+  /* Every id must belong to one platform or the other — an id in neither
+     list is one nothing can render, which is the silent-publish failure
+     these tests exist to prevent. */
+  it('ships every declared id somewhere', () => {
+    const ios = readFileSync(
+      join(__dirname, '..', '..', '..', 'plugins', 'withDailyWidgetIOS.js'),
+      'utf8',
+    );
+    for (const id of WIDGET_IDS) {
+      const onAndroid = ANDROID_WIDGET_IDS.includes(id);
+      const onIos = ios.includes(WIDGET_SNAPSHOT_KEYS[id]);
+      expect(onAndroid || onIos).toBe(true);
+    }
   });
 
   /* Same for the staleness window: the provider hardcodes it in milliseconds

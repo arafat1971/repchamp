@@ -14,11 +14,26 @@
 
 import { NativeModules, Platform } from 'react-native';
 
-import type { WidgetSnapshot } from '@/domain/widgetSnapshot';
+import type { DashboardSnapshot } from '@/domain/dashboardSnapshot';
+import type { WidgetId, WidgetSnapshot } from '@/domain/widgetSnapshot';
+
+/**
+ * Anything a widget can be handed.
+ *
+ * A union of the concrete payloads rather than a loose record of primitives:
+ * each widget answers a different question and has its own shape, and an
+ * index signature would accept any object at all — including one missing the
+ * `updatedAt` every widget needs to age itself. The union keeps each payload
+ * checked against the one the matching native code actually decodes.
+ *
+ * Adding a widget means adding its type here, which is the intended friction:
+ * the flat-primitives rule is enforced by each payload's own test.
+ */
+export type WidgetPayload = WidgetSnapshot | DashboardSnapshot;
 
 interface PartnerWidgetNative {
-  setSnapshot(json: string): void;
-  count(): Promise<number>;
+  setSnapshot(widget: string, json: string): void;
+  count(widget: string): Promise<number>;
 }
 
 function native(): PartnerWidgetNative | null {
@@ -37,11 +52,14 @@ export function isWidgetSupported(): boolean {
  * Never throws. A widget failing to update is not worth interrupting a session
  * for, and the provider already draws a stale marker when its payload ages out.
  */
-export function publishWidgetSnapshot(snapshot: WidgetSnapshot): void {
+export function publishWidgetSnapshot(
+  snapshot: WidgetPayload,
+  widget: WidgetId = 'partner',
+): void {
   const mod = native();
   if (!mod) return;
   try {
-    mod.setSnapshot(JSON.stringify(snapshot));
+    mod.setSnapshot(widget, JSON.stringify(snapshot));
   } catch {
     // Best-effort.
   }
@@ -54,11 +72,11 @@ export function publishWidgetSnapshot(snapshot: WidgetSnapshot): void {
  * shows" — a screen that cannot tell the difference has to hedge, and hedged
  * instructions are what make a widget feel undiscoverable.
  */
-export async function placedWidgetCount(): Promise<number> {
+export async function placedWidgetCount(widget: WidgetId = 'partner'): Promise<number> {
   const mod = native();
   if (!mod) return 0;
   try {
-    return await mod.count();
+    return await mod.count(widget);
   } catch {
     return 0;
   }

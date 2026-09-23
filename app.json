@@ -75,6 +75,7 @@
       "./plugins/withUploadSigning",
       "./plugins/withVersionCode",
       "./plugins/withPartnerWidget",
+      "./plugins/withDailyWidgetIOS",
       "expo-router",
       "@react-native-firebase/app",
       "@react-native-firebase/auth",

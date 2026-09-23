@@ -53,8 +53,38 @@ export interface WidgetSnapshot {
   updatedAt: number;
 }
 
-/** Storage key, shared with the native side. Changing it breaks the bridge. */
-export const WIDGET_SNAPSHOT_KEY = 'repchamp.widget.partner.v1';
+/**
+ * The widgets this app can publish to.
+ *
+ * The id is the wire contract: it is what `services/widgets.ts` passes across
+ * the bridge, and the plugin's own WIDGETS list generates the Kotlin `when`
+ * branches that resolve it. A test below reads the plugin and asserts the two
+ * agree, because nothing else would catch a rename — a mismatched id resolves
+ * to `null` natively and silently publishes nowhere.
+ */
+export const WIDGET_IDS = ['partner', 'dashboard'] as const;
+export type WidgetId = (typeof WIDGET_IDS)[number];
+
+/**
+ * The widgets Android actually ships.
+ *
+ * `dashboard` is iOS-only today: the Android side would need its own provider
+ * class, layout and picker entry, and adding them is a separate piece of work
+ * from the bridge refactor that made it possible. Publishing to it on Android
+ * resolves to `null` in the Kotlin `when` and is a no-op, which is the
+ * intended behaviour rather than an oversight — but it means the id contract
+ * test must know which ids to expect in the plugin.
+ */
+export const ANDROID_WIDGET_IDS: readonly WidgetId[] = ['partner'];
+
+/** Storage keys, shared with the native side. Changing one breaks the bridge. */
+export const WIDGET_SNAPSHOT_KEYS: Record<WidgetId, string> = {
+  partner: 'repchamp.widget.partner.v1',
+  dashboard: 'repchamp.widget.dashboard.v1',
+};
+
+/** The partner widget's key. Kept for the call sites that name it directly. */
+export const WIDGET_SNAPSHOT_KEY = WIDGET_SNAPSHOT_KEYS.partner;
 
 /**
  * Build the payload from the same widget state Home renders.

@@ -29,7 +29,41 @@ const {
 const fs = require('fs');
 const path = require('path');
 
-const WIDGET_CLASS = 'PartnerWidgetProvider';
+/**
+ * Every widget this plugin installs.
+ *
+ * One entry per widget: the JS name (what `services/widgets.ts` passes), the
+ * Kotlin provider class, the SharedPreferences key holding its payload, and
+ * the layout/info resource names. The bridge, the manifest receivers and the
+ * Kotlin `when` branches are all generated from this list, so a third widget
+ * is an entry here rather than a parallel copy of the file.
+ *
+ * `id` is a wire contract shared with `src/domain/widgetSnapshot.ts`; a test
+ * there reads this file and asserts the keys agree.
+ */
+const WIDGETS = [
+  {
+    id: 'partner',
+    className: 'PartnerWidgetProvider',
+    prefsKey: 'repchamp.widget.partner.v1',
+    layout: 'partner_widget',
+    info: 'partner_widget_info',
+    /* `provider`, `layoutXml` and `infoXml` are attached further down, once
+       those templates are declared — they are large enough that inlining
+       them here would bury the registry they belong to. */
+  },
+];
+
+/** The first widget, still referenced by the single-widget templates below. */
+const WIDGET_CLASS = WIDGETS[0].className;
+
+/** `"partner" -> PartnerWidgetProvider::class.java` branches for the bridge. */
+const PROVIDER_CASES = WIDGETS.map(
+  (w) => `        "${w.id}" -> ${w.className}::class.java`,
+).join('\n');
+
+/** `"partner" -> "repchamp.widget.partner.v1"` branches for the bridge. */
+const KEY_CASES = WIDGETS.map((w) => `        "${w.id}" -> "${w.prefsKey}"`).join('\n');
 
 /* The provider. Reads the snapshot the app left in SharedPreferences and draws
    it; never computes anything itself, because everything it would compute is
@@ -165,34 +199,62 @@ class PartnerWidgetModule(reactContext: ReactApplicationContext) :
 
     override fun getName() = "PartnerWidget"
 
+    /**
+     * Which provider a widget id refers to, and which key holds its payload.
+     *
+     * The JS side names a widget rather than addressing a class, so adding a
+     * third means one entry in the plugin's WIDGETS list — not a second
+     * native module, a second ReactPackage and a second insertion into
+     * MainApplication's registration seam.
+     *
+     * An unknown id is ignored rather than throwing: a JS bundle newer than
+     * the native build will name widgets this APK has never heard of, and
+     * that should cost a missing card, not a crash.
+     */
+    private fun providerFor(widget: String): Class<*>? = when (widget) {
+${PROVIDER_CASES}
+        else -> null
+    }
+
+    private fun keyFor(widget: String): String? = when (widget) {
+${KEY_CASES}
+        else -> null
+    }
+
     @ReactMethod
-    fun setSnapshot(json: String) {
+    fun setSnapshot(widget: String, json: String) {
         val ctx = reactApplicationContext
+        val key = keyFor(widget) ?: return
+        val provider = providerFor(widget) ?: return
+
         ctx.getSharedPreferences("repchamp.widget", Context.MODE_PRIVATE)
             .edit()
-            .putString("repchamp.widget.partner.v1", json)
+            .putString(key, json)
             .apply()
 
         // Nudge every placed instance; without this the launcher waits for its
         // own 30-minute cycle and the card looks stale right after a set.
         val manager = AppWidgetManager.getInstance(ctx)
-        val ids = manager.getAppWidgetIds(ComponentName(ctx, ${WIDGET_CLASS}::class.java))
+        val ids = manager.getAppWidgetIds(ComponentName(ctx, provider))
         if (ids.isNotEmpty()) {
             val intent = android.content.Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE)
-            intent.component = ComponentName(ctx, ${WIDGET_CLASS}::class.java)
+            intent.component = ComponentName(ctx, provider)
             intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
             ctx.sendBroadcast(intent)
         }
     }
 
-    /** How many instances the athlete has actually placed. */
+    /** How many instances of one widget the athlete has actually placed. */
     @ReactMethod
-    fun count(promise: com.facebook.react.bridge.Promise) {
+    fun count(widget: String, promise: com.facebook.react.bridge.Promise) {
         val ctx = reactApplicationContext
+        val provider = providerFor(widget)
+        if (provider == null) {
+            promise.resolve(0)
+            return
+        }
         val manager = AppWidgetManager.getInstance(ctx)
-        promise.resolve(
-            manager.getAppWidgetIds(ComponentName(ctx, ${WIDGET_CLASS}::class.java)).size
-        )
+        promise.resolve(manager.getAppWidgetIds(ComponentName(ctx, provider)).size)
     }
 }
 `;
@@ -565,11 +627,26 @@ const withWidgetSources = (config) =>
       const javaDir = path.join(root, 'app/src/main/java', ...pkg.split('.'));
       const res = path.join(root, 'app/src/main/res');
 
-      write(path.join(javaDir, `${WIDGET_CLASS}.kt`), PROVIDER_KT(pkg));
+      /* One native module and one ReactPackage serve every widget — see the
+         `when` branches in the bridge. A second module would mean a second
+         insertion into MainApplication's registration seam, doubling the
+         surface that breaks when Expo changes that template. */
       write(path.join(javaDir, 'PartnerWidgetModule.kt'), BRIDGE_KT(pkg));
       write(path.join(javaDir, 'PartnerWidgetPackage.kt'), PACKAGE_KT(pkg));
-      write(path.join(res, 'layout/partner_widget.xml'), LAYOUT_XML);
-      write(path.join(res, 'xml/partner_widget_info.xml'), INFO_XML);
+
+      /* Per-widget: a provider class, a layout, a picker-info file. Driven by
+         WIDGETS so a second widget adds entries rather than a parallel copy
+         of this block. */
+      for (const widget of WIDGETS) {
+        write(path.join(javaDir, `${widget.className}.kt`), widget.provider(pkg));
+        write(path.join(res, `layout/${widget.layout}.xml`), widget.layoutXml);
+        write(path.join(res, `xml/${widget.info}.xml`), widget.infoXml);
+      }
+
+      /* Shared by every widget, written exactly once. These are the files a
+         second *plugin* would silently clobber — `write` overwrites without
+         checking — which is why every widget lives in this one plugin and
+         draws from this one palette rather than shipping its own. */
       write(path.join(res, 'drawable/widget_bg.xml'), BG_XML);
       write(path.join(res, 'drawable/widget_stat_bg.xml'), STAT_BG_XML);
       write(path.join(res, 'drawable/widget_dot.xml'), DOT_XML);
@@ -595,29 +672,45 @@ const withWidgetSources = (config) =>
     },
   ]);
 
+/* Bind each widget to the templates that draw it. Kept next to the hooks that
+   consume them rather than inside WIDGETS above, so the registry stays a list
+   of names and the templates stay where they are read. */
+WIDGETS[0].provider = PROVIDER_KT;
+WIDGETS[0].layoutXml = LAYOUT_XML;
+WIDGETS[0].infoXml = INFO_XML;
+
 /** Registers the provider so the launcher offers it in the widget picker. */
 const withWidgetManifest = (config) =>
   withAndroidManifest(config, (cfg) => {
     const app = AndroidConfig.Manifest.getMainApplicationOrThrow(cfg.modResults);
     app.receiver = app.receiver ?? [];
 
-    const name = `.${WIDGET_CLASS}`;
-    if (app.receiver.some((r) => r.$?.['android:name'] === name)) return cfg;
+    /* One receiver per widget. Idempotent on `android:name`, because prebuild
+       may run against a manifest this plugin already touched.
 
-    app.receiver.push({
-      $: { 'android:name': name, 'android:exported': 'false' },
-      'intent-filter': [
-        { action: [{ $: { 'android:name': 'android.appwidget.action.APPWIDGET_UPDATE' } }] },
-      ],
-      'meta-data': [
-        {
-          $: {
-            'android:name': 'android.appwidget.provider',
-            'android:resource': '@xml/partner_widget_info',
+       `android:exported="false"` is correct even though the launcher binds
+       these: it goes through AppWidgetManager rather than a broadcast, and
+       the app's own update broadcast is an explicit component intent from the
+       same UID. */
+    for (const widget of WIDGETS) {
+      const name = `.${widget.className}`;
+      if (app.receiver.some((r) => r.$?.['android:name'] === name)) continue;
+
+      app.receiver.push({
+        $: { 'android:name': name, 'android:exported': 'false' },
+        'intent-filter': [
+          { action: [{ $: { 'android:name': 'android.appwidget.action.APPWIDGET_UPDATE' } }] },
+        ],
+        'meta-data': [
+          {
+            $: {
+              'android:name': 'android.appwidget.provider',
+              'android:resource': `@xml/${widget.info}`,
+            },
           },
-        },
-      ],
-    });
+        ],
+      });
+    }
 
     return cfg;
   });

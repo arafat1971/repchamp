@@ -99,7 +99,7 @@ describe('formatting', () => {
 describe('saying why there is no count', () => {
   /* Every reason must produce copy naming the actual situation. A hedged
      line sends the athlete hunting for a setting that will not help. */
-  it.each<StepsUnavailableReason>(['unsupported', 'denied', 'no-sensor', 'error'])(
+  it.each<StepsUnavailableReason>(['unsupported', 'denied', 'no-sensor', 'error', 'starting'])(
     'has a specific line for %s',
     (reason) => {
       const copy = stepsUnavailableCopy(reason);
@@ -108,8 +108,20 @@ describe('saying why there is no count', () => {
     },
   );
 
-  it('names the platform rather than blaming the device', () => {
-    expect(stepsUnavailableCopy('unsupported')).toMatch(/iPhone/);
+  /* This used to assert the copy said "iPhone-only". It no longer does,
+     because Android counts steps now — the line would have been a false
+     claim shown to the majority of the user base. `unsupported` on Android
+     means an old build, not a platform limit, so the copy names the device. */
+  it('does not claim a platform limit that no longer exists', () => {
+    expect(stepsUnavailableCopy('unsupported')).not.toMatch(/iPhone|iOS/i);
+    expect(stepsUnavailableCopy('unsupported')).toMatch(/device/i);
+  });
+
+  /* A freshly anchored day is not a failure and must not read like one. */
+  it('explains a day that has only just started counting', () => {
+    const copy = stepsUnavailableCopy('starting');
+    expect(copy).toMatch(/counting/i);
+    expect(copy).not.toMatch(/cannot|unable|error|not available/i);
   });
 
   /* Only a permission refusal is worth offering a button for; the others

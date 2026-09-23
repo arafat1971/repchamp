@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Linking } from 'react-native';
+import { AppState, Linking, Platform } from 'react-native';
 
 import { DEFAULT_STEP_GOAL, type StepsState } from '@/domain/steps';
-import { readStepsToday } from '@/services/pedometer';
+import { readStepsToday, requestAndroidStepPermission } from '@/services/pedometer';
 
 /**
  * Today's step count, refreshed when it can have changed.
@@ -54,10 +54,25 @@ export function useStepsToday(goal: number = DEFAULT_STEP_GOAL): {
   }, [refresh]);
 
   /* Offered only for a denied permission — the one reason an athlete can
-     actually act on. `openSettings` lands on this app's own page. */
+     actually act on.
+     
+     On Android the first refusal is recoverable in-app: ask for
+     ACTIVITY_RECOGNITION and re-read on a grant. Only once the OS stops
+     showing the dialog (a permanent denial) does Settings become the only
+     route, and `request` resolving false covers both cases identically from
+     here — so try the dialog first and fall back. */
   const openSettings = useCallback(() => {
-    void Linking.openSettings().catch(() => {});
-  }, []);
+    void (async () => {
+      if (Platform.OS === 'android') {
+        const granted = await requestAndroidStepPermission();
+        if (granted) {
+          refresh();
+          return;
+        }
+      }
+      void Linking.openSettings().catch(() => {});
+    })();
+  }, [refresh]);
 
   return { steps, refresh, openSettings };
 }

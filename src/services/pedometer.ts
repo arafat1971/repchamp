@@ -14,9 +14,17 @@
  * Every failure is a reason, never a throw. The caller renders the reason.
  */
 
-import { Platform } from 'react-native';
+import { NativeModules, PermissionsAndroid, Platform } from 'react-native';
 
+import { dayKey } from '@/domain/progression';
 import { sanitizeSteps, type StepsState } from '@/domain/steps';
+import {
+  displayableSteps,
+  isPartialDay,
+  stepsToday,
+  type StepBaseline,
+} from '@/domain/stepBaseline';
+import { storage } from '@/lib/storage';
 
 /**
  * The pedometer, loaded only when the platform can actually use it.
@@ -52,6 +60,12 @@ function startOfToday(now: Date = new Date()): Date {
  * ordering is the difference between a missing ring and a dead app.
  */
 export async function readStepsToday(goal: number): Promise<StepsState> {
+  /* Android reads the hardware counter directly — see `readAndroidSteps`.
+     `expo-sensors` only exposes deltas-while-subscribed there, which is why
+     this was iPhone-only at first; the sensor underneath counts continuously
+     whether or not the app is running. */
+  if (Platform.OS === 'android') return readAndroidSteps(goal);
+
   if (Platform.OS !== 'ios') {
     return { status: 'unavailable', reason: 'unsupported' };
   }
@@ -82,4 +96,105 @@ export async function readStepsToday(goal: number): Promise<StepsState> {
 /** Whether this build can count steps at all, without asking for permission. */
 export function isPedometerSupported(): boolean {
   return Platform.OS === 'ios';
+}
+
+
+/* ------------------------------------------------------------------ *
+ * Android
+ * ------------------------------------------------------------------ */
+
+interface StepCounterNative {
+  isAvailable(): Promise<boolean>;
+  hasPermissionAsync(): Promise<boolean>;
+  /** Steps since the device booted. Rejects with a code rather than faking 0. */
+  readAsync(): Promise<number>;
+}
+
+function stepCounter(): StepCounterNative | null {
+  return (NativeModules as { StepCounter?: StepCounterNative }).StepCounter ?? null;
+}
+
+/** True when this build ships the native step-counter module. */
+export function isAndroidStepCounterAvailable(): boolean {
+  return Platform.OS === 'android' && stepCounter() != null;
+}
+
+/** Ask for ACTIVITY_RECOGNITION. Returns whether it is granted afterwards. */
+export async function requestAndroidStepPermission(): Promise<boolean> {
+  if (Platform.OS !== 'android') return false;
+  try {
+    const granted = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.ACTIVITY_RECOGNITION,
+    );
+    return granted === PermissionsAndroid.RESULTS.GRANTED;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Today's steps on Android.
+ *
+ * The sensor gives steps since boot, so the day's total is that minus a
+ * baseline taken at the first reading of the day. All of that arithmetic —
+ * including the reboot case, where the counter resets and the earlier steps
+ * are unrecoverable — lives in `domain/stepBaseline`, tested without a device.
+ *
+ * This function is the wire: read, apply, persist the next baseline.
+ */
+async function readAndroidSteps(goal: number): Promise<StepsState> {
+  const mod = stepCounter();
+  /* An older build without the plugin. Reported as unsupported rather than an
+     error, because there is nothing the athlete can do about it. */
+  if (!mod) return { status: 'unavailable', reason: 'unsupported' };
+
+  try {
+    if (!(await mod.isAvailable())) {
+      return { status: 'unavailable', reason: 'no-sensor' };
+    }
+    if (!(await mod.hasPermissionAsync())) {
+      return { status: 'unavailable', reason: 'denied' };
+    }
+
+    const reading = await mod.readAsync();
+    const today = dayKey();
+    const { result, nextBaseline } = stepsToday(reading, loadBaseline(), today);
+    saveBaseline(nextBaseline);
+
+    const steps = displayableSteps(result);
+    /* Null means the day has only just been anchored — there is no count to
+       show yet, and a 0 would read as "you have not moved". */
+    if (steps == null) return { status: 'unavailable', reason: 'starting' };
+
+    const safe = sanitizeSteps(steps);
+    if (safe == null) return { status: 'unavailable', reason: 'error' };
+
+    return { status: 'ready', steps: safe, goal, partial: isPartialDay(result) };
+  } catch {
+    return { status: 'unavailable', reason: 'error' };
+  }
+}
+
+const BASELINE_KEY = 'steps.baseline.v1';
+
+function loadBaseline(): StepBaseline | null {
+  try {
+    const raw = storage.getString(BASELINE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as StepBaseline;
+    return typeof parsed?.day === 'string' && typeof parsed?.reading === 'number'
+      ? parsed
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveBaseline(baseline: StepBaseline): void {
+  try {
+    storage.set(BASELINE_KEY, JSON.stringify(baseline));
+  } catch {
+    /* Losing the baseline costs one day's count, not correctness: the next
+       read re-anchors and reports `starting`. */
+  }
 }

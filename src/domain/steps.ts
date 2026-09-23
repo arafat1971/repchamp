@@ -6,19 +6,25 @@
  * and that answer is the truth. What this module owns is the *shape* of that
  * answer, including the shapes that mean "we cannot tell you".
  *
- * ## Why this is iOS-only
+ * ## Both platforms count, by different routes
  *
- * `Pedometer.getStepCountAsync(start, end)` — "how many steps since midnight?"
- * — is iOS-only. Android exposes `watchStepCount`, which counts from the
- * moment you subscribe, and neither platform delivers updates in the
- * background. So on Android the honest answer to "how many steps today?" is
- * not a smaller number, it is *no number*: a count that silently starts at
- * zero every time the app opens would read as a daily total and undercount by
- * however long the phone was in a pocket.
+ * iOS answers "how many steps since midnight?" directly via
+ * `Pedometer.getStepCountAsync`.
  *
- * Showing nothing is the right failure. A wrong number in a health context is
- * worse than an absent one, and an athlete cannot tell a partial count from a
- * lazy day.
+ * Android has no such call, and this module previously concluded the platform
+ * therefore could not answer — because `expo-sensors`' `watchStepCount` only
+ * reports deltas while subscribed, which would undercount by however long the
+ * phone sat in a pocket. That was wrong about the platform. The hardware
+ * sensor underneath, `TYPE_STEP_COUNTER`, counts continuously whether or not
+ * any app is listening and survives the app being closed; what it lacks is a
+ * day boundary, which `domain/stepBaseline` supplies. See
+ * `plugins/withStepCounter.js`.
+ *
+ * The principle that produced the wrong conclusion still holds and still
+ * governs every branch here: a wrong number in a health context is worse than
+ * an absent one, because an athlete cannot tell a partial count from a lazy
+ * day. Hence `starting` rather than a zero, and `partial` on a post-reboot
+ * figure rather than presenting it as the day's total.
  */
 
 /** Why there is no step count to show. */
@@ -30,11 +36,32 @@ export type StepsUnavailableReason =
   /** Hardware without a step counter, or a simulator. */
   | 'no-sensor'
   /** Asked, but the read failed. Transient; worth retrying. */
-  | 'error';
+  | 'error'
+  /**
+   * The day has only just been anchored and there is no count yet.
+   *
+   * Android's counter is cumulative since boot, so the first reading of a day
+   * establishes a baseline rather than producing a total. A 0 here would read
+   * as "you have not moved today" when the truth is "we started measuring a
+   * moment ago" — see `domain/stepBaseline`.
+   */
+  | 'starting';
 
 export type StepsState =
   | { status: 'loading' }
-  | { status: 'ready'; steps: number; goal: number }
+  | {
+      status: 'ready';
+      steps: number;
+      goal: number;
+      /**
+       * True when the figure understates the day.
+       *
+       * Only after a mid-day reboot on Android: the hardware counter resets
+       * and the earlier steps are unrecoverable, so the count is real but
+       * incomplete. The card says so rather than presenting it as a total.
+       */
+      partial?: boolean;
+    }
   | { status: 'unavailable'; reason: StepsUnavailableReason };
 
 export const DEFAULT_STEP_GOAL = 8000;
@@ -108,13 +135,18 @@ export function formatSteps(steps: number): string {
 export function stepsUnavailableCopy(reason: StepsUnavailableReason): string {
   switch (reason) {
     case 'unsupported':
-      return 'Step counting is iPhone-only for now.';
+      /* Web, and Android builds predating the step-counter plugin. Named as
+         "this device" rather than a platform, because on Android it means an
+         old build rather than a permanent limitation. */
+      return 'Step counting isn’t available on this device.';
     case 'denied':
       return 'Allow motion access to count your steps.';
     case 'no-sensor':
       return 'This device has no step counter.';
     case 'error':
       return 'Could not read your steps just now.';
+    case 'starting':
+      return 'Counting your steps from now.';
   }
 }
 

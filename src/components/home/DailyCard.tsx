@@ -195,7 +195,13 @@ function StepsRing({
           </ProgressRing>
         </CelebrateOnMet>
         <Text style={styles.ringLabel}>STEPS</Text>
-        <Text style={styles.ringSub}>of {formatSteps(p.goal)}</Text>
+        {/* A post-reboot count is real but understates the day, so it says so
+            rather than sitting under "of 8,000" as though it were a total.
+            Android's hardware counter resets on reboot and the earlier steps
+            cannot be recovered — see `domain/stepBaseline`. */}
+        <Text style={styles.ringSub}>
+          {steps.partial ? 'since restart' : `of ${formatSteps(p.goal)}`}
+        </Text>
       </View>
     );
   }

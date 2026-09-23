@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ModalHeader } from '@/components/ModalHeader';
 import { PressableScale, Screen } from '@/components/ui';
 import { normalizePairCode, parseInviteCode } from '@/domain/couple';
+import { classifyScan, landingHref } from '@/domain/scanTarget';
 import { track } from '@/lib/analytics';
 import { successHaptic } from '@/lib/feedback';
 import { joinCoupleByCode } from '@/services/coupleService';
@@ -52,6 +53,15 @@ export default function CoupleScanScreen() {
   const pair = useCallback(
     async (rawScan: string) => {
       if (handled.current) return;
+      /* A duel or friend code is ours too, just not a partner invite — send it
+         where it belongs rather than ignoring it. */
+      const other = classifyScan(rawScan);
+      if (other && other.kind !== 'couple') {
+        handled.current = true;
+        track('qr_scanned', { kind: other.kind });
+        router.replace(landingHref(other));
+        return;
+      }
       if (!uid) {
         showDialog({
           title: 'Still signing in',

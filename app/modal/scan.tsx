@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BrandedQR } from '@/components/BrandedQR';
 import { ModalHeader } from '@/components/ModalHeader';
 import { Avatar, PressableScale, Screen } from '@/components/ui';
-import { classifyScan, friendInviteDeepLink, type ScanTarget } from '@/domain/scanTarget';
+import { classifyScan, friendInviteDeepLink, landingHref, type ScanTarget } from '@/domain/scanTarget';
 import { track } from '@/lib/analytics';
 import { successHaptic } from '@/lib/feedback';
 import { friendInviteLink } from '@/lib/urls';
@@ -114,18 +114,7 @@ function Scanner({ onShowMine }: { onShowMine: () => void }) {
     transform: [{ translateY: sweep.value * (RETICLE - 6) }],
   }));
 
-  const route = useCallback(
-    (target: ScanTarget) => {
-      if (target.kind === 'couple') {
-        router.replace({ pathname: '/couple/join', params: { code: target.code } });
-      } else if (target.kind === 'duel') {
-        router.replace({ pathname: '/duel/join', params: { id: target.id } });
-      } else {
-        router.replace({ pathname: '/modal/add-friend', params: { u: target.username } });
-      }
-    },
-    [router],
-  );
+  const route = useCallback((target: ScanTarget) => router.replace(landingHref(target)), [router]);
 
   const onBarcodeScanned = useCallback(
     (result: BarcodeScanningResult) => {

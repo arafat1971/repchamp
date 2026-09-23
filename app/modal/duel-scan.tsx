@@ -9,6 +9,7 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { PressableScale, Screen } from '@/components/ui';
 import { showDialog } from '@/state/useDialog';
 import { isJoinableByQr, isOwnDuelInvite, parseDuelInvite } from '@/domain/duelInvite';
+import { classifyScan, landingHref } from '@/domain/scanTarget';
 import { fetchDuel } from '@/services/duelService';
 import { useAuthStore } from '@/state/authStore';
 import { reservedControlHeight } from '@/theme/fontScale';
@@ -63,6 +64,17 @@ export default function DuelScanScreen() {
   const join = useCallback(
     async (rawScan: string) => {
       if (handled.current) return;
+
+      /* A partner invite or friend code is ours too, just not a duel — send it
+         where it belongs rather than ignoring it, which looked like a dead
+         camera. */
+      const other = classifyScan(rawScan);
+      if (other && other.kind !== 'duel') {
+        handled.current = true;
+        track('qr_scanned', { kind: other.kind });
+        router.replace(landingHref(other));
+        return;
+      }
 
       const duelId = parseDuelInvite(rawScan);
       if (!duelId) return; // Not one of our codes — keep scanning silently.

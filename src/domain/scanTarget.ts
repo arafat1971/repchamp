@@ -81,3 +81,20 @@ export function classifyScan(input: string): ScanTarget | null {
   if (raw.startsWith('@')) return friend(raw);
   return null;
 }
+
+/**
+ * Where a scanned code lands: the route that already owns its flow.
+ *
+ * Shared by every scanner, so the couple scanner handed a duel code sends it
+ * to the same place the universal scanner — or a phone camera — would.
+ */
+export function landingHref(
+  target: ScanTarget,
+):
+  | { pathname: '/couple/join'; params: { code: string } }
+  | { pathname: '/duel/join'; params: { id: string } }
+  | { pathname: '/modal/add-friend'; params: { u: string } } {
+  if (target.kind === 'couple') return { pathname: '/couple/join', params: { code: target.code } };
+  if (target.kind === 'duel') return { pathname: '/duel/join', params: { id: target.id } };
+  return { pathname: '/modal/add-friend', params: { u: target.username } };
+}

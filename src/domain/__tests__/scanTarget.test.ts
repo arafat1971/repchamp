@@ -1,4 +1,4 @@
-import { classifyScan, friendInviteDeepLink } from '../scanTarget';
+import { classifyScan, friendInviteDeepLink, landingHref } from '../scanTarget';
 import { inviteDeepLink, inviteLink } from '../couple';
 import { duelInviteDeepLink, duelInviteLink } from '../duelInvite';
 import { friendInviteLink } from '../../lib/urls';
@@ -60,5 +60,22 @@ describe('classifyScan — everything else', () => {
 
   it('needs an @ to read a bare username', () => {
     expect(classifyScan('sam_12345')).toBeNull();
+  });
+});
+
+describe('landingHref', () => {
+  it('sends each kind to the route that owns its flow', () => {
+    expect(landingHref({ kind: 'couple', code: 'RLXW3Q' })).toEqual({
+      pathname: '/couple/join',
+      params: { code: 'RLXW3Q' },
+    });
+    expect(landingHref({ kind: 'duel', id: DUEL_ID })).toEqual({
+      pathname: '/duel/join',
+      params: { id: DUEL_ID },
+    });
+    expect(landingHref({ kind: 'friend', username: 'sam_1' })).toEqual({
+      pathname: '/modal/add-friend',
+      params: { u: 'sam_1' },
+    });
   });
 });

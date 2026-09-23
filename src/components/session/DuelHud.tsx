@@ -191,22 +191,18 @@ export function DuelHud({
           </View>
         ) : null}
 
-        {/* A lead change — the most galvanising event in a race, and it used
-            to pass in silence with two numbers swapping order. */}
-        {overtake ? (
+        {/* Taking the lead gets a banner. Losing it does not: the margin chip
+            and the rival's surge already say so, and a second banner over
+            the camera read as the app piling on. */}
+        {overtake === 'took' ? (
           <Animated.View
             key={`ot-${overtake}-${reps}`}
             entering={FadeIn.duration(180)}
             style={styles.overtake}
             pointerEvents="none"
           >
-            <Text
-              style={[
-                styles.overtakeText,
-                { color: overtake === 'took' ? palette.green300 : palette.amber300 },
-              ]}
-            >
-              {overtake === 'took' ? 'YOU TOOK THE LEAD' : 'THEY WENT AHEAD'}
+            <Text style={[styles.overtakeText, { color: palette.green300 }]}>
+              YOU TOOK THE LEAD
             </Text>
           </Animated.View>
         ) : null}

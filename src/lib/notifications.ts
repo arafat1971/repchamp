@@ -51,6 +51,11 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 import { buildDormantReminder } from '@/domain/dormantReminder';
+import {
+  HYDRATION_SLOTS,
+  buildHydrationReminder,
+} from '@/domain/hydrationReminder';
+import type { DrinkEntry } from '@/domain/hydration';
 import { buildInviteNotification } from '@/domain/inviteNotification';
 import { parseInviteKind } from '@/domain/presence';
 import { buildDailyReminder, buildWeeklyRecap } from '@/domain/reminderCopy';
@@ -121,6 +126,9 @@ const WORKOUT_REMINDER_ID = 'workout-reminder-daily';
 const STREAK_REMINDER_ID = 'couple-streak-reminder-eve';
 const DORMANT_REMINDER_ID = 'dormant-reminder-eve';
 const WEEKLY_RECAP_ID = 'weekly-recap';
+/* One id per hydration slot, so each can be cancelled independently the
+   moment its own condition stops holding. */
+const HYDRATION_REMINDER_IDS = HYDRATION_SLOTS.map((h) => `hydration-reminder-${h}`);
 const RIVAL_PASSED_ID = 'rival-passed-weekly';
 
 const RIVAL_PASSED_KEY = 'repchamp.notif.rivalPassedWeek';
@@ -550,6 +558,78 @@ export async function cancelDailyTrainingReminder(): Promise<void> {
  * So the freshness of the claim is exactly the freshness of the last sync,
  * which is why `useNotificationSync` re-syncs when the app is foregrounded.
  */
+/**
+ * The hydration slots — two at most, and only when there is something true to
+ * say at that hour.
+ *
+ * Its own slots rather than the evening one, because a reminder to drink at
+ * 19:00 arrives when the day is over and the only honest line left is that
+ * the goal was missed. Each slot is cancelled rather than filled when
+ * `buildHydrationReminder` declines, so an athlete on pace hears nothing at
+ * all — the same all-or-nothing rule the dormant slot follows.
+ *
+ * Note this schedules against *today's* state on a DAILY trigger. A slot set
+ * while behind will fire again tomorrow with the same words, which is why
+ * every caller of `syncLocalReminders` re-runs this: the next sync corrects
+ * the copy, and logging a drink re-syncs immediately.
+ */
+export async function syncHydrationReminders(ctx: {
+  enabled: boolean;
+  drinks: readonly DrinkEntry[];
+  goalMl: number;
+  day: string;
+}): Promise<void> {
+  if (!ctx.enabled) {
+    await cancelIds(HYDRATION_REMINDER_IDS);
+    return;
+  }
+  if (!(await ensureNotificationPermission())) return;
+
+  for (const [index, hour] of HYDRATION_SLOTS.entries()) {
+    const id = HYDRATION_REMINDER_IDS[index]!;
+    const copy = buildHydrationReminder({
+      drinks: ctx.drinks,
+      goalMl: ctx.goalMl,
+      day: ctx.day,
+      hour,
+    });
+
+    if (!copy) {
+      await cancelIds([id]);
+      continue;
+    }
+
+    try {
+      await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
+      await Notifications.scheduleNotificationAsync({
+        identifier: id,
+        content: {
+          title: copy.title,
+          body: copy.body,
+          data: { type: 'hydration-reminder' },
+          ...(Platform.OS === 'android' ? { channelId: channelIdFor('reminders') } : {}),
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DAILY,
+          hour,
+          minute: 0,
+        },
+      });
+    } catch {
+      // Best-effort, like every other slot here.
+    }
+  }
+}
+
+/** Drop both hydration slots — used when the toggle goes off. */
+export async function cancelHydrationReminders(): Promise<void> {
+  try {
+    await cancelIds(HYDRATION_REMINDER_IDS);
+  } catch {
+    // Best-effort.
+  }
+}
+
 export async function scheduleWeeklyRecap(
   weekday = WEEKLY_RECAP_WEEKDAY,
   hour = WEEKLY_RECAP_HOUR,

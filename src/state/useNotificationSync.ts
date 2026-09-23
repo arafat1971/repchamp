@@ -11,13 +11,15 @@ import { AppState } from 'react-native';
 import { daysSinceLastSession } from '@/domain/dormantReminder';
 import { dayKey } from '@/domain/progression';
 import { reminderHourFor } from '@/domain/reminderSchedule';
-import { syncLocalReminders } from '@/lib/notifications';
+import { syncHydrationReminders, syncLocalReminders } from '@/lib/notifications';
+import { selectTodayMl, useHydrationStore } from '@/state/hydrationStore';
 import { useCouple } from '@/state/useCouple';
 import { selectStreak, useProfileStore } from '@/state/profileStore';
 import { useSettingsStore } from '@/state/settingsStore';
 
 export function useNotificationSync(): void {
   const dailyReminder = useSettingsStore((s) => s.dailyReminder);
+  const hydrationReminder = useSettingsStore((s) => s.hydrationReminder);
   const sessions = useProfileStore((s) => s.sessions);
   const couple = useCouple();
 
@@ -88,6 +90,34 @@ export function useNotificationSync(): void {
     return () => clearTimeout(id);
     /* Re-armed after each tick, so a session left open for days keeps rolling. */
   }, [foregroundTick]);
+
+  /* Water reminders, synced separately from the training slots.
+     
+     Its own effect because its inputs are different and it must re-run on a
+     trigger the other deliberately ignores: logging a drink. The training
+     sync excludes `drinks`-like churn for good reason (see its dependency
+     note below), but a hydration reminder that does not react to drinking is
+     the one thing it cannot afford — it would keep telling an athlete who
+     just hit their goal that they are behind.
+     
+     `todayMl` rather than the `drinks` array: the array is new on every write,
+     while the millilitre total is the only part of it this schedule reads. */
+  const hydrationGoalMl = useHydrationStore((s) => s.goalMl);
+  const drinks = useHydrationStore((s) => s.drinks);
+  const todayMl = selectTodayMl({ drinks }, today);
+
+  useEffect(() => {
+    void syncHydrationReminders({
+      enabled: hydrationReminder,
+      drinks: useHydrationStore.getState().drinks,
+      goalMl: hydrationGoalMl,
+      day: today,
+    });
+    /* `todayMl` stands in for `drinks`, which the body reads fresh from the
+       store: the array identity changes on every write, the total does not.
+       `foregroundTick` forces a re-sync on reopen, because the copy is baked
+       in at schedule time like every other slot here. */
+  }, [hydrationReminder, hydrationGoalMl, todayMl, today, foregroundTick]);
 
   useEffect(() => {
     void syncLocalReminders({

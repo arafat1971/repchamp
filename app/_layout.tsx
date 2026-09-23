@@ -151,6 +151,17 @@ export default function RootLayout() {
             ? '/(tabs)'
             : { pathname: '/session', params: { exercise: 'push', mode: 'practice' } },
         );
+      } else if (type === 'hydration-reminder') {
+        /* Home, not a session. The water card is on Home and logging a glass
+           is a one-tap action there — sending someone to the camera because
+           they are behind on drinking would be answering a question nobody
+           asked.
+
+           Explicitly routed rather than left to fall through, which is the
+           exact bug `dormant-reminder` shipped with above: a type emitted
+           with no arm in this chain lands the athlete on whatever screen was
+           already mounted. */
+        router.push('/(tabs)');
       } else if (type === 'couple-nudge') {
         router.push('/modal/couple-invite');
       }

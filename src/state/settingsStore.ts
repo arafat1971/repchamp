@@ -14,6 +14,12 @@ export interface SettingsState {
   duelInvites: boolean;
   /** Daily "come train" reminder — at most one evening ping if you haven't trained. */
   dailyReminder: boolean;
+  /**
+   * Water reminders — at most two daytime pings, and only when actually
+   * behind pace. Separate from `dailyReminder` because they answer different
+   * questions and an athlete may well want one without the other.
+   */
+  hydrationReminder: boolean;
   /** Hide from the global leaderboard. */
   privateProfile: boolean;
   /** The live-camera "how to get a good read" tutorial has been dismissed once. */
@@ -30,6 +36,7 @@ export type SettingsToggle =
   | 'voiceCoach'
   | 'duelInvites'
   | 'dailyReminder'
+  | 'hydrationReminder'
   | 'privateProfile';
 
 export const useSettingsStore = create<SettingsState>()(
@@ -40,6 +47,7 @@ export const useSettingsStore = create<SettingsState>()(
       voiceCoach: false,
       duelInvites: true,
       dailyReminder: true,
+      hydrationReminder: true,
       privateProfile: false,
       cameraTutorialSeen: false,
 

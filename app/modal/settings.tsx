@@ -7,6 +7,7 @@ import { Card, Chevron, Divider, Eyebrow, PressableScale, Screen, Toggle } from 
 import { captureError } from '@/lib/crash';
 import {
   cancelDailyTrainingReminder,
+  syncHydrationReminders,
   syncLocalReminders,
 } from '@/lib/notifications';
 import { clearAllStorage } from '@/lib/storage';
@@ -29,6 +30,7 @@ import { daysSinceLastSession } from '@/domain/dormantReminder';
 import { dayKey } from '@/domain/progression';
 import { useCouple } from '@/state/useCouple';
 import { selectStreak, useProfileStore } from '@/state/profileStore';
+import { useHydrationStore } from '@/state/hydrationStore';
 import { useSettingsStore, type SettingsToggle } from '@/state/settingsStore';
 import { reservedControlHeight } from '@/theme/fontScale';
 import { font, scaleForRole, text } from '@/theme/typography';
@@ -59,6 +61,12 @@ const PRIVACY_TOGGLES: ToggleRow[] = [
     emoji: '⏰',
     title: 'Daily reminders',
     subtitle: 'One evening nudge if you haven’t trained',
+  },
+  {
+    key: 'hydrationReminder',
+    emoji: '💧',
+    title: 'Water reminders',
+    subtitle: 'Up to two a day, only when you’re behind',
   },
   {
     key: 'privateProfile',
@@ -311,6 +319,17 @@ export default function SettingsScreen() {
                 settings.set(row.key, next);
                 // The daily-reminder toggle owns real OS schedules, so arm or
                 // clear them the moment it flips.
+                /* Water owns its own OS schedules, so flip them with the
+                   switch rather than waiting for the next foreground sync. */
+                if (row.key === 'hydrationReminder') {
+                  const h = useHydrationStore.getState();
+                  void syncHydrationReminders({
+                    enabled: next,
+                    drinks: h.drinks,
+                    goalMl: h.goalMl,
+                    day: dayKey(),
+                  });
+                }
                 if (row.key === 'dailyReminder') {
                   const today = dayKey();
                   const trainedToday = sessions.some((s) => s.day === today);

@@ -1,11 +1,15 @@
 /**
  * Reading steps, and refusing to guess.
  *
- * The Android case is the one that matters. `getStepCountAsync` is iOS-only,
- * and `watchStepCount` — the Android alternative — counts from the moment you
- * subscribe, so the number it produces looks like a daily total and is not
- * one. A partial count is indistinguishable from a lazy day, so the refusal
- * is behaviour worth pinning rather than an implementation detail.
+ * Two routes, because the platforms differ. iOS asks `getStepCountAsync` for a
+ * date range directly. Android reads the hardware counter, which is cumulative
+ * since boot, and subtracts a baseline — see `domain/stepBaseline` for that
+ * arithmetic and this file for the wire around it.
+ *
+ * What both share, and what these tests actually pin, is the refusal to
+ * fabricate: every failure resolves to a *named reason* rather than a zero,
+ * because a zero is a claim that the athlete has not moved and a wrong number
+ * in a health context is worse than an absent one.
  */
 
 /* `Platform.OS` is overridden in place rather than by mocking `react-native`
@@ -32,7 +36,34 @@ jest.mock('expo-sensors', () => ({
   },
 }));
 
+/* MMKV is faked so the baseline round-trip is exercised for real rather than
+   stubbed away — the persisted anchor is what turns a boot-relative reading
+   into a daily total, so a test that skips it tests nothing interesting.
+   
+   `NativeModules` is NOT mocked as a module: replacing it wholesale broke
+   react-native's own `SourceCode` turbo-module and the suite failed to load
+   at all. The StepCounter entry is injected into the real registry below
+   instead, which leaves everything else intact. */
+const mockMmkv = new Map<string, string>();
+jest.mock('@/lib/storage', () => ({
+  storage: {
+    getString: (k: string) => mockMmkv.get(k),
+    set: (k: string, v: string) => {
+      mockMmkv.set(k, v);
+    },
+    remove: (k: string) => {
+      mockMmkv.delete(k);
+    },
+  },
+  zustandStorage: {
+    getItem: () => null,
+    setItem: () => undefined,
+    removeItem: () => undefined,
+  },
+}));
+
 import { Pedometer } from 'expo-sensors';
+import { NativeModules } from 'react-native';
 
 import { MAX_DAILY_STEPS } from '@/domain/steps';
 import { isPedometerSupported, readStepsToday } from '../pedometer';
@@ -43,12 +74,24 @@ const mockPedometer = Pedometer as unknown as {
   getStepCountAsync: jest.Mock;
 };
 
+const mockStepCounter = {
+  isAvailable: jest.fn(),
+  hasPermissionAsync: jest.fn(),
+  readAsync: jest.fn(),
+};
+(NativeModules as unknown as Record<string, unknown>).StepCounter = mockStepCounter;
+
 beforeEach(() => {
   setPlatform('ios');
   // Cleared, not just re-stubbed: several assertions below count calls.
   mockPedometer.isAvailableAsync.mockReset().mockResolvedValue(true);
   mockPedometer.requestPermissionsAsync.mockReset().mockResolvedValue({ granted: true });
   mockPedometer.getStepCountAsync.mockReset().mockResolvedValue({ steps: 8432 });
+
+  mockMmkv.clear();
+  mockStepCounter.isAvailable.mockReset().mockResolvedValue(true);
+  mockStepCounter.hasPermissionAsync.mockReset().mockResolvedValue(true);
+  mockStepCounter.readAsync.mockReset().mockResolvedValue(10_000);
 });
 
 describe('reading today’s steps', () => {
@@ -77,12 +120,12 @@ describe('reading today’s steps', () => {
 });
 
 describe('when there is no count to give', () => {
-  /* The whole reason steps are iOS-only. Android can only count from app
-     open, which reads as a daily total and silently undercounts. */
-  it('refuses on Android rather than reporting a partial count', async () => {
+  /* Android no longer refuses — it reads the hardware counter. What it must
+     still never do is answer via the iOS pedometer, whose Android behaviour
+     is the deltas-while-subscribed undercount this design exists to avoid. */
+  it('never uses the iOS pedometer on Android', async () => {
     setPlatform('android');
-    const state = await readStepsToday(8000);
-    expect(state).toEqual({ status: 'unavailable', reason: 'unsupported' });
+    await readStepsToday(8000);
     expect(mockPedometer.getStepCountAsync).not.toHaveBeenCalled();
   });
 
@@ -131,5 +174,91 @@ describe('support check', () => {
     expect(isPedometerSupported()).toBe(true);
     setPlatform('android');
     expect(isPedometerSupported()).toBe(false);
+  });
+});
+
+describe('Android reads the hardware counter', () => {
+  beforeEach(() => setPlatform('android'));
+
+  /* The first read of a day anchors it rather than producing a total. A 0
+     here would read as "you have not moved today" when the truth is "we
+     started measuring a moment ago". */
+  it('anchors the day on the first read instead of claiming zero', async () => {
+    const state = await readStepsToday(8000);
+    expect(state).toEqual({ status: 'unavailable', reason: 'starting' });
+  });
+
+  it('counts from the anchor on subsequent reads', async () => {
+    await readStepsToday(8000); // anchors at 10,000
+    mockStepCounter.readAsync.mockResolvedValue(12_400);
+
+    const state = await readStepsToday(8000);
+    expect(state).toEqual({ status: 'ready', steps: 2_400, goal: 8000, partial: false });
+  });
+
+  /* The anchor has to survive across reads, which is the whole reason it is
+     persisted — an in-memory baseline would reset every app launch and the
+     count would restart from zero each time. */
+  it('persists the anchor so a later read still measures from it', async () => {
+    await readStepsToday(8000);
+    expect(mockMmkv.get('steps.baseline.v1')).toBeDefined();
+
+    mockStepCounter.readAsync.mockResolvedValue(11_000);
+    const state = await readStepsToday(8000);
+    expect(state).toMatchObject({ status: 'ready', steps: 1_000 });
+  });
+
+  /* A reading below the anchor is impossible within one boot, so the device
+     restarted. The pre-reboot steps are gone; the figure is real but
+     understates the day, and says so. */
+  it('marks a post-reboot count as partial rather than a total', async () => {
+    await readStepsToday(8000); // anchors at 10,000
+    mockStepCounter.readAsync.mockResolvedValue(350); // counter reset
+
+    const state = await readStepsToday(8000);
+    expect(state).toEqual({ status: 'ready', steps: 350, goal: 8000, partial: true });
+  });
+
+  it('keeps counting upward after a reboot', async () => {
+    await readStepsToday(8000);
+    mockStepCounter.readAsync.mockResolvedValue(350);
+    await readStepsToday(8000); // re-anchors at 0
+    mockStepCounter.readAsync.mockResolvedValue(900);
+
+    const state = await readStepsToday(8000);
+    expect(state).toMatchObject({ status: 'ready', steps: 900 });
+  });
+
+  it('reports a device with no step sensor', async () => {
+    mockStepCounter.isAvailable.mockResolvedValue(false);
+    const state = await readStepsToday(8000);
+    expect(state).toEqual({ status: 'unavailable', reason: 'no-sensor' });
+  });
+
+  /* Recoverable in-app on Android, so it must be distinguishable from the
+     reasons that are not — the card only offers a button for this one. */
+  it('reports a missing activity permission as denied', async () => {
+    mockStepCounter.hasPermissionAsync.mockResolvedValue(false);
+    const state = await readStepsToday(8000);
+    expect(state).toEqual({ status: 'unavailable', reason: 'denied' });
+  });
+
+  it('reports a rejected read rather than throwing', async () => {
+    mockStepCounter.readAsync.mockRejectedValue(new Error('E_TIMEOUT'));
+    const state = await readStepsToday(8000);
+    expect(state).toEqual({ status: 'unavailable', reason: 'error' });
+  });
+
+  /* An old build whose native side predates the plugin. Nothing the athlete
+     can act on, so it is `unsupported` rather than an error. */
+  it('reports an absent native module as unsupported', async () => {
+    const saved = (NativeModules as unknown as Record<string, unknown>).StepCounter;
+    delete (NativeModules as unknown as Record<string, unknown>).StepCounter;
+    try {
+      const state = await readStepsToday(8000);
+      expect(state).toEqual({ status: 'unavailable', reason: 'unsupported' });
+    } finally {
+      (NativeModules as unknown as Record<string, unknown>).StepCounter = saved;
+    }
   });
 });

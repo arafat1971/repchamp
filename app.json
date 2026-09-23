@@ -17,6 +17,7 @@
         "NSCameraUsageDescription": "RepChamp uses the camera to count your reps and check your form. Video is processed entirely on your device and is never uploaded or recorded.",
         "NSPhotoLibraryUsageDescription": "Pick a profile photo for your RepChamp account.",
         "NSPhotoLibraryAddUsageDescription": "Save your duel result cards to your photo library.",
+        "NSMotionUsageDescription": "RepChamp counts your daily steps so your Today card and widget can show how close you are to your step goal.",
         "UIBackgroundModes": []
       }
     },

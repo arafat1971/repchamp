@@ -1,3 +1,6 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
 import {
   DEFAULT_STEP_GOAL,
   MAX_DAILY_STEPS,
@@ -116,5 +119,36 @@ describe('saying why there is no count', () => {
     expect(isFixableByAthlete('unsupported')).toBe(false);
     expect(isFixableByAthlete('no-sensor')).toBe(false);
     expect(isFixableByAthlete('error')).toBe(false);
+  });
+});
+
+/*
+ * The permission string iOS requires before the pedometer may be touched.
+ *
+ * Requesting motion access without `NSMotionUsageDescription` does not fail
+ * gracefully — iOS terminates the app on the spot. So the absence of this key
+ * is not a missing-feature bug, it is a crash on the first Home render of any
+ * iPhone build, and the unit tests here cannot see it because they mock
+ * `expo-sensors` entirely. Assert the config instead.
+ */
+describe('the iOS motion permission is declared', () => {
+  const appJson = JSON.parse(
+    readFileSync(join(__dirname, '..', '..', '..', 'app.json'), 'utf8'),
+  ) as { expo: { ios?: { infoPlist?: Record<string, unknown> } } };
+
+  const plist = appJson.expo.ios?.infoPlist ?? {};
+
+  it('declares NSMotionUsageDescription', () => {
+    expect(typeof plist.NSMotionUsageDescription).toBe('string');
+  });
+
+  /* Apple rejects placeholder purpose strings, and an athlete reading it
+     deserves to know what the data is for rather than that "the app needs
+     access". */
+  it('says what the steps are used for', () => {
+    const copy = String(plist.NSMotionUsageDescription ?? '');
+    expect(copy.length).toBeGreaterThan(30);
+    expect(copy).toMatch(/step/i);
+    expect(copy).not.toMatch(/requires access|needs access/i);
   });
 });

@@ -62,8 +62,14 @@ The widget can still be built and previewed against the Simulator, which needs
 no signing:
 
 ```bash
-xcodebuild -workspace ios/RepChamp.xcworkspace -scheme RepChampDailyWidget -sdk iphonesimulator -configuration Debug build
+cd ios && pod install && cd ..
+xcodebuild -workspace ios/FitnessDuelRepChamp.xcworkspace \
+  -scheme RepChampDailyWidget -sdk iphonesimulator -configuration Debug build
 ```
+
+The workspace is named after the Xcode project, `FitnessDuelRepChamp` — not
+`RepChamp`, and not the `gg.repchamp.app` bundle id. It is created by
+`pod install`, so a `prebuild --no-install` leaves `ios/` without one.
 
 It will render `DashboardSnapshot.preview` — the same values the widget
 gallery shows — which exercises the layout, the rings and the stale branch,

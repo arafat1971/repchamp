@@ -62,8 +62,8 @@ function startOfToday(now: Date = new Date()): Date {
 export async function readStepsToday(goal: number): Promise<StepsState> {
   /* Android reads the hardware counter directly — see `readAndroidSteps`.
      `expo-sensors` only exposes deltas-while-subscribed there, which is why
-     this was iPhone-only at first; the sensor underneath counts continuously
-     whether or not the app is running. */
+     this was iPhone-only at first. Whether the sensor counts while nothing is
+     listening is unverified — see the caveat in `domain/steps.ts`. */
   if (Platform.OS === 'android') return readAndroidSteps(goal);
 
   if (Platform.OS !== 'ios') {

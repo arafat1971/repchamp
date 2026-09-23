@@ -1,12 +1,14 @@
 /**
  * Turning Android's boot-relative step counter into "steps today".
  *
- * `TYPE_STEP_COUNTER` reports steps since the device last rebooted — cumulative,
- * monotonic, and counted in hardware, so it keeps running while the app is
- * closed. That last property is what makes a real daily total possible on
- * Android, and it is the thing I got wrong when I first made steps iPhone-only:
- * `watchStepCount` only reports *deltas while subscribed*, but the counter
- * underneath it never stopped.
+ * `TYPE_STEP_COUNTER` reports steps since the device last rebooted — cumulative
+ * and monotonic within a boot.
+ *
+ * Whether it keeps counting while no app has it registered is NOT established.
+ * Android's docs say it "should only count steps while the sensor listener is
+ * registered"; if so, a daily total built on it undercounts whatever was walked
+ * with nothing listening. This module's arithmetic is correct either way — it
+ * is the input that may be incomplete. See `domain/steps.ts`.
  *
  * What it does not give is a day boundary. The only reading is "since boot", so
  * today's total is `now - the reading at midnight`. This module owns that

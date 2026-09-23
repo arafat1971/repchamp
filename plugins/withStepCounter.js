@@ -3,10 +3,15 @@
  *
  * `expo-sensors`' Pedometer gives `getStepCountAsync` on iOS only, and its
  * Android `watchStepCount` reports deltas *while subscribed* — which is why
- * steps shipped iPhone-only at first. But the sensor underneath,
- * `TYPE_STEP_COUNTER`, counts continuously in hardware whether or not any app
- * is listening, and survives the app being closed. Reading it directly is what
- * makes a real daily total possible on Android.
+ * steps shipped iPhone-only at first. This reads the sensor underneath,
+ * `TYPE_STEP_COUNTER`, directly.
+ *
+ * Caveat, unverified: Android documents that this sensor "should only count
+ * steps while the sensor listener is registered". This module registers only
+ * for a one-shot read, so unless something else on the device keeps the sensor
+ * active, steps walked between reads may not be counted. It is also subject to
+ * Android 9+'s rule that background apps receive no sensor events, so it only
+ * works while the app is in the foreground.
  *
  * The counter is cumulative since the device last booted, so it has no notion
  * of a day. `src/domain/stepBaseline.ts` owns that arithmetic — including the
@@ -49,9 +54,9 @@ import com.facebook.react.bridge.ReactMethod
  *
  * TYPE_STEP_COUNTER is an on-change sensor: it does not tick on a schedule, it
  * reports when the value changes. So a one-shot read registers, waits for the
- * first event, and unregisters. The sensor keeps its own count in hardware
- * regardless, so nothing is lost by not listening continuously — which is the
- * whole reason this beats a foreground-only subscription.
+ * first event, and unregisters. Whether the count advances while nothing is
+ * registered is device-dependent and unverified here; Android documents that
+ * it should only count while a listener is registered.
  */
 class ${MODULE_CLASS}(reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {

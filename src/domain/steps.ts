@@ -14,11 +14,17 @@
  * Android has no such call, and this module previously concluded the platform
  * therefore could not answer — because `expo-sensors`' `watchStepCount` only
  * reports deltas while subscribed, which would undercount by however long the
- * phone sat in a pocket. That was wrong about the platform. The hardware
- * sensor underneath, `TYPE_STEP_COUNTER`, counts continuously whether or not
- * any app is listening and survives the app being closed; what it lacks is a
- * day boundary, which `domain/stepBaseline` supplies. See
- * `plugins/withStepCounter.js`.
+ * phone sat in a pocket. The hardware sensor underneath, `TYPE_STEP_COUNTER`,
+ * reports steps since boot and is read directly via
+ * `plugins/withStepCounter.js`; `domain/stepBaseline` supplies the day
+ * boundary it lacks.
+ *
+ * UNVERIFIED, and possibly wrong: whether that sensor counts while nobody is
+ * listening. Android's documentation says it "should only count steps while
+ * the sensor listener is registered", and on the test Pixel 7a nothing held it
+ * active (`dumpsys sensorservice`). If that holds, steps taken with the app
+ * closed are simply not recorded, and this reads low. An earlier version of
+ * this comment stated the opposite as fact; it was never tested.
  *
  * The principle that produced the wrong conclusion still holds and still
  * governs every branch here: a wrong number in a health context is worse than

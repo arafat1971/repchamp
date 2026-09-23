@@ -76,6 +76,22 @@ import { palette, radius } from '@/theme/tokens';
 /** Framing confidence that counts as "body locked". */
 const CALIBRATION_LOCK = 0.55;
 
+/**
+ * Whether the session store is finished *right now*, not as of this render.
+ *
+ * A result screen that closes without its Done or Rematch running (a deep link
+ * or notification opening over it) leaves the store at `finished`. The next
+ * session's first render then sees that stale phase: the bootstrap effect
+ * calls `start()`, but effects later in the same commit still hold the
+ * render-time `finished`. The hand-off effect used to act on it and send the
+ * brand-new session straight to a 0–0 result — and for a live duel the settle
+ * effect would have reported that result to the server. Every effect that acts
+ * on `finished` checks this as well.
+ */
+function isFinishedNow(): boolean {
+  return useSessionStore.getState().phase === 'finished';
+}
+
 export default function SessionScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -746,7 +762,7 @@ export default function SessionScreen() {
    * Couple credit (separate from navigation so partner hydrate can't cancel it)
    * ---------------------------------------------------------------- */
   useEffect(() => {
-    if (phase !== 'finished' || mode !== 'together') return;
+    if (phase !== 'finished' || mode !== 'together' || !isFinishedNow()) return;
     const s0 = useSessionStore.getState();
     if (
       s0.reps <= 0 ||
@@ -784,7 +800,7 @@ export default function SessionScreen() {
    * Hand off to the result screen (once)
    * ---------------------------------------------------------------- */
   useEffect(() => {
-    if (phase !== 'finished' || handedOffRef.current) return;
+    if (phase !== 'finished' || handedOffRef.current || !isFinishedNow()) return;
     handedOffRef.current = true;
     successHaptic();
 
@@ -809,7 +825,7 @@ export default function SessionScreen() {
 
   // Cold-start auth: finish handoff can run while `live` is still inert.
   useEffect(() => {
-    if (phase !== 'finished' || !live.active || !duelId) return;
+    if (phase !== 'finished' || !live.active || !duelId || !isFinishedNow()) return;
     const s0 = useSessionStore.getState();
     const form = s0.formReport?.score ?? 0;
     live.finish(s0.reps, form, forfeitedRef.current);

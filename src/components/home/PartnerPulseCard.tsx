@@ -99,7 +99,7 @@ export function PartnerPulseCard({
           ) : null}
 
           <Text style={styles.note}>
-            {partnerName}\’s training days sync live. Their reps stay on their phone.
+            {partnerName}’s training days sync live. Their reps stay on their phone.
           </Text>
         </View>
       </PressableScale>

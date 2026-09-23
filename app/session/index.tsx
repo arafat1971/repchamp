@@ -1137,7 +1137,8 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.camGreenBottom },
   /* Its own band.
    *
-   * The duel HUD owns 38% (the rep counter) and now 21% (an overtake); the
+   * The duel HUD owns 38% (the rep counter) and the band under its score card
+   * (an overtake); the
    * together HUD owns 34% (the combined score). A moment and an overtake can
    * land on the same rep — beating a personal best is often exactly what takes
    * the lead — so this sits below both rather than on either. */

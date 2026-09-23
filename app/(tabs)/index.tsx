@@ -55,7 +55,7 @@ import { useCouple } from '@/state/useCouple';
 import { useIncomingDuelCount } from '@/state/useIncomingDuelCount';
 import { useLiveActivityCount } from '@/state/useLiveActivityCount';
 import { useSelfPlayer } from '@/state/useSelfPlayer';
-import { font } from '@/theme/typography';
+import { font, scaleForRole } from '@/theme/typography';
 import { gradients, palette, shadow, radius } from '@/theme/tokens';
 
 /** Push-ups is the featured daily challenge; mirrors `app/modal/daily.tsx`. */
@@ -359,16 +359,34 @@ export default function HomeScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.greetingHook}>{greetingCopy.hook}</Text>
             <View style={styles.nameRow}>
-              <Text style={font('semibold', 18, { color: palette.ink })} numberOfLines={1}>
+              {/* Two lines, not one. At large text sizes a single line cannot
+                  hold the greeting and it truncated the athlete's own name —
+                  "Good evening, n…" — which is the one word here that should
+                  never be the thing that gets cut. */}
+              <Text
+                style={font('semibold', 18, { color: palette.ink })}
+                numberOfLines={2}
+                {...scaleForRole('heading')}
+              >
                 {greetingCopy.timeOfDay}, {firstName}
               </Text>
               <View style={styles.lvlChip}>
-                <Text style={font('bold', 11, { color: palette.green600 })}>Lv.{level.level}</Text>
+                <Text
+                  style={font('bold', 11, { color: palette.green600 })}
+                  {...scaleForRole('control')}
+                >
+                  Lv.{level.level}
+                </Text>
               </View>
               {streak > 0 ? (
                 <PopOnChange trigger={streak} style={styles.streakChip}>
                   <StreakFlame />
-                  <Text style={font('bold', 11, { color: palette.amber800 })}>{streak}</Text>
+                  <Text
+                    style={font('bold', 11, { color: palette.amber800 })}
+                    {...scaleForRole('control')}
+                  >
+                    {streak}
+                  </Text>
                 </PopOnChange>
               ) : null}
             </View>

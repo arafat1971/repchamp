@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
   type ColorValue,
 } from 'react-native';
@@ -27,6 +28,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 
+import { reservedControlHeight } from '@/theme/fontScale';
 import { ExerciseGlyph } from '@/components/ExerciseGlyph';
 import { selectTotalReps, useProfileStore } from '@/state/profileStore';
 import { useIncomingDuelCount } from '@/state/useIncomingDuelCount';
@@ -676,10 +678,19 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
 export default function TabsLayout() {
   const onboarded = useProfileStore((s) => s.onboarded);
   const insets = useSafeAreaInsets();
+  // Above the early return: hooks must run in the same order every render.
+  const { fontScale } = useWindowDimensions();
 
   if (!onboarded) return <Redirect href="/onboarding" />;
 
-  const tabBarHeight = 60 + Math.max(insets.bottom, 16);
+  /* The bar grows with its labels, like every other control in the app.
+     
+     It was a flat `60 + inset`, which held at the design text size and failed
+     at large ones: the labels grew inside a bar that could not, so "Arena" and
+     "Friends" were drawn straight through by the gesture bar. `Screen`'s FAB
+     clearance is derived from this same number, so raising it here keeps the
+     two in step rather than letting content slide under a taller bar. */
+  const tabBarHeight = reservedControlHeight(60, fontScale) + Math.max(insets.bottom, 16);
 
   return (
     <View style={StyleSheet.absoluteFill}>

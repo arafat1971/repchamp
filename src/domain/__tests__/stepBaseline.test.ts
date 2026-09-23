@@ -52,11 +52,33 @@ describe('a reboot mid-day', () => {
 
   it('re-anchors at zero so the count keeps rising from the reboot', () => {
     const { nextBaseline } = stepsToday(400, base(TODAY, 12_000), TODAY);
-    expect(nextBaseline).toEqual({ day: TODAY, reading: 0 });
+    expect(nextBaseline).toMatchObject({ day: TODAY, reading: 0 });
 
-    // The next reading is then measured against that new anchor.
     const { result } = stepsToday(900, nextBaseline, TODAY);
-    expect(result).toEqual({ kind: 'total', steps: 900 });
+    expect(result).toMatchObject({ steps: 900 });
+  });
+
+  /* The bug this replaced: only the one read where the counter visibly went
+     backwards was marked partial. Every later read that day re-derived
+     nothing, and presented a post-reboot count as the full day's total. */
+  it('stays partial for the rest of the day, not just the first read', () => {
+    const { nextBaseline } = stepsToday(400, base(TODAY, 12_000), TODAY);
+    const later = stepsToday(900, nextBaseline, TODAY).result;
+    expect(later).toEqual({ kind: 'since-reboot', steps: 900 });
+    expect(isPartialDay(later)).toBe(true);
+  });
+
+  /* The native service marks the baseline partial itself when it sees a
+     reboot by boot count, which catches the case "went backwards" cannot:
+     enough post-reboot walking to exceed the old baseline. */
+  it('honours a partial flag written by the service', () => {
+    const { result } = stepsToday(15_000, { day: TODAY, reading: 0, partial: true }, TODAY);
+    expect(result).toEqual({ kind: 'since-reboot', steps: 15_000 });
+  });
+
+  it('starts a new day whole again', () => {
+    const { result } = stepsToday(20_000, { day: YESTERDAY, reading: 0, partial: true }, TODAY);
+    expect(result).toEqual({ kind: 'starting' });
   });
 
   /* The pre-reboot steps are gone, so the figure understates the day. Saying

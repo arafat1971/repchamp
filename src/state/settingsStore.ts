@@ -20,6 +20,12 @@ export interface SettingsState {
    * questions and an athlete may well want one without the other.
    */
   hydrationReminder: boolean;
+  /**
+   * Android only: keep a foreground service running so steps are counted while
+   * the app is closed. Costs a persistent quiet notification, so it is the
+   * athlete's to turn off; without it the count only covers time the app ran.
+   */
+  stepCounting: boolean;
   /** Hide from the global leaderboard. */
   privateProfile: boolean;
   /** The live-camera "how to get a good read" tutorial has been dismissed once. */
@@ -37,6 +43,7 @@ export type SettingsToggle =
   | 'duelInvites'
   | 'dailyReminder'
   | 'hydrationReminder'
+  | 'stepCounting'
   | 'privateProfile';
 
 export const useSettingsStore = create<SettingsState>()(
@@ -48,6 +55,7 @@ export const useSettingsStore = create<SettingsState>()(
       duelInvites: true,
       dailyReminder: true,
       hydrationReminder: true,
+      stepCounting: true,
       privateProfile: false,
       cameraTutorialSeen: false,
 

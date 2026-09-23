@@ -25,12 +25,34 @@
  * monotonic within a boot, so `current < baseline` can only mean it restarted.
  */
 
-/** What we persist to anchor the day. */
+/**
+ * What we persist to anchor the day.
+ *
+ * Written by two parties: this module (on a read from the app) and the native
+ * foreground service (on sensor events, including across midnight while the
+ * app is closed). Both share one SharedPreferences entry via the native
+ * module, so the shape is a wire contract — see `plugins/withStepCounter.js`.
+ */
 export interface StepBaseline {
   /** `YYYY-MM-DD` the baseline was taken on. */
   day: string;
   /** The sensor reading at that moment — steps since boot. */
   reading: number;
+  /**
+   * The day's count is known to be incomplete: the device rebooted after
+   * steps had already been taken today, and those are unrecoverable.
+   *
+   * Carried on the baseline rather than inferred per read, because inferring
+   * it only works on the one read where the counter visibly went backwards —
+   * every later read that day would otherwise present itself as a full total.
+   */
+  partial?: boolean;
+  /**
+   * Android's boot count when the baseline was taken, if the writer knew it.
+   * The service records it so a reboot is detected exactly rather than by the
+   * reading happening to go backwards.
+   */
+  boot?: number;
 }
 
 export type StepsToday =
@@ -68,16 +90,17 @@ export function stepsToday(
 
   /* The counter went backwards, which within a single boot is impossible —
      so the device restarted. The steps before the reboot are unrecoverable;
-     re-anchor at zero and label what we can still see. */
+     re-anchor at zero and mark the day partial so every later read says so. */
   if (safe < baseline.reading) {
     return {
       result: { kind: 'since-reboot', steps: safe },
-      nextBaseline: { day: today, reading: 0 },
+      nextBaseline: { day: today, reading: 0, partial: true },
     };
   }
 
+  const steps = safe - baseline.reading;
   return {
-    result: { kind: 'total', steps: safe - baseline.reading },
+    result: baseline.partial ? { kind: 'since-reboot', steps } : { kind: 'total', steps },
     nextBaseline: baseline,
   };
 }

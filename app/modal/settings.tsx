@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Platform, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { ModalHeader } from '@/components/ModalHeader';
 import { Card, Chevron, Divider, Eyebrow, PressableScale, Screen, Toggle } from '@/components/ui';
@@ -30,6 +30,7 @@ import { daysSinceLastSession } from '@/domain/dormantReminder';
 import { dayKey } from '@/domain/progression';
 import { useCouple } from '@/state/useCouple';
 import { selectStreak, useProfileStore } from '@/state/profileStore';
+import { setStepServiceEnabled } from '@/services/pedometer';
 import { useHydrationStore } from '@/state/hydrationStore';
 import { useSettingsStore, type SettingsToggle } from '@/state/settingsStore';
 import { reservedControlHeight } from '@/theme/fontScale';
@@ -53,6 +54,13 @@ const WORKOUT_TOGGLES: ToggleRow[] = [
     subtitle: 'Spoken form cues while you train',
   },
 ];
+
+const STEP_COUNTING_ROW: ToggleRow = {
+  key: 'stepCounting',
+  emoji: '👟',
+  title: 'Background step counting',
+  subtitle: 'Keeps a quiet notification so your daily total is complete',
+};
 
 const PRIVACY_TOGGLES: ToggleRow[] = [
   { key: 'duelInvites', emoji: '🔔', title: 'Duel invites', subtitle: 'Get notified when challenged' },
@@ -321,6 +329,9 @@ export default function SettingsScreen() {
                 // clear them the moment it flips.
                 /* Water owns its own OS schedules, so flip them with the
                    switch rather than waiting for the next foreground sync. */
+                if (row.key === 'stepCounting') {
+                  void setStepServiceEnabled(next);
+                }
                 if (row.key === 'hydrationReminder') {
                   const h = useHydrationStore.getState();
                   void syncHydrationReminders({
@@ -379,7 +390,11 @@ export default function SettingsScreen() {
       {renderGroup(WORKOUT_TOGGLES)}
 
       <Eyebrow style={styles.eyebrow}>NOTIFICATIONS &amp; PRIVACY</Eyebrow>
-      {renderGroup(PRIVACY_TOGGLES)}
+      {renderGroup(
+        /* Android only: iOS counts steps without a background service, so the
+           switch would control nothing there. */
+        Platform.OS === 'android' ? [...PRIVACY_TOGGLES, STEP_COUNTING_ROW] : PRIVACY_TOGGLES,
+      )}
 
       {cloudConfigured ? (
         <>

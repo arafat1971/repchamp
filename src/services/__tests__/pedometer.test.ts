@@ -16,6 +16,8 @@
    wholesale: the `jest-expo` preset supplies a working react-native, and
    replacing it with a stub broke `expo-sensors`' own imports — which the
    catch in `readStepsToday` then swallowed into a generic 'error'. */
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { NativeModules, Platform } from 'react-native';
 
 function setPlatform(os: 'ios' | 'android' | 'web') {
@@ -65,7 +67,8 @@ jest.mock('@/lib/storage', () => ({
 import { Pedometer } from 'expo-sensors';
 
 import { MAX_DAILY_STEPS } from '@/domain/steps';
-import { isPedometerSupported, readStepsToday } from '../pedometer';
+import { dayKey as todayKey } from '@/domain/progression';
+import { isPedometerSupported, readStepsToday, setStepServiceEnabled } from '../pedometer';
 
 const mockPedometer = Pedometer as unknown as {
   isAvailableAsync: jest.Mock;
@@ -73,10 +76,21 @@ const mockPedometer = Pedometer as unknown as {
   getStepCountAsync: jest.Mock;
 };
 
+/* The baseline lives in native SharedPreferences, shared with the foreground
+   service. Faked with a real Map so the save-then-reload round trip is
+   exercised, which is the mechanism: an anchor that did not persist would
+   restart the count from zero on every launch. */
+const nativePrefs = new Map<string, string>();
 const mockStepCounter = {
   isAvailable: jest.fn(),
   hasPermissionAsync: jest.fn(),
   readAsync: jest.fn(),
+  getBaseline: jest.fn(async () => nativePrefs.get('baseline') ?? null),
+  setBaseline: jest.fn((json: string) => {
+    nativePrefs.set('baseline', json);
+  }),
+  startService: jest.fn(async () => true),
+  stopService: jest.fn(async () => true),
 };
 (NativeModules as unknown as Record<string, unknown>).StepCounter = mockStepCounter;
 
@@ -88,6 +102,10 @@ beforeEach(() => {
   mockPedometer.getStepCountAsync.mockReset().mockResolvedValue({ steps: 8432 });
 
   mockMmkv.clear();
+  nativePrefs.clear();
+  mockStepCounter.setBaseline.mockClear();
+  mockStepCounter.startService.mockClear();
+  mockStepCounter.stopService.mockClear();
   mockStepCounter.isAvailable.mockReset().mockResolvedValue(true);
   mockStepCounter.hasPermissionAsync.mockReset().mockResolvedValue(true);
   mockStepCounter.readAsync.mockReset().mockResolvedValue(10_000);
@@ -200,7 +218,7 @@ describe('Android reads the hardware counter', () => {
      count would restart from zero each time. */
   it('persists the anchor so a later read still measures from it', async () => {
     await readStepsToday(8000);
-    expect(mockMmkv.get('steps.baseline.v1')).toBeDefined();
+    expect(nativePrefs.get('baseline')).toBeDefined();
 
     mockStepCounter.readAsync.mockResolvedValue(11_000);
     const state = await readStepsToday(8000);
@@ -259,5 +277,59 @@ describe('Android reads the hardware counter', () => {
     } finally {
       (NativeModules as unknown as Record<string, unknown>).StepCounter = saved;
     }
+  });
+});
+
+describe('sharing the baseline with the foreground service', () => {
+  beforeEach(() => setPlatform('android'));
+
+  /* The service writes a `boot` field the app does not model. Writing an
+     unchanged baseline back would be harmless now, but not writing it is what
+     keeps the two writers from racing over nothing. */
+  it('does not rewrite a baseline that did not change', async () => {
+    nativePrefs.set('baseline', JSON.stringify({ day: todayKey(), reading: 9_000, boot: 7 }));
+    await readStepsToday(8000);
+    expect(mockStepCounter.setBaseline).not.toHaveBeenCalled();
+  });
+
+  /* The service anchored the day at midnight while the app was closed; the
+     app must count from that, not re-anchor at the moment it opened. */
+  it('counts from a baseline the service wrote while the app was closed', async () => {
+    nativePrefs.set('baseline', JSON.stringify({ day: todayKey(), reading: 4_000, boot: 7 }));
+    const state = await readStepsToday(8000);
+    expect(state).toMatchObject({ status: 'ready', steps: 6_000, partial: false });
+  });
+
+  it('reads a partial day the service flagged after a reboot', async () => {
+    nativePrefs.set(
+      'baseline',
+      JSON.stringify({ day: todayKey(), reading: 0, partial: true, boot: 8 }),
+    );
+    const state = await readStepsToday(8000);
+    expect(state).toMatchObject({ status: 'ready', steps: 10_000, partial: true });
+  });
+
+  it('turns the service on and off through the native module', async () => {
+    await expect(setStepServiceEnabled(true)).resolves.toBe(true);
+    expect(mockStepCounter.startService).toHaveBeenCalled();
+    await expect(setStepServiceEnabled(false)).resolves.toBe(false);
+    expect(mockStepCounter.stopService).toHaveBeenCalled();
+  });
+
+  it('never starts a service off Android', async () => {
+    setPlatform('ios');
+    await expect(setStepServiceEnabled(true)).resolves.toBe(false);
+    expect(mockStepCounter.startService).not.toHaveBeenCalled();
+  });
+});
+
+/* The Kotlin service and this app write the same JSON. A field renamed on one
+   side reads as absent on the other — a partial day silently shown as whole —
+   so assert the service writes exactly the fields `StepBaseline` declares. */
+describe('the service writes the baseline shape the app reads', () => {
+  const plugin = readFileSync(join(__dirname, '..', '..', '..', 'plugins', 'withStepCounter.js'), 'utf8');
+
+  it.each(['day', 'reading', 'partial', 'boot'])('writes the %s field', (field) => {
+    expect(plugin).toContain(`.put("${field}"`);
   });
 });

@@ -24,7 +24,6 @@ import {
   stepsToday,
   type StepBaseline,
 } from '@/domain/stepBaseline';
-import { storage } from '@/lib/storage';
 
 /**
  * The pedometer, loaded only when the platform can actually use it.
@@ -108,6 +107,18 @@ interface StepCounterNative {
   hasPermissionAsync(): Promise<boolean>;
   /** Steps since the device booted. Rejects with a code rather than faking 0. */
   readAsync(): Promise<number>;
+  /**
+   * The day baseline, shared with the native foreground service.
+   *
+   * Native storage rather than MMKV because the service writes it too —
+   * anchoring each day at midnight while the app is closed — and two stores
+   * would let the app and the service disagree about when the day began.
+   */
+  getBaseline(): Promise<string | null>;
+  setBaseline(json: string): void;
+  /** Background counting on/off. Resolves whether the service is running. */
+  startService(): Promise<boolean>;
+  stopService(): Promise<boolean>;
 }
 
 function stepCounter(): StepCounterNative | null {
@@ -158,8 +169,13 @@ async function readAndroidSteps(goal: number): Promise<StepsState> {
 
     const reading = await mod.readAsync();
     const today = dayKey();
-    const { result, nextBaseline } = stepsToday(reading, loadBaseline(), today);
-    saveBaseline(nextBaseline);
+    const stored = await loadBaseline(mod);
+    const { result, nextBaseline } = stepsToday(reading, stored, today);
+    /* Only written when it changed. The service adds a `boot` field this side
+       does not model; writing back an unchanged baseline would be harmless
+       today, but not writing it is what keeps the two writers from ever
+       racing over nothing. */
+    if (nextBaseline !== stored) saveBaseline(mod, nextBaseline);
 
     const steps = displayableSteps(result);
     /* Null means the day has only just been anchored — there is no count to
@@ -175,11 +191,9 @@ async function readAndroidSteps(goal: number): Promise<StepsState> {
   }
 }
 
-const BASELINE_KEY = 'steps.baseline.v1';
-
-function loadBaseline(): StepBaseline | null {
+async function loadBaseline(mod: StepCounterNative): Promise<StepBaseline | null> {
   try {
-    const raw = storage.getString(BASELINE_KEY);
+    const raw = await mod.getBaseline();
     if (!raw) return null;
     const parsed = JSON.parse(raw) as StepBaseline;
     return typeof parsed?.day === 'string' && typeof parsed?.reading === 'number'
@@ -190,11 +204,29 @@ function loadBaseline(): StepBaseline | null {
   }
 }
 
-function saveBaseline(baseline: StepBaseline): void {
+function saveBaseline(mod: StepCounterNative, baseline: StepBaseline): void {
   try {
-    storage.set(BASELINE_KEY, JSON.stringify(baseline));
+    mod.setBaseline(JSON.stringify(baseline));
   } catch {
     /* Losing the baseline costs one day's count, not correctness: the next
        read re-anchors and reports `starting`. */
+  }
+}
+
+/**
+ * Turn background counting on or off.
+ *
+ * Called from the foreground only — Android 12+ refuses to start a foreground
+ * service from the background, and the native side reports that as `false`
+ * rather than throwing. Also a no-op without ACTIVITY_RECOGNITION: Android 14
+ * rejects a health-type service that lacks it.
+ */
+export async function setStepServiceEnabled(enabled: boolean): Promise<boolean> {
+  const mod = Platform.OS === 'android' ? stepCounter() : null;
+  if (!mod) return false;
+  try {
+    return enabled ? await mod.startService() : (await mod.stopService(), false);
+  } catch {
+    return false;
   }
 }

@@ -2,7 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Linking, Platform } from 'react-native';
 
 import { DEFAULT_STEP_GOAL, type StepsState } from '@/domain/steps';
-import { readStepsToday, requestAndroidStepPermission } from '@/services/pedometer';
+import {
+  readStepsToday,
+  requestAndroidStepPermission,
+  setStepServiceEnabled,
+} from '@/services/pedometer';
+import { useSettingsStore } from '@/state/settingsStore';
 
 /**
  * Today's step count, refreshed when it can have changed.
@@ -35,11 +40,21 @@ export function useStepsToday(goal: number = DEFAULT_STEP_GOAL): {
      since they never mount the hook. */
   const mounted = useRef(true);
 
+  const serviceEnabled = useSettingsStore((s) => s.stepCounting);
+
   const refresh = useCallback(() => {
     void readStepsToday(goal).then((next) => {
       if (mounted.current) setSteps(next);
+      /* Start background counting once reading works — which means the
+         permission is granted and the sensor exists. Started here, from the
+         foreground, because Android 12+ refuses to start a foreground service
+         from the background. Idempotent: a running service just re-asserts
+         its notification. */
+      const counting =
+        next.status === 'ready' || (next.status === 'unavailable' && next.reason === 'starting');
+      if (serviceEnabled && counting) void setStepServiceEnabled(true);
     });
-  }, [goal]);
+  }, [goal, serviceEnabled]);
 
   useEffect(() => {
     mounted.current = true;

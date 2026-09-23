@@ -82,11 +82,11 @@ enum SnapshotStore {
     // The app group's suite, falling back to standard defaults so the
     // extension still builds and previews before the group is registered.
     static func defaults() -> UserDefaults {
-        UserDefaults(suiteName: "${APP_GROUP}") ?? .standard
+        UserDefaults(suiteName: "\${APP_GROUP}") ?? .standard
     }
 
     static func load() -> DashboardSnapshot? {
-        guard let raw = defaults().string(forKey: "${SNAPSHOT_KEY}"),
+        guard let raw = defaults().string(forKey: "\${SNAPSHOT_KEY}"),
               let data = raw.data(using: .utf8),
               let decoded = try? JSONDecoder().decode(DashboardSnapshot.self, from: data)
         else { return nil }
@@ -132,8 +132,14 @@ struct Provider: TimelineProvider {
     }
 }
 
-// A closing ring. The same idiom as the in-app card, so the widget reads as
-// the same product rather than a separate one.
+// MARK: - Ring
+
+// A closing ring, in the Activity-ring idiom.
+//
+// Sized with @ScaledMetric rather than a fixed frame, so the ring grows with
+// the athlete's Dynamic Type setting instead of leaving its label to shrink
+// inside a fixed circle. HIG requires text to scale; a ring whose label
+// scales but whose geometry does not is the same failure one layer down.
 struct Ring: View {
     let percent: Int
     let label: String
@@ -141,36 +147,76 @@ struct Ring: View {
     let tint: Color
     let known: Bool
 
+    @ScaledMetric(relativeTo: .headline) private var diameter: Double = 62
+    @ScaledMetric(relativeTo: .headline) private var thickness: Double = 8
+
     private var fraction: Double { min(1.0, max(0.0, Double(percent) / 100.0)) }
 
     var body: some View {
         VStack(spacing: 6) {
             ZStack {
                 Circle()
-                    .stroke(Color.primary.opacity(0.12), lineWidth: 8)
+                    .stroke(Color.primary.opacity(0.12), lineWidth: thickness)
                 Circle()
                     .trim(from: 0, to: fraction)
                     .stroke(
                         known ? tint : Color.secondary.opacity(0.25),
-                        style: StrokeStyle(lineWidth: 8, lineCap: .round)
+                        style: StrokeStyle(lineWidth: thickness, lineCap: .round)
                     )
                     .rotationEffect(.degrees(-90))
+                    // Marks the progress arc as the accent group, so the
+                    // tinted Home Screen appearance keeps the ring readable
+                    // instead of flattening ring and track to one colour.
+                    .widgetAccentable()
                 Text(known ? label : "—")
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    // A built-in text style, not .system(size:). This is what
+                    // carries Dynamic Type; a hardcoded point size opts out
+                    // of it entirely.
+                    .font(.headline)
+                    .fontDesign(.rounded)
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)
             }
-            .frame(width: 62, height: 62)
+            .frame(width: diameter, height: diameter)
 
             Text(caption)
-                .font(.system(size: 9, weight: .bold))
-                .kerning(0.8)
+                // .caption2 is 11 pt at the default size — the iOS minimum.
+                // The previous 9 pt was below the legibility floor.
+                .font(.caption2)
+                .fontWeight(.semibold)
                 .foregroundStyle(.secondary)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(caption.capitalized)
+        .accessibilityValue(known ? "\\(label), \\(percent) percent of goal" : "Not available")
+    }
+}
+
+// MARK: - Views per family
+
+struct DailyWidgetView: View {
+    @Environment(\\.widgetFamily) private var family
+    var entry: Entry
+
+    var body: some View {
+        switch family {
+        case .accessoryCircular:
+            AccessoryCircularView(entry: entry)
+        case .accessoryRectangular:
+            AccessoryRectangularView(entry: entry)
+        case .accessoryInline:
+            // One line, no styling of its own — the system owns inline's
+            // appearance entirely.
+            Text(entry.snapshot.headline.isEmpty
+                 ? entry.snapshot.waterLabel
+                 : entry.snapshot.headline)
+        default:
+            SystemView(entry: entry)
         }
     }
 }
 
-struct DailyWidgetView: View {
+struct SystemView: View {
     var entry: Entry
 
     private var snap: DashboardSnapshot { entry.snapshot }
@@ -200,24 +246,72 @@ struct DailyWidgetView: View {
             // does mean something.
             if entry.isStale {
                 Text("Open RepChamp to refresh")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
             } else if !snap.headline.isEmpty {
                 Text(snap.headline)
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.caption)
+                    .fontWeight(.semibold)
                     .lineLimit(2)
                     .minimumScaleFactor(0.85)
             }
 
             if !entry.isStale && !snap.partnerLine.isEmpty {
                 Text(snap.partnerLine)
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+
+// Lock Screen circular: one ring, no text label beside it — at this size the
+// HIG asks for a single piece of information, and water is the one the
+// athlete can act on right now.
+struct AccessoryCircularView: View {
+    var entry: Entry
+
+    var body: some View {
+        Gauge(value: min(1.0, Double(entry.snapshot.waterPercent) / 100.0)) {
+            Image(systemName: "drop.fill")
+        } currentValueLabel: {
+            Text(entry.snapshot.waterLabel)
+                .minimumScaleFactor(0.5)
+        }
+        .gaugeStyle(.accessoryCircular)
+        .accessibilityLabel("Water")
+        .accessibilityValue("\\(entry.snapshot.waterPercent) percent of goal")
+    }
+}
+
+// Lock Screen rectangular: the headline plus both figures, as text. The
+// vibrant rendering mode desaturates everything here, so this leans on
+// hierarchy and SF Symbols rather than colour to separate the two numbers.
+struct AccessoryRectangularView: View {
+    var entry: Entry
+
+    private var snap: DashboardSnapshot { entry.snapshot }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(entry.isStale ? "Open RepChamp to refresh" : snap.headline)
+                .font(.headline)
+                .lineLimit(1)
+
+            HStack(spacing: 8) {
+                Label(snap.waterLabel, systemImage: "drop.fill")
+                if snap.stepsKnown {
+                    Label(snap.stepsLabel, systemImage: "figure.walk")
+                }
+            }
+            .font(.caption)
+            .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -229,6 +323,9 @@ struct RepChampDailyWidget: Widget {
         StaticConfiguration(kind: kind, provider: Provider()) { entry in
             if #available(iOS 17.0, *) {
                 DailyWidgetView(entry: entry)
+                    // containerBackground is required from iOS 17: without it
+                    // the system logs a warning and the widget renders with
+                    // no background in some contexts.
                     .containerBackground(.fill.tertiary, for: .widget)
             } else {
                 DailyWidgetView(entry: entry)
@@ -237,7 +334,13 @@ struct RepChampDailyWidget: Widget {
         }
         .configurationDisplayName("Today")
         .description("Your water and steps, and how your partner is doing.")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([
+            .systemSmall,
+            .systemMedium,
+            .accessoryCircular,
+            .accessoryRectangular,
+            .accessoryInline,
+        ])
     }
 }
 `;

@@ -16,7 +16,7 @@
    wholesale: the `jest-expo` preset supplies a working react-native, and
    replacing it with a stub broke `expo-sensors`' own imports — which the
    catch in `readStepsToday` then swallowed into a generic 'error'. */
-import { Platform } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 
 function setPlatform(os: 'ios' | 'android' | 'web') {
   Object.defineProperty(Platform, 'OS', { value: os, configurable: true });
@@ -63,7 +63,6 @@ jest.mock('@/lib/storage', () => ({
 }));
 
 import { Pedometer } from 'expo-sensors';
-import { NativeModules } from 'react-native';
 
 import { MAX_DAILY_STEPS } from '@/domain/steps';
 import { isPedometerSupported, readStepsToday } from '../pedometer';

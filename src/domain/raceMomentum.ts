@@ -39,18 +39,28 @@ function recent(times: readonly number[], now: number): number {
 }
 
 /**
+ * How far ahead in the window a rival must be before it counts as *their*
+ * momentum. Set from a real duel on the Pixel 7a: a normal human pace put 2
+ * reps in the window while the AI partner's steady pace put 3–4. With a gap of
+ * one, "SURGING" showed for the whole race — the rival's ordinary pace read as
+ * a surge, and a warning that never goes away is wallpaper.
+ */
+export const RIVAL_SURGE_GAP = 2;
+
+/**
  * The run worth calling out, or none.
  *
- * A run has to be real (`HEAT_MIN_REPS` inside the window) *and* ahead of the
- * other side's pace. Both sprinting at the same rate is a close race, not
- * anyone's momentum, and the margin chip already says so. Timestamps must be
+ * Deliberately lopsided. My run needs `HEAT_MIN_REPS` and to be ahead of their
+ * pace, by any margin: celebrating should be easy to earn. Theirs needs the
+ * same run *and* a clear `RIVAL_SURGE_GAP` over mine, so it shows while I have
+ * stopped, not while I am working a rep behind a fast rival. Timestamps must be
  * ascending, which is how the HUD records them.
  */
 export function readHeat(mine: readonly number[], theirs: readonly number[], now: number): Heat {
   const me = recent(mine, now);
   const them = recent(theirs, now);
   if (me >= HEAT_MIN_REPS && me > them) return { kind: 'mine', run: me };
-  if (them >= HEAT_MIN_REPS && them > me) return { kind: 'theirs', run: them };
+  if (them >= HEAT_MIN_REPS && them >= me + RIVAL_SURGE_GAP) return { kind: 'theirs', run: them };
   return { kind: 'none' };
 }
 

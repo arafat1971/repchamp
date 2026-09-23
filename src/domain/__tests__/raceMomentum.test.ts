@@ -16,8 +16,15 @@ describe('readHeat', () => {
     expect(readHeat(reps(3, 1500), reps(1, 1000), NOW)).toEqual({ kind: 'mine', run: 3 });
   });
 
-  it('calls their run when they out-pace me', () => {
+  it('calls their run when they clearly out-pace me', () => {
     expect(readHeat(reps(1, 1000), reps(4, 1000), NOW)).toEqual({ kind: 'theirs', run: 4 });
+  });
+
+  /* The real duel that set RIVAL_SURGE_GAP: a normal human pace (2 in the
+     window) against an AI partner's steady 3. Working a rep behind is not
+     being out-surged. */
+  it('does not call a rival’s ordinary pace a surge while I am working', () => {
+    expect(readHeat(reps(2, 2500), reps(3, 1600), NOW)).toEqual({ kind: 'none' });
   });
 
   /* Both sprinting is a close race, not anyone's momentum. */

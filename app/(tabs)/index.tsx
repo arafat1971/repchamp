@@ -17,7 +17,7 @@ import { track } from '@/lib/analytics';
 import { HomeAmbient } from '@/components/home/HomeAmbient';
 import { HeroCard } from '@/components/home/HeroCard';
 import { CoupleStrip } from '@/components/home/CoupleStrip';
-import { HydrationCard } from '@/components/home/HydrationCard';
+import { DailyCard } from '@/components/home/DailyCard';
 import { PartnerPulseCard } from '@/components/home/PartnerPulseCard';
 import { CountUp, PopOnChange, StaggerIn } from '@/components/motion';
 import { Card, PressableScale, Screen, SectionLabel } from '@/components/ui';
@@ -27,7 +27,9 @@ import { dailyChallengeProgress } from '@/domain/dailyChallenge';
 import { myExerciseBreakdown, partnerWidget } from '@/domain/coupleExercises';
 import { partnerWaterToday } from '@/domain/couple';
 import { drinksOnDay, hydrationProgress, stepGoalMl } from '@/domain/hydration';
-import { syncHydrationNow } from '@/services/hydrationSync';
+import { lightImpactHaptic, selectionHaptic } from '@/lib/feedback';
+import { syncHydrationNow, syncStepsNow } from '@/services/hydrationSync';
+import { useStepsToday } from '@/state/useStepsToday';
 import { buildWidgetSnapshot } from '@/domain/widgetSnapshot';
 import { publishWidgetSnapshot } from '@/services/partnerWidget';
 import { trackerHistory } from '@/domain/coupleTracker';
@@ -149,10 +151,25 @@ export default function HomeScreen() {
   const coupleId = couple.couple?.id ?? null;
   const myUid = couple.me?.uid ?? null;
 
+  /* Today's steps. Read on mount and on foreground — the count cannot move
+     while the app is backgrounded, but it will have moved by the time they
+     come back, which is when the ring is about to be read. */
+  const { steps: stepsToday, openSettings: openStepSettings } = useStepsToday();
+
+  /* Publish the count to the bond whenever a read lands. `syncStepsNow`
+     no-ops when it has not moved, so a foreground read that finds the same
+     number costs nothing. */
+  useEffect(() => {
+    if (stepsToday.status !== 'ready') return;
+    void syncStepsNow(coupleId, myUid, stepsToday.steps);
+  }, [stepsToday, coupleId, myUid]);
+
   const logWater = useCallback(
     (ml: number) => {
       const entry = useHydrationStore.getState().logDrink(ml);
+      // A refused tap gets no haptic: the confirmation must mean something.
       if (!entry) return;
+      lightImpactHaptic();
       track('water_logged', { ml: entry.ml, source: 'home' });
       // Set-to-value, so this publishes the day's total rather than the tap.
       void syncHydrationNow(coupleId, myUid);
@@ -170,7 +187,12 @@ export default function HomeScreen() {
   }, [coupleId, myUid]);
 
   const stepWaterGoal = useCallback((direction: 1 | -1) => {
-    const next = stepGoalMl(useHydrationStore.getState().goalMl, direction);
+    const current = useHydrationStore.getState().goalMl;
+    const next = stepGoalMl(current, direction);
+    // Silent at the ends of the band — a tick that fires when nothing moved
+    // says the control worked when it did not.
+    if (next === current) return;
+    selectionHaptic();
     useHydrationStore.getState().setGoalMl(next);
     track('water_goal_set', { goalMl: next });
   }, []);
@@ -396,15 +418,17 @@ export default function HomeScreen() {
         </StaggerIn>
       ) : null}
 
-      {/* Water sits above the stats row: it is the one thing on Home an
-          athlete can act on right now, and an action outranks a scoreboard. */}
+      {/* Today's rings sit above the stats row: water is the one thing on Home
+          an athlete can act on right now, and an action outranks a scoreboard. */}
       <StaggerIn index={2} style={{ marginTop: 12 }}>
-        <HydrationCard
-          progress={water}
+        <DailyCard
+          water={water}
+          steps={stepsToday}
           partner={partnerWater}
-          onLog={logWater}
-          onUndo={todayDrinks.length > 0 ? undoWater : undefined}
-          onStepGoal={stepWaterGoal}
+          onLogWater={logWater}
+          onUndoWater={todayDrinks.length > 0 ? undoWater : undefined}
+          onStepWaterGoal={stepWaterGoal}
+          onFixSteps={openStepSettings}
         />
       </StaggerIn>
 

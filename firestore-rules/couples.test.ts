@@ -370,17 +370,71 @@ describe('daily metrics', () => {
   /* The ceiling is duplicated into the rules because rules cannot import
      TypeScript. Raising it in one place without the other would silently
      widen or narrow the guard, so assert the two agree. */
-  it('shares its ceiling with the app’s own constant', () => {
+  /* Both ceilings are duplicated into the rules because rules cannot import
+     TypeScript. Raising one in a single place would silently widen or narrow
+     the guard, so assert each pair agrees. */
+  it.each([
+    ['hydration.ts', 'MAX_DAILY_ML'],
+    ['steps.ts', 'MAX_DAILY_STEPS'],
+  ])('shares %s’s %s ceiling with the rules', (file, constant) => {
     /* Read as text rather than imported: this suite runs under
        `jest.rules.config.js`, which has no `@/` alias, and pulling the domain
        module in would drag its imports along for one number. */
     const root = join(__dirname, '..');
-    const source = readFileSync(join(root, 'src', 'domain', 'hydration.ts'), 'utf8');
-    const declared = source.match(/MAX_DAILY_ML\s*=\s*(\d+)/)?.[1];
+    const source = readFileSync(join(root, 'src', 'domain', file), 'utf8');
+    const declared = source.match(new RegExp(`${constant}\\s*=\\s*(\\d+)`))?.[1];
     expect(declared).toBeDefined();
 
     const rules = readFileSync(join(root, 'firestore.rules'), 'utf8');
     expect(rules).toContain(`<= ${declared}`);
+  });
+
+  it('lets an athlete publish their own steps for today', async () => {
+    await seedPaired();
+    await assertSucceeds(
+      updateDoc(doc(asUser(ALICE), 'couples', CODE), {
+        members: [member(ALICE, { daily: { day: TODAY, steps: 8432 } }), member(BOB)],
+      }),
+    );
+  });
+
+  it('accepts water and steps together', async () => {
+    await seedPaired();
+    await assertSucceeds(
+      updateDoc(doc(asUser(ALICE), 'couples', CODE), {
+        members: [
+          member(ALICE, { daily: { day: TODAY, waterMl: 1500, steps: 8432 } }),
+          member(BOB),
+        ],
+      }),
+    );
+  });
+
+  it('refuses a step count past any human day', async () => {
+    await seedPaired();
+    await assertFails(
+      updateDoc(doc(asUser(ALICE), 'couples', CODE), {
+        members: [member(ALICE, { daily: { day: TODAY, steps: 999_999 } }), member(BOB)],
+      }),
+    );
+  });
+
+  it('refuses a non-numeric step count', async () => {
+    await seedPaired();
+    await assertFails(
+      updateDoc(doc(asUser(ALICE), 'couples', CODE), {
+        members: [member(ALICE, { daily: { day: TODAY, steps: '8432' } }), member(BOB)],
+      }),
+    );
+  });
+
+  it("refuses writing steps onto the partner's slice", async () => {
+    await seedPaired();
+    await assertFails(
+      updateDoc(doc(asUser(ALICE), 'couples', CODE), {
+        members: [member(ALICE), member(BOB, { daily: { day: TODAY, steps: 8432 } })],
+      }),
+    );
   });
 
   /* Back-compat: every member written before this shipped has no daily

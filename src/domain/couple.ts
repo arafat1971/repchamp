@@ -60,6 +60,14 @@ export interface CoupleDailyMetrics {
   day: string;
   /** Total millilitres of water today. */
   waterMl?: number;
+  /**
+   * Steps today, as counted by the phone.
+   *
+   * Absent on Android, where "steps today" is not answerable — see
+   * `domain/steps.ts`. So a missing value means "this phone cannot say",
+   * never "they did not walk".
+   */
+  steps?: number;
 }
 
 export interface Couple {
@@ -730,4 +738,23 @@ export function partnerWaterToday(
   const ml = daily.waterMl;
   if (typeof ml !== 'number' || !Number.isFinite(ml) || ml <= 0) return null;
   return ml;
+}
+
+/**
+ * The partner's steps today, or null when there is nothing honest to show.
+ *
+ * Same contract as `partnerWaterToday`, with one extra case that matters: an
+ * Android partner never publishes a step count at all, so null here routinely
+ * means "their phone cannot count steps" rather than "they have not moved".
+ * That is precisely why the caller must omit the line rather than render a 0.
+ */
+export function partnerStepsToday(
+  member: CoupleMember | null | undefined,
+  today: string,
+): number | null {
+  const daily = member?.daily;
+  if (!daily || daily.day !== today) return null;
+  const steps = daily.steps;
+  if (typeof steps !== 'number' || !Number.isFinite(steps) || steps <= 0) return null;
+  return steps;
 }

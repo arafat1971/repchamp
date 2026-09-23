@@ -429,7 +429,11 @@ service cloud.firestore {
               && (!('waterMl' in m.daily)
                   || (m.daily.waterMl is number
                       && m.daily.waterMl >= 0
-                      && m.daily.waterMl <= 20000)));
+                      && m.daily.waterMl <= 20000))
+              && (!('steps' in m.daily)
+                  || (m.daily.steps is number
+                      && m.daily.steps >= 0
+                      && m.daily.steps <= 200000)));
       }
 
       function dailyInSaneRange() {

@@ -13,8 +13,8 @@
  * to the foreground, and the bond finishing hydration.
  */
 
-import { partnerWaterToday } from '@/domain/couple';
-import { recordCoupleHydration } from '@/services/coupleService';
+import { partnerStepsToday, partnerWaterToday } from '@/domain/couple';
+import { recordCoupleHydration, recordCoupleSteps } from '@/services/coupleService';
 import { selectTodayMl, useHydrationStore } from '@/state/hydrationStore';
 import { dayKey } from '@/domain/progression';
 
@@ -30,6 +30,7 @@ let lastPublished: { day: string; ml: number } | null = null;
 /** Forget the publish memo — for tests, and for a uid change. */
 export function resetHydrationSyncMemo(): void {
   lastPublished = null;
+  lastSteps = null;
 }
 
 /**
@@ -61,5 +62,40 @@ export async function syncHydrationNow(
   }
 }
 
-/** Re-export so callers reading the partner's value have one import site. */
-export { partnerWaterToday };
+/**
+ * Last published step count, kept separately from water.
+ *
+ * Separate because the two move on completely different schedules — water on
+ * a tap, steps on a foreground read — and one memo would make each suppress
+ * the other's write.
+ */
+let lastSteps: { day: string; steps: number } | null = null;
+
+/**
+ * Publish today's step count if it has moved.
+ *
+ * Only ever called with a real count, so there is no "publish a zero" case to
+ * guard: a phone that cannot count steps must leave the field absent rather
+ * than claim the athlete did not walk.
+ */
+export async function syncStepsNow(
+  coupleId: string | null | undefined,
+  uid: string | null | undefined,
+  steps: number,
+): Promise<void> {
+  if (!coupleId || !uid) return;
+  if (!Number.isFinite(steps) || steps <= 0) return;
+
+  const today = dayKey();
+  if (lastSteps && lastSteps.day === today && lastSteps.steps === steps) return;
+
+  try {
+    await recordCoupleSteps(coupleId, uid, today, steps);
+    lastSteps = { day: today, steps };
+  } catch {
+    // Best-effort; the next foreground read repairs it.
+  }
+}
+
+/** Re-export so callers reading the partner's values have one import site. */
+export { partnerStepsToday, partnerWaterToday };

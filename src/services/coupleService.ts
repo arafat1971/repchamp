@@ -20,9 +20,11 @@ import {
   extractPairCode,
   makePairCode,
   type Couple,
+  type CoupleDailyMetrics,
   type CoupleMember,
 } from '@/domain/couple';
 import { MAX_DAILY_ML } from '@/domain/hydration';
+import { MAX_DAILY_STEPS } from '@/domain/steps';
 import {
   assertClientRateLimit,
   commitClientRateLimit,
@@ -330,8 +332,42 @@ export async function recordCoupleHydration(
   day: string,
   waterMl: number,
 ): Promise<void> {
-  if (!isFirebaseConfigured()) return;
   if (!Number.isFinite(waterMl) || waterMl < 0 || waterMl > MAX_DAILY_ML) return;
+  await recordCoupleDaily(coupleId, uid, day, { waterMl });
+}
+
+/**
+ * Publish today's step count onto this member's slice.
+ *
+ * Same set-to-value contract as water. Android never calls this — it cannot
+ * answer "steps today" — so an absent value on a partner's slice means "their
+ * phone cannot count", not "they did not walk.
+ */
+export async function recordCoupleSteps(
+  coupleId: string,
+  uid: string,
+  day: string,
+  steps: number,
+): Promise<void> {
+  if (!Number.isFinite(steps) || steps < 0 || steps > MAX_DAILY_STEPS) return;
+  await recordCoupleDaily(coupleId, uid, day, { steps });
+}
+
+/**
+ * Merge one or more daily metrics into this member's slice.
+ *
+ * Shared by water and steps so the same-day max, the new-day replace and the
+ * byte-identical partner entry are written once rather than twice. Only the
+ * keys passed are touched, so a steps write cannot drop a water total
+ * published a moment earlier from the same phone.
+ */
+async function recordCoupleDaily(
+  coupleId: string,
+  uid: string,
+  day: string,
+  patch: { waterMl?: number; steps?: number },
+): Promise<void> {
+  if (!isFirebaseConfigured()) return;
 
   const ref = coupleDoc(coupleId);
   await firestore().runTransaction(async (tx) => {
@@ -343,11 +379,22 @@ export async function recordCoupleHydration(
       // Byte-identical, or `onlyOwnMemberStatsChanged` rejects the write.
       if (m.uid !== uid) return m;
       const prev = m.daily;
-      const daily =
-        prev && prev.day === day
-          ? { ...prev, day, waterMl: Math.max(prev.waterMl ?? 0, waterMl) }
-          : { day, waterMl };
-      return { ...m, daily };
+      const sameDay = prev && prev.day === day;
+
+      /* Same day takes the max so a stale device cannot walk a live figure
+         backwards; a new day replaces outright so yesterday's totals cannot
+         become today's floor. */
+      const merged: CoupleDailyMetrics = sameDay ? { ...prev, day } : { day };
+      if (patch.waterMl !== undefined) {
+        merged.waterMl = sameDay
+          ? Math.max(prev?.waterMl ?? 0, patch.waterMl)
+          : patch.waterMl;
+      }
+      if (patch.steps !== undefined) {
+        merged.steps = sameDay ? Math.max(prev?.steps ?? 0, patch.steps) : patch.steps;
+      }
+
+      return { ...m, daily: merged };
     });
     tx.set(ref, { members }, { merge: true });
   });

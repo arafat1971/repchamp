@@ -6,7 +6,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { PressableScale, ProgressBar } from '@/components/ui';
 import { currentWeekDayKeys, weeklyChallengeProgress } from '@/domain/weeklyChallenge';
 import { useProfileStore } from '@/state/profileStore';
-import { font } from '@/theme/typography';
+import { font, scaleForRole } from '@/theme/typography';
 import { palette, radius, shadow } from '@/theme/tokens';
 
 /**
@@ -69,9 +69,11 @@ export function WeeklyChallengeCard({ now }: { now: Date }) {
         style={[styles.card, shadow.brand]}
       >
         <View style={styles.headerRow}>
-          <Text style={styles.eyebrow}>THIS WEEK’S CHALLENGE</Text>
+          <Text style={styles.eyebrow} {...scaleForRole('control')}>
+            THIS WEEK’S CHALLENGE
+          </Text>
           <View style={styles.countdown}>
-            <Text style={styles.countdownText}>
+            <Text style={styles.countdownText} {...scaleForRole('control')}>
               {daysLeft} {daysLeft === 1 ? 'DAY' : 'DAYS'} LEFT
             </Text>
           </View>
@@ -103,7 +105,18 @@ export function WeeklyChallengeCard({ now }: { now: Date }) {
 
 const styles = StyleSheet.create({
   card: { borderRadius: radius['4xl'], padding: 20 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  /* Wraps rather than holding one rigid line. At large text sizes the eyebrow
+     and the countdown pill cannot both fit across the card, and `space-between`
+     simply pushed the pill off the right edge — "4 DA…". Wrapping drops it to
+     its own line instead, which costs a few points of height and keeps the
+     deadline readable. */
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
   eyebrow: { ...font('extrabold', 10, { color: 'rgba(255,255,255,0.85)' }), letterSpacing: 1.5 },
   countdown: {
     /* Lightened with the card. A 20%-black pill was a visible darker patch on

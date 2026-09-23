@@ -617,7 +617,7 @@ describe('lowerCoupleHydration', () => {
     const code = await createCouple(ADA);
     await recordCoupleHydration(code!, 'ada', '2026-09-24', 500);
     await lowerCoupleHydration(code!, 'ada', '2026-09-24', 900);
-    expect(mockStore.couples.get(code!)!.members[0]).not.toHaveProperty('daily');
+    expect((mockStore.couples.get(code!) as unknown as Couple).members[0]).not.toHaveProperty('daily');
   });
 
   /* Yesterday's figure is not today's to lower. */

@@ -23,6 +23,7 @@ import {
   joinCoupleByCode,
   leaveCouple,
   nudgePartner,
+  recordCoupleHydration,
   recordCoupleSession,
   syncCouplePushToken,
   watchCouple,
@@ -438,5 +439,92 @@ describe('cancelCoupleInvite', () => {
     await joinCoupleByCode(code!, BEA);
     expect(await cancelCoupleInvite(code!)).toBe('paired');
     expect(mockStore.couples.has(code!)).toBe(true);
+  });
+});
+
+describe('recordCoupleHydration', () => {
+  it('sets today’s total on the writing member only', async () => {
+    const code = await createCouple(ADA);
+    await joinCoupleByCode(code!, BEA);
+
+    await recordCoupleHydration(code!, 'ada', '2026-09-23', 1500);
+
+    const c = mockStore.couples.get(code!) as unknown as Couple;
+    expect(c.members.find((m) => m.uid === 'ada')!.daily).toEqual({
+      day: '2026-09-23',
+      waterMl: 1500,
+    });
+    expect(c.members.find((m) => m.uid === 'bea')!.daily).toBeUndefined();
+  });
+
+  /* The rules deep-compare the other member's map, so a write that rebuilds
+     it — even to an identical value — is rejected. */
+  it('leaves the partner’s entry untouched', async () => {
+    const code = await createCouple(ADA);
+    await joinCoupleByCode(code!, BEA);
+    const before = { ...(mockStore.couples.get(code!) as unknown as Couple).members[1] };
+
+    await recordCoupleHydration(code!, 'ada', '2026-09-23', 500);
+
+    const after = (mockStore.couples.get(code!) as unknown as Couple).members[1];
+    expect(after).toEqual(before);
+  });
+
+  it('keeps the higher total when a stale device writes a lower one', async () => {
+    const code = await createCouple(ADA);
+    await recordCoupleHydration(code!, 'ada', '2026-09-23', 1500);
+    await recordCoupleHydration(code!, 'ada', '2026-09-23', 750);
+
+    const c = mockStore.couples.get(code!) as unknown as Couple;
+    expect(c.members[0]!.daily?.waterMl).toBe(1500);
+  });
+
+  it('accepts a higher total on the same day', async () => {
+    const code = await createCouple(ADA);
+    await recordCoupleHydration(code!, 'ada', '2026-09-23', 750);
+    await recordCoupleHydration(code!, 'ada', '2026-09-23', 1500);
+
+    const c = mockStore.couples.get(code!) as unknown as Couple;
+    expect(c.members[0]!.daily?.waterMl).toBe(1500);
+  });
+
+  /* A new day must replace rather than max, or yesterday's 2 L would be the
+     floor for every day after it. */
+  it('replaces yesterday’s total rather than taking the larger', async () => {
+    const code = await createCouple(ADA);
+    await recordCoupleHydration(code!, 'ada', '2026-09-22', 2000);
+    await recordCoupleHydration(code!, 'ada', '2026-09-23', 250);
+
+    const c = mockStore.couples.get(code!) as unknown as Couple;
+    expect(c.members[0]!.daily).toEqual({ day: '2026-09-23', waterMl: 250 });
+  });
+
+  it('refuses a total beyond the daily ceiling', async () => {
+    const code = await createCouple(ADA);
+    await recordCoupleHydration(code!, 'ada', '2026-09-23', 99_999);
+
+    const c = mockStore.couples.get(code!) as unknown as Couple;
+    expect(c.members[0]!.daily).toBeUndefined();
+  });
+
+  it('refuses a negative or garbage total', async () => {
+    const code = await createCouple(ADA);
+    await recordCoupleHydration(code!, 'ada', '2026-09-23', -100);
+    await recordCoupleHydration(code!, 'ada', '2026-09-23', Number.NaN);
+
+    const c = mockStore.couples.get(code!) as unknown as Couple;
+    expect(c.members[0]!.daily).toBeUndefined();
+  });
+
+  it('writes nothing when Firebase is not configured', async () => {
+    const code = await createCouple(ADA);
+    mockState.configured = false;
+    try {
+      await recordCoupleHydration(code!, 'ada', '2026-09-23', 500);
+    } finally {
+      mockState.configured = true;
+    }
+    const c = mockStore.couples.get(code!) as unknown as Couple;
+    expect(c.members[0]!.daily).toBeUndefined();
   });
 });

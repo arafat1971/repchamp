@@ -34,6 +34,32 @@ export interface CoupleMember {
    * `totalReps` when a flush crashes between write and local "done".
    */
   creditedIds?: string[];
+  /**
+   * Today's set-to-value daily metrics, written by this member only.
+   *
+   * The day lives *inside* the object rather than being implied by the write
+   * time: without it, a phone that last synced yesterday would have its total
+   * read as today's. A write for a new day replaces the object outright, so
+   * yesterday's numbers cannot survive into today.
+   *
+   * Optional because every member written before this shipped has no such
+   * field, and because a member who has logged nothing has nothing to say.
+   */
+  daily?: CoupleDailyMetrics;
+}
+
+/**
+ * Set-to-value metrics for one day.
+ *
+ * Set-to-value rather than incremented: a retried write carries the whole
+ * day's total, so it is idempotent by construction and needs none of the
+ * `creditedIds` replay bookkeeping that `totalReps` requires.
+ */
+export interface CoupleDailyMetrics {
+  /** `YYYY-MM-DD` local, as stamped by the phone that wrote it. */
+  day: string;
+  /** Total millilitres of water today. */
+  waterMl?: number;
 }
 
 export interface Couple {
@@ -685,4 +711,23 @@ export function syncStreakLabel(current: number): string {
   if (current < 10) return `IN SYNC ×${current}`;
   if (current < 20) return `LOCKED IN ×${current}`;
   return `UNSTOPPABLE ×${current}`;
+}
+
+/**
+ * The partner's water today, or null when there is nothing honest to show.
+ *
+ * Null covers four cases that all mean the same thing to a reader — absent
+ * member, no metrics yet, a stale day, or a malformed value. The caller hides
+ * the line rather than rendering a zero: "0 ml today" and "hasn't synced
+ * today" are different claims, and only one of them is true.
+ */
+export function partnerWaterToday(
+  member: CoupleMember | null | undefined,
+  today: string,
+): number | null {
+  const daily = member?.daily;
+  if (!daily || daily.day !== today) return null;
+  const ml = daily.waterMl;
+  if (typeof ml !== 'number' || !Number.isFinite(ml) || ml <= 0) return null;
+  return ml;
 }

@@ -351,9 +351,16 @@ service cloud.firestore {
       );
       allow list: if isAuthed() && request.auth.uid in resource.data.memberUids;
 
+      // A fresh seat has trained nothing and logged nothing. `daily` must be
+      // absent rather than zeroed: `makeMember` does not write the field at
+      // all, and "absent" is both what the client produces and the simpler
+      // thing to enforce. Without this a joiner could seat themselves with a
+      // fabricated water total — and, when steps land in the same object,
+      // with a fabricated step count too.
       function memberZeroed(m) {
         return m.totalReps == 0
           && m.trainedDays.size() == 0
+          && !('daily' in m)
           && m.uid is string
           && m.displayName is string;
       }
@@ -407,6 +414,30 @@ service cloud.firestore {
                   && request.resource.data.members[1].totalReps <= 10000000));
       }
 
+      // The set-to-value daily metrics (water now, steps later) must be a sane
+      // number attached to a real day key, or absent entirely.
+      //
+      // The day is required because it is the only thing that makes a stale
+      // total detectable: without it a phone that last synced yesterday would
+      // have its number read as today's forever. The 20000 ceiling is
+      // MAX_DAILY_ML in `src/domain/hydration.ts` — rules cannot import it, so
+      // `firestore-rules/couples.test.ts` asserts the two agree.
+      function dailySane(m) {
+        return !('daily' in m)
+          || (m.daily.day is string
+              && m.daily.day.size() == 10
+              && (!('waterMl' in m.daily)
+                  || (m.daily.waterMl is number
+                      && m.daily.waterMl >= 0
+                      && m.daily.waterMl <= 20000)));
+      }
+
+      function dailyInSaneRange() {
+        return dailySane(request.resource.data.members[0])
+          && (resource.data.members.size() < 2
+              || dailySane(request.resource.data.members[1]));
+      }
+
       // Each athlete may only mutate their own member slice (reps / days / push).
       // The partner's entire member map stays frozen (including their push token).
       //
@@ -447,6 +478,7 @@ service cloud.firestore {
                .hasOnly(['members', 'nudge', 'pending', 'pairedAt'])
           && memberUidsPinned()
           && repsInSaneRange()
+          && dailyInSaneRange()
           && onlyOwnMemberStatsChanged();
       }
 

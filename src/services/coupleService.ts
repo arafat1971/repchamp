@@ -22,6 +22,7 @@ import {
   type Couple,
   type CoupleMember,
 } from '@/domain/couple';
+import { MAX_DAILY_ML } from '@/domain/hydration';
 import {
   assertClientRateLimit,
   commitClientRateLimit,
@@ -297,6 +298,56 @@ export async function recordCoupleSession(
           ? { creditedIds: [...credited, creditId].slice(-CREDIT_HISTORY_LIMIT) }
           : {}),
       };
+    });
+    tx.set(ref, { members }, { merge: true });
+  });
+}
+
+/**
+ * Publish today's water total onto this member's slice.
+ *
+ * Set-to-value, not incremented: the caller passes the whole day's total read
+ * back out of the store, so a retry writes the same number twice and nothing
+ * double-counts. That is why this needs none of the `creditedIds` bookkeeping
+ * `recordCoupleSession` carries above.
+ *
+ * Same-day writes take the larger of the two. Two devices on one account both
+ * publish set-to-value, and without this a phone that has been asleep could
+ * clobber a live total with a stale smaller one.
+ *
+ * The cost is that a genuine *downward* correction — undo on one phone after
+ * the other synced higher — does not reach the partner until the day rolls.
+ * That is the right trade and it is deliberate: a stale phone zeroing a live
+ * total is a much worse reading than an undo that lands a day late. Do not
+ * "fix" this by dropping the max.
+ *
+ * A write for a different day replaces the object outright rather than
+ * merging, so yesterday's numbers cannot survive into today.
+ */
+export async function recordCoupleHydration(
+  coupleId: string,
+  uid: string,
+  day: string,
+  waterMl: number,
+): Promise<void> {
+  if (!isFirebaseConfigured()) return;
+  if (!Number.isFinite(waterMl) || waterMl < 0 || waterMl > MAX_DAILY_ML) return;
+
+  const ref = coupleDoc(coupleId);
+  await firestore().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return;
+
+    const couple = snap.data() as Couple;
+    const members = couple.members.map((m) => {
+      // Byte-identical, or `onlyOwnMemberStatsChanged` rejects the write.
+      if (m.uid !== uid) return m;
+      const prev = m.daily;
+      const daily =
+        prev && prev.day === day
+          ? { ...prev, day, waterMl: Math.max(prev.waterMl ?? 0, waterMl) }
+          : { day, waterMl };
+      return { ...m, daily };
     });
     tx.set(ref, { members }, { merge: true });
   });

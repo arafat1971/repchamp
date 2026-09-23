@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
@@ -17,6 +17,7 @@ import { track } from '@/lib/analytics';
 import { HomeAmbient } from '@/components/home/HomeAmbient';
 import { HeroCard } from '@/components/home/HeroCard';
 import { CoupleStrip } from '@/components/home/CoupleStrip';
+import { HydrationCard } from '@/components/home/HydrationCard';
 import { PartnerPulseCard } from '@/components/home/PartnerPulseCard';
 import { CountUp, PopOnChange, StaggerIn } from '@/components/motion';
 import { Card, PressableScale, Screen, SectionLabel } from '@/components/ui';
@@ -24,6 +25,9 @@ import { exerciseHomeStats } from '@/domain/exerciseHomeStats';
 import { firstNameOf, selectHomeGreeting } from '@/domain/homeGreeting';
 import { dailyChallengeProgress } from '@/domain/dailyChallenge';
 import { myExerciseBreakdown, partnerWidget } from '@/domain/coupleExercises';
+import { partnerWaterToday } from '@/domain/couple';
+import { drinksOnDay, hydrationProgress, stepGoalMl } from '@/domain/hydration';
+import { syncHydrationNow } from '@/services/hydrationSync';
 import { buildWidgetSnapshot } from '@/domain/widgetSnapshot';
 import { publishWidgetSnapshot } from '@/services/partnerWidget';
 import { trackerHistory } from '@/domain/coupleTracker';
@@ -40,6 +44,7 @@ import {
   selectTotalReps,
   selectWeeklyXp,
 } from '@/state/profileStore';
+import { useHydrationStore } from '@/state/hydrationStore';
 import { useEffectivePro } from '@/state/proStore';
 import { isPurchasesConfigured } from '@/services/purchases';
 import { isWalled } from '@/domain/hardPaywall';
@@ -122,6 +127,53 @@ export default function HomeScreen() {
       buildWidgetSnapshot(couple.partner?.displayName ?? 'Your partner', partnerPulse.widget),
     );
   }, [partnerPulse, couple.partner?.displayName]);
+
+  /* Water. The store is the source of truth; the card is presentational, so
+     every decision about what counts stays in `domain/hydration`. */
+  const drinks = useHydrationStore((s) => s.drinks);
+  const goalMl = useHydrationStore((s) => s.goalMl);
+  const water = useMemo(
+    () => hydrationProgress(drinks, goalMl, today),
+    [drinks, goalMl, today],
+  );
+  const todayDrinks = useMemo(() => drinksOnDay(drinks, today), [drinks, today]);
+
+  /* The partner's intake, only when their phone stamped today. Null hides the
+     line entirely rather than showing a zero they never earned. */
+  const partnerWater = useMemo(() => {
+    const name = couple.partner?.displayName;
+    const ml = partnerWaterToday(couple.partner, today);
+    return ml == null || !name ? null : { name, ml };
+  }, [couple.partner, today]);
+
+  const coupleId = couple.couple?.id ?? null;
+  const myUid = couple.me?.uid ?? null;
+
+  const logWater = useCallback(
+    (ml: number) => {
+      const entry = useHydrationStore.getState().logDrink(ml);
+      if (!entry) return;
+      track('water_logged', { ml: entry.ml, source: 'home' });
+      // Set-to-value, so this publishes the day's total rather than the tap.
+      void syncHydrationNow(coupleId, myUid);
+    },
+    [coupleId, myUid],
+  );
+
+  const undoWater = useCallback(() => {
+    useHydrationStore.getState().undoLast();
+    /* An undo lowers the total, and `recordCoupleHydration` takes the max for
+       the same day — so this will not walk the partner's view back today. It
+       is called anyway so the *first* undo after a failed publish still gets
+       the real number up. */
+    void syncHydrationNow(coupleId, myUid);
+  }, [coupleId, myUid]);
+
+  const stepWaterGoal = useCallback((direction: 1 | -1) => {
+    const next = stepGoalMl(useHydrationStore.getState().goalMl, direction);
+    useHydrationStore.getState().setGoalMl(next);
+    track('water_goal_set', { goalMl: next });
+  }, []);
 
   const greetingCopy = useMemo(
     () => selectHomeGreeting({ streak, trainedToday, firstName }),
@@ -343,6 +395,18 @@ export default function HomeScreen() {
           />
         </StaggerIn>
       ) : null}
+
+      {/* Water sits above the stats row: it is the one thing on Home an
+          athlete can act on right now, and an action outranks a scoreboard. */}
+      <StaggerIn index={2} style={{ marginTop: 12 }}>
+        <HydrationCard
+          progress={water}
+          partner={partnerWater}
+          onLog={logWater}
+          onUndo={todayDrinks.length > 0 ? undoWater : undefined}
+          onStepGoal={stepWaterGoal}
+        />
+      </StaggerIn>
 
       <StaggerIn index={2} style={styles.row}>
         <PressableScale

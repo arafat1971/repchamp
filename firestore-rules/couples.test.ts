@@ -6,6 +6,9 @@
  * the weight — and it is the one that was quietly not being enforced.
  */
 
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
 import { assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 
@@ -117,6 +120,20 @@ describe('join', () => {
       updateDoc(doc(asUser(BOB), 'couples', CODE), {
         memberUids: [ALICE, BOB],
         members: [member(ALICE), member(BOB, { totalReps: 500 })],
+        pending: false,
+      }),
+    );
+  });
+
+  it('refuses a joiner who seats themselves with water already logged', async () => {
+    await seedPending();
+    await assertFails(
+      updateDoc(doc(asUser(BOB), 'couples', CODE), {
+        memberUids: [ALICE, BOB],
+        members: [
+          member(ALICE),
+          member(BOB, { daily: { day: '2026-09-23', waterMl: 2000 } }),
+        ],
         pending: false,
       }),
     );
@@ -276,5 +293,104 @@ describe('reading a couple that does not exist yet', () => {
   it('still lets a stranger read a pending invite by code', async () => {
     await seedPending();
     await assertSucceeds(getDoc(doc(asUser('stranger'), 'couples', CODE)));
+  });
+});
+
+describe('daily metrics', () => {
+  const TODAY = '2026-09-23';
+
+  it('lets an athlete publish their own water for today', async () => {
+    await seedPaired();
+    await assertSucceeds(
+      updateDoc(doc(asUser(ALICE), 'couples', CODE), {
+        members: [member(ALICE, { daily: { day: TODAY, waterMl: 1500 } }), member(BOB)],
+      }),
+    );
+  });
+
+  it("refuses writing water onto the partner's slice", async () => {
+    await seedPaired();
+    await assertFails(
+      updateDoc(doc(asUser(ALICE), 'couples', CODE), {
+        members: [member(ALICE), member(BOB, { daily: { day: TODAY, waterMl: 1500 } })],
+      }),
+    );
+  });
+
+  /* The ceiling is MAX_DAILY_ML in src/domain/hydration.ts. Without a range
+     guard a member could park any integer here and the partner's card would
+     render it. */
+  it('refuses a total beyond the sane ceiling', async () => {
+    await seedPaired();
+    await assertFails(
+      updateDoc(doc(asUser(ALICE), 'couples', CODE), {
+        members: [member(ALICE, { daily: { day: TODAY, waterMl: 99_999 } }), member(BOB)],
+      }),
+    );
+  });
+
+  it('refuses a negative total', async () => {
+    await seedPaired();
+    await assertFails(
+      updateDoc(doc(asUser(ALICE), 'couples', CODE), {
+        members: [member(ALICE, { daily: { day: TODAY, waterMl: -1 } }), member(BOB)],
+      }),
+    );
+  });
+
+  it('refuses a non-numeric total', async () => {
+    await seedPaired();
+    await assertFails(
+      updateDoc(doc(asUser(ALICE), 'couples', CODE), {
+        members: [member(ALICE, { daily: { day: TODAY, waterMl: '2000' } }), member(BOB)],
+      }),
+    );
+  });
+
+  /* The day is what makes a stale total detectable; a metrics object without
+     one would read as today's forever. */
+  it('refuses metrics with no day', async () => {
+    await seedPaired();
+    await assertFails(
+      updateDoc(doc(asUser(ALICE), 'couples', CODE), {
+        members: [member(ALICE, { daily: { waterMl: 1500 } }), member(BOB)],
+      }),
+    );
+  });
+
+  it('refuses a day that is not a full date key', async () => {
+    await seedPaired();
+    await assertFails(
+      updateDoc(doc(asUser(ALICE), 'couples', CODE), {
+        members: [member(ALICE, { daily: { day: '2026-9-1', waterMl: 1500 } }), member(BOB)],
+      }),
+    );
+  });
+
+  /* The ceiling is duplicated into the rules because rules cannot import
+     TypeScript. Raising it in one place without the other would silently
+     widen or narrow the guard, so assert the two agree. */
+  it('shares its ceiling with the app’s own constant', () => {
+    /* Read as text rather than imported: this suite runs under
+       `jest.rules.config.js`, which has no `@/` alias, and pulling the domain
+       module in would drag its imports along for one number. */
+    const root = join(__dirname, '..');
+    const source = readFileSync(join(root, 'src', 'domain', 'hydration.ts'), 'utf8');
+    const declared = source.match(/MAX_DAILY_ML\s*=\s*(\d+)/)?.[1];
+    expect(declared).toBeDefined();
+
+    const rules = readFileSync(join(root, 'firestore.rules'), 'utf8');
+    expect(rules).toContain(`<= ${declared}`);
+  });
+
+  /* Back-compat: every member written before this shipped has no daily
+     object at all, and their ordinary rep writes must keep working. */
+  it('still accepts a member slice with no metrics at all', async () => {
+    await seedPaired();
+    await assertSucceeds(
+      updateDoc(doc(asUser(ALICE), 'couples', CODE), {
+        members: [member(ALICE, { totalReps: 20 }), member(BOB)],
+      }),
+    );
   });
 });

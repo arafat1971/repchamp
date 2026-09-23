@@ -101,6 +101,16 @@ export interface AnalyticsEvents {
 
   share_opened: { kind: string };
 
+  /* ── Hydration ──
+   * Declared above the `share_opened` marker deliberately: `declaredEvents()`
+   * in `paywallFunnel.test.ts` slices the catalogue at that line, so anything
+   * below it is invisible to the dead-entry check. */
+
+  /** A glass was logged. `ml` says which chip, so the sizes can be tuned. */
+  water_logged: { ml: number; source: 'home' };
+  /** The daily target was moved. Tells us whether 2 L is the right default. */
+  water_goal_set: { goalMl: number };
+
   /* ── Retention ──
    * The app ships streaks, leagues and three kinds of nudge, and until these
    * events existed there was no way to tell which of them brought anyone back.

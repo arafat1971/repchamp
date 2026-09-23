@@ -17,6 +17,7 @@ import {
   type SharedMetricKey,
 } from '@/domain/partnerSharing';
 import { dayKey } from '@/domain/progression';
+import { rivalryLine, rivalryNudge, rivalryWith } from '@/domain/rivalry';
 import { formatSteps } from '@/domain/steps';
 import { nudgePartner } from '@/services/coupleService';
 import { setMetricSharing, syncHydrationNow } from '@/services/hydrationSync';
@@ -98,6 +99,7 @@ export default function PartnerDashboardScreen() {
 
   const partnerName = partner.displayName?.trim() || 'Partner';
   const myName = displayName?.trim() || 'You';
+  const rivalry = rivalryWith(sessions, partner.uid);
   const race = stepRace(mySteps, theirs.steps.kind === 'shown' ? theirs.steps.value : null);
   const raceLine = stepRaceLine(race, partnerName);
 
@@ -202,6 +204,46 @@ export default function PartnerDashboardScreen() {
             <Dot color={palette.amber500} label={partnerName} />
           </View>
         </Card>
+      </Animated.View>
+
+      {/* ── Head to head ── the running series, from duels already banked on
+          this phone (each live duel records the other seat's uid). */}
+      <SectionLabel>HEAD TO HEAD</SectionLabel>
+      <Animated.View entering={FadeInDown.delay(110).duration(320)}>
+        <GradientCard colors={gradients.ink} style={styles.h2h}>
+          <View style={styles.h2hRow}>
+            <View style={styles.h2hSide}>
+              <Text style={[styles.h2hScore, { color: palette.purple400 }]}>{rivalry.wins}</Text>
+              <Text style={styles.h2hName} numberOfLines={1}>
+                YOU
+              </Text>
+            </View>
+            <Text style={styles.h2hDash}>–</Text>
+            <View style={styles.h2hSide}>
+              <Text style={[styles.h2hScore, { color: palette.amber400 }]}>{rivalry.losses}</Text>
+              <Text style={styles.h2hName} numberOfLines={1}>
+                {partnerName.toUpperCase()}
+              </Text>
+            </View>
+          </View>
+          {rivalry.played > 0 ? (
+            <Text style={styles.h2hLine}>{rivalryLine(rivalry, partnerName)}</Text>
+          ) : null}
+          <Text style={styles.h2hNudge}>
+            {rivalry.run?.outcome === 'won' ? '🔥 ' : ''}
+            {rivalryNudge(rivalry, partnerName)}
+          </Text>
+          <PressableScale
+            onPress={() => openDuel('duel')}
+            accessibilityRole="button"
+            accessibilityLabel={`Race ${partnerName} now`}
+            style={styles.h2hButton}
+          >
+            <Text style={font('extrabold', 14, { color: palette.ink })}>
+              {rivalry.played > 0 ? 'Rematch ⚔️' : 'First duel ⚔️'}
+            </Text>
+          </PressableScale>
+        </GradientCard>
       </Animated.View>
 
       {/* ── Actions ── */}
@@ -475,6 +517,21 @@ const styles = StyleSheet.create({
   actionEmoji: { fontSize: 24 },
   actionLabel: { marginTop: 6, color: palette.white, ...font('extrabold', 14) },
   actionHint: { marginTop: 2, color: 'rgba(255,255,255,0.85)', ...font('medium', 11) },
+  h2h: { padding: 18, alignItems: 'center' },
+  h2hRow: { flexDirection: 'row', alignItems: 'center', gap: 22 },
+  h2hSide: { alignItems: 'center', minWidth: 90 },
+  h2hScore: { ...font('extrabold', 44), lineHeight: 48 },
+  h2hName: { ...font('extrabold', 11, { color: 'rgba(255,255,255,0.6)' }), letterSpacing: 1.2, maxWidth: 110 },
+  h2hDash: font('extrabold', 22, { color: 'rgba(255,255,255,0.35)' }),
+  h2hLine: { ...font('extrabold', 15, { color: palette.white }), marginTop: 12, textAlign: 'center' },
+  h2hNudge: { ...font('medium', 13, { color: 'rgba(255,255,255,0.75)' }), marginTop: 4, textAlign: 'center' },
+  h2hButton: {
+    marginTop: 14,
+    backgroundColor: palette.white,
+    borderRadius: 999,
+    paddingHorizontal: 22,
+    paddingVertical: 10,
+  },
   shareRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   shareCopy: { flex: 1 },
   shareLabel: { ...font('bold', 15), color: palette.ink },

@@ -8,6 +8,7 @@ import Animated, {
   FadeOutUp,
   SensorType,
   cancelAnimation,
+  useAnimatedProps,
   useAnimatedSensor,
   useAnimatedStyle,
   useDerivedValue,
@@ -18,7 +19,7 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Circle, ClipPath, Defs, Path, Rect } from 'react-native-svg';
 
 import { BearJar, type BearTheme } from '@/components/home/BearJar';
 import { HomeSectionHeader } from '@/components/home/HomeSectionHeader';
@@ -323,7 +324,7 @@ export function HydrationCard({
           </Pressable>
         ) : null}
 
-        <LiquidPlus
+        <PourButton
           color={meta.color}
           label={`${meta.emoji} ${formatMl(choice.ml)}`}
           open={picking}
@@ -334,13 +335,31 @@ export function HydrationCard({
           }}
         />
       </View>
-      <Text style={styles.hint}>Tap + to add · hold for coffee, juice, tea…</Text>
+      <Text style={styles.hint}>Tap Pour to add · hold it for coffee, juice, tea…</Text>
     </View>
   );
 }
 
-/** The add button: a droplet-plus that fills with the chosen drink's colour. */
-function LiquidPlus({
+const AnimatedRect = Animated.createAnimatedComponent(Rect);
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
+/* The glass, in a 24 x 28 box: a tapered tumbler with a rounded foot. */
+const GLASS = 'M4 3 H20 L18.2 24.6 Q18 26.4 16.2 26.4 H7.8 Q6 26.4 5.8 24.6 Z';
+const GLASS_TOP = 3;
+const GLASS_BOTTOM = 26.4;
+/** Where the drink rests in the glass between pours, as a fraction full. */
+const REST_LEVEL = 0.5;
+
+/**
+ * The add button: a pill with a little glass that holds the chosen drink.
+ *
+ * Deliberately not a round "+" — Home's floating action button already is
+ * one, and two plus circles a thumb apart read as the same control. This one
+ * says what it does: a drop falls into the glass, the drink rises and
+ * settles, and the label names the drink and size it just poured. Hold opens
+ * the picker, and the pill turns into its close button.
+ */
+function PourButton({
   color,
   label,
   open,
@@ -353,32 +372,73 @@ function LiquidPlus({
   onPress: () => void;
   onLongPress: () => void;
 }) {
-  const pulse = useSharedValue(1);
+  const reduceMotion = useReducedMotion();
+  const squeeze = useSharedValue(1);
+  const level = useSharedValue(REST_LEVEL);
+  const drop = useSharedValue(0);
+
   const press = () => {
-    pulse.set(withSequence(withTiming(0.88, { duration: 90 }), withTiming(1, { duration: 160 })));
+    squeeze.set(withSequence(withTiming(0.94, { duration: 80 }), withTiming(1, { duration: 180 })));
+    if (!reduceMotion) {
+      drop.set(0);
+      drop.set(withTiming(1, { duration: 260, easing: Easing.in(Easing.quad) }));
+      level.set(
+        withSequence(
+          withTiming(REST_LEVEL, { duration: 200 }),
+          withTiming(0.86, { duration: 220, easing: Easing.out(Easing.cubic) }),
+          withTiming(REST_LEVEL, { duration: 700, easing: Easing.inOut(Easing.quad) }),
+        ),
+      );
+    }
     onPress();
   };
-  const style = useAnimatedStyle(() => ({ transform: [{ scale: pulse.value }] }));
+
+  const pill = useAnimatedStyle(() => ({ transform: [{ scale: squeeze.value }] }));
+  const liquid = useAnimatedProps(() => {
+    const y = GLASS_BOTTOM - level.value * (GLASS_BOTTOM - GLASS_TOP);
+    return { y, height: GLASS_BOTTOM - y + 1 };
+  });
+  const falling = useAnimatedProps(() => ({
+    cy: -2 + drop.value * 16,
+    opacity: drop.value > 0 && drop.value < 1 ? 1 : 0,
+  }));
+
+  /* Pale drinks need a darker outline to read against the pale pill. */
+  const pale = color === DRINK_META.milk.color || color === DRINK_META.lemonade.color;
+  const rim = pale ? '#94a3b8' : color;
+
   return (
     <Pressable
       onPress={press}
       onLongPress={onLongPress}
       delayLongPress={320}
       accessibilityRole="button"
-      accessibilityLabel={open ? 'Close the drink picker' : `Add ${label}. Hold for more drinks`}
-      style={styles.plusWrap}
+      accessibilityLabel={open ? 'Close the drink picker' : `Pour ${label}. Hold for more drinks`}
     >
-      <Animated.View style={[styles.plus, { backgroundColor: color }, style]}>
-        <Svg width={22} height={22} viewBox="0 0 22 22">
-          <Path
-            d={open ? 'M6 6 L16 16 M16 6 L6 16' : 'M11 4 L11 18 M4 11 L18 11'}
-            stroke={color === DRINK_META.milk.color || color === DRINK_META.lemonade.color ? INK : '#ffffff'}
-            strokeWidth={2.6}
-            strokeLinecap="round"
-          />
-        </Svg>
+      <Animated.View style={[styles.pour, { borderColor: `${rim}55`, backgroundColor: `${color}1f` }, pill]}>
+        {open ? (
+          <Svg width={24} height={28} viewBox="0 0 24 28">
+            <Path d="M7 8 L17 18 M17 8 L7 18" stroke={INK} strokeWidth={2.4} strokeLinecap="round" />
+          </Svg>
+        ) : (
+          <Svg width={24} height={28} viewBox="0 -4 24 32">
+            <Defs>
+              <ClipPath id="pour-glass">
+                <Path d={GLASS} />
+              </ClipPath>
+            </Defs>
+            <Path d={GLASS} fill="#ffffff" />
+            <AnimatedRect x={0} width={24} fill={color} clipPath="url(#pour-glass)" animatedProps={liquid} />
+            <AnimatedCircle cx={12} r={2.2} fill={color} animatedProps={falling} />
+            <Path d={GLASS} fill="none" stroke={rim} strokeWidth={1.6} strokeLinejoin="round" />
+            <Path d="M7.2 6.5 L8.4 21" stroke="#ffffff" strokeOpacity={0.8} strokeWidth={1.4} strokeLinecap="round" />
+          </Svg>
+        )}
+        <View>
+          <Text style={styles.pourTitle}>{open ? 'Close' : 'Pour'}</Text>
+          {open ? null : <Text style={styles.pourSub}>{label}</Text>}
+        </View>
       </Animated.View>
-      <Text style={styles.plusLabel}>{label}</Text>
     </Pressable>
   );
 }
@@ -507,19 +567,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   undoText: font('bold', 17, { color: MUTED }),
-  plusWrap: { alignItems: 'center' },
-  plus: {
-    width: 48,
+  pour: {
     height: 48,
-    borderRadius: 24,
+    minWidth: 104,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#0ea5e9',
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
+    gap: 8,
+    paddingLeft: 10,
+    paddingRight: 14,
+    borderRadius: 16,
+    borderWidth: 1.5,
   },
-  plusLabel: { ...font('semibold', 10.5, { color: MUTED }), marginTop: 3 },
+  pourTitle: font('extrabold', 14, { color: INK }),
+  pourSub: { ...font('semibold', 10.5, { color: MUTED }), marginTop: -1 },
   hint: { ...font('medium', 11, { color: '#94a3b8' }), textAlign: 'center', marginTop: 8 },
 });

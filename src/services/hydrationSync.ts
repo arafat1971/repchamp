@@ -18,12 +18,13 @@ import { METRIC_FIELD, type SharedMetricKey } from '@/domain/partnerSharing';
 import { drinkLayers } from '@/domain/drinkKinds';
 import { planDrinkNotice } from '@/domain/waterShare';
 import { buildWaterWidgetSnapshot } from '@/domain/waterWidget';
-import type { DrinkLast } from '@/domain/couple';
+import type { CoupleMember, DrinkLast } from '@/domain/couple';
 import {
   lowerCoupleHydration,
   nudgePartner,
   pushPartnerWaterWidget,
   recordCoupleHydration,
+  recordCoupleReps,
   recordCoupleSteps,
   withdrawCoupleDaily,
 } from '@/services/coupleService';
@@ -43,6 +44,17 @@ let lastPublished: { day: string; ml: number; sig: string; extras: WaterExtras }
 type WaterExtras = ReturnType<typeof hydrationExtras>;
 
 /**
+ * The version stamp for anything this phone publishes about today — water,
+ * steps or reps — so the partner's widget can order the copies it hears.
+ * Strictly increasing, so a clock stepped backwards cannot demote a state.
+ */
+let lastRev = 0;
+function nextRev(): number {
+  lastRev = Math.max(Date.now(), lastRev + 1);
+  return lastRev;
+}
+
+/**
  * My goal and today's drink layers, as they go onto the couple document —
  * so my partner's jar fills against my own goal, in my drinks' colours.
  */
@@ -59,10 +71,7 @@ function hydrationExtras(today: string): {
   for (const d of drinks) if (!newest || d.at > newest.at) newest = d;
   const at = newest ? Date.parse(newest.at) : NaN;
   const last = newest && Number.isFinite(at) ? { k: newest.kind ?? 'water', ml: newest.ml, at } : null;
-  /* The state's version, for the partner's widget to order copies by. Never
-     below the previous one, so a clock stepped backwards cannot demote it. */
-  const rev = Math.max(Date.now(), (lastPublished?.extras.rev ?? 0) + 1);
-  return { goalMl: state.goalMl, layers, last, rev };
+  return { goalMl: state.goalMl, layers, last, rev: nextRev() };
 }
 
 /**
@@ -72,31 +81,52 @@ function hydrationExtras(today: string): {
  * handful racing each other through FCM — and never more than one every
  * `WIDGET_PUSH_MIN_GAP_MS`, however fast someone taps + and −.
  *
- * The push carries exactly what was last *published*, with its `rev`, never
- * a fresher local state: the partner's widget orders copies by `rev`, and a
- * push claiming an old rev for new numbers would be overwritten by the
- * document's copy of the old numbers.
+ * The push carries exactly what was last *published* — water, steps, reps —
+ * with the newest `rev`, never a fresher unpublished local state: the
+ * partner's widget orders copies by `rev`, and a push claiming an old rev for
+ * new numbers would be overwritten by the document's copy of the old ones.
+ * Whatever this session has not published yet (a cold start before the step
+ * read) comes from my own slice of the cached couple document instead, so a
+ * water push never blanks the steps the partner could already see.
  */
 const WIDGET_PUSH_DEBOUNCE_MS = 2500;
 const WIDGET_PUSH_MIN_GAP_MS = 8000;
 let widgetPushTimer: ReturnType<typeof setTimeout> | null = null;
 let lastWidgetPushAt = 0;
 
-function scheduleWidgetPush(coupleId: string, uid: string, clear = false): void {
+function scheduleWidgetPush(coupleId: string, uid: string): void {
   if (widgetPushTimer) clearTimeout(widgetPushTimer);
   const wait = Math.max(WIDGET_PUSH_DEBOUNCE_MS, lastWidgetPushAt + WIDGET_PUSH_MIN_GAP_MS - Date.now());
   widgetPushTimer = setTimeout(() => {
     widgetPushTimer = null;
     lastWidgetPushAt = Date.now();
-    const published = lastPublished;
-    if (clear || !published) {
-      void pushPartnerWaterWidget(coupleId, uid, null);
-      return;
-    }
-    void pushPartnerWaterWidget(coupleId, uid, (me) =>
-      buildWaterWidgetSnapshot({ name: me.displayName, day: published.day, ml: published.ml, ...published.extras }),
-    );
+    void pushPartnerWaterWidget(coupleId, uid, widgetFromPublished);
   }, wait);
+}
+
+/** My day as my partner's widget should show it; see `scheduleWidgetPush`. */
+export function widgetFromPublished(me: CoupleMember) {
+  const today = dayKey();
+  const prefs = sharingPrefs();
+  const doc = me.daily?.day === today ? me.daily : undefined;
+  const water = lastPublished?.day === today ? lastPublished : null;
+  const steps = lastSteps?.day === today ? lastSteps : null;
+  const reps = lastReps?.day === today ? lastReps : null;
+
+  return buildWaterWidgetSnapshot({
+    name: me.displayName,
+    day: today,
+    ...(!prefs.water
+      ? { ml: 0 }
+      : water
+        ? { ml: water.ml, ...water.extras }
+        : { ml: doc?.waterMl ?? 0, goalMl: doc?.goalMl, layers: doc?.layers, last: doc?.last }),
+    steps: !prefs.steps ? null : steps ? steps.steps : (doc?.steps ?? null),
+    reps: reps ? reps.reps : (doc?.reps ?? 0),
+    topExercise: reps ? reps.topEx : (doc?.topEx ?? null),
+    trainedAt: reps ? reps.trainedAt : (doc?.trainedAt ?? 0),
+    rev: Math.max(doc?.rev ?? 0, water?.extras.rev ?? 0, steps?.rev ?? 0, reps?.rev ?? 0),
+  });
 }
 
 /** Forget the publish memo — for tests, and for a uid change. */
@@ -106,6 +136,7 @@ export function resetHydrationSyncMemo(): void {
   widgetPushTimer = null;
   lastWidgetPushAt = 0;
   lastSteps = null;
+  lastReps = null;
 }
 
 /**
@@ -189,7 +220,7 @@ async function syncHydrationOnce(
  * a tap, steps on a foreground read — and one memo would make each suppress
  * the other's write.
  */
-let lastSteps: { day: string; steps: number } | null = null;
+let lastSteps: { day: string; steps: number; rev: number } | null = null;
 
 /**
  * Publish today's step count if it has moved.
@@ -211,10 +242,43 @@ export async function syncStepsNow(
   if (lastSteps && lastSteps.day === today && lastSteps.steps === steps) return;
 
   try {
-    await recordCoupleSteps(coupleId, uid, today, steps);
-    lastSteps = { day: today, steps };
+    const rev = nextRev();
+    await recordCoupleSteps(coupleId, uid, today, steps, rev);
+    lastSteps = { day: today, steps, rev };
+    scheduleWidgetPush(coupleId, uid);
   } catch {
     // Best-effort; the next foreground read repairs it.
+  }
+}
+
+/** Last published reps, separate from water and steps for the same reason. */
+let lastReps: { day: string; reps: number; topEx: string | null; trainedAt: number; rev: number } | null = null;
+
+/**
+ * Publish today's reps — total, main movement, last set — if they moved.
+ *
+ * Not behind a sharing switch: workouts are always shared, because the
+ * streak depends on them. Called by Home whenever the session log changes,
+ * so a finished set reaches the partner's rings within seconds.
+ */
+export async function syncRepsNow(
+  coupleId: string | null | undefined,
+  uid: string | null | undefined,
+  today: { reps: number; topEx: string | null; trainedAt: number },
+): Promise<void> {
+  if (!coupleId || !uid) return;
+  if (!Number.isFinite(today.reps) || today.reps <= 0) return;
+
+  const day = dayKey();
+  if (lastReps && lastReps.day === day && lastReps.reps === today.reps && lastReps.topEx === today.topEx) return;
+
+  try {
+    const rev = nextRev();
+    await recordCoupleReps(coupleId, uid, day, { ...today, rev });
+    lastReps = { day, ...today, rev };
+    scheduleWidgetPush(coupleId, uid);
+  } catch {
+    // Best-effort; the next change repairs it.
   }
 }
 
@@ -250,7 +314,7 @@ export async function setMetricSharing(
     } else {
       await withdrawCoupleDaily(coupleId, uid, METRIC_FIELD[key]);
       // Their widget must stop showing it too, not freeze on the last value.
-      if (key === 'water') scheduleWidgetPush(coupleId, uid, true);
+      scheduleWidgetPush(coupleId, uid);
     }
   } catch {
     // Best-effort, as above.

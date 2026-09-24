@@ -94,6 +94,16 @@ export interface CoupleDailyMetrics {
    * copy can never walk the bear backwards.
    */
   rev?: number;
+  /**
+   * Reps finished today, across every movement — workouts are always shared
+   * (the streak depends on them), and this is their size. Absent from older
+   * apps.
+   */
+  reps?: number;
+  /** Today's main movement by reps, as a label ("Squats"). */
+  topEx?: string;
+  /** When the latest set today finished, epoch ms. */
+  trainedAt?: number;
 }
 
 /** One drink, as a partner sees it. */
@@ -824,6 +834,19 @@ export function partnerLastDrinkToday(
   if (!last || typeof last.k !== 'string') return null;
   if (!Number.isFinite(last.ml) || last.ml <= 0 || !Number.isFinite(last.at)) return null;
   return last;
+}
+
+/** The partner's reps today — count, main movement, last set — or zeros. */
+export function partnerRepsToday(
+  member: CoupleMember | null | undefined,
+  today: string,
+): { reps: number; topEx: string | null; trainedAt: number } {
+  const daily = member?.daily;
+  if (!daily || daily.day !== today) return { reps: 0, topEx: null, trainedAt: 0 };
+  const reps = typeof daily.reps === 'number' && Number.isFinite(daily.reps) && daily.reps > 0 ? daily.reps : 0;
+  const topEx = typeof daily.topEx === 'string' && daily.topEx.length > 0 ? daily.topEx : null;
+  const at = daily.trainedAt;
+  return { reps, topEx, trainedAt: typeof at === 'number' && Number.isFinite(at) && at > 0 ? at : 0 };
 }
 
 /** The version of the partner's water state today, or 0 when unknown. */

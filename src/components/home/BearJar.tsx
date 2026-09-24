@@ -282,11 +282,14 @@ function useLayerWave(
     const top = tops.value[k] ?? 0;
     if (top <= 0) return { d: '' };
     const frac = level.value * top;
+    // Empty is empty: a resting wave's crest would still show a sliver.
+    if (frac <= 0.002) return { d: '' };
     const base = WATER_BOTTOM - frac * (WATER_BOTTOM - WATER_TOP);
-    // Lower boundaries ripple less than the open surface.
+    // Lower boundaries ripple less than the open surface, and a nearly empty
+    // bear's wave settles flat rather than slopping above its own level.
     let topmost = 0;
     for (let j = 0; j < tops.value.length; j++) if ((tops.value[j] ?? 0) > 0) topmost = j;
-    const amp = k === topmost ? 3.6 : 1.8;
+    const amp = (k === topmost ? 3.6 : 1.8) * Math.min(1, frac * 12);
     let d = '';
     for (let i = 0; i <= 20; i++) {
       const x = (i / 20) * VB_W;

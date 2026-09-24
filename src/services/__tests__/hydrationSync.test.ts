@@ -10,6 +10,7 @@ const mockLower = jest.fn(async () => {});
 const mockNudge = jest.fn(async () => {});
 
 const mockWidgetPush = jest.fn(async () => {});
+const mockRecordReps = jest.fn(async () => {});
 jest.mock('@/services/coupleService', () => ({
   recordCoupleHydration: (...a: unknown[]) => mockRecordWater(...(a as [])),
   recordCoupleSteps: (...a: unknown[]) => mockRecordSteps(...(a as [])),
@@ -17,6 +18,7 @@ jest.mock('@/services/coupleService', () => ({
   lowerCoupleHydration: (...a: unknown[]) => mockLower(...(a as [])),
   nudgePartner: (...a: unknown[]) => mockNudge(...(a as [])),
   pushPartnerWaterWidget: (...a: unknown[]) => mockWidgetPush(...(a as [])),
+  recordCoupleReps: (...a: unknown[]) => mockRecordReps(...(a as [])),
 }));
 
 import {
@@ -241,7 +243,7 @@ describe('goal and layers ride along', () => {
       ];
       expect([coupleId, uid]).toEqual(['C1', 'ada']);
       expect(build({ displayName: 'Ada' })).toMatchObject({
-        title: 'Ada’s water',
+        title: 'Ada · Today',
         amount: '750 ml',
         last: '🍵 Tea · 250 ml',
       });

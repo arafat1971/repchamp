@@ -410,9 +410,48 @@ export async function recordCoupleSteps(
   uid: string,
   day: string,
   steps: number,
+  /** The state's version, for the partner's widget — see `CoupleDailyMetrics.rev`. */
+  rev?: number,
 ): Promise<void> {
   if (!Number.isFinite(steps) || steps < 0 || steps > MAX_DAILY_STEPS) return;
-  await recordCoupleDaily(coupleId, uid, day, { steps });
+  await recordCoupleDaily(coupleId, uid, day, { steps, ...(validRev(rev) ? { rev } : {}) });
+}
+
+/** Today's reps, main movement and last set, as they ride on the daily slice. */
+export interface RepsPatch {
+  reps?: number;
+  topEx?: string;
+  trainedAt?: number;
+}
+
+/** Most reps a day can plausibly hold; anything above is a bug, not a workout. */
+const MAX_DAILY_REPS = 20000;
+
+const validRev = (rev: number | undefined): rev is number =>
+  typeof rev === 'number' && Number.isFinite(rev) && rev > 0;
+
+/**
+ * Publish today's reps onto this member's slice, for the partner's rings.
+ *
+ * Same set-to-value, same-day-max contract as steps: a total recomputed from
+ * the local log, so a retry is harmless and a stale device cannot walk it
+ * back. Workouts are always shared — the streak already depends on them.
+ */
+export async function recordCoupleReps(
+  coupleId: string,
+  uid: string,
+  day: string,
+  patch: { reps: number; topEx?: string | null; trainedAt?: number | null; rev?: number },
+): Promise<void> {
+  const { reps } = patch;
+  if (!Number.isFinite(reps) || reps < 0 || reps > MAX_DAILY_REPS) return;
+  const clean: RepsPatch & { rev?: number } = { reps: Math.round(reps) };
+  if (typeof patch.topEx === 'string' && patch.topEx.length > 0 && patch.topEx.length <= 24) clean.topEx = patch.topEx;
+  if (typeof patch.trainedAt === 'number' && Number.isFinite(patch.trainedAt) && patch.trainedAt > 0) {
+    clean.trainedAt = Math.round(patch.trainedAt);
+  }
+  if (validRev(patch.rev)) clean.rev = Math.round(patch.rev);
+  await recordCoupleDaily(coupleId, uid, day, clean);
 }
 
 /**
@@ -427,7 +466,7 @@ async function recordCoupleDaily(
   coupleId: string,
   uid: string,
   day: string,
-  patch: { waterMl?: number; steps?: number } & HydrationExtras,
+  patch: { waterMl?: number; steps?: number } & HydrationExtras & RepsPatch,
 ): Promise<void> {
   if (!isFirebaseConfigured()) return;
 
@@ -460,7 +499,12 @@ async function recordCoupleDaily(
       if (patch.goalMl !== undefined) merged.goalMl = patch.goalMl;
       if (patch.layers !== undefined) merged.layers = patch.layers;
       if (patch.last) merged.last = patch.last;
-      if (patch.rev !== undefined) merged.rev = patch.rev;
+      if (patch.rev !== undefined) merged.rev = Math.max(prev && sameDay ? (prev.rev ?? 0) : 0, patch.rev);
+      if (patch.reps !== undefined) {
+        merged.reps = sameDay ? Math.max(prev?.reps ?? 0, patch.reps) : patch.reps;
+      }
+      if (patch.topEx !== undefined) merged.topEx = patch.topEx;
+      if (patch.trainedAt !== undefined) merged.trainedAt = patch.trainedAt;
 
       return { ...m, daily: merged };
     });

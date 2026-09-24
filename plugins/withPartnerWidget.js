@@ -675,6 +675,9 @@ const withWidgetSources = (config) =>
       write(path.join(res, 'values-v31/widget_dimens.xml'), DIMENS_V31_XML);
 
       /* The water widget's drawables and the FCM service that feeds it. */
+      for (const file of water.OBSOLETE_RESOURCES) {
+        fs.rmSync(path.join(res, file), { force: true });
+      }
       for (const [file, contents] of Object.entries(water.waterResources())) {
         write(path.join(res, file), contents);
       }
@@ -687,9 +690,14 @@ const withWidgetSources = (config) =>
         ? fs.readFileSync(stringsPath, 'utf8')
         : '<resources></resources>';
       for (const [name, value] of Object.entries({ ...STRINGS, ...water.WATER_STRINGS })) {
-        if (xml.includes(`name="${name}"`)) continue;
         const escaped = value.replace(/&/g, '&amp;').replace(/'/g, "\\'");
-        xml = xml.replace('</resources>', `  <string name="${name}">${escaped}</string>\n</resources>`);
+        const line = `<string name="${name}">${escaped}</string>`;
+        const existing = new RegExp(`<string name="${name}">[^<]*</string>`);
+        /* Replace, not skip: a string this plugin wrote before may have
+           changed wording since, and a stale one would outlive the change. */
+        xml = existing.test(xml)
+          ? xml.replace(existing, line)
+          : xml.replace('</resources>', `  ${line}\n</resources>`);
       }
       write(stringsPath, xml);
 

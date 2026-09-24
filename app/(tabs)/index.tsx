@@ -31,17 +31,19 @@ import {
   partnerGoalToday,
   partnerLastDrinkToday,
   partnerLayersToday,
+  partnerRepsToday,
   partnerWaterRevToday,
   partnerStepsToday,
   partnerWaterToday,
 } from '@/domain/couple';
 import { drinksOnDay, hydrationProgress, stepGoalMl } from '@/domain/hydration';
 import { lightImpactHaptic, selectionHaptic } from '@/lib/feedback';
-import { shareDrink, syncHydrationNow, syncStepsNow } from '@/services/hydrationSync';
+import { shareDrink, syncHydrationNow, syncRepsNow, syncStepsNow } from '@/services/hydrationSync';
 import { useStepsToday } from '@/state/useStepsToday';
 import { buildDashboardSnapshot } from '@/domain/dashboardSnapshot';
 import { buildWidgetSnapshot } from '@/domain/widgetSnapshot';
-import { buildWaterWidgetSnapshot } from '@/domain/waterWidget';
+import { buildWaterWidgetSnapshot, repsOnDay } from '@/domain/waterWidget';
+import { getExercise } from '@/vision/exercises';
 import { clearWidgetSnapshot, publishWidgetSnapshot } from '@/services/partnerWidget';
 import { trackerHistory } from '@/domain/coupleTracker';
 import { selectHomeFocus, type HomeFocus } from '@/domain/homeFocus';
@@ -187,29 +189,6 @@ export default function HomeScreen() {
     };
   }, [couple.paired, couple.partner, today]);
 
-  /* The partner's bear on the home screen. Their own phone also pushes it
-     straight to the widget as they drink; this keeps it right whenever this
-     app is open, from the same builder, so the two can never disagree. */
-  useEffect(() => {
-    if (!partnerGlass) {
-      // Unpaired: an old partner's bear must not linger on the home screen.
-      if (!couple.loading) clearWidgetSnapshot('water');
-      return;
-    }
-    publishWidgetSnapshot(
-      buildWaterWidgetSnapshot({
-        name: partnerGlass.name,
-        day: today,
-        ml: partnerGlass.ml ?? 0,
-        goalMl: partnerGlass.goalMl,
-        layers: partnerGlass.layers,
-        last: partnerLastDrinkToday(couple.partner, today),
-        rev: partnerWaterRevToday(couple.partner, today),
-      }),
-      'water',
-    );
-  }, [partnerGlass, couple.partner, couple.loading, today]);
-
   const coupleId = couple.couple?.id ?? null;
   const myUid = couple.me?.uid ?? null;
 
@@ -225,6 +204,48 @@ export default function HomeScreen() {
     if (stepsToday.status !== 'ready') return;
     void syncStepsNow(coupleId, myUid, stepsToday.steps);
   }, [stepsToday, coupleId, myUid]);
+
+  /* My reps today, for my partner's rings. Re-published whenever the session
+     log changes, which is the moment a set finishes and Home comes back. */
+  const myReps = useMemo(() => repsOnDay(profile.sessions, today), [profile.sessions, today]);
+  useEffect(() => {
+    void syncRepsNow(coupleId, myUid, {
+      reps: myReps.reps,
+      topEx: myReps.top ? getExercise(myReps.top).label : null,
+      trainedAt: myReps.trainedAt,
+    });
+  }, [myReps, coupleId, myUid]);
+
+  /* The partner's day on the home screen: water bear inside three rings, each
+     beside mine. Their own phone also pushes it straight to the widget as it
+     moves; this keeps it right whenever this app is open, from the same
+     builder, so the two can never disagree. */
+  const myStepsCount = stepsToday.status === 'ready' ? stepsToday.steps : null;
+  useEffect(() => {
+    if (!partnerGlass) {
+      // Unpaired: an old partner's day must not linger on the home screen.
+      if (!couple.loading) clearWidgetSnapshot('water');
+      return;
+    }
+    const theirReps = partnerRepsToday(couple.partner, today);
+    publishWidgetSnapshot(
+      buildWaterWidgetSnapshot({
+        name: partnerGlass.name,
+        day: today,
+        ml: partnerGlass.ml ?? 0,
+        goalMl: partnerGlass.goalMl,
+        layers: partnerGlass.layers,
+        last: partnerLastDrinkToday(couple.partner, today),
+        steps: partnerStepsToday(couple.partner, today),
+        reps: theirReps.reps,
+        topExercise: theirReps.topEx,
+        trainedAt: theirReps.trainedAt,
+        me: { ml: todayMl, steps: myStepsCount, reps: myReps.reps },
+        rev: partnerWaterRevToday(couple.partner, today),
+      }),
+      'water',
+    );
+  }, [partnerGlass, couple.partner, couple.loading, today, todayMl, myStepsCount, myReps.reps]);
 
   /* Mirror the same numbers into the daily dashboard widget. A no-op on any
      build without the extension, so this is safe to call unconditionally —

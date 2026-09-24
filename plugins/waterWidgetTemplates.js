@@ -1,6 +1,7 @@
 /**
- * The partner-water widget: the partner's bear on the home screen, filling
- * live as they drink.
+ * The "partner today" widget: the partner's water, steps and reps as three
+ * activity rings around their water bear, each beside mine — drawn in the
+ * iOS widget idiom (a plain system card, bold coloured numbers, rings).
  *
  * Kept out of `withPartnerWidget.js` so that file's contract test — every key
  * its Kotlin reads must be one `buildWidgetSnapshot` writes — stays about the
@@ -8,141 +9,211 @@
  *
  * ## How it stays live with the app closed
  *
- * The partner's phone sends a silent (data-only) push each time their total
- * moves. `RepChampMessagingService` — a subclass of Expo's own FCM service,
- * registered at a higher priority so FCM picks it — writes the payload into
- * SharedPreferences and redraws, without starting any JavaScript. Every other
- * push falls through to Expo untouched.
+ * The partner's phone sends a silent (data-only) push each time their water,
+ * steps or reps move. `RepChampMessagingService` — a subclass of Expo's own
+ * FCM service, registered at a higher priority so FCM picks it — writes the
+ * payload into SharedPreferences and redraws, without starting JavaScript.
+ * Every other push falls through to Expo untouched.
  *
  * ## How it moves
  *
  * RemoteViews cannot run code on a timer, but a launcher does animate an
- * indeterminate ProgressBar. Its drawable here is an `animation-list` of
- * rising bubbles, shown over the bear for fifteen minutes after a drink,
- * beside a pulsing LIVE dot. An inexact alarm redraws the widget when the
- * window closes, so it calms down without the app.
- *
- * The bear itself is drawn natively to a bitmap with the same geometry as
- * `components/home/BearJar.tsx`: rim, glassy body, each drink a band in its
- * own colour with the same light-to-deep shading, and a wavy surface.
+ * indeterminate ProgressBar. Four micro-animations ride on that, all only
+ * while the partner has been active in the last fifteen minutes (or, for the
+ * twinkle, once every ring is closed): a glint orbiting the rings, bubbles
+ * rising in the bear after a drink, sparkles when a ring closes, and a
+ * pulsing LIVE dot. An inexact alarm redraws when the window ends, so it all
+ * settles without the app.
  */
-
-/* Geometry, in the 100 x 124 box both the bitmap and the vector frames use:
-   BearJar's 100 x 120 view box moved down 2, so the rim stroke under the belly
-   is not cut off. */
-const Y = 2;
-const circle = (cx, cy, r) =>
-  `M${cx - r},${cy + Y} a${r},${r} 0 1,1 ${2 * r},0 a${r},${r} 0 1,1 ${-2 * r},0 Z`;
-const ellipse = (cx, cy, rx, ry) =>
-  `M${cx - rx},${cy + Y} a${rx},${ry} 0 1,1 ${2 * rx},0 a${rx},${ry} 0 1,1 ${-2 * rx},0 Z`;
-const SILHOUETTE = [circle(25, 20, 13), circle(75, 20, 13), circle(50, 40, 30), ellipse(50, 86, 38, 33)].join(' ');
 
 const round = (n) => Math.round(n * 100) / 100;
 
-/**
- * One frame of rising bubbles.
- *
- * Each bubble has its own phase, so the column never pulses in step; it grows
- * a little as it rises and fades out near the top of its run, which is what
- * reads as fizz rather than dots sliding up.
- */
-function bubbleFrame(frame, frames, { xs, from, to, size }) {
-  const paths = xs
-    .map((x, i) => {
-      const p = (frame / frames + i / xs.length) % 1;
-      const cy = from - p * (from - to);
-      const cx = x + 1.6 * Math.sin(p * Math.PI * 4);
-      const r = size * (0.7 + 0.6 * p);
-      const alpha = p > 0.8 ? round(0.7 * (1 - (p - 0.8) / 0.2)) : 0.7;
-      return `    <path android:fillColor="#FFFFFF" android:fillAlpha="${alpha}" android:strokeColor="#FFFFFF" android:strokeAlpha="${round(alpha * 0.9)}" android:strokeWidth="0.5" android:pathData="M${round(cx - r)},${round(cy)} a${round(r)},${round(r)} 0 1,1 ${round(2 * r)},0 a${round(r)},${round(r)} 0 1,1 ${round(-2 * r)},0 Z" />`;
-    })
-    .join('\n');
-  return `<?xml version="1.0" encoding="utf-8"?>
+/* ---------- Geometry (100 x 100 box, shared by bitmap and vectors) ---------- */
+
+/* Rings, inner to outer: water (around the bear), steps, reps. */
+const RING = { stroke: 8.5, water: 25.25, steps: 35.5, reps: 45.75 };
+
+/* The bear sits in the rings' hole: BearJar's 100 x 124 box scaled to 34 tall. */
+const BEAR_SCALE = 34 / 124;
+const BEAR_LEFT = 50 - 50 * BEAR_SCALE;
+const BEAR_TOP = 50 - 62 * BEAR_SCALE;
+/** Bear-space y (already +2) to ring-box y. */
+const by = (y) => BEAR_TOP + y * BEAR_SCALE;
+const bx = (x) => BEAR_LEFT + x * BEAR_SCALE;
+
+const circlePath = (cx, cy, r) =>
+  `M${round(cx - r)},${round(cy)} a${round(r)},${round(r)} 0 1,1 ${round(2 * r)},0 a${round(r)},${round(r)} 0 1,1 ${round(-2 * r)},0 Z`;
+
+/** An arc from the top, clockwise, as SVG path data. */
+function arcPath(r, pct) {
+  const a = Math.min(pct, 0.9999) * 2 * Math.PI;
+  const x = 50 + r * Math.sin(a);
+  const y = 50 - r * Math.cos(a);
+  return `M50,${round(50 - r)} A${r},${r} 0 ${pct > 0.5 ? 1 : 0},1 ${round(x)},${round(y)}`;
+}
+
+/** A four-point sparkle. */
+function starPath(cx, cy, r) {
+  return `M${round(cx)},${round(cy - r)} Q${round(cx)},${round(cy)} ${round(cx + r)},${round(cy)} Q${round(cx)},${round(cy)} ${round(cx)},${round(cy + r)} Q${round(cx)},${round(cy)} ${round(cx - r)},${round(cy)} Q${round(cx)},${round(cy)} ${round(cx)},${round(cy - r)} Z`;
+}
+
+const vector = (body) => `<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="84dp" android:height="104dp"
-    android:viewportWidth="100" android:viewportHeight="124">
-${paths}
+    android:width="118dp" android:height="118dp"
+    android:viewportWidth="100" android:viewportHeight="100">
+${body}
 </vector>
 `;
-}
+
+const animationList = (name, count, duration) => `<?xml version="1.0" encoding="utf-8"?>
+<animation-list xmlns:android="http://schemas.android.com/apk/res/android" android:oneshot="false">
+${Array.from({ length: count }, (_, i) => `    <item android:drawable="@drawable/${name}_${i}" android:duration="${duration}" />`).join('\n')}
+</animation-list>
+`;
+
+/* ---------- Micro-animation 1: bubbles in the bear ---------- */
 
 const BUBBLE_FRAMES = 10;
 
-/* Two runs: a tall one for a bear at least half full, a short low one for a
-   bear with only a little in it — bubbles must never rise above the drink. */
+/* Two runs, so bubbles never rise above the drink: a tall one for a bear at
+   least half full, a short low one for a bear with a little in it. */
 const BUBBLE_SETS = {
-  high: { xs: [36, 52, 64, 44, 58], from: 116, to: 72, size: 1.9 },
-  low: { xs: [42, 50, 58], from: 118, to: 104, size: 1.4 },
+  high: { xs: [42, 51, 58, 46, 55], from: 118, to: 72, size: 2.2 },
+  low: { xs: [44, 50, 56], from: 119, to: 104, size: 1.7 },
 };
 
-function bubbleDrawables() {
-  const files = {};
-  for (const [name, set] of Object.entries(BUBBLE_SETS)) {
-    const items = [];
-    for (let f = 0; f < BUBBLE_FRAMES; f++) {
-      files[`drawable/water_bubble_${name}_${f}.xml`] = bubbleFrame(f, BUBBLE_FRAMES, set);
-      items.push(`    <item android:drawable="@drawable/water_bubble_${name}_${f}" android:duration="120" />`);
-    }
-    files[`drawable/water_bubbles_${name}.xml`] = `<?xml version="1.0" encoding="utf-8"?>
-<animation-list xmlns:android="http://schemas.android.com/apk/res/android" android:oneshot="false">
-${items.join('\n')}
-</animation-list>
-`;
+function bubbleFrame(frame, { xs, from, to, size }) {
+  return vector(
+    xs
+      .map((x, i) => {
+        const p = (frame / BUBBLE_FRAMES + i / xs.length) % 1;
+        const cy = by(from - p * (from - to));
+        const cx = bx(x + 1.6 * Math.sin(p * Math.PI * 4));
+        const r = size * BEAR_SCALE * (0.7 + 0.6 * p) * 1.6;
+        const alpha = p > 0.8 ? round(0.8 * (1 - (p - 0.8) / 0.2)) : 0.8;
+        return `    <path android:fillColor="#FFFFFF" android:fillAlpha="${alpha}" android:pathData="${circlePath(cx, cy, r)}" />`;
+      })
+      .join('\n'),
+  );
+}
+
+/* ---------- Micro-animation 2: a glint orbiting the rings ---------- */
+
+/* A comet on the outer ring: a bright head at twelve o'clock and a tail
+   fading behind it. A RotateDrawable spins it; the ProgressBar drives it. */
+function glintDrawable() {
+  const r = RING.reps;
+  const segments = [];
+  for (let i = 0; i < 6; i++) {
+    const a0 = (-48 + i * 8) * (Math.PI / 180);
+    const a1 = (-48 + (i + 1) * 8) * (Math.PI / 180);
+    const p = (a) => `${round(50 + r * Math.sin(a))},${round(50 - r * Math.cos(a))}`;
+    segments.push(
+      `    <path android:strokeColor="#FFFFFF" android:strokeAlpha="${round(0.08 + i * 0.1)}" android:strokeWidth="${round(2 + i * 0.35)}" android:strokeLineCap="round" android:pathData="M${p(a0)} A${r},${r} 0 0,1 ${p(a1)}" />`,
+    );
   }
+  segments.push(`    <path android:fillColor="#FFFFFF" android:fillAlpha="0.95" android:pathData="${circlePath(50, 50 - r, 2.4)}" />`);
+  return {
+    'drawable/pt_glint.xml': vector(segments.join('\n')),
+    'drawable/pt_orbit.xml': `<?xml version="1.0" encoding="utf-8"?>
+<rotate xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/pt_glint"
+    android:fromDegrees="0"
+    android:toDegrees="360"
+    android:pivotX="50%"
+    android:pivotY="50%" />
+`,
+  };
+}
+
+/* ---------- Micro-animation 3: sparkles when a ring closes ---------- */
+
+const TWINKLE_FRAMES = 8;
+const SPARKS = [
+  { x: 88, y: 12, r: 5.5 },
+  { x: 95, y: 27, r: 3 },
+  { x: 11, y: 88, r: 4 },
+  { x: 90, y: 86, r: 3.2 },
+];
+
+function twinkleDrawables() {
+  const files = {};
+  for (let f = 0; f < TWINKLE_FRAMES; f++) {
+    files[`drawable/pt_twinkle_${f}.xml`] = vector(
+      SPARKS.map((s, i) => {
+        const phase = (f / TWINKLE_FRAMES + i / SPARKS.length) % 1;
+        const k = Math.sin(phase * Math.PI);
+        return `    <path android:fillColor="#FFD60A" android:fillAlpha="${round(0.25 + 0.75 * k)}" android:pathData="${starPath(s.x, s.y, s.r * (0.45 + 0.55 * k))}" />`;
+      }).join('\n'),
+    );
+  }
+  files['drawable/pt_twinkle.xml'] = animationList('pt_twinkle', TWINKLE_FRAMES, 110);
   return files;
 }
 
-/* The LIVE dot's heartbeat: a green dot that swells and dims, over and over. */
+/* ---------- Micro-animation 4: the LIVE dot's heartbeat ---------- */
+
 function pulseDrawables() {
   const files = {};
   const steps = [1, 0.85, 0.65, 0.45, 0.65, 0.85];
-  const items = steps.map((a, i) => {
-    const inset = round((1 - a) * 2.5);
+  steps.forEach((a, i) => {
     const alpha = Math.round((0.35 + 0.65 * a) * 255)
       .toString(16)
       .padStart(2, '0')
       .toUpperCase();
-    files[`drawable/water_pulse_${i}.xml`] = `<?xml version="1.0" encoding="utf-8"?>
-<inset xmlns:android="http://schemas.android.com/apk/res/android" android:inset="${inset}dp">
+    files[`drawable/pt_pulse_${i}.xml`] = `<?xml version="1.0" encoding="utf-8"?>
+<inset xmlns:android="http://schemas.android.com/apk/res/android" android:inset="${round((1 - a) * 2.5)}dp">
     <shape android:shape="oval">
-        <solid android:color="#${alpha}4ADE80" />
+        <solid android:color="#${alpha}30D158" />
     </shape>
 </inset>
 `;
-    return `    <item android:drawable="@drawable/water_pulse_${i}" android:duration="140" />`;
   });
-  files['drawable/water_live_pulse.xml'] = `<?xml version="1.0" encoding="utf-8"?>
-<animation-list xmlns:android="http://schemas.android.com/apk/res/android" android:oneshot="false">
-${items.join('\n')}
-</animation-list>
-`;
+  files['drawable/pt_live_pulse.xml'] = animationList('pt_pulse', steps.length, 140);
   return files;
 }
 
-/* The picker never calls onUpdate, so the layout's own image must look like
-   the real thing: a half-full bear, drawn as a vector from the same geometry. */
-const PREVIEW_BEAR_XML = `<?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="84dp" android:height="104dp"
-    android:viewportWidth="100" android:viewportHeight="124">
-    <path android:fillColor="#A5B4FC" android:strokeColor="#A5B4FC" android:strokeWidth="5" android:pathData="${SILHOUETTE}" />
-    <path android:fillColor="#EEF0FF" android:pathData="${SILHOUETTE}" />
-    <path android:fillColor="#8B5CF6" android:fillAlpha="0.55" android:pathData="${circle(25, 20, 6.5)} ${circle(75, 20, 6.5)}" />
-    <group>
-        <clip-path android:pathData="${SILHOUETTE}" />
-        <path android:fillColor="#38BDF8" android:pathData="M0,70 Q12,66 25,70 T50,70 T75,70 T100,70 L100,124 L0,124 Z" />
-        <path android:fillColor="#FB923C" android:pathData="M0,104 Q12,102 25,104 T50,104 T75,104 T100,104 L100,124 L0,124 Z" />
-    </group>
-    <path android:strokeColor="#FFFFFF" android:strokeAlpha="0.7" android:strokeWidth="3.2" android:strokeLineCap="round" android:pathData="M22,76 Q18,92 26,106" />
-    <path android:strokeColor="#FFFFFF" android:strokeAlpha="0.75" android:strokeWidth="2.6" android:strokeLineCap="round" android:pathData="M30,26 Q34,20 40,18" />
-    <path android:fillColor="#1E293B" android:pathData="${ellipse(40, 40, 3.6, 4.4)} ${ellipse(60, 40, 3.6, 4.4)}" />
-    <path android:fillColor="#FFFFFF" android:pathData="${circle(41.3, 38.4, 1.2)} ${circle(61.3, 38.4, 1.2)}" />
-    <path android:fillColor="#FFFFFF" android:fillAlpha="0.85" android:pathData="${ellipse(50, 50, 9, 6.5)}" />
-    <path android:fillColor="#1E293B" android:pathData="${ellipse(50, 48, 3.2, 2.3)}" />
-    <path android:strokeColor="#1E293B" android:strokeWidth="1.4" android:strokeLineCap="round" android:pathData="M46.5,54 Q50,57.5 53.5,54" />
-    <path android:fillColor="#8B5CF6" android:fillAlpha="0.6" android:pathData="${ellipse(31, 50, 5, 3)} ${ellipse(69, 50, 5, 3)}" />
-</vector>
-`;
+/* ---------- The picker preview (the picker never calls onUpdate) ---------- */
+
+const RING_COLORS = {
+  water: ['#32ADE6', '#64D2FF'],
+  steps: ['#30D158', '#A8F06C'],
+  reps: ['#FF2D55', '#FF7A9A'],
+};
+
+const bearCircle = (cx, cy, r) =>
+  `M${cx - r},${cy + 2} a${r},${r} 0 1,1 ${2 * r},0 a${r},${r} 0 1,1 ${-2 * r},0 Z`;
+const bearEllipse = (cx, cy, rx, ry) =>
+  `M${cx - rx},${cy + 2} a${rx},${ry} 0 1,1 ${2 * rx},0 a${rx},${ry} 0 1,1 ${-2 * rx},0 Z`;
+const BEAR_SILHOUETTE = [bearCircle(25, 20, 13), bearCircle(75, 20, 13), bearCircle(50, 40, 30), bearEllipse(50, 86, 38, 33)].join(' ');
+
+function previewRings() {
+  const ring = (key, pct) => {
+    const [start] = RING_COLORS[key];
+    const r = RING[key];
+    return [
+      `    <path android:strokeColor="${start}" android:strokeAlpha="0.2" android:strokeWidth="${RING.stroke}" android:pathData="${circlePath(50, 50, r)}" />`,
+      `    <path android:strokeColor="${start}" android:strokeWidth="${RING.stroke}" android:strokeLineCap="round" android:pathData="${arcPath(r, pct)}" />`,
+    ].join('\n');
+  };
+  const s = Math.round(BEAR_SCALE * 1000) / 1000;
+  const bear = `    <group android:translateX="${round(BEAR_LEFT)}" android:translateY="${round(BEAR_TOP)}" android:scaleX="${s}" android:scaleY="${s}">
+        <path android:fillColor="#A5B4FC" android:strokeColor="#A5B4FC" android:strokeWidth="5" android:pathData="${BEAR_SILHOUETTE}" />
+        <path android:fillColor="#EEF0FF" android:pathData="${BEAR_SILHOUETTE}" />
+        <group>
+            <clip-path android:pathData="${BEAR_SILHOUETTE}" />
+            <path android:fillColor="#38BDF8" android:pathData="M0,72 Q12,68 25,72 T50,72 T75,72 T100,72 L100,124 L0,124 Z" />
+            <path android:fillColor="#FB923C" android:pathData="M0,104 Q12,102 25,104 T50,104 T75,104 T100,104 L100,124 L0,124 Z" />
+        </group>
+        <path android:fillColor="#1E293B" android:pathData="${circlePath(40, 42, 4)} ${circlePath(60, 42, 4)}" />
+        <path android:fillColor="#FFFFFF" android:fillAlpha="0.85" android:pathData="${circlePath(50, 52, 8)}" />
+        <path android:fillColor="#1E293B" android:pathData="${circlePath(50, 50, 3)}" />
+        <path android:fillColor="#8B5CF6" android:fillAlpha="0.55" android:pathData="${circlePath(31, 52, 4)} ${circlePath(69, 52, 4)}" />
+    </group>`;
+  return vector([ring('reps', 0.72), ring('steps', 0.58), ring('water', 0.62), bear].join('\n'));
+}
+
+/* ---------- Kotlin: the provider and the renderer ---------- */
 
 const WATER_PROVIDER_KT = (pkg) => `package ${pkg}
 
@@ -157,10 +228,13 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Shader
+import android.graphics.SweepGradient
+import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import android.widget.RemoteViews
@@ -169,15 +243,18 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
- * The partner's bear, filling live as they drink.
+ * The partner's day — water, steps, reps — as rings around their water bear.
  *
- * Draws what \`domain/waterWidget\` phrased and coloured; decides only the two
- * things that belong to draw time — whether the payload is still today's, and
- * whether the last drink is recent enough to animate.
+ * Draws what \`domain/waterWidget\` phrased and coloured; decides only what
+ * belongs to draw time: whether the payload is still today's, and whether the
+ * partner was active recently enough to animate.
  */
 class WaterWidgetProvider : AppWidgetProvider() {
 
@@ -197,8 +274,7 @@ class WaterWidgetProvider : AppWidgetProvider() {
     companion object {
         const val KEY = "repchamp.widget.water.v1"
         private const val LIVE_MS = 15L * 60L * 1000L
-        private val MINT = 0xFF6EE7B7.toInt()
-        private val GOLD = 0xFFFDE047.toInt()
+        private val ME_KEYS = arrayOf("meWater", "meSteps", "meReps")
 
         /**
          * Whether a new copy should replace the stored one.
@@ -206,27 +282,57 @@ class WaterWidgetProvider : AppWidgetProvider() {
          * The same state arrives twice — the partner's silent push and this
          * app's copy from the couple document — in either order. A later day
          * always wins; within a day the higher \`rev\` does, so an older copy
-         * can never walk the bear backwards. \`rev\` 0 carries no ordering
-         * (an older partner app, or they are not sharing) and is taken as is.
+         * can never walk the rings backwards. \`rev\` 0 carries no ordering
+         * (an older partner app) and is taken as is.
          */
         fun accept(context: Context, json: String?): Boolean {
             if (json.isNullOrBlank()) return true
-            val old = context.getSharedPreferences("repchamp.widget", Context.MODE_PRIVATE)
-                .getString(KEY, null)
-            if (old.isNullOrBlank()) return true
+            val old = stored(context) ?: return true
             return try {
                 val next = JSONObject(json)
-                val prev = JSONObject(old)
                 val nextDay = next.optString("day")
-                val prevDay = prev.optString("day")
+                val prevDay = old.optString("day")
                 if (nextDay != prevDay) {
                     nextDay > prevDay
                 } else {
                     val rev = next.optLong("rev", 0L)
-                    rev == 0L || rev >= prev.optLong("rev", 0L)
+                    rev == 0L || rev >= old.optLong("rev", 0L)
                 }
             } catch (e: Exception) {
                 true
+            }
+        }
+
+        /**
+         * A push-built copy knows nothing about *my* numbers; keep the ones
+         * this app last wrote for the same day, so the head-to-head survives.
+         */
+        fun withMine(context: Context, json: String): String {
+            return try {
+                val next = JSONObject(json)
+                val old = stored(context) ?: return json
+                if (old.optString("day") != next.optString("day")) return json
+                var changed = false
+                for (k in ME_KEYS) {
+                    if (next.optString(k, "").isBlank() && old.optString(k, "").isNotBlank()) {
+                        next.put(k, old.optString(k))
+                        changed = true
+                    }
+                }
+                if (changed) next.toString() else json
+            } catch (e: Exception) {
+                json
+            }
+        }
+
+        private fun stored(context: Context): JSONObject? {
+            val raw = context.getSharedPreferences("repchamp.widget", Context.MODE_PRIVATE)
+                .getString(KEY, null)
+            if (raw.isNullOrBlank()) return null
+            return try {
+                JSONObject(raw)
+            } catch (e: Exception) {
+                null
             }
         }
 
@@ -237,108 +343,114 @@ class WaterWidgetProvider : AppWidgetProvider() {
             ids.forEach { render(context, manager, it) }
         }
 
+        private fun fraction(snap: JSONObject?, key: String): Float =
+            (snap?.optDouble(key, 0.0) ?: 0.0).toFloat().coerceIn(0f, 1f)
+
         fun render(context: Context, manager: AppWidgetManager, id: Int) {
             val views = RemoteViews(context.packageName, R.layout.water_widget)
-            val raw = context.getSharedPreferences("repchamp.widget", Context.MODE_PRIVATE)
-                .getString(KEY, null)
-            val snap = try {
-                if (raw.isNullOrBlank()) null else JSONObject(raw)
-            } catch (e: Exception) {
-                null
-            }
+            val stored = stored(context)
             val density = context.resources.displayMetrics.density
             val now = System.currentTimeMillis()
+            val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(now))
+            // Yesterday's numbers are not today's: a new day starts every ring empty.
+            val snap = if (stored != null && stored.optString("day") == today) stored else null
 
-            if (snap == null) {
-                // Not paired, or they stopped sharing: say so, with an empty bear.
-                views.setTextViewText(R.id.water_title, context.getString(R.string.water_widget_title_empty))
-                views.setTextViewText(R.id.water_amount, "—")
-                views.setTextViewText(R.id.water_goal, "")
-                views.setTextViewText(R.id.water_status, context.getString(R.string.water_widget_empty))
-                views.setTextColor(R.id.water_status, MINT)
-                views.setViewVisibility(R.id.water_last, View.GONE)
-                views.setViewVisibility(R.id.water_progress, View.GONE)
-                views.setViewVisibility(R.id.water_live, View.GONE)
-                views.setViewVisibility(R.id.water_bubbles_high, View.GONE)
-                views.setViewVisibility(R.id.water_bubbles_low, View.GONE)
-                views.setImageViewBitmap(R.id.water_bear, BearArt.draw(density, 0f, emptyList(), false, now))
-            } else {
-                val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(now))
-                // Yesterday's total is not today's: a new day starts the bear empty.
-                val isToday = snap.optString("day") == today
-                val pct = if (isToday) snap.optDouble("pct", 0.0).toFloat().coerceIn(0f, 1f) else 0f
-                val met = isToday && snap.optBoolean("met", false)
-
-                val layers = ArrayList<Pair<Int, Float>>()
-                val arr = if (isToday) snap.optJSONArray("layers") else null
-                if (arr != null) {
-                    for (i in 0 until arr.length()) {
-                        val o = arr.optJSONObject(i) ?: continue
-                        val color = try {
-                            Color.parseColor(o.optString("c"))
-                        } catch (e: Exception) {
-                            continue
-                        }
-                        layers.add(color to o.optDouble("t", 0.0).toFloat().coerceIn(0f, 1f))
+            val waterPct = fraction(snap, "pct")
+            val stepsPct = fraction(snap, "stepsPct")
+            val repsPct = fraction(snap, "repsPct")
+            val layers = ArrayList<Pair<Int, Float>>()
+            val arr = snap?.optJSONArray("layers")
+            if (arr != null) {
+                for (i in 0 until arr.length()) {
+                    val o = arr.optJSONObject(i) ?: continue
+                    val color = try {
+                        Color.parseColor(o.optString("c"))
+                    } catch (e: Exception) {
+                        continue
                     }
+                    layers.add(color to o.optDouble("t", 0.0).toFloat().coerceIn(0f, 1f))
                 }
+            }
 
-                views.setTextViewText(R.id.water_title, snap.optString("title").uppercase(Locale.getDefault()))
-                views.setTextViewText(R.id.water_amount, if (isToday) snap.optString("amount") else "0 ml")
-                views.setTextViewText(R.id.water_goal, snap.optString("goal"))
-                views.setTextViewText(
-                    R.id.water_status,
-                    if (isToday) snap.optString("status") else context.getString(R.string.water_widget_new_day)
-                )
-                views.setTextColor(R.id.water_status, if (met) GOLD else MINT)
-                views.setViewVisibility(R.id.water_progress, View.VISIBLE)
-                views.setProgressBar(R.id.water_progress, 1000, (pct * 1000f).roundToInt(), false)
-
-                val last = if (isToday) snap.optString("last", "") else ""
-                val lastAt = snap.optLong("lastAt", 0L)
-                if (last.isBlank()) {
-                    views.setViewVisibility(R.id.water_last, View.GONE)
-                } else {
-                    val time = if (lastAt > 0L) {
-                        " · " + android.text.format.DateFormat.getTimeFormat(context).format(Date(lastAt))
+            when {
+                stored == null -> {
+                    views.setTextViewText(R.id.pt_title, context.getString(R.string.pt_title_empty))
+                    views.setTextViewText(R.id.pt_footer, context.getString(R.string.pt_empty))
+                }
+                snap == null -> {
+                    views.setTextViewText(R.id.pt_title, stored.optString("title"))
+                    views.setTextViewText(R.id.pt_footer, context.getString(R.string.pt_new_day))
+                }
+                else -> {
+                    views.setTextViewText(R.id.pt_title, snap.optString("title"))
+                    val footerAt = snap.optLong("footerAt", 0L)
+                    val time = if (footerAt > 0L) {
+                        " · " + android.text.format.DateFormat.getTimeFormat(context).format(Date(footerAt))
                     } else {
                         ""
                     }
-                    views.setTextViewText(R.id.water_last, last + time)
-                    views.setViewVisibility(R.id.water_last, View.VISIBLE)
+                    views.setTextViewText(R.id.pt_footer, snap.optString("footer") + time)
                 }
-
-                /* Fresh: they drank in the last fifteen minutes. A minute of
-                   grace for the other phone's clock being slightly ahead. */
-                val age = now - lastAt
-                val fresh = isToday && lastAt > 0L && age >= -60_000L && age <= LIVE_MS
-                views.setViewVisibility(R.id.water_live, if (fresh) View.VISIBLE else View.GONE)
-                views.setViewVisibility(
-                    R.id.water_bubbles_high,
-                    if (fresh && pct >= 0.5f) View.VISIBLE else View.GONE
-                )
-                views.setViewVisibility(
-                    R.id.water_bubbles_low,
-                    if (fresh && pct >= 0.2f && pct < 0.5f) View.VISIBLE else View.GONE
-                )
-                if (fresh) scheduleCalm(context, lastAt + LIVE_MS + 5_000L)
-
-                views.setImageViewBitmap(R.id.water_bear, BearArt.draw(density, pct, layers, met, now))
             }
 
-            val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
-            if (launch != null) {
-                val pending = PendingIntent.getActivity(
-                    context, 7300, launch,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
-                views.setOnClickPendingIntent(R.id.water_root, pending)
-            }
+            views.setTextViewText(R.id.pt_water_value, snap?.optString("amount") ?: "0 ml")
+            views.setTextViewText(R.id.pt_water_goal, snap?.optString("goal") ?: "")
+            views.setTextViewText(R.id.pt_steps_value, snap?.optString("steps") ?: "—")
+            views.setTextViewText(R.id.pt_steps_goal, snap?.optString("stepsGoal") ?: "")
+            views.setTextViewText(R.id.pt_reps_value, snap?.optString("reps") ?: "0")
+            views.setTextViewText(R.id.pt_reps_goal, snap?.optString("repsDetail") ?: "reps")
+            you(context, views, R.id.pt_water_you, snap?.optString("meWater"))
+            you(context, views, R.id.pt_steps_you, snap?.optString("meSteps"))
+            you(context, views, R.id.pt_reps_you, snap?.optString("meReps"))
+
+            /* Fresh: active — a drink or a set — in the last fifteen minutes.
+               A minute of grace for the other phone's clock running ahead. */
+            val activeAt = snap?.optLong("activeAt", 0L) ?: 0L
+            val lastAt = snap?.optLong("lastAt", 0L) ?: 0L
+            val fresh = activeAt > 0L && now - activeAt >= -60_000L && now - activeAt <= LIVE_MS
+            val drankFresh = lastAt > 0L && now - lastAt >= -60_000L && now - lastAt <= LIVE_MS
+            val allMet = snap?.optBoolean("allMet", false) ?: false
+            val anyClosed = waterPct >= 1f || stepsPct >= 1f || repsPct >= 1f
+
+            show(views, R.id.pt_live, fresh)
+            show(views, R.id.pt_orbit, fresh)
+            show(views, R.id.pt_bubbles_high, drankFresh && waterPct >= 0.5f)
+            show(views, R.id.pt_bubbles_low, drankFresh && waterPct >= 0.2f && waterPct < 0.5f)
+            show(views, R.id.pt_twinkle, allMet || (fresh && anyClosed))
+            if (fresh) scheduleCalm(context, activeAt + LIVE_MS + 5_000L)
+
+            views.setImageViewBitmap(
+                R.id.pt_rings,
+                RingArt.draw(density, waterPct, stepsPct, repsPct, layers, snap?.optBoolean("met", false) ?: false, now)
+            )
+
+            // Tapping opens the partner's day in the app.
+            val open = Intent(Intent.ACTION_VIEW, Uri.parse("repchamp://couple/partner"))
+                .setPackage(context.packageName)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val pending = PendingIntent.getActivity(
+                context, 7300, open,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.pt_root, pending)
 
             manager.updateAppWidget(id, views)
         }
 
-        /** Redraw once the live window closes, so the bubbles stop on their own. */
+        private fun show(views: RemoteViews, id: Int, on: Boolean) {
+            views.setViewVisibility(id, if (on) View.VISIBLE else View.GONE)
+        }
+
+        private fun you(context: Context, views: RemoteViews, id: Int, value: String?) {
+            if (value.isNullOrBlank()) {
+                views.setViewVisibility(id, View.GONE)
+            } else {
+                views.setTextViewText(id, context.getString(R.string.pt_you, value))
+                views.setViewVisibility(id, View.VISIBLE)
+            }
+        }
+
+        /** Redraw once the live window closes, so the animations stop on their own. */
         private fun scheduleCalm(context: Context, at: Long) {
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(ComponentName(context, WaterWidgetProvider::class.java))
@@ -351,15 +463,88 @@ class WaterWidgetProvider : AppWidgetProvider() {
             )
             val alarms = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
             // Inexact on purpose: needs no exact-alarm permission, and a few
-            // minutes' slack on "stop the bubbles" costs nothing.
+            // minutes' slack on "stop animating" costs nothing.
             alarms.set(AlarmManager.RTC, at, pending)
         }
     }
 }
 
 /**
- * The bear, drawn to a bitmap — the same shapes and colours as BearJar.tsx,
- * in the partner's lavender theme.
+ * Three activity rings — reps outside, steps, water inside — around the
+ * partner's water bear, in a 100 x 100 box.
+ */
+object RingArt {
+    private const val STROKE = ${RING.stroke}f
+    private val WATER = intArrayOf(Color.parseColor("${RING_COLORS.water[0]}"), Color.parseColor("${RING_COLORS.water[1]}"))
+    private val STEPS = intArrayOf(Color.parseColor("${RING_COLORS.steps[0]}"), Color.parseColor("${RING_COLORS.steps[1]}"))
+    private val REPS = intArrayOf(Color.parseColor("${RING_COLORS.reps[0]}"), Color.parseColor("${RING_COLORS.reps[1]}"))
+
+    fun draw(
+        density: Float,
+        water: Float,
+        steps: Float,
+        reps: Float,
+        layers: List<Pair<Int, Float>>,
+        met: Boolean,
+        now: Long
+    ): Bitmap {
+        val size = (118f * density).roundToInt().coerceIn(160, 360)
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        c.scale(size / 100f, size / 100f)
+
+        ring(c, ${RING.reps}f, reps, REPS)
+        ring(c, ${RING.steps}f, steps, STEPS)
+        ring(c, ${RING.water}f, water, WATER)
+
+        c.save()
+        c.translate(${round(BEAR_LEFT)}f, ${round(BEAR_TOP)}f)
+        c.scale(${Math.round(BEAR_SCALE * 1000) / 1000}f, ${Math.round(BEAR_SCALE * 1000) / 1000}f)
+        BearArt.drawInto(c, water, layers, met, now)
+        c.restore()
+        return bmp
+    }
+
+    /** One ring: a faint track, a gradient arc from twelve o'clock, round caps. */
+    private fun ring(c: Canvas, r: Float, pct: Float, colors: IntArray) {
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = STROKE
+        paint.color = colors[0]
+        paint.alpha = 52
+        c.drawCircle(50f, 50f, r, paint)
+        if (pct <= 0.004f) return
+
+        paint.alpha = 255
+        val sweep = 360f * min(pct, 1f)
+        val shader = SweepGradient(50f, 50f, colors, floatArrayOf(0f, max(sweep / 360f, 0.02f)))
+        val m = Matrix()
+        m.setRotate(-90f, 50f, 50f)
+        shader.setLocalMatrix(m)
+        paint.shader = shader
+        paint.strokeCap = Paint.Cap.ROUND
+        c.drawArc(RectF(50f - r, 50f - r, 50f + r, 50f + r), -90f, sweep, false, paint)
+        paint.shader = null
+
+        // The start cap in the start colour — the sweep would paint it the end's.
+        val fill = Paint(Paint.ANTI_ALIAS_FLAG)
+        fill.color = colors[0]
+        c.drawCircle(50f, 50f - r, STROKE / 2f, fill)
+
+        // The leading cap, lifted with a soft shadow the way a closed ring overlaps itself.
+        val a = (sweep - 90f) * (PI.toFloat() / 180f)
+        val x = 50f + r * cos(a)
+        val y = 50f + r * sin(a)
+        val cap = Paint(Paint.ANTI_ALIAS_FLAG)
+        cap.color = colors[1]
+        if (pct >= 1f) cap.setShadowLayer(1.6f, 0f, 0f, Color.argb(110, 0, 0, 0))
+        c.drawCircle(x, y, STROKE / 2f, cap)
+    }
+}
+
+/**
+ * The bear — the same shapes and colours as BearJar.tsx, in the partner's
+ * lavender theme — drawn into a 100 x 124 box.
  */
 object BearArt {
     private const val TOP = 7f + 2f
@@ -379,13 +564,12 @@ object BearArt {
 
     private fun silhouette(): Path {
         val p = Path()
-        val parts = listOf(
+        listOf(
             Path().apply { addCircle(25f, 22f, 13f, Path.Direction.CW) },
             Path().apply { addCircle(75f, 22f, 13f, Path.Direction.CW) },
             Path().apply { addCircle(50f, 42f, 30f, Path.Direction.CW) },
             Path().apply { addOval(RectF(12f, 55f, 88f, 121f), Path.Direction.CW) }
-        )
-        parts.forEach { p.op(it, Path.Op.UNION) }
+        ).forEach { p.op(it, Path.Op.UNION) }
         return p
     }
 
@@ -409,12 +593,7 @@ object BearArt {
         close()
     }
 
-    fun draw(density: Float, pct: Float, layers: List<Pair<Int, Float>>, met: Boolean, now: Long): Bitmap {
-        val w = (84f * density).roundToInt().coerceIn(120, 280)
-        val h = (w * 1.24f).roundToInt()
-        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        val c = Canvas(bmp)
-        c.scale(w / 100f, w / 100f)
+    fun drawInto(c: Canvas, pct: Float, layers: List<Pair<Int, Float>>, met: Boolean, now: Long) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         val sil = silhouette()
 
@@ -429,7 +608,6 @@ object BearArt {
         c.drawPath(sil, paint)
         paint.shader = null
 
-        // Inner ears.
         paint.color = TINT
         paint.alpha = 140
         c.drawCircle(25f, 22f, 6.5f, paint)
@@ -445,8 +623,7 @@ object BearArt {
                 val (color, t) = layers[i]
                 if (t <= 0f) continue
                 val y = BOTTOM - t * (BOTTOM - TOP)
-                val top = i == layers.lastIndex
-                val band = surface(y, if (top) 2.2f else 1.1f, phase + i * 1.3f)
+                val band = surface(y, if (i == layers.lastIndex) 2.4f else 1.2f, phase + i * 1.3f)
                 band.lineTo(102f, 130f)
                 band.lineTo(-2f, 130f)
                 band.close()
@@ -459,14 +636,13 @@ object BearArt {
                 c.drawPath(band, paint)
             }
             paint.shader = null
-            // A bright line along the surface, so it reads as liquid, not paint.
             val t = layers.last().second
             paint.style = Paint.Style.STROKE
-            paint.strokeWidth = 1.6f
+            paint.strokeWidth = 2f
             paint.strokeCap = Paint.Cap.ROUND
             paint.color = Color.WHITE
-            paint.alpha = 120
-            c.drawPath(surface(BOTTOM - t * (BOTTOM - TOP), 2.2f, phase + layers.lastIndex * 1.3f), paint)
+            paint.alpha = 130
+            c.drawPath(surface(BOTTOM - t * (BOTTOM - TOP), 2.4f, phase + layers.lastIndex * 1.3f), paint)
             paint.alpha = 255
             paint.style = Paint.Style.FILL
             c.restore()
@@ -477,43 +653,41 @@ object BearArt {
         paint.strokeCap = Paint.Cap.ROUND
         paint.color = Color.WHITE
         paint.alpha = 180
-        paint.strokeWidth = 3.2f
+        paint.strokeWidth = 3.6f
         c.drawPath(Path().apply { moveTo(22f, 76f); quadTo(18f, 92f, 26f, 106f) }, paint)
         paint.alpha = 190
-        paint.strokeWidth = 2.6f
+        paint.strokeWidth = 3f
         c.drawPath(Path().apply { moveTo(30f, 26f); quadTo(34f, 20f, 40f, 18f) }, paint)
         paint.alpha = 255
         paint.style = Paint.Style.FILL
 
-        // Face, always above the drink.
+        // Face, always above the drink — drawn a touch bolder, since the bear is small here.
         paint.color = INK
-        c.drawOval(RectF(36.4f, 37.6f, 43.6f, 46.4f), paint)
-        c.drawOval(RectF(56.4f, 37.6f, 63.6f, 46.4f), paint)
+        c.drawOval(RectF(35.6f, 36.8f, 44.4f, 47.2f), paint)
+        c.drawOval(RectF(55.6f, 36.8f, 64.4f, 47.2f), paint)
         paint.color = Color.WHITE
-        c.drawCircle(41.3f, 40.4f, 1.2f, paint)
-        c.drawCircle(61.3f, 40.4f, 1.2f, paint)
+        c.drawCircle(41.6f, 40.2f, 1.6f, paint)
+        c.drawCircle(61.6f, 40.2f, 1.6f, paint)
         paint.alpha = 217
-        c.drawOval(RectF(41f, 45.5f, 59f, 58.5f), paint)
+        c.drawOval(RectF(40f, 45f, 60f, 59f), paint)
         paint.alpha = 255
         paint.color = INK
-        c.drawOval(RectF(46.8f, 47.7f, 53.2f, 52.3f), paint)
+        c.drawOval(RectF(46.3f, 47.3f, 53.7f, 52.7f), paint)
         paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 1.4f
-        c.drawPath(Path().apply { moveTo(46.5f, 54f); quadTo(50f, 57.5f, 53.5f, 54f) }, paint)
+        paint.strokeWidth = 1.8f
+        paint.strokeCap = Paint.Cap.ROUND
+        c.drawPath(Path().apply { moveTo(46f, 54.5f); quadTo(50f, 58.5f, 54f, 54.5f) }, paint)
         paint.style = Paint.Style.FILL
         paint.color = TINT
         paint.alpha = 153
-        c.drawOval(RectF(26f, 49f, 36f, 55f), paint)
-        c.drawOval(RectF(64f, 49f, 74f, 55f), paint)
+        c.drawOval(RectF(25f, 48.5f, 36f, 55.5f), paint)
+        c.drawOval(RectF(64f, 48.5f, 75f, 55.5f), paint)
         paint.alpha = 255
 
-        // Goal met: a little sparkle beside the ear.
         if (met) {
             paint.color = SPARK
-            c.drawPath(star(90f, 12f, 7f), paint)
-            c.drawPath(star(95.5f, 26f, 3.8f), paint)
+            c.drawPath(star(90f, 10f, 9f), paint)
         }
-        return bmp
     }
 }
 `;
@@ -546,7 +720,7 @@ class RepChampMessagingService : ExpoFirebaseMessagingService() {
                     } else {
                         val json = widget.toString()
                         if (!WaterWidgetProvider.accept(this, json)) return
-                        prefs.putString(WaterWidgetProvider.KEY, json)
+                        prefs.putString(WaterWidgetProvider.KEY, WaterWidgetProvider.withMine(this, json))
                     }
                     prefs.apply()
                     WaterWidgetProvider.refresh(this)
@@ -561,50 +735,117 @@ class RepChampMessagingService : ExpoFirebaseMessagingService() {
 }
 `;
 
+/* ---------- Layout ---------- */
+
+const metricRow = (key, value, goal, you, first) => `
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="${first ? 6 : 3}dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/pt_${key}_value"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="${value}"
+                android:maxLines="1"
+                android:textColor="@color/pt_${key}"
+                android:textSize="17sp"
+                android:fontFamily="sans-serif"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/pt_${key}_goal"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="5dp"
+                android:text="${goal}"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="@color/pt_secondary"
+                android:textSize="11sp"
+                android:fontFamily="sans-serif-medium" />
+
+            <TextView
+                android:id="@+id/pt_${key}_you"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:paddingStart="7dp"
+                android:paddingEnd="7dp"
+                android:paddingTop="1dp"
+                android:paddingBottom="1dp"
+                android:background="@drawable/pt_chip"
+                android:text="${you}"
+                android:maxLines="1"
+                android:textColor="@color/pt_secondary"
+                android:textSize="10sp"
+                android:fontFamily="sans-serif-medium" />
+        </LinearLayout>`;
+
 const WATER_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
-<!-- RemoteViews-safe views only. The two ProgressBars over the bear are the
-     animation: launchers run an indeterminate ProgressBar's animation-list,
-     which is the one way a widget can move without the app. -->
+<!-- RemoteViews-safe views only. The ProgressBars stacked on the rings are
+     the micro-animations: launchers run an indeterminate ProgressBar's
+     drawable, which is the one way a widget can move without the app. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/water_root"
+    android:id="@+id/pt_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="horizontal"
     android:gravity="center_vertical"
-    android:paddingStart="14dp"
-    android:paddingEnd="16dp"
-    android:paddingTop="12dp"
-    android:paddingBottom="12dp"
-    android:background="@drawable/water_widget_bg">
+    android:padding="14dp"
+    android:background="@drawable/pt_bg">
 
     <FrameLayout
-        android:layout_width="84dp"
-        android:layout_height="104dp">
+        android:layout_width="118dp"
+        android:layout_height="118dp">
 
         <ImageView
-            android:id="@+id/water_bear"
+            android:id="@+id/pt_rings"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:scaleType="fitCenter"
-            android:contentDescription="@string/water_widget_bear"
-            android:src="@drawable/water_bear_preview" />
+            android:contentDescription="@string/pt_rings"
+            android:src="@drawable/pt_preview" />
 
         <ProgressBar
-            android:id="@+id/water_bubbles_high"
+            android:id="@+id/pt_orbit"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:indeterminate="true"
             android:indeterminateOnly="true"
-            android:indeterminateDrawable="@drawable/water_bubbles_high"
+            android:indeterminateDuration="2600"
+            android:indeterminateDrawable="@drawable/pt_orbit"
             android:visibility="gone" />
 
         <ProgressBar
-            android:id="@+id/water_bubbles_low"
+            android:id="@+id/pt_bubbles_high"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:indeterminate="true"
             android:indeterminateOnly="true"
-            android:indeterminateDrawable="@drawable/water_bubbles_low"
+            android:indeterminateDrawable="@drawable/pt_bubbles_high"
+            android:visibility="gone" />
+
+        <ProgressBar
+            android:id="@+id/pt_bubbles_low"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:indeterminate="true"
+            android:indeterminateOnly="true"
+            android:indeterminateDrawable="@drawable/pt_bubbles_low"
+            android:visibility="gone" />
+
+        <ProgressBar
+            android:id="@+id/pt_twinkle"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:indeterminate="true"
+            android:indeterminateOnly="true"
+            android:indeterminateDrawable="@drawable/pt_twinkle"
             android:visibility="gone" />
     </FrameLayout>
 
@@ -612,7 +853,7 @@ const WATER_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:layout_marginStart="12dp"
+        android:layout_marginStart="14dp"
         android:orientation="vertical">
 
         <LinearLayout
@@ -622,20 +863,20 @@ const WATER_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
             android:gravity="center_vertical">
 
             <TextView
-                android:id="@+id/water_title"
+                android:id="@+id/pt_title"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="@string/water_widget_preview_title"
+                android:text="@string/pt_preview_title"
                 android:maxLines="1"
                 android:ellipsize="end"
-                android:textColor="@color/water_widget_eyebrow"
-                android:textSize="10sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.14" />
+                android:textColor="@color/pt_text"
+                android:textSize="14sp"
+                android:fontFamily="sans-serif"
+                android:textStyle="bold" />
 
             <LinearLayout
-                android:id="@+id/water_live"
+                android:id="@+id/pt_live"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
@@ -644,88 +885,39 @@ const WATER_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
                 android:paddingEnd="7dp"
                 android:paddingTop="2dp"
                 android:paddingBottom="2dp"
-                android:background="@drawable/water_live_pill">
+                android:background="@drawable/pt_live_pill">
 
                 <ProgressBar
                     android:layout_width="8dp"
                     android:layout_height="8dp"
                     android:indeterminate="true"
                     android:indeterminateOnly="true"
-                    android:indeterminateDrawable="@drawable/water_live_pulse" />
+                    android:indeterminateDrawable="@drawable/pt_live_pulse" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="4dp"
-                    android:text="@string/water_widget_live"
-                    android:textColor="@color/water_widget_live"
+                    android:text="@string/pt_live"
+                    android:textColor="@color/pt_live"
                     android:textSize="9sp"
                     android:textStyle="bold"
-                    android:letterSpacing="0.1" />
+                    android:letterSpacing="0.08" />
             </LinearLayout>
         </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:orientation="horizontal"
-            android:baselineAligned="true">
-
-            <TextView
-                android:id="@+id/water_amount"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="1.25 L"
-                android:maxLines="1"
-                android:textColor="#FFFFFF"
-                android:textSize="28sp"
-                android:fontFamily="sans-serif-black" />
-
-            <TextView
-                android:id="@+id/water_goal"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:text="of 2 L"
-                android:maxLines="1"
-                android:textColor="@color/water_widget_muted"
-                android:textSize="13sp"
-                android:fontFamily="sans-serif-medium" />
-        </LinearLayout>
-
-        <ProgressBar
-            android:id="@+id/water_progress"
-            style="?android:attr/progressBarStyleHorizontal"
-            android:layout_width="match_parent"
-            android:layout_height="7dp"
-            android:layout_marginTop="7dp"
-            android:max="1000"
-            android:progress="620"
-            android:progressDrawable="@drawable/water_progress" />
+${metricRow('water', '1.25 L', 'of 2 L', 'You 1 L', true)}
+${metricRow('steps', '5,820', 'of 8,000 steps', 'You 4,100', false)}
+${metricRow('reps', '72', 'reps · Squat', 'You 40', false)}
 
         <TextView
-            android:id="@+id/water_status"
+            android:id="@+id/pt_footer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="750 ml to go"
+            android:layout_marginTop="6dp"
+            android:text="@string/pt_preview_footer"
             android:maxLines="1"
             android:ellipsize="end"
-            android:textColor="#6EE7B7"
-            android:textSize="12.5sp"
-            android:fontFamily="sans-serif-medium"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/water_last"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:text="@string/water_widget_preview_last"
-            android:maxLines="1"
-            android:ellipsize="end"
-            android:textColor="@color/water_widget_muted"
+            android:textColor="@color/pt_secondary"
             android:textSize="11sp" />
     </LinearLayout>
 </LinearLayout>
@@ -736,12 +928,12 @@ const WATER_INFO_XML = `<?xml version="1.0" encoding="utf-8"?>
     android:initialLayout="@layout/water_widget"
     android:previewLayout="@layout/water_widget"
     android:description="@string/water_widget_description"
-    android:minWidth="250dp"
-    android:minHeight="110dp"
-    android:minResizeWidth="220dp"
-    android:minResizeHeight="110dp"
-    android:maxResizeWidth="400dp"
-    android:maxResizeHeight="200dp"
+    android:minWidth="280dp"
+    android:minHeight="140dp"
+    android:minResizeWidth="250dp"
+    android:minResizeHeight="130dp"
+    android:maxResizeWidth="420dp"
+    android:maxResizeHeight="220dp"
     android:targetCellWidth="4"
     android:targetCellHeight="2"
     android:resizeMode="horizontal|vertical"
@@ -749,77 +941,107 @@ const WATER_INFO_XML = `<?xml version="1.0" encoding="utf-8"?>
     android:updatePeriodMillis="1800000" />
 `;
 
-/* Deep ocean, not the week widget's brand green: this card is about water,
-   and the drinks' colours read best against dark blue. */
-const WATER_BG_XML = `<?xml version="1.0" encoding="utf-8"?>
+/* A plain system card, the iOS widget idiom: white by day, graphite by night,
+   no gradient competing with the rings. */
+const BG_XML = `<?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <gradient
-        android:startColor="#1E1B4B"
-        android:centerColor="#1E3A8A"
-        android:endColor="#0C4A6E"
-        android:angle="315" />
+    <solid android:color="@color/pt_bg" />
     <corners android:radius="@dimen/widget_radius" />
 </shape>
 `;
 
-const WATER_PROGRESS_XML = `<?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:id="@android:id/background">
-        <shape>
-            <solid android:color="#26FFFFFF" />
-            <corners android:radius="4dp" />
-        </shape>
-    </item>
-    <item android:id="@android:id/progress">
-        <scale android:scaleWidth="100%" android:scaleGravity="left">
-            <shape>
-                <gradient android:startColor="#38BDF8" android:endColor="#A78BFA" android:angle="0" />
-                <corners android:radius="4dp" />
-            </shape>
-        </scale>
-    </item>
-</layer-list>
-`;
-
-const WATER_LIVE_PILL_XML = `<?xml version="1.0" encoding="utf-8"?>
+const CHIP_XML = `<?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <solid android:color="#2A4ADE80" />
+    <solid android:color="@color/pt_chip" />
     <corners android:radius="999dp" />
 </shape>
 `;
 
-const WATER_COLORS_XML = `<?xml version="1.0" encoding="utf-8"?>
+const LIVE_PILL_XML = `<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/pt_live_bg" />
+    <corners android:radius="999dp" />
+</shape>
+`;
+
+/* iOS system colours. Text uses the deeper variants in light mode, where the
+   ring hues are too pale to read at 4.5:1 on white. */
+const COLORS_XML = `<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="water_widget_eyebrow">#A5B4FC</color>
-    <color name="water_widget_muted">#C7D2FE</color>
-    <color name="water_widget_live">#4ADE80</color>
+    <color name="pt_bg">#FFFFFF</color>
+    <color name="pt_text">#000000</color>
+    <color name="pt_secondary">#8A8A8E</color>
+    <color name="pt_chip">#F2F2F7</color>
+    <color name="pt_water">#0A7CC4</color>
+    <color name="pt_steps">#248A3D</color>
+    <color name="pt_reps">#E0184A</color>
+    <color name="pt_live">#248A3D</color>
+    <color name="pt_live_bg">#2234C759</color>
+</resources>
+`;
+
+const COLORS_NIGHT_XML = `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="pt_bg">#1C1C1E</color>
+    <color name="pt_text">#FFFFFF</color>
+    <color name="pt_secondary">#98989F</color>
+    <color name="pt_chip">#2C2C2E</color>
+    <color name="pt_water">#64D2FF</color>
+    <color name="pt_steps">#30D158</color>
+    <color name="pt_reps">#FF375F</color>
+    <color name="pt_live">#30D158</color>
+    <color name="pt_live_bg">#2630D158</color>
 </resources>
 `;
 
 const WATER_STRINGS = {
-  water_widget_label: 'Partner’s water',
-  water_widget_description: 'Your partner’s water today. Their bear fills live as they drink.',
-  water_widget_title_empty: 'PARTNER’S WATER',
-  water_widget_empty: 'Pair up to see their bear fill here',
-  water_widget_new_day: 'No drinks yet today',
-  water_widget_live: 'LIVE',
-  water_widget_bear: 'Your partner’s water bear',
-  water_widget_preview_title: 'ALEX’S WATER',
-  water_widget_preview_last: '☕ Coffee · 250 ml · 3:42 PM',
+  water_widget_label: 'Partner today',
+  water_widget_description: 'Your partner’s water, steps and reps as live rings, next to yours.',
+  pt_title_empty: 'Partner · Today',
+  pt_empty: 'Pair up to see their day here',
+  pt_new_day: 'A new day — nothing yet',
+  pt_live: 'LIVE',
+  pt_you: 'You %1$s',
+  pt_rings: 'Your partner’s water, steps and reps rings',
+  pt_preview_title: 'Alex · Today',
+  pt_preview_footer: '☕ Coffee · 250 ml · 3:42 PM',
 };
 
-/** Every resource file the water widget needs, keyed by path under res/. */
+/** Every resource file the widget needs, keyed by path under res/. */
 function waterResources() {
-  return {
-    'drawable/water_widget_bg.xml': WATER_BG_XML,
-    'drawable/water_progress.xml': WATER_PROGRESS_XML,
-    'drawable/water_live_pill.xml': WATER_LIVE_PILL_XML,
-    'drawable/water_bear_preview.xml': PREVIEW_BEAR_XML,
-    'values/water_widget_colors.xml': WATER_COLORS_XML,
-    ...bubbleDrawables(),
+  const files = {
+    'drawable/pt_bg.xml': BG_XML,
+    'drawable/pt_chip.xml': CHIP_XML,
+    'drawable/pt_live_pill.xml': LIVE_PILL_XML,
+    'drawable/pt_preview.xml': previewRings(),
+    'values/pt_colors.xml': COLORS_XML,
+    'values-night/pt_colors.xml': COLORS_NIGHT_XML,
+    ...glintDrawable(),
+    ...twinkleDrawables(),
     ...pulseDrawables(),
   };
+  for (const [name, set] of Object.entries(BUBBLE_SETS)) {
+    for (let f = 0; f < BUBBLE_FRAMES; f++) files[`drawable/pt_bubbles_${name}_${f}.xml`] = bubbleFrame(f, set);
+    files[`drawable/pt_bubbles_${name}.xml`] = animationList(`pt_bubbles_${name}`, BUBBLE_FRAMES, 120);
+  }
+  return files;
 }
+
+/* Files an earlier version of this widget wrote, removed on prebuild so a
+   non-clean regenerate does not carry dead resources into the APK. */
+const OBSOLETE_RESOURCES = [
+  'drawable/water_widget_bg.xml',
+  'drawable/water_progress.xml',
+  'drawable/water_live_pill.xml',
+  'drawable/water_bear_preview.xml',
+  'drawable/water_live_pulse.xml',
+  'drawable/water_bubbles_high.xml',
+  'drawable/water_bubbles_low.xml',
+  'values/water_widget_colors.xml',
+  ...Array.from({ length: 6 }, (_, i) => `drawable/water_pulse_${i}.xml`),
+  ...Array.from({ length: 10 }, (_, i) => `drawable/water_bubble_high_${i}.xml`),
+  ...Array.from({ length: 10 }, (_, i) => `drawable/water_bubble_low_${i}.xml`),
+];
 
 module.exports = {
   WATER_PROVIDER_KT,
@@ -828,4 +1050,5 @@ module.exports = {
   WATER_INFO_XML,
   WATER_STRINGS,
   waterResources,
+  OBSOLETE_RESOURCES,
 };

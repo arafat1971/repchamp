@@ -41,7 +41,8 @@ export function TodayCard({
 }: {
   water: HydrationProgress;
   steps: StepsState;
-  partner: { name: string; ml: number } | null;
+  /** Present when paired; `ml` null until they share water today. */
+  partner: { name: string; ml: number | null } | null;
   onLogWater: (ml: number) => void;
   onUndoWater?: () => void;
   onStepWaterGoal: (direction: 1 | -1) => void;
@@ -52,10 +53,10 @@ export function TodayCard({
   const met = Number(water.met) + Number(stepRead?.met ?? false);
   /* Their goal is not synced, so their glass fills against the default; the
      label shows only their real amount, never a goal they did not set. */
-  const partnerPercent = partner
-    ? Math.min(100, Math.round((partner.ml / DEFAULT_DAILY_GOAL_ML) * 100))
-    : 0;
-  const bothMet = !!partner && water.met && partner.ml >= DEFAULT_DAILY_GOAL_ML;
+  const partnerMl = partner?.ml ?? null;
+  const partnerPercent =
+    partnerMl == null ? 0 : Math.min(100, Math.round((partnerMl / DEFAULT_DAILY_GOAL_ML) * 100));
+  const bothMet = partnerMl != null && water.met && partnerMl >= DEFAULT_DAILY_GOAL_ML;
   /* Each reason in its own words — "Counting your steps from now" on the first
      read of a day is not "not available on this phone". */
   const stepsNote =
@@ -93,7 +94,9 @@ export function TodayCard({
             </View>
             <View style={[styles.panel, styles.leanLeft]}>
               <WaterGlass id="partner" percent={partnerPercent} />
-              <Text style={styles.panelValue}>{formatMl(partner.ml)}</Text>
+              <Text style={[styles.panelValue, partnerMl == null && styles.panelValueMuted]}>
+                {partnerMl == null ? '—' : formatMl(partnerMl)}
+              </Text>
               <Text style={styles.panelSub} numberOfLines={1}>
                 {partner.name}
               </Text>
@@ -102,9 +105,11 @@ export function TodayCard({
           <Text style={[styles.toastLine, bothMet && styles.toastLineMet]}>
             {bothMet
               ? `Cheers! You and ${partner.name} both hit your water goal`
-              : water.ml >= partner.ml
-                ? `You're ${formatMl(water.ml - partner.ml)} ahead of ${partner.name}`
-                : `${partner.name} is ${formatMl(partner.ml - water.ml)} ahead — top up`}
+              : partnerMl == null
+                ? `No water shared by ${partner.name} yet today`
+                : water.ml >= partnerMl
+                  ? `You're ${formatMl(water.ml - partnerMl)} ahead of ${partner.name}`
+                  : `${partner.name} is ${formatMl(partnerMl - water.ml)} ahead — top up`}
           </Text>
         </>
       ) : (
@@ -207,6 +212,7 @@ const styles = StyleSheet.create({
   stepsTitle: font('extrabold', 15, { color: palette.white }),
   panels: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-end', marginTop: 14 },
   panel: { alignItems: 'center', flex: 1 },
+  panelValueMuted: { color: 'rgba(255,255,255,0.4)' },
   panelValue: { ...font('extrabold', 16, { color: palette.white }), marginTop: 10 },
   panelSub: font('medium', 11.5, { color: 'rgba(255,255,255,0.55)' }),
   fixButton: {

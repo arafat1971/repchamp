@@ -155,6 +155,15 @@ export default function HomeScreen() {
     return ml == null || !name ? null : { name, ml };
   }, [couple.partner, today]);
 
+  /* The partner's glass on the Today card: present whenever paired, with
+     `ml` null until they share water today — so the toast does not vanish
+     every morning and reappear once they drink. */
+  const partnerGlass = useMemo(() => {
+    const name = couple.partner?.displayName;
+    if (!couple.paired || !name) return null;
+    return { name, ml: partnerWaterToday(couple.partner, today) };
+  }, [couple.paired, couple.partner, today]);
+
   const coupleId = couple.couple?.id ?? null;
   const myUid = couple.me?.uid ?? null;
 
@@ -457,7 +466,7 @@ export default function HomeScreen() {
           <Text style={font('bold', 12.5, { color: palette.green600 })}>View all ›</Text>
         </PressableScale>
       </View>
-      <StaggerIn index={3} style={styles.quickGrid}>
+      <StaggerIn index={1} style={styles.quickGrid}>
         <QuickTile
           label="Push-Ups"
           locked={soloWalled}
@@ -478,16 +487,15 @@ export default function HomeScreen() {
         />
       </StaggerIn>
 
-
       {/* Faces to race, one tap from Home rather than a tab away. */}
-      <StaggerIn index={1} style={{ marginTop: 18 }}>
+      <StaggerIn index={2} style={{ marginTop: 18 }}>
         <ActiveNowRail />
       </StaggerIn>
 
       {/* The couple as one face-off — replaces the bond strip and the partner
           card, which told the same story twice. */}
       {couple.paired && couple.partner ? (
-        <StaggerIn index={1} style={{ marginTop: 16 }}>
+        <StaggerIn index={3} style={{ marginTop: 16 }}>
           <DuoCard
             me={couple.me}
             partner={couple.partner}
@@ -506,11 +514,11 @@ export default function HomeScreen() {
 
       {/* Today's water as a filling glass and steps as a footprint trail, with
           drinks a tap away. */}
-      <StaggerIn index={2} style={{ marginTop: 16 }}>
+      <StaggerIn index={4} style={{ marginTop: 16 }}>
         <TodayCard
           water={water}
           steps={stepsToday}
-          partner={partnerWater}
+          partner={partnerGlass}
           onLogWater={logWater}
           onUndoWater={todayDrinks.length > 0 ? undoWater : undefined}
           onStepWaterGoal={stepWaterGoal}
@@ -518,7 +526,7 @@ export default function HomeScreen() {
         />
       </StaggerIn>
 
-      <StaggerIn index={2} style={styles.row}>
+      <StaggerIn index={5} style={styles.row}>
         <PressableScale
           onPress={() => router.push('/modal/recap')}
           accessibilityRole="button"

@@ -4,7 +4,7 @@ import { ActivityIndicator, StyleSheet, Text, useWindowDimensions, View } from '
 
 import { track } from '@/lib/analytics';
 import { PressableScale, Screen } from '@/components/ui';
-import { isJoinableByQr, isOwnDuelInvite, parseDuelInvite } from '@/domain/duelInvite';
+import { canJoinByLink, isOwnDuelInvite, parseDuelInvite } from '@/domain/duelInvite';
 import { fetchDuel } from '@/services/duelService';
 import { useAuthStore } from '@/state/authStore';
 import { reservedControlHeight } from '@/theme/fontScale';
@@ -50,7 +50,7 @@ export default function DuelJoinScreen() {
           setError('This is your own duel code — your rival scans it, not you.');
           return;
         }
-        if (!isJoinableByQr(duel)) {
+        if (!canJoinByLink(duel, uid)) {
           setError('Someone already took this duel. Ask your rival for a fresh code.');
           return;
         }

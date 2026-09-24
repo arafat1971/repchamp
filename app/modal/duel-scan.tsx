@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ModalHeader } from '@/components/ModalHeader';
 import { PressableScale, Screen } from '@/components/ui';
 import { showDialog } from '@/state/useDialog';
-import { isJoinableByQr, isOwnDuelInvite, parseDuelInvite } from '@/domain/duelInvite';
+import { canJoinByLink, isOwnDuelInvite, parseDuelInvite } from '@/domain/duelInvite';
 import { classifyScan, landingHref } from '@/domain/scanTarget';
 import { fetchDuel } from '@/services/duelService';
 import { useAuthStore } from '@/state/authStore';
@@ -102,7 +102,7 @@ export default function DuelScanScreen() {
           retry('That’s your own code', 'Show it to your rival — they scan it, not you.');
           return;
         }
-        if (!isJoinableByQr(duel)) {
+        if (!canJoinByLink(duel, uid)) {
           retry('Too late', 'Someone already took this duel. Ask for a fresh code.');
           return;
         }

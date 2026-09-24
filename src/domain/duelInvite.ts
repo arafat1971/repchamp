@@ -93,6 +93,27 @@ export function isJoinableByQr(duel: {
   return duel.status === 'pending' && duel.targetUid === null && duel.guestUid === null;
 }
 
+/**
+ * Whether *this* athlete may take the guest seat from a code or link.
+ *
+ * `isJoinableByQr` is the open-lobby case and mirrors the read rule for
+ * strangers. A direct challenge is the other case: it names a `targetUid`, so
+ * it is never an open lobby — but its "Challenge sent" screen still offers the
+ * code to share, and the one person it was addressed to used to be refused
+ * with "someone already took this duel" (seen on device: the challenged
+ * partner opened the code and got nowhere). The rules already let the target
+ * read and join (`isTarget`, and `isJoin`'s `targetUid == request.auth.uid`),
+ * so this only brings the client check into line. Anyone else is still
+ * refused.
+ */
+export function canJoinByLink(
+  duel: { status: string; targetUid: string | null; hostUid: string; guestUid: string | null },
+  uid: string,
+): boolean {
+  if (isJoinableByQr(duel)) return true;
+  return duel.status === 'pending' && duel.guestUid === null && duel.targetUid === uid;
+}
+
 /** True when this athlete is the one who published the code. */
 export function isOwnDuelInvite(duel: { hostUid: string }, uid: string): boolean {
   return duel.hostUid === uid;

@@ -57,6 +57,7 @@ import {
 } from '@/domain/hydrationReminder';
 import type { DrinkEntry } from '@/domain/hydration';
 import { buildInviteNotification } from '@/domain/inviteNotification';
+import { isDuplicateNudge } from '@/domain/nudgeDedupe';
 import { reminderNotification, type ReminderKind } from '@/domain/partnerReminder';
 import { parseInviteKind } from '@/domain/presence';
 import { buildDailyReminder, buildWeeklyRecap } from '@/domain/reminderCopy';
@@ -205,7 +206,6 @@ let configured = false;
 let suppressCoupleNudgeInForeground = false;
 /** Wall-clock of the last in-app `presentNudge` — used to dedupe FCM only briefly. */
 let lastInAppNudgeAt = 0;
-const IN_APP_NUDGE_DEDUPE_MS = 8_000;
 
 function easProjectId(): string | undefined {
   const id =
@@ -270,14 +270,18 @@ function configureHandler(): void {
   configured = true;
   Notifications.setNotificationHandler({
     handleNotification: async (notification) => {
-      const type = notification.request.content.data?.type;
-      // Only suppress the FCM twin when we *just* showed the Firestore in-app
-      // nudge. Blanket foreground suppress dropped pushes when Firestore was
+      const data = notification.request.content.data;
+      const type = data?.type;
+      // Only suppress the remote twin when we *just* showed the Firestore
+      // in-app nudge — and never the in-app one itself (see `isDuplicateNudge`).
+      // Blanket foreground suppress dropped pushes when Firestore was
       // slow/offline and the partner got neither banner nor presentNudge.
-      const isForegroundDuplicate =
-        type === 'couple-nudge' &&
-        suppressCoupleNudgeInForeground &&
-        Date.now() - lastInAppNudgeAt < IN_APP_NUDGE_DEDUPE_MS;
+      const isForegroundDuplicate = isDuplicateNudge({
+        type,
+        local: data?.local,
+        suppressing: suppressCoupleNudgeInForeground,
+        msSinceInApp: Date.now() - lastInAppNudgeAt,
+      });
       return {
         shouldShowBanner: !isForegroundDuplicate,
         shouldShowList: !isForegroundDuplicate,
@@ -440,9 +444,9 @@ export async function scheduleStreakReminder(
         title: 'Shared streak needs you',
         body: `You and ${partnerName} both need a set today to keep it alive.`,
         data: { type: 'streak-reminder' },
-        ...(Platform.OS === 'android' ? { channelId: channelIdFor('reminders') } : {}),
       },
       trigger: {
+        ...(Platform.OS === 'android' ? { channelId: channelIdFor('reminders') } : {}),
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
         hour,
         minute: 0,
@@ -478,9 +482,9 @@ export async function scheduleDailyTrainingReminder(
         title: copy.title,
         body: copy.body,
         data: { type: 'workout-reminder' },
-        ...(Platform.OS === 'android' ? { channelId: channelIdFor('reminders') } : {}),
       },
       trigger: {
+        ...(Platform.OS === 'android' ? { channelId: channelIdFor('reminders') } : {}),
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
         hour,
         minute: 0,
@@ -518,9 +522,9 @@ async function scheduleDormantReminder(ctx: ReminderContext, hour: number): Prom
         title: copy.title,
         body: copy.body,
         data: { type: 'dormant-reminder' },
-        ...(Platform.OS === 'android' ? { channelId: channelIdFor('reminders') } : {}),
       },
       trigger: {
+        ...(Platform.OS === 'android' ? { channelId: channelIdFor('reminders') } : {}),
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
         hour,
         minute: 0,
@@ -608,9 +612,9 @@ export async function syncHydrationReminders(ctx: {
           title: copy.title,
           body: copy.body,
           data: { type: 'hydration-reminder' },
-          ...(Platform.OS === 'android' ? { channelId: channelIdFor('reminders') } : {}),
         },
         trigger: {
+          ...(Platform.OS === 'android' ? { channelId: channelIdFor('reminders') } : {}),
           type: Notifications.SchedulableTriggerInputTypes.DAILY,
           hour,
           minute: 0,
@@ -649,9 +653,9 @@ export async function scheduleWeeklyRecap(
         title: copy.title,
         body: copy.body,
         data: { type: 'weekly-recap' },
-        ...(Platform.OS === 'android' ? { channelId: channelIdFor('reminders') } : {}),
       },
       trigger: {
+        ...(Platform.OS === 'android' ? { channelId: channelIdFor('reminders') } : {}),
         type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
         weekday,
         hour,
@@ -681,10 +685,10 @@ export async function presentNudge(fromName: string, kind: ReminderKind = 'train
     await Notifications.scheduleNotificationAsync({
       content: {
         ...reminderNotification(kind, fromName),
-        data: { type: 'couple-nudge', kind },
-        ...(Platform.OS === 'android' ? { channelId: channelIdFor('social') } : {}),
+        // `local` marks this as the in-app copy, which is never the duplicate.
+        data: { type: 'couple-nudge', kind, local: true },
       },
-      trigger: null,
+      trigger: Platform.OS === 'android' ? { channelId: channelIdFor('social') } : null,
     });
   } catch {
     // Best-effort — clear the dedupe stamp so a real FCM push can still show.
@@ -727,9 +731,8 @@ export async function presentChallengeInvite(input: {
         body: copy.body,
         data: { type: 'challenge', duelId: input.duelId },
         categoryIdentifier: CHALLENGE_CATEGORY,
-        ...(Platform.OS === 'android' ? { channelId: channelIdFor('social') } : {}),
       },
-      trigger: null,
+      trigger: Platform.OS === 'android' ? { channelId: channelIdFor('social') } : null,
     });
   } catch {
     // Best-effort.
@@ -755,9 +758,8 @@ export async function presentRivalPassed(input: {
         title: 'Rival alert',
         body: `${input.rivalName} just passed your weekly score. Rematch?`,
         data: { type: 'rival-passed' },
-        ...(Platform.OS === 'android' ? { channelId: channelIdFor('social') } : {}),
       },
-      trigger: null,
+      trigger: Platform.OS === 'android' ? { channelId: channelIdFor('social') } : null,
     });
     // Latch only after a successful present — a failed schedule must not burn the week.
     storage.set(RIVAL_PASSED_KEY, input.weekKey);

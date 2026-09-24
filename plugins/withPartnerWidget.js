@@ -51,6 +51,9 @@ const WIDGETS = [
     prefsKey: 'repchamp.widget.partner.v1',
     layout: 'partner_widget',
     info: 'partner_widget_info',
+    /* The name in the launcher's widget picker; without one, every widget is
+       listed under the app's name and they cannot be told apart. */
+    label: 'widget_label_week',
     /* `provider`, `layoutXml` and `infoXml` are attached further down, once
        those templates are declared — they are large enough that inlining
        them here would bury the registry they belong to. */
@@ -62,6 +65,7 @@ const WIDGETS = [
     prefsKey: 'repchamp.widget.water.v1',
     layout: 'water_widget',
     info: 'water_widget_info',
+    label: 'water_widget_label',
   },
 ];
 
@@ -622,6 +626,7 @@ const STRINGS = {
   widget_partner_short: 'Partner',
   widget_today: 'TODAY',
   widget_preview_nudge: 'Your turn — train to make it a shared day',
+  widget_label_week: 'Partner’s week',
 };
 
 function write(file, contents) {
@@ -717,10 +722,15 @@ const withWidgetManifest = (config) =>
        same UID. */
     for (const widget of WIDGETS) {
       const name = `.${widget.className}`;
-      if (app.receiver.some((r) => r.$?.['android:name'] === name)) continue;
+      const label = `@string/${widget.label}`;
+      const existing = app.receiver.find((r) => r.$?.['android:name'] === name);
+      if (existing) {
+        existing.$['android:label'] = label;
+        continue;
+      }
 
       app.receiver.push({
-        $: { 'android:name': name, 'android:exported': 'false' },
+        $: { 'android:name': name, 'android:exported': 'false', 'android:label': label },
         'intent-filter': [
           { action: [{ $: { 'android:name': 'android.appwidget.action.APPWIDGET_UPDATE' } }] },
         ],

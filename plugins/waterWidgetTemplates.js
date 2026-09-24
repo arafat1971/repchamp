@@ -797,6 +797,7 @@ const WATER_COLORS_XML = `<?xml version="1.0" encoding="utf-8"?>
 `;
 
 const WATER_STRINGS = {
+  water_widget_label: 'Partner’s water',
   water_widget_description: 'Your partner’s water today. Their bear fills live as they drink.',
   water_widget_title_empty: 'PARTNER’S WATER',
   water_widget_empty: 'Pair up to see their bear fill here',

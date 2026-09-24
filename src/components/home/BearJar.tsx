@@ -159,6 +159,27 @@ export function BearJar({
                 )}
               </ClipPath>
             ))}
+            {/* Each drink's colour with depth baked in — lighter up top, deeper
+                below, across the whole bear — so a full bear reads as glass
+                of liquid, not a flat block. Opaque, so parts that overlap
+                draw identical pixels and no seam appears. */}
+            {slots.map((slot, k) =>
+              slot.top > 0 ? (
+                <LinearGradient
+                  key={k}
+                  id={`${id}-liquid-${k}`}
+                  x1={0}
+                  y1={0}
+                  x2={0}
+                  y2={VB_H}
+                  gradientUnits="userSpaceOnUse"
+                >
+                  <Stop offset={0} stopColor={mix(slot.color, '#ffffff', 0.28)} />
+                  <Stop offset={0.55} stopColor={slot.color} />
+                  <Stop offset={1} stopColor={mix(slot.color, '#0b1b3f', 0.22)} />
+                </LinearGradient>
+              ) : null,
+            )}
             <LinearGradient id={glass} x1="0" y1="0" x2="1" y2="1">
               <Stop offset="0" stopColor="#ffffff" stopOpacity={0.95} />
               <Stop offset="1" stopColor={theme.body} stopOpacity={0.95} />
@@ -180,10 +201,15 @@ export function BearJar({
           {BEAR_PARTS.map((_, i) => (
             <G key={i} clipPath={`url(#${clip}-${i})`}>
               {[5, 4, 3, 2, 1, 0].map((k) => (
-                <AnimatedPath key={k} animatedProps={waves[k]} fill={slots[k]!.color} />
+                <AnimatedPath
+                  key={k}
+                  animatedProps={waves[k]}
+                  fill={slots[k]!.top > 0 ? `url(#${id}-liquid-${k})` : 'transparent'}
+                />
               ))}
             </G>
           ))}
+
 
           {/* Glass shine down the belly and on the head. */}
           <Path d="M 22 74 Q 18 90 26 104" stroke="#ffffff" strokeOpacity={0.7} strokeWidth={3.2} fill="none" strokeLinecap="round" />
@@ -220,6 +246,15 @@ export interface BearTheme {
 }
 
 const WATER = '#38bdf8';
+
+/** Blend two #rrggbb colours; `t` is the share of `b`. */
+function mix(a: string, b: string, t: number): string {
+  const pa = parseInt(a.slice(1), 16);
+  const pb = parseInt(b.slice(1), 16);
+  const ch = (shift: number) =>
+    Math.round(((pa >> shift) & 255) * (1 - t) + ((pb >> shift) & 255) * t);
+  return `#${((1 << 24) | (ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).slice(1)}`;
+}
 const SLOTS = 6;
 
 /** Layers as fixed slots with cumulative tops; empty slots have top 0. */

@@ -26,7 +26,7 @@ import { exerciseHomeStats } from '@/domain/exerciseHomeStats';
 import { firstNameOf, selectHomeGreeting } from '@/domain/homeGreeting';
 import { dailyChallengeProgress } from '@/domain/dailyChallenge';
 import { myExerciseBreakdown, partnerWidget } from '@/domain/coupleExercises';
-import { partnerWaterToday } from '@/domain/couple';
+import { partnerStepsToday, partnerWaterToday } from '@/domain/couple';
 import { DEFAULT_DAILY_GOAL_ML, drinksOnDay, hydrationProgress, stepGoalMl } from '@/domain/hydration';
 import { lightImpactHaptic, selectionHaptic } from '@/lib/feedback';
 import { shareDrink, syncHydrationNow, syncStepsNow } from '@/services/hydrationSync';
@@ -550,7 +550,20 @@ export default function HomeScreen() {
         />
       </StaggerIn>
       <StaggerIn index={4} style={{ marginTop: 12 }}>
-        <StepsCard steps={stepsToday} onFixSteps={openStepSettings} />
+        <StepsCard
+          steps={stepsToday}
+          onFixSteps={openStepSettings}
+          me={{ name: firstName || 'You', avatar: profile.avatarUri }}
+          partner={
+            couple.paired && couple.partner
+              ? {
+                  name: couple.partner.displayName,
+                  avatar: couple.partner.avatarUrl ?? null,
+                  steps: partnerStepsToday(couple.partner, today),
+                }
+              : null
+          }
+        />
       </StaggerIn>
 
       <StaggerIn index={5} style={styles.row}>

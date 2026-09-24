@@ -1,5 +1,6 @@
 import { StyleSheet, type TextStyle } from 'react-native';
 
+import { maxFontScale, type TextRole } from './fontScale';
 import { palette } from './tokens';
 
 /**
@@ -129,6 +130,53 @@ export const text = StyleSheet.create({
     color: palette.white,
   },
 });
+
+/**
+ * How far each named style may grow when the athlete turns up system text size.
+ *
+ * Spread onto a `<Text>` as props, not styles — `maxFontSizeMultiplier` is a
+ * prop, and a cap in a StyleSheet is silently ignored:
+ *
+ *   <Text style={text.button} {...scaleFor('button')}>
+ *
+ * The mapping is by the job the text does, which `@/theme/fontScale` explains
+ * in full: copy that reflows and scrolls may grow most, a label trapped inside
+ * a fixed-width control least. At the default text size every cap is inert.
+ */
+const ROLE_OF: Readonly<Record<keyof typeof text, TextRole>> = {
+  h1: 'heading',
+  h2: 'heading',
+  h3: 'heading',
+  section: 'heading',
+  eyebrow: 'heading',
+  cardTitle: 'heading',
+  cardTitleLarge: 'heading',
+  caption: 'body',
+  captionMd: 'body',
+  body: 'body',
+  bodyLg: 'body',
+  stat: 'display',
+  statSm: 'display',
+  button: 'control',
+  buttonSm: 'control',
+  badge: 'control',
+  badgeSm: 'control',
+  tab: 'control',
+  // The 150pt rep counter. It is the largest thing on any screen and sits in a
+  // camera view sized to the device, so it is the one readout that must not
+  // grow at all — hence `display`, the tightest cap.
+  hero: 'display',
+} as const;
+
+/** Scaling props for a named text style. Spread onto the `<Text>`. */
+export function scaleFor(style: keyof typeof text): { maxFontSizeMultiplier: number } {
+  return { maxFontSizeMultiplier: maxFontScale(ROLE_OF[style]) };
+}
+
+/** Scaling props for a role directly, for text built with `font()`. */
+export function scaleForRole(role: TextRole): { maxFontSizeMultiplier: number } {
+  return { maxFontSizeMultiplier: maxFontScale(role) };
+}
 
 /**
  * Escape hatch for one-off sizes that don't deserve a named style.

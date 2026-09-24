@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -6,7 +6,8 @@ import { PopOnChange } from '@/components/motion';
 import { PressableScale } from '@/components/ui';
 import { getExercise, type ExerciseId } from '@/vision/exercises';
 import { syncStreakLabel } from '@/domain/couple';
-import { font } from '@/theme/typography';
+import { reservedControlHeight } from '@/theme/fontScale';
+import { font, scaleForRole } from '@/theme/typography';
 import { palette, radius } from '@/theme/tokens';
 
 function formatClock(seconds: number): string {
@@ -56,6 +57,7 @@ export function TogetherHud({
   onEnd: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const { fontScale } = useWindowDimensions();
   const definition = getExercise(exercise);
   const combined = reps + partnerReps;
 
@@ -164,9 +166,14 @@ export function TogetherHud({
         onPress={onEnd}
         accessibilityRole="button"
         accessibilityLabel="End the together set"
-        style={[styles.end, { bottom: insets.bottom + 44 }]}
+        style={[
+          styles.end,
+          { bottom: insets.bottom + 44, minHeight: reservedControlHeight(58, fontScale) },
+        ]}
       >
-        <Text style={styles.endText}>⚑ End Set</Text>
+        <Text style={styles.endText} {...scaleForRole('control')}>
+          ⚑ End Set
+        </Text>
       </PressableScale>
     </View>
   );
@@ -282,10 +289,10 @@ const styles = StyleSheet.create({
   },
   cueText: font('extrabold', 13, { color: '#062012' }),
   end: {
+    // `minHeight` at render time — see `@/theme/fontScale`.
     position: 'absolute',
     left: 22,
     right: 22,
-    height: 58,
     borderRadius: radius['2xl'],
     backgroundColor: palette.red500,
     alignItems: 'center',

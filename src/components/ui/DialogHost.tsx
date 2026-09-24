@@ -1,8 +1,9 @@
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
 
 import { useDialog, type DialogAction, type DialogTone } from '@/state/useDialog';
-import { font } from '@/theme/typography';
+import { reservedControlHeight } from '@/theme/fontScale';
+import { font, scaleForRole } from '@/theme/typography';
 import { palette, radius, shadow } from '@/theme/tokens';
 import { PressableScale } from './index';
 
@@ -75,15 +76,21 @@ function rank(a: DialogAction): number {
 }
 
 function ActionButton({ action, onPress }: { action: DialogAction; onPress: () => void }) {
+  // A dialog is the one surface an athlete cannot scroll or navigate past, so
+  // a clipped action label here is a dead end rather than an inconvenience.
+  const { fontScale } = useWindowDimensions();
+
   if (action.variant === 'cancel') {
     return (
       <PressableScale
         onPress={onPress}
         accessibilityRole="button"
         accessibilityLabel={action.label}
-        style={styles.cancelBtn}
+        style={[styles.cancelBtn, { minHeight: reservedControlHeight(50, fontScale) }]}
       >
-        <Text style={styles.cancelLabel}>{action.label}</Text>
+        <Text style={styles.cancelLabel} {...scaleForRole('control')}>
+          {action.label}
+        </Text>
       </PressableScale>
     );
   }
@@ -94,9 +101,15 @@ function ActionButton({ action, onPress }: { action: DialogAction; onPress: () =
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={action.label}
-      style={[styles.filledBtn, { backgroundColor: destructive ? palette.red500 : palette.green500 }]}
+      style={[
+        styles.filledBtn,
+        { backgroundColor: destructive ? palette.red500 : palette.green500 },
+        { minHeight: reservedControlHeight(52, fontScale) },
+      ]}
     >
-      <Text style={styles.filledLabel}>{action.label}</Text>
+      <Text style={styles.filledLabel} {...scaleForRole('control')}>
+        {action.label}
+      </Text>
     </PressableScale>
   );
 }
@@ -140,18 +153,20 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   actions: { alignSelf: 'stretch', marginTop: 20, gap: 8 },
+  // Both buttons take their `minHeight` at render time from the live font
+  // scale. A fixed `height` here would clip the label it wraps.
   filledBtn: {
-    height: 52,
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 16,
   },
   filledLabel: font('extrabold', 15, { color: palette.white, letterSpacing: 0.2 }),
   cancelBtn: {
-    height: 50,
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 16,
   },
   cancelLabel: font('extrabold', 15, { color: palette.slate500 }),
 });

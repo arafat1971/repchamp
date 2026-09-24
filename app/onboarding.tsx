@@ -10,6 +10,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import type { PurchasesPackage } from 'react-native-purchases';
@@ -74,7 +75,8 @@ import {
 } from '@/lib/notifications';
 import { isValidUsername, usernameError as usernameValidationError } from '@/domain/input';
 import { useProfileStore } from '@/state/profileStore';
-import { font, text } from '@/theme/typography';
+import { reservedControlHeight } from '@/theme/fontScale';
+import { font, scaleForRole, text } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
 
 /**
@@ -847,18 +849,23 @@ function SignedIn({ message, holdMs }: { message: string; holdMs: number }) {
  * reflow the moment it is tapped.
  */
 function GoogleButton({ busy, onPress }: { busy: boolean; onPress: () => void }) {
+  const { fontScale } = useWindowDimensions();
   return (
     <PressableScale
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ busy, disabled: busy }}
       accessibilityLabel="Continue with Google"
-      style={[styles.socialButton, busy && styles.socialButtonBusy]}
+      style={[
+        styles.socialButton,
+        busy && styles.socialButtonBusy,
+        { minHeight: reservedControlHeight(54, fontScale) },
+      ]}
     >
       <View style={styles.socialGlyph}>
         {busy ? <ActivityIndicator size="small" color={palette.grey600} /> : <GoogleMark size={20} />}
       </View>
-      <Text style={font('extrabold', 15, { color: palette.ink })}>
+      <Text style={font('extrabold', 15, { color: palette.ink })} {...scaleForRole('control')}>
         {busy ? 'Signing in…' : 'Continue with Google'}
       </Text>
     </PressableScale>
@@ -1028,6 +1035,7 @@ function Username({
   /** Jumps straight to sign-in for someone who already has an account. */
   onSignIn: () => void;
 }) {
+  const { fontScale } = useWindowDimensions();
   const valid = isValidUsername(value);
   const borderColor = error ? palette.red500 : valid ? palette.green500 : palette.border;
 
@@ -1038,8 +1046,15 @@ function Username({
         This is the name your rivals will see on the leaderboard.
       </Text>
 
-      <View style={[styles.usernameField, { borderColor }]}>
-        <Text style={font('extrabold', 18, { color: palette.grey450 })}>@</Text>
+      <View
+        style={[
+          styles.usernameField,
+          { borderColor, minHeight: reservedControlHeight(60, fontScale) },
+        ]}
+      >
+        <Text style={font('extrabold', 18, { color: palette.grey450 })} {...scaleForRole('control')}>
+          @
+        </Text>
         <TextInput
           value={value}
           onChangeText={onChange}
@@ -1186,6 +1201,7 @@ function Frequency({
   onChange: (v: number) => void;
   onNext: () => void;
 }) {
+  const { fontScale } = useWindowDimensions();
   const title =
     value <= 2 ? 'Easy does it' : value <= 4 ? 'Great habit' : value <= 6 ? 'On fire' : 'Elite mode';
   const note =
@@ -1225,12 +1241,13 @@ function Frequency({
               accessibilityRole="radio"
               accessibilityState={{ selected: value === d }}
               accessibilityLabel={`${d} days per week`}
-              style={styles.dayChip}
+              style={[styles.dayChip, { minHeight: reservedControlHeight(40, fontScale) }]}
             >
               <Text
                 style={font('extrabold', 14, {
                   color: value === d ? palette.white : palette.grey600,
                 })}
+                {...scaleForRole('control')}
               >
                 {d}
               </Text>
@@ -2186,6 +2203,7 @@ function DayThumb({ value }: { value: number }) {
 }
 
 function Challenge({ username, onNext }: { username: string; onNext: () => void }) {
+  const { fontScale } = useWindowDimensions();
   const rival = OPPONENTS[0]!;
   const pulse = useSharedValue(0);
 
@@ -2244,8 +2262,14 @@ function Challenge({ username, onNext }: { username: string; onNext: () => void 
 
       <View style={{ flex: 1 }} />
       <PrimaryButton label={`Race ${rival.name}`} onPress={onNext} />
-      <Pressable onPress={onNext} accessibilityRole="button" style={styles.declineButton}>
-        <Text style={font('extrabold', 15, { color: palette.ink })}>Not right now</Text>
+      <Pressable
+        onPress={onNext}
+        accessibilityRole="button"
+        style={[styles.declineButton, { minHeight: reservedControlHeight(54, fontScale) }]}
+      >
+        <Text style={font('extrabold', 15, { color: palette.ink })} {...scaleForRole('control')}>
+          Not right now
+        </Text>
       </Pressable>
     </View>
   );
@@ -3208,7 +3232,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   socialButton: {
-    height: 54,
+    // `minHeight` at render time — see `@/theme/fontScale`.
     borderWidth: 1.5,
     borderColor: palette.border,
     borderRadius: radius.xl,
@@ -3341,6 +3365,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   usernameField: {
+    // `minHeight` at render time — see `@/theme/fontScale`. A text field that
+    // cannot grow crops the name the athlete is typing into it.
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -3349,7 +3375,6 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderRadius: radius['2xl'],
     paddingHorizontal: 16,
-    height: 60,
     ...shadow.card,
   },
   usernameInput: {
@@ -3505,8 +3530,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
   },
   dayChip: {
+    // `minHeight` at render time — see `@/theme/fontScale`.
     flex: 1,
-    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -3564,8 +3589,8 @@ const styles = StyleSheet.create({
   rivalName: { ...font('extrabold', 14, { color: palette.ink }), marginTop: 4 },
   rivalPace: { ...font('bold', 11, { color: palette.grey600 }) },
   declineButton: {
+    // `minHeight` at render time — see `@/theme/fontScale`.
     marginTop: 8,
-    height: 54,
     borderWidth: 1.5,
     borderColor: palette.border,
     borderRadius: radius['3xl'],

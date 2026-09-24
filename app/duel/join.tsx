@@ -1,13 +1,14 @@
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { track } from '@/lib/analytics';
 import { PressableScale, Screen } from '@/components/ui';
 import { isJoinableByQr, isOwnDuelInvite, parseDuelInvite } from '@/domain/duelInvite';
 import { fetchDuel } from '@/services/duelService';
 import { useAuthStore } from '@/state/authStore';
-import { font, text } from '@/theme/typography';
+import { reservedControlHeight } from '@/theme/fontScale';
+import { font, scaleForRole, text } from '@/theme/typography';
 import { palette, radius } from '@/theme/tokens';
 
 /**
@@ -24,6 +25,7 @@ import { palette, radius } from '@/theme/tokens';
  * one path into a race, whichever way the athlete arrived at it.
  */
 export default function DuelJoinScreen() {
+  const { fontScale } = useWindowDimensions();
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
   const uid = useAuthStore((s) => s.user?.uid);
@@ -93,9 +95,11 @@ export default function DuelJoinScreen() {
               onPress={() => router.replace('/(tabs)/arena')}
               accessibilityRole="button"
               accessibilityLabel="Go to the Arena"
-              style={styles.button}
+              style={[styles.button, { minHeight: reservedControlHeight(52, fontScale) }]}
             >
-              <Text style={font('extrabold', 14, { color: palette.white })}>Go to Arena</Text>
+              <Text style={font('extrabold', 14, { color: palette.white })} {...scaleForRole('control')}>
+                Go to Arena
+              </Text>
             </PressableScale>
           </>
         ) : (
@@ -123,8 +127,8 @@ const styles = StyleSheet.create({
   title: { ...font('extrabold', 20, { color: palette.ink }), marginTop: 8 },
   body: { textAlign: 'center' },
   button: {
+    // `minHeight` at render time — see `@/theme/fontScale`.
     marginTop: 16,
-    height: 52,
     paddingHorizontal: 28,
     borderRadius: radius['2xl'],
     backgroundColor: palette.green500,

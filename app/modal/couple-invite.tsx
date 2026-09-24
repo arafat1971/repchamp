@@ -3,7 +3,15 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Share,
+  StyleSheet,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import Animated, {
   FadeInDown,
   FadeInUp,
@@ -34,7 +42,8 @@ import { useAuthStore } from '@/state/authStore';
 import { useCouple } from '@/state/useCouple';
 import { showDialog } from '@/state/useDialog';
 import { selectPairingBonusActive, useProfileStore } from '@/state/profileStore';
-import { font, text } from '@/theme/typography';
+import { reservedControlHeight } from '@/theme/fontScale';
+import { font, scaleForRole, text } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
 
 /**
@@ -47,6 +56,7 @@ import { gradients, palette, radius, shadow } from '@/theme/tokens';
  * anything on their behalf.
  */
 export default function CoupleInviteScreen() {
+  const { fontScale } = useWindowDimensions();
   const uid = useAuthStore((s) => s.user?.uid);
   const cloudConfigured = useAuthStore((s) => s.configured);
   const displayName = useProfileStore((s) => s.displayName);
@@ -552,9 +562,11 @@ export default function CoupleInviteScreen() {
               }}
               accessibilityRole="button"
               accessibilityLabel={`Nudge ${partner.displayName} to train`}
-              style={styles.actionOutline}
+              style={[styles.actionOutline, { minHeight: reservedControlHeight(52, fontScale) }]}
             >
-              <Text style={styles.actionOutlineLabel}>{nudging ? 'Sending…' : 'Nudge'}</Text>
+              <Text style={styles.actionOutlineLabel} {...scaleForRole('control')}>
+                {nudging ? 'Sending…' : 'Nudge'}
+              </Text>
             </PressableScale>
             <PressableScale
               onPress={() => router.push('/modal/couple-card')}
@@ -563,9 +575,14 @@ export default function CoupleInviteScreen() {
             >
               <LinearGradient
                 colors={['#22c55e', '#15803d']}
-                style={styles.actionPrimaryGrad}
+                style={[
+                  styles.actionPrimaryGrad,
+                  { minHeight: reservedControlHeight(52, fontScale) },
+                ]}
               >
-                <Text style={font('extrabold', 14, { color: palette.white })}>Our Card</Text>
+                <Text style={font('extrabold', 14, { color: palette.white })} {...scaleForRole('control')}>
+                  Our Card
+                </Text>
               </LinearGradient>
             </PressableScale>
           </Animated.View>
@@ -614,15 +631,26 @@ export default function CoupleInviteScreen() {
           </Animated.View>
 
           <Animated.View entering={FadeInUp.duration(400).delay(200)} style={styles.actions}>
-            <PressableScale onPress={copyCode} accessibilityRole="button" style={styles.actionOutline}>
-              <Text style={styles.actionOutlineLabel}>{copied ? 'Copied' : 'Copy code'}</Text>
+            <PressableScale
+              onPress={copyCode}
+              accessibilityRole="button"
+              style={[styles.actionOutline, { minHeight: reservedControlHeight(52, fontScale) }]}
+            >
+              <Text style={styles.actionOutlineLabel} {...scaleForRole('control')}>
+                {copied ? 'Copied' : 'Copy code'}
+              </Text>
             </PressableScale>
             <PressableScale onPress={shareCode} accessibilityRole="button">
               <LinearGradient
                 colors={gradients.brandStrong}
-                style={styles.actionPrimaryGrad}
+                style={[
+                  styles.actionPrimaryGrad,
+                  { minHeight: reservedControlHeight(52, fontScale) },
+                ]}
               >
-                <Text style={font('extrabold', 14, { color: palette.white })}>Share invite</Text>
+                <Text style={font('extrabold', 14, { color: palette.white })} {...scaleForRole('control')}>
+                  Share invite
+                </Text>
               </LinearGradient>
             </PressableScale>
           </Animated.View>
@@ -760,9 +788,16 @@ export default function CoupleInviteScreen() {
             >
               <LinearGradient
                 colors={gradients.brandStrong}
-                style={[styles.ctaButton, shadow.brand]}
+                style={[
+                  styles.ctaButton,
+                  shadow.brand,
+                  { minHeight: reservedControlHeight(58, fontScale) },
+                ]}
               >
-                <Text style={font('extrabold', 16, { color: palette.white })}>
+                <Text
+                  style={font('extrabold', 16, { color: palette.white })}
+                  {...scaleForRole('control')}
+                >
                   {creating ? 'Creating…' : 'Invite My Partner'}
                 </Text>
               </LinearGradient>
@@ -778,9 +813,11 @@ export default function CoupleInviteScreen() {
               onPress={() => (uid ? router.push('/modal/couple-scan') : requireAccount())}
               accessibilityRole="button"
               accessibilityLabel="Scan your partner's QR code"
-              style={styles.scanButton}
+              style={[styles.scanButton, { minHeight: reservedControlHeight(54, fontScale) }]}
             >
-              <Text style={font('extrabold', 15, { color: palette.white })}>Scan QR code</Text>
+              <Text style={font('extrabold', 15, { color: palette.white })} {...scaleForRole('control')}>
+                Scan QR code
+              </Text>
             </PressableScale>
 
             <View style={styles.joinRow}>
@@ -792,16 +829,20 @@ export default function CoupleInviteScreen() {
                 autoCapitalize="characters"
                 autoCorrect={false}
                 maxLength={9}
-                style={styles.input}
+                style={[styles.input, { minHeight: reservedControlHeight(52, fontScale) }]}
+                {...scaleForRole('control')}
               />
               <PressableScale
                 onPress={redeem}
                 accessibilityRole="button"
                 accessibilityLabel="Pair using this code"
-                style={styles.joinButton}
+                style={[styles.joinButton, { minHeight: reservedControlHeight(52, fontScale) }]}
                 disabled={joining || !entered.trim()}
               >
-                <Text style={font('extrabold', 14, { color: palette.white })}>
+                <Text
+                  style={font('extrabold', 14, { color: palette.white })}
+                  {...scaleForRole('control')}
+                >
                   {joining ? '…' : 'Pair'}
                 </Text>
               </PressableScale>
@@ -1045,8 +1086,8 @@ const styles = StyleSheet.create({
   /* ── Shared styles ── */
   actions: { flexDirection: 'row', gap: 12, marginTop: 16 },
   actionOutline: {
+    // `minHeight` at render time — see `@/theme/fontScale`.
     flex: 1,
-    height: 52,
     borderRadius: radius['2xl'],
     borderWidth: 1.5,
     borderColor: palette.border,
@@ -1061,8 +1102,8 @@ const styles = StyleSheet.create({
   },
   actionOutlineLabel: font('extrabold', 14, { color: palette.ink }),
   actionPrimaryGrad: {
+    // `minHeight` at render time — see `@/theme/fontScale`.
     flex: 1,
-    height: 52,
     borderRadius: radius['2xl'],
     alignItems: 'center',
     justifyContent: 'center',
@@ -1266,13 +1307,13 @@ const styles = StyleSheet.create({
   pitchCouple: { fontSize: 19 },
   featurePillText: font('bold', 10, { color: palette.white }),
   ctaButton: {
-    height: 58,
+    // `minHeight` at render time — see `@/theme/fontScale`.
     borderRadius: radius['2xl'],
     alignItems: 'center',
     justifyContent: 'center',
   },
   scanButton: {
-    height: 54,
+    // `minHeight` at render time — see `@/theme/fontScale`.
     borderRadius: radius['2xl'],
     backgroundColor: palette.ink,
     alignItems: 'center',
@@ -1282,8 +1323,9 @@ const styles = StyleSheet.create({
   },
   joinRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
   input: {
+    // `minHeight` at render time — see `@/theme/fontScale`. A code field that
+    // cannot grow crops the code the athlete is typing into it.
     flex: 1,
-    height: 52,
     borderRadius: radius['2xl'],
     borderWidth: 1,
     borderColor: palette.border,
@@ -1292,8 +1334,8 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
   joinButton: {
+    // `minHeight` at render time — see `@/theme/fontScale`.
     paddingHorizontal: 20,
-    height: 52,
     borderRadius: radius['2xl'],
     backgroundColor: palette.ink,
     alignItems: 'center',

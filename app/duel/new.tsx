@@ -2,7 +2,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeInDown, FadeInUp, ZoomIn } from 'react-native-reanimated';
 
 import { ExerciseGlyph } from '@/components/ExerciseGlyph';
@@ -17,7 +17,8 @@ import { selectTotalReps, useProfileStore } from '@/state/profileStore';
 import { isPurchasesConfigured } from '@/services/purchases';
 import { useEffectivePro } from '@/state/proStore';
 import { showDialog } from '@/state/useDialog';
-import { font } from '@/theme/typography';
+import { reservedControlHeight } from '@/theme/fontScale';
+import { font, scaleForRole } from '@/theme/typography';
 import { palette, radius, shadow } from '@/theme/tokens';
 import type { ExerciseId } from '@/vision/exercises';
 
@@ -42,6 +43,7 @@ const DURATIONS: { value: number; label: string; desc: string }[] = [
  *   queue   '1' when coming from the open-matchmaking queue path
  */
 export default function DuelNewScreen() {
+  const { fontScale } = useWindowDimensions();
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const isPro = useEffectivePro();
@@ -449,9 +451,16 @@ export default function DuelNewScreen() {
             colors={['#22c55e', '#059669']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={[styles.startBtn, shadow.brand]}
+            style={[
+              styles.startBtn,
+              shadow.brand,
+              { minHeight: reservedControlHeight(58, fontScale) },
+            ]}
           >
-            <Text style={font('extrabold', 17, { color: palette.white, letterSpacing: 0.3 })}>
+            <Text
+              style={font('extrabold', 17, { color: palette.white, letterSpacing: 0.3 })}
+              {...scaleForRole('control')}
+            >
               {params.queue === '1' ? 'Find Opponent' : 'Send Challenge'}
             </Text>
           </LinearGradient>
@@ -662,8 +671,8 @@ const styles = StyleSheet.create({
 
   /* ── Start Button ── */
   startBtn: {
+    // `minHeight` at render time — see `@/theme/fontScale`.
     marginTop: 24,
-    height: 58,
     borderRadius: radius['2xl'],
     alignItems: 'center',
     justifyContent: 'center',

@@ -2,7 +2,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import type { BarcodeScanningResult } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ModalHeader } from '@/components/ModalHeader';
@@ -11,7 +11,8 @@ import { showDialog } from '@/state/useDialog';
 import { isJoinableByQr, isOwnDuelInvite, parseDuelInvite } from '@/domain/duelInvite';
 import { fetchDuel } from '@/services/duelService';
 import { useAuthStore } from '@/state/authStore';
-import { font, text } from '@/theme/typography';
+import { reservedControlHeight } from '@/theme/fontScale';
+import { font, scaleForRole, text } from '@/theme/typography';
 import { palette, radius } from '@/theme/tokens';
 import { track } from '@/lib/analytics';
 
@@ -34,6 +35,7 @@ import { track } from '@/lib/analytics';
  * for as long as the code is in frame.
  */
 export default function DuelScanScreen() {
+  const { fontScale } = useWindowDimensions();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const uid = useAuthStore((s) => s.user?.uid);
@@ -164,9 +166,14 @@ export default function DuelScanScreen() {
         onPress={() => router.back()}
         accessibilityRole="button"
         accessibilityLabel="Cancel scanning"
-        style={[styles.manual, { marginBottom: insets.bottom + 12 }]}
+        style={[
+          styles.manual,
+          { marginBottom: insets.bottom + 12, minHeight: reservedControlHeight(52, fontScale) },
+        ]}
       >
-        <Text style={font('extrabold', 14, { color: palette.ink })}>Cancel</Text>
+        <Text style={font('extrabold', 14, { color: palette.ink })} {...scaleForRole('control')}>
+          Cancel
+        </Text>
       </PressableScale>
     </Screen>
   );
@@ -203,8 +210,8 @@ const styles = StyleSheet.create({
   joiningText: { ...font('extrabold', 15, { color: palette.white }), marginTop: 12 },
   hint: { textAlign: 'center', marginTop: 12 },
   manual: {
+    // `minHeight` at render time — see `@/theme/fontScale`.
     marginTop: 12,
-    height: 52,
     borderRadius: radius['2xl'],
     borderWidth: 1,
     borderColor: palette.border,

@@ -2,7 +2,7 @@ import { Redirect, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { Image } from 'expo-image';
 import { useEffect, useRef, useState } from 'react';
-import { BackHandler, Share, StyleSheet, Text, View, ScrollView } from 'react-native';
+import { BackHandler, Share, StyleSheet, Text, useWindowDimensions, View, ScrollView } from 'react-native';
 import Animated, { FadeInDown, FadeInUp, ZoomIn } from 'react-native-reanimated';
 import { captureRef } from 'react-native-view-shot';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,10 +31,12 @@ import { useAuthStore } from '@/state/authStore';
 import { useSessionStore } from '@/state/sessionStore';
 import { showDialog } from '@/state/useDialog';
 import { getExercise } from '@/vision/exercises';
-import { font } from '@/theme/typography';
+import { reservedControlHeight } from '@/theme/fontScale';
+import { font, scaleForRole } from '@/theme/typography';
 import { palette, radius, shadow } from '@/theme/tokens';
 
 export default function ResultScreen() {
+  const { fontScale } = useWindowDimensions();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -553,9 +555,9 @@ export default function ResultScreen() {
             }}
             accessibilityRole="button"
             accessibilityLabel="View form report"
-            style={styles.secondaryButtonLight}
+            style={[styles.secondaryButtonLight, { minHeight: reservedControlHeight(50, fontScale) }]}
           >
-            <Text style={styles.secondaryLabelLight}>
+            <Text style={styles.secondaryLabelLight} {...scaleForRole('control')}>
               {canUse(isPro, 'advanced-stats') ? 'Form Report' : 'Form Report · Pro'}
             </Text>
           </PressableScale>
@@ -564,9 +566,11 @@ export default function ResultScreen() {
             onPress={shareResult}
             accessibilityRole="button"
             accessibilityLabel="Share workout achievement"
-            style={styles.secondaryButtonLight}
+            style={[styles.secondaryButtonLight, { minHeight: reservedControlHeight(50, fontScale) }]}
           >
-            <Text style={styles.secondaryLabelLight}>Share Card</Text>
+            <Text style={styles.secondaryLabelLight} {...scaleForRole('control')}>
+              Share Card
+            </Text>
           </PressableScale>
         </View>
 
@@ -574,9 +578,14 @@ export default function ResultScreen() {
           onPress={rematch}
           accessibilityRole="button"
           accessibilityLabel="Play Again"
-          style={styles.playAgainButton}
+          style={[styles.playAgainButton, { minHeight: reservedControlHeight(54, fontScale) }]}
         >
-          <Text style={font('extrabold', 17, { color: palette.white, letterSpacing: 0.3 })}>Play Again</Text>
+          <Text
+            style={font('extrabold', 17, { color: palette.white, letterSpacing: 0.3 })}
+            {...scaleForRole('control')}
+          >
+            Play Again
+          </Text>
         </PressableScale>
 
         <PressableScale
@@ -676,8 +685,8 @@ const styles = StyleSheet.create({
   },
   secondaryRow: { flexDirection: 'row', gap: 12 },
   secondaryButtonLight: {
+    // `minHeight` at render time — see `@/theme/fontScale`.
     flex: 1,
-    height: 50,
     borderRadius: radius.xl,
     backgroundColor: palette.white,
     borderWidth: 1,
@@ -689,8 +698,8 @@ const styles = StyleSheet.create({
   secondaryLabelLight: font('extrabold', 14, { color: palette.ink }),
 
   playAgainButton: {
+    // `minHeight` at render time — see `@/theme/fontScale`.
     width: '100%',
-    height: 54,
     borderRadius: radius.pill,
     backgroundColor: palette.green500,
     alignItems: 'center',

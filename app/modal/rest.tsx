@@ -1,11 +1,12 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { ModalHeader } from '@/components/ModalHeader';
 import { Badge, Card, Chevron, Eyebrow, PressableScale, Screen } from '@/components/ui';
 import { selectStreak, useProfileStore } from '@/state/profileStore';
-import { font, text } from '@/theme/typography';
+import { reservedControlHeight } from '@/theme/fontScale';
+import { font, scaleForRole, text } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
 
 const MOBILITY = [
@@ -15,6 +16,7 @@ const MOBILITY = [
 ] as const;
 
 export default function RestDayScreen() {
+  const { fontScale } = useWindowDimensions();
   const router = useRouter();
   const streak = selectStreak(useProfileStore());
 
@@ -77,9 +79,9 @@ export default function RestDayScreen() {
         onPress={() => router.back()}
         accessibilityRole="button"
         accessibilityLabel="Got it, resting today"
-        style={styles.doneButton}
+        style={[styles.doneButton, { minHeight: reservedControlHeight(54, fontScale) }]}
       >
-        <Text style={font('extrabold', 15, { color: palette.blue700 })}>
+        <Text style={font('extrabold', 15, { color: palette.blue700 })} {...scaleForRole('control')}>
           Got it — resting today
         </Text>
       </PressableScale>
@@ -121,7 +123,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   doneButton: {
-    height: 54,
+    // `minHeight` at render time — see `@/theme/fontScale`.
     borderRadius: radius.xl,
     backgroundColor: palette.white,
     alignItems: 'center',

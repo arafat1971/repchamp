@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, {
   FadeIn,
   useAnimatedStyle,
@@ -15,7 +15,8 @@ import { PressableScale, ProgressBar } from '@/components/ui';
 import type { Opponent } from '@/domain/opponent';
 import type { SessionMode } from '@/domain/progression';
 import { getExercise, type ExerciseId } from '@/vision/exercises';
-import { font } from '@/theme/typography';
+import { reservedControlHeight } from '@/theme/fontScale';
+import { font, scaleForRole } from '@/theme/typography';
 import { gradients, palette, radius } from '@/theme/tokens';
 import { useProfileStore } from '@/state/profileStore';
 import { endgameLabel, type RaceRead } from '@/domain/duelTension';
@@ -69,6 +70,7 @@ export function DuelHud({
   onGiveUp: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const { fontScale } = useWindowDimensions();
   const avatarUri = useProfileStore((s) => s.avatarUri);
   const definition = getExercise(exercise);
   const accent =
@@ -297,9 +299,14 @@ export function DuelHud({
         onPress={onGiveUp}
         accessibilityRole="button"
         accessibilityLabel="Give up and end the session"
-        style={[styles.giveUp, { bottom: insets.bottom + 44 }]}
+        style={[
+          styles.giveUp,
+          { bottom: insets.bottom + 44, minHeight: reservedControlHeight(58, fontScale) },
+        ]}
       >
-        <Text style={styles.giveUpText}>⚑ Give Up</Text>
+        <Text style={styles.giveUpText} {...scaleForRole('control')}>
+          ⚑ Give Up
+        </Text>
       </PressableScale>
     </View>
   );
@@ -529,10 +536,10 @@ const styles = StyleSheet.create({
   },
   cueText: font('extrabold', 13, { color: '#062012' }),
   giveUp: {
+    // `minHeight` at render time — see `@/theme/fontScale`.
     position: 'absolute',
     left: 22,
     right: 22,
-    height: 58,
     borderRadius: radius['2xl'],
     backgroundColor: palette.red500,
     alignItems: 'center',

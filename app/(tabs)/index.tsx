@@ -571,6 +571,7 @@ export default function HomeScreen() {
         />
       </StaggerIn>
 
+      <HomeSectionHeader title="Your progress" />
       <StaggerIn index={5} style={styles.row}>
         <PressableScale
           onPress={() => router.push('/modal/recap')}
@@ -870,8 +871,13 @@ function QuickTile({
           <CountUp value={stats.todayBest} duration={800} style={font('bold', 22, { color: accent })} />
           <Text style={font('regular', 12, { color: palette.grey500 })}>reps</Text>
         </View>
+        {/* "Last 0 reps" said nothing — there was no last session to beat. */}
         <Text style={font('regular', 11, { color: palette.grey500, marginTop: 4 })}>
-          Last {stats.lastBest} {stats.lastBest === 1 ? 'rep' : 'reps'}
+          {stats.lastBest > 0
+            ? `Last time ${stats.lastBest} ${stats.lastBest === 1 ? 'rep' : 'reps'}`
+            : stats.todayBest > 0
+              ? 'Beat it next time'
+              : 'Set your first best'}
         </Text>
       </LinearGradient>
     </PressableScale>
@@ -1011,7 +1017,7 @@ const styles = StyleSheet.create({
   liveDotSmall: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: palette.green500 },
 
   // Stat cards
-  row: { flexDirection: 'row', gap: 12, marginTop: 16, alignItems: 'stretch' },
+  row: { flexDirection: 'row', gap: 12, alignItems: 'stretch' },
   /* The pair reads as a pair now. Both carried a 1.5pt border in their own
      accent — hard green against hard amber — which made two cards of the same
      size and role look like they belonged to different screens. A hairline in

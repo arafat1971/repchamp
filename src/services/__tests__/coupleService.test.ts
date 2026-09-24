@@ -390,7 +390,21 @@ describe('nudgePartner', () => {
     const body = JSON.parse(init.body as string);
     expect(body.to).toBe('ExponentPushToken[bea]');
     expect(body.title).toBe('Ada is training');
-    expect(body.data).toEqual({ type: 'couple-nudge', coupleId: code });
+    expect(body.data).toEqual({ type: 'couple-nudge', coupleId: code, kind: 'train' });
+  });
+
+  /* Reminders ride the same nudge: the kind is stored for the in-app path
+     and shapes the push the partner sees. */
+  it('sends a water reminder with its own kind and wording', async () => {
+    const code = await pairedCode();
+    await syncCouplePushToken(code, 'bea', 'ExponentPushToken[bea]');
+    await nudgePartner(code, 'ada', 'Ada', 'water');
+    const c = mockStore.couples.get(code) as unknown as Couple;
+    expect(c.nudge?.kind).toBe('water');
+    const init = (global as unknown as { fetch: jest.Mock }).fetch.mock.calls[0]![1];
+    const body = JSON.parse(init.body as string);
+    expect(body.title).toBe('Ada says: drink some water 💧');
+    expect(body.data.kind).toBe('water');
   });
 
   it('skips the push when the partner has no valid token on the couple', async () => {

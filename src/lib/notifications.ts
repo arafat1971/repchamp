@@ -57,6 +57,7 @@ import {
 } from '@/domain/hydrationReminder';
 import type { DrinkEntry } from '@/domain/hydration';
 import { buildInviteNotification } from '@/domain/inviteNotification';
+import { reminderNotification, type ReminderKind } from '@/domain/partnerReminder';
 import { parseInviteKind } from '@/domain/presence';
 import { buildDailyReminder, buildWeeklyRecap } from '@/domain/reminderCopy';
 import {
@@ -673,15 +674,14 @@ export async function cancelStreakReminder(): Promise<void> {
   }
 }
 
-export async function presentNudge(fromName: string): Promise<void> {
+export async function presentNudge(fromName: string, kind: ReminderKind = 'train'): Promise<void> {
   if (!(await ensureNotificationPermission())) return;
   try {
     lastInAppNudgeAt = Date.now();
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: `${fromName} is training`,
-        body: 'Jump in and keep your streak alive.',
-        data: { type: 'couple-nudge' },
+        ...reminderNotification(kind, fromName),
+        data: { type: 'couple-nudge', kind },
         ...(Platform.OS === 'android' ? { channelId: channelIdFor('social') } : {}),
       },
       trigger: null,

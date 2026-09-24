@@ -24,6 +24,7 @@ import {
   type CoupleMember,
 } from '@/domain/couple';
 import { MAX_DAILY_ML } from '@/domain/hydration';
+import { reminderNotification, type ReminderKind } from '@/domain/partnerReminder';
 import { MAX_DAILY_STEPS } from '@/domain/steps';
 import {
   assertClientRateLimit,
@@ -518,6 +519,8 @@ export async function nudgePartner(
   coupleId: string,
   fromUid: string,
   senderName: string,
+  /** What the reminder is for; the default is the original "come train". */
+  kind: ReminderKind = 'train',
 ): Promise<void> {
   if (!isFirebaseConfigured()) return;
 
@@ -526,7 +529,7 @@ export async function nudgePartner(
 
   // (1) In-app path — the record the partner's subscription watches.
   await coupleDoc(coupleId).set(
-    { nudge: { fromUid, at: firestore.FieldValue.serverTimestamp() } },
+    { nudge: { fromUid, kind, at: firestore.FieldValue.serverTimestamp() } },
     { merge: true },
   );
   commitClientRateLimit('coupleNudge', fromUid);
@@ -550,11 +553,10 @@ export async function nudgePartner(
       headers: { 'content-type': 'application/json', accept: 'application/json' },
       body: JSON.stringify({
         to: token,
-        title: `${senderName} is training`,
-        body: 'Jump in and keep your streak alive.',
+        ...reminderNotification(kind, senderName),
         // Tagged so the foreground handler can suppress the duplicate (the in-app
         // nudge already showed it) — see `installForegroundNudgeSuppressor`.
-        data: { type: 'couple-nudge', coupleId },
+        data: { type: 'couple-nudge', coupleId, kind },
         channelId: 'social',
         priority: 'high',
       }),

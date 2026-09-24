@@ -31,6 +31,7 @@ import {
 } from '@/domain/couple';
 import { dayKey } from '@/domain/progression';
 import { presentNudge } from '@/lib/notifications';
+import { parseReminderKind } from '@/domain/partnerReminder';
 import {
   flushCoupleCreditOutbox,
   promotePendingCoupleCredit,
@@ -142,7 +143,7 @@ export function useCouple(): CoupleView {
         // Foreground presentation. A recent presentNudge briefly suppresses the
         // twin FCM banner (see `installForegroundNudgeSuppressor`); if Firestore
         // is slow, the push still shows. When the app is closed, Expo push lands.
-        void presentNudge(sender?.displayName ?? 'Your partner');
+        void presentNudge(sender?.displayName ?? 'Your partner', parseReminderKind(next?.nudge?.kind));
       }
     });
     return unsubscribe;

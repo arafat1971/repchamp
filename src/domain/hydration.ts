@@ -32,6 +32,8 @@ export interface DrinkEntry {
   at: string;
   /** `YYYY-MM-DD` local, from `dayKey()` at the moment it was logged. */
   day: string;
+  /** What it was (see `drinkKinds`); absent on entries logged before kinds, which are water. */
+  kind?: string;
 }
 
 /** The three one-tap sizes on the card: a glass, a bottle, a large bottle. */
@@ -180,11 +182,12 @@ export function isFreshFor(day: string | null | undefined, today: string): boole
 }
 
 /** Mint an entry for `ml` at `at`. The store owns rejection; this owns shape. */
-export function makeDrinkEntry(ml: number, at: Date = new Date()): DrinkEntry {
+export function makeDrinkEntry(ml: number, at: Date = new Date(), kind?: string): DrinkEntry {
   return {
     id: `${at.getTime()}-${Math.random().toString(36).slice(2, 8)}`,
     ml,
     at: at.toISOString(),
     day: dayKey(at),
+    ...(kind && kind !== 'water' ? { kind } : {}),
   };
 }

@@ -201,8 +201,8 @@ export default function HomeScreen() {
   }, [drinks, goalMl, stepsToday, partnerWater, today]);
 
   const logWater = useCallback(
-    (ml: number) => {
-      const entry = useHydrationStore.getState().logDrink(ml);
+    (ml: number, kind?: string) => {
+      const entry = useHydrationStore.getState().logDrink(ml, kind);
       // A refused tap gets no haptic: the confirmation must mean something.
       if (!entry) return;
       lightImpactHaptic();
@@ -541,6 +541,7 @@ export default function HomeScreen() {
       <StaggerIn index={4}>
         <HydrationCard
           water={water}
+          drinks={todayDrinks}
           me={{ name: firstName || 'You', avatar: profile.avatarUri }}
           partner={
             partnerGlass

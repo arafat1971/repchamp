@@ -191,7 +191,7 @@ export default function NotificationsScreen() {
             title={
               lastSession.won
                 ? `You won your last duel ${lastSession.reps}–${lastSession.opponentReps ?? 0}`
-                : `You logged ${lastSession.reps} reps`
+                : `You logged ${lastSession.reps} rep${lastSession.reps === 1 ? '' : 's'}`
             }
             subtitle={`+${lastSession.xp} XP earned`}
             meta={timeAgo(lastSession.completedAt)}

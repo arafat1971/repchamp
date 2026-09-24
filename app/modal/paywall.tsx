@@ -14,7 +14,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import type { PurchasesPackage } from 'react-native-purchases';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { track } from '@/lib/analytics';
+import { track, truncateReason } from '@/lib/analytics';
 import { captureError } from '@/lib/crash';
 import { PRIVACY_URL, TERMS_URL } from '@/lib/urls';
 import { ModalHeader } from '@/components/ModalHeader';
@@ -38,10 +38,12 @@ import { useAuthStore } from '@/state/authStore';
 import { useProStore } from '@/state/proStore';
 import { showDialog } from '@/state/useDialog';
 import { headlineProof } from '@/domain/progressProof';
+import { orderBenefits, type BenefitId } from '@/domain/paywallBenefits';
 import { selectStreak, useProfileStore } from '@/state/profileStore';
 import {
   commitmentLine,
   granularPrice,
+  monthlyEquivalent,
   priceAnchor,
   savingsPercent,
   type PlanPrice,
@@ -49,13 +51,30 @@ import {
 import { font, text } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
 
-/** Compact value props — not card chrome. Push-ups & squats stay free. */
-const BENEFITS = [
-  { title: 'Full exercise library', detail: 'Every movement beyond push-ups & squats' },
-  { title: 'Guided programmes', detail: 'Adaptive multi-week plans that scale with you' },
-  { title: 'Form reports', detail: 'Depth, tempo and alignment after every set' },
-  { title: 'Always free staples', detail: 'Push-ups, squats, duels & couple mode stay free' },
-];
+/**
+ * Compact value props — not card chrome. Push-ups & squats stay free.
+ *
+ * Keyed by id so `orderBenefits` can lead with whatever the athlete was just
+ * refused. All four always render, in these exact words; only the order moves.
+ */
+const BENEFITS: Record<BenefitId, { title: string; detail: string }> = {
+  library: {
+    title: 'Full exercise library',
+    detail: 'Every movement beyond push-ups & squats',
+  },
+  programmes: {
+    title: 'Guided programmes',
+    detail: 'Adaptive multi-week plans that scale with you',
+  },
+  reports: {
+    title: 'Form reports',
+    detail: 'Depth, tempo and alignment after every set',
+  },
+  'free-staples': {
+    title: 'Always free staples',
+    detail: 'Push-ups, squats, duels & couple mode stay free',
+  },
+};
 
 /**
  * Pro upgrade screen — live RevenueCat packages, sticky CTA, honest empty states.
@@ -105,6 +124,26 @@ export default function PaywallScreen() {
     router.back();
   }, [fromRepWall, router]);
 
+  /**
+   * Leaving without buying — the half of the funnel that was never measured.
+   *
+   * `paywall_dismissed` has been in the event catalogue since it was written,
+   * described there as "the other half of the funnel", and only `onboarding`
+   * ever fired it. This screen is reached from sixteen call sites — the rep
+   * wall, the exercise library, form reports, programmes, duels, Profile — and
+   * from every one of them a decline was invisible. `paywall_viewed` and
+   * `subscribed` alone cannot tell a source that converts badly from one nobody
+   * reaches; both look identical when the only signal is a view count.
+   *
+   * Deliberately separate from `leave`, which is also the exit after a
+   * successful purchase. Firing there would count every subscriber as a
+   * dismissal too and make the number meaningless.
+   */
+  const leaveWithoutBuying = useCallback(() => {
+    track('paywall_dismissed', { source: params.source ?? 'unknown' });
+    leave();
+  }, [leave, params.source]);
+
   useEffect(() => {
     track('paywall_viewed', { source: params.source ?? 'unknown' });
   }, [params.source]);
@@ -118,11 +157,14 @@ export default function PaywallScreen() {
   useEffect(() => {
     if (!fromRepWall) return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      leave();
+      /* Backing out is a decline like any other, and on the rep wall it is the
+         most likely exit of all — so it must not be the one path that goes
+         unmeasured. */
+      leaveWithoutBuying();
       return true;
     });
     return () => sub.remove();
-  }, [fromRepWall, leave]);
+  }, [fromRepWall, leaveWithoutBuying]);
 
   useEffect(() => {
     let cancelled = false;
@@ -165,7 +207,16 @@ export default function PaywallScreen() {
     const result = await purchase(selected, uid);
     setBusy(false);
 
-    if (result.cancelled) return;
+    /* Backed out of the store's own confirmation sheet. Tracked separately
+       from `paywall_dismissed`: this athlete accepted the offer and stopped at
+       the payment, which is a friction problem, not a pricing one. */
+    if (result.cancelled) {
+      track('purchase_cancelled', {
+        plan: selected.packageType,
+        source: params.source ?? 'unknown',
+      });
+      return;
+    }
 
     if (result.ok && result.isPro) {
       setPro(true);
@@ -201,13 +252,24 @@ export default function PaywallScreen() {
       return;
     }
 
+    /* A real failure: declined card, store outage, misconfiguration. The
+       store's own message is carried through because it is what separates a
+       fault the app can fix from one it cannot — the 2026-08-09 entitlement
+       bug was diagnosed from exactly this kind of specific wording. */
+    track('purchase_failed', {
+      plan: selected.packageType,
+      source: params.source ?? 'unknown',
+      /* Bounded: this is a raw store-SDK string, the only free text in the
+         event catalogue. See `truncateReason`. */
+      reason: truncateReason(result.message),
+    });
     showDialog({
       title: 'Purchase failed',
       message: result.message ?? 'Please try again.',
       tone: 'danger',
       actions: [{ label: 'Try again', variant: 'primary' }],
     });
-  }, [selected, setPro, refresh, uid, leave]);
+  }, [selected, setPro, refresh, uid, leave, params.source]);
 
   const onRestore = useCallback(async () => {
     setBusy(true);
@@ -275,7 +337,7 @@ export default function PaywallScreen() {
         <ModalHeader
           title="RepChamp Pro"
           subtitle="Unlock depth. Keep the free staples."
-          onBack={leave}
+          onBack={leaveWithoutBuying}
         />
 
         <Animated.ScrollView
@@ -326,9 +388,13 @@ export default function PaywallScreen() {
           </Animated.View>
 
           <View style={styles.benefits}>
-            {BENEFITS.map((b, i) => (
+            {/* Ordered by what this source blocked, so the promise that answers
+                the refusal is read first. See `domain/paywallBenefits`. */}
+            {orderBenefits(params.source).map((id, i) => {
+              const b = BENEFITS[id];
+              return (
               <Animated.View
-                key={b.title}
+                key={id}
                 entering={FadeInDown.delay(80 + i * 45).duration(320)}
                 style={styles.benefit}
               >
@@ -340,7 +406,8 @@ export default function PaywallScreen() {
                   <Text style={styles.benefitDetail}>{b.detail}</Text>
                 </View>
               </Animated.View>
-            ))}
+              );
+            })}
           </View>
 
           <Text style={styles.plansLabel}>CHOOSE YOUR PLAN</Text>
@@ -392,8 +459,21 @@ export default function PaywallScreen() {
                     selected={pkg.identifier === selectedId}
                     onPress={() => setSelectedId(pkg.identifier)}
                     title={planTitle(pkg)}
-                    subtitle={perWeekHint(pkg) ?? (pkg.product.description || 'Full Pro access')}
+                    /* The per-week hint is dropped when a monthly rate is
+                       shown: "$1.15 a week · $5 / month · paid $60.00 annually"
+                       is the same price stated three ways, and three framings
+                       of one number read as sales patter rather than clarity.
+                       The rate and the real charge are the two that matter.
+                       Plans with no monthly reading keep the hint, which is
+                       their only granular framing. */
+                    subtitle={
+                      monthlyFor(pkg)
+                        ? 'cancel anytime'
+                        : (perWeekHint(pkg) ?? pkg.product.description ?? 'Full Pro access')
+                    }
                     price={pkg.product.priceString}
+                    perMonth={monthlyFor(pkg)?.perMonth}
+                    billedAs={monthlyFor(pkg)?.billedAs}
                     badge={
                       pkg.packageType === 'ANNUAL'
                         ? [trialRibbon(pkg), savingsBadge(pkg, packages)]
@@ -452,7 +532,7 @@ export default function PaywallScreen() {
                 the dead end the store rejection was about. Declining must
                 always be one obvious tap. */}
             <PressableScale
-              onPress={leave}
+              onPress={leaveWithoutBuying}
               accessibilityRole="button"
               accessibilityLabel="Maybe later"
               disabled={busy}
@@ -481,8 +561,9 @@ export default function PaywallScreen() {
           </View>
         ) : (
           <PressableScale
-            onPress={leave}
+            onPress={leaveWithoutBuying}
             accessibilityRole="button"
+            accessibilityLabel="Maybe later"
             style={styles.footerLinkHit}
           >
             <Text style={[styles.footerLink, { textAlign: 'center' }]}>Maybe later</Text>
@@ -499,6 +580,8 @@ function PlanRow({
   title,
   subtitle,
   price,
+  perMonth,
+  billedAs,
   badge,
   featured,
 }: {
@@ -507,6 +590,10 @@ function PlanRow({
   title: string;
   subtitle: string;
   price: string;
+  /** Monthly-equivalent headline, e.g. "$5" — absent for already-monthly plans. */
+  perMonth?: string | null;
+  /** The charge that actually lands, e.g. "paid $60 annually". */
+  billedAs?: string | null;
   badge?: string | null;
   featured?: boolean;
 }) {
@@ -515,7 +602,13 @@ function PlanRow({
       onPress={onPress}
       accessibilityRole="radio"
       accessibilityState={{ selected }}
-      accessibilityLabel={`${title}, ${price}${badge ? `, ${badge}` : ''}`}
+      /* The spoken label always carries the real charge. A screen-reader user
+         must not hear "$5 a month" and be billed $60 without being told. */
+      accessibilityLabel={
+        perMonth && billedAs
+          ? `${title}, ${perMonth} per month, ${billedAs}${badge ? `, ${badge}` : ''}`
+          : `${title}, ${price}${badge ? `, ${badge}` : ''}`
+      }
       style={[
         styles.plan,
         selected && styles.planSelected,
@@ -546,7 +639,22 @@ function PlanRow({
         <Text style={font('extrabold', 16, { color: palette.ink })}>{title}</Text>
         <Text style={styles.planSubtitle}>{subtitle}</Text>
       </View>
-      <Text style={font('extrabold', 17, { color: palette.ink })}>{price}</Text>
+      {/* The rate leads, the charge follows. "$60" and "$10" are not the same
+          unit, so an annual plan reads as the expensive one until the athlete
+          divides it themselves — and most will not. Both in the same unit makes
+          the comparison honest; the real charge stays attached because finding
+          out about it at the store sheet is what produces refunds. */}
+      {perMonth && billedAs ? (
+        <View style={{ alignItems: 'flex-end' }}>
+          <View style={styles.planRateRow}>
+            <Text style={font('extrabold', 19, { color: palette.ink })}>{perMonth}</Text>
+            <Text style={styles.planRateUnit}> / month</Text>
+          </View>
+          <Text style={styles.planBilledAs}>{billedAs}</Text>
+        </View>
+      ) : (
+        <Text style={font('extrabold', 17, { color: palette.ink })}>{price}</Text>
+      )}
     </PressableScale>
   );
 }
@@ -559,6 +667,11 @@ function toPlanPrice(pkg: PurchasesPackage): PlanPrice {
     weeks: weeks[pkg.packageType] ?? 0,
     symbol: pkg.product.priceString.replace(/[\d.,\s]/g, '') || '',
   };
+}
+
+/** The monthly-rate split for a plan, or null when it is already monthly. */
+function monthlyFor(pkg: PurchasesPackage) {
+  return monthlyEquivalent(toPlanPrice(pkg), pkg.product.priceString, pkg.packageType);
 }
 
 function perWeekHint(pkg: PurchasesPackage): string | null {
@@ -630,7 +743,7 @@ const styles = StyleSheet.create({
   /* Sits above the price on the dark hero, in the brand green so it reads as
      the athlete's own result rather than another marketing claim. */
   ownProof: {
-    ...font('extrabold', 13, { color: '#86efac' }),
+    ...font('extrabold', 13, { color: palette.green300 }),
     marginTop: 10,
     lineHeight: 18,
   },
@@ -720,6 +833,12 @@ const styles = StyleSheet.create({
     borderColor: palette.green700,
   },
   planBadgeText: font('extrabold', 9.5, { color: palette.green700 }),
+  planRateRow: { flexDirection: 'row', alignItems: 'baseline' },
+  /* Lighter and smaller than the number: the unit is what makes the figure
+     comparable, not what the eye should land on first. */
+  planRateUnit: { ...font('bold', 12, { color: palette.grey600 }) },
+  /* The real charge — deliberately quiet, deliberately present. */
+  planBilledAs: { ...font('semibold', 11, { color: palette.grey500 }), marginTop: 2 },
   planSubtitle: { ...text.caption, marginTop: 4 },
   radio: {
     width: 24,

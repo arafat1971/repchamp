@@ -127,12 +127,49 @@ describe('buildDormantReminder', () => {
     expect(copy?.body).not.toContain('12 days');
   });
 
-  /* `headlineProof` returns null rather than inventing a milestone. An athlete
-     with nothing earned yet should get zero notifications, not a generic line
-     dressed up as one — the same refusal `buildWeeklyRecap` is tested for. */
+  /* `headlineProof` returns null rather than inventing a milestone, and an
+     athlete with *nothing* on record should still get zero notifications. */
   it('stays silent when there is no honest claim to make', () => {
     expect(buildDormantReminder({ daysAway: 30, sessions: [] })).toBeNull();
-    expect(buildDormantReminder({ daysAway: 30, sessions: [session()] })).toBeNull();
+  });
+
+  /* The D1–D3 hole. One or two sessions earns no headline — no gain, no
+     streak, not enough volume — so this slot used to go silent for exactly the
+     athlete most likely to leave, and the generic evening line fired instead:
+     the same words that already failed on days one and two. */
+  it('speaks to a one-session athlete with where they began', () => {
+    const copy = buildDormantReminder({
+      daysAway: DORMANT_AFTER_DAYS,
+      sessions: [session({ reps: 12 })],
+    });
+    expect(copy).not.toBeNull();
+    expect(copy?.body).toBe('Your first set was 12 reps. Pick up where you left off.');
+  });
+
+  /* A starting point is a fact about one recorded set; it must not drift into
+     claiming improvement, which needs the thresholds this does not relax. */
+  it('claims a starting point without claiming progress', () => {
+    const copy = buildDormantReminder({
+      daysAway: 5,
+      sessions: [session({ id: 'a', reps: 9 }), session({ id: 'b', reps: 4 })],
+    });
+    const text = `${copy?.title} ${copy?.body}`.toLowerCase();
+    expect(text).toContain('first set was 9 reps');
+    for (const word of ['improv', 'progress you', 'gain', 'better']) {
+      expect(text).not.toContain(word);
+    }
+  });
+
+  /* An abandoned set banks nothing, so there is still no honest claim. */
+  it('stays silent for a zero-rep session', () => {
+    expect(buildDormantReminder({ daysAway: 30, sessions: [session({ reps: 0 })] })).toBeNull();
+  });
+
+  /* Once the real tiers can speak, they do — the starting point is the
+     fallback, never a replacement for a stronger true claim. */
+  it('prefers a real headline over the starting point', () => {
+    const copy = buildDormantReminder({ daysAway: 4, sessions: improving });
+    expect(copy?.body).toContain('best set has gone from');
   });
 
   it('says nothing when there is no history to measure from', () => {

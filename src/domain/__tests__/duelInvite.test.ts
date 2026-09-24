@@ -5,6 +5,7 @@ import {
   isJoinableByQr,
   isOwnDuelInvite,
   parseDuelInvite,
+  canJoinByLink,
 } from '../duelInvite';
 
 /** A realistic Firestore auto-id: 20 chars of A-Za-z0-9. */
@@ -120,5 +121,28 @@ describe('isOwnDuelInvite', () => {
   it('spots the host scanning their own code', () => {
     expect(isOwnDuelInvite({ hostUid: 'ada' }, 'ada')).toBe(true);
     expect(isOwnDuelInvite({ hostUid: 'ada' }, 'bob')).toBe(false);
+  });
+});
+
+describe('canJoinByLink', () => {
+  const base = { status: 'pending', hostUid: 'host', guestUid: null as string | null };
+
+  it('lets anyone take an open lobby', () => {
+    expect(canJoinByLink({ ...base, targetUid: null }, 'anyone')).toBe(true);
+  });
+
+  /* Seen on device: the challenged partner opened the shared code and was
+     told someone had already taken the duel. */
+  it('lets the challenged athlete in by code', () => {
+    expect(canJoinByLink({ ...base, targetUid: 'bea' }, 'bea')).toBe(true);
+  });
+
+  it('still refuses anyone else a seat addressed to someone', () => {
+    expect(canJoinByLink({ ...base, targetUid: 'bea' }, 'cal')).toBe(false);
+  });
+
+  it('refuses a duel that has started or already has a guest', () => {
+    expect(canJoinByLink({ ...base, targetUid: 'bea', status: 'active' }, 'bea')).toBe(false);
+    expect(canJoinByLink({ ...base, targetUid: 'bea', guestUid: 'bea2' }, 'bea')).toBe(false);
   });
 });

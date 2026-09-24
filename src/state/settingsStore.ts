@@ -14,6 +14,18 @@ export interface SettingsState {
   duelInvites: boolean;
   /** Daily "come train" reminder — at most one evening ping if you haven't trained. */
   dailyReminder: boolean;
+  /**
+   * Water reminders — at most two daytime pings, and only when actually
+   * behind pace. Separate from `dailyReminder` because they answer different
+   * questions and an athlete may well want one without the other.
+   */
+  hydrationReminder: boolean;
+  /**
+   * Android only: keep a foreground service running so steps are counted while
+   * the app is closed. Costs a persistent quiet notification, so it is the
+   * athlete's to turn off; without it the count only covers time the app ran.
+   */
+  stepCounting: boolean;
   /** Hide from the global leaderboard. */
   privateProfile: boolean;
   /** The live-camera "how to get a good read" tutorial has been dismissed once. */
@@ -30,6 +42,8 @@ export type SettingsToggle =
   | 'voiceCoach'
   | 'duelInvites'
   | 'dailyReminder'
+  | 'hydrationReminder'
+  | 'stepCounting'
   | 'privateProfile';
 
 export const useSettingsStore = create<SettingsState>()(
@@ -40,6 +54,8 @@ export const useSettingsStore = create<SettingsState>()(
       voiceCoach: false,
       duelInvites: true,
       dailyReminder: true,
+      hydrationReminder: true,
+      stepCounting: true,
       privateProfile: false,
       cameraTutorialSeen: false,
 

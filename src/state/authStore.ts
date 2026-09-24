@@ -34,6 +34,7 @@ import {
   removeScore,
   uploadAvatar,
 } from '@/services/userService';
+import { useHydrationStore } from '@/state/hydrationStore';
 import { useProfileStore, selectWeeklyXp, selectLevel, selectLeague } from '@/state/profileStore';
 import { useSettingsStore } from '@/state/settingsStore';
 import type { SessionSummary } from '@/state/profileStore';
@@ -97,6 +98,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       // Math.max local anon XP/sessions onto that account. Same-uid link keeps local.
       if (prevUid && prevUid !== user.uid) {
         useProfileStore.getState().reset();
+        // Water is per-athlete too: one person's intake must not follow the
+        // device onto someone else's account.
+        useHydrationStore.getState().reset();
       }
 
       set({ user, status: 'syncing', lastUid: user.uid });

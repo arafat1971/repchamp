@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 
 import {
   calculateCoupleStreak,
@@ -35,6 +36,7 @@ import {
   promotePendingCoupleCredit,
 } from '@/services/coupleCreditOutbox';
 import { syncCouplePushToken, watchMyCouple } from '@/services/coupleService';
+import { syncHydrationNow } from '@/services/hydrationSync';
 import { fetchExpoPushToken } from '@/services/userService';
 import { useAuthStore } from '@/state/authStore';
 import { useProfileStore } from '@/state/profileStore';
@@ -151,6 +153,17 @@ export function useCouple(): CoupleView {
     if (!uid || !couple?.id) return;
     const creditId = promotePendingCoupleCredit(couple.id, uid);
     if (creditId) void flushCoupleCreditOutbox();
+    // Water logged before the bond resolved has nowhere to go until now.
+    void syncHydrationNow(couple.id, uid);
+
+    /* And again on return to the foreground, which is where a write missed
+       while offline gets repaired. `syncHydrationNow` no-ops when the total
+       has not moved, so a quiet resume costs nothing. */
+    const coupleId = couple.id;
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') void syncHydrationNow(coupleId, uid);
+    });
+    return () => sub.remove();
   }, [uid, couple?.id]);
 
   // Once the bond is *real*, publish our push token onto our member slice so the

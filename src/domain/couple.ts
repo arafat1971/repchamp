@@ -12,6 +12,7 @@
  * breaks it — and it is why couple mode cannot be used alone.
  */
 
+import { pluralise } from './plural';
 import { calculateStreak } from './progression';
 
 /** One half of a couple. */
@@ -33,6 +34,40 @@ export interface CoupleMember {
    * `totalReps` when a flush crashes between write and local "done".
    */
   creditedIds?: string[];
+  /**
+   * Today's set-to-value daily metrics, written by this member only.
+   *
+   * The day lives *inside* the object rather than being implied by the write
+   * time: without it, a phone that last synced yesterday would have its total
+   * read as today's. A write for a new day replaces the object outright, so
+   * yesterday's numbers cannot survive into today.
+   *
+   * Optional because every member written before this shipped has no such
+   * field, and because a member who has logged nothing has nothing to say.
+   */
+  daily?: CoupleDailyMetrics;
+}
+
+/**
+ * Set-to-value metrics for one day.
+ *
+ * Set-to-value rather than incremented: a retried write carries the whole
+ * day's total, so it is idempotent by construction and needs none of the
+ * `creditedIds` replay bookkeeping that `totalReps` requires.
+ */
+export interface CoupleDailyMetrics {
+  /** `YYYY-MM-DD` local, as stamped by the phone that wrote it. */
+  day: string;
+  /** Total millilitres of water today. */
+  waterMl?: number;
+  /**
+   * Steps today, as counted by the phone.
+   *
+   * Absent on Android, where "steps today" is not answerable — see
+   * `domain/steps.ts`. So a missing value means "this phone cannot say",
+   * never "they did not walk".
+   */
+  steps?: number;
 }
 
 export interface Couple {
@@ -405,7 +440,7 @@ export function coupleBondPresentation(input: {
   return {
     eyebrow: input.levelName,
     headline: milestone
-      ? `${milestone - input.combined} reps to your next milestone`
+      ? `${pluralise(milestone - input.combined, 'rep')} to your next milestone`
       : 'Show up together — streak starts today',
     cta: 'Train together',
     tone: 'steady',
@@ -684,4 +719,42 @@ export function syncStreakLabel(current: number): string {
   if (current < 10) return `IN SYNC ×${current}`;
   if (current < 20) return `LOCKED IN ×${current}`;
   return `UNSTOPPABLE ×${current}`;
+}
+
+/**
+ * The partner's water today, or null when there is nothing honest to show.
+ *
+ * Null covers four cases that all mean the same thing to a reader — absent
+ * member, no metrics yet, a stale day, or a malformed value. The caller hides
+ * the line rather than rendering a zero: "0 ml today" and "hasn't synced
+ * today" are different claims, and only one of them is true.
+ */
+export function partnerWaterToday(
+  member: CoupleMember | null | undefined,
+  today: string,
+): number | null {
+  const daily = member?.daily;
+  if (!daily || daily.day !== today) return null;
+  const ml = daily.waterMl;
+  if (typeof ml !== 'number' || !Number.isFinite(ml) || ml <= 0) return null;
+  return ml;
+}
+
+/**
+ * The partner's steps today, or null when there is nothing honest to show.
+ *
+ * Same contract as `partnerWaterToday`, with one extra case that matters: an
+ * Android partner never publishes a step count at all, so null here routinely
+ * means "their phone cannot count steps" rather than "they have not moved".
+ * That is precisely why the caller must omit the line rather than render a 0.
+ */
+export function partnerStepsToday(
+  member: CoupleMember | null | undefined,
+  today: string,
+): number | null {
+  const daily = member?.daily;
+  if (!daily || daily.day !== today) return null;
+  const steps = daily.steps;
+  if (typeof steps !== 'number' || !Number.isFinite(steps) || steps <= 0) return null;
+  return steps;
 }

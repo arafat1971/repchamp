@@ -1,12 +1,13 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Platform, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { ModalHeader } from '@/components/ModalHeader';
 import { Card, Chevron, Divider, Eyebrow, PressableScale, Screen, Toggle } from '@/components/ui';
 import { captureError } from '@/lib/crash';
 import {
   cancelDailyTrainingReminder,
+  syncHydrationReminders,
   syncLocalReminders,
 } from '@/lib/notifications';
 import { clearAllStorage } from '@/lib/storage';
@@ -19,14 +20,18 @@ import {
 import { flushCoupleCreditOutbox } from '@/services/coupleCreditOutbox';
 import { forceBankPendingLiveSettles } from '@/services/liveResultSettle';
 import { emitRetention, retentionSnapshot } from '@/services/recordSessionWithRetention';
+import { isWidgetSupported } from '@/services/partnerWidget';
 import { isPurchasesConfigured, resetPurchases, restore } from '@/services/purchases';
 import { track } from '@/lib/analytics';
 import { useAuthStore } from '@/state/authStore';
 import { useProStore } from '@/state/proStore';
 import { showDialog } from '@/state/useDialog';
+import { daysSinceLastSession } from '@/domain/dormantReminder';
 import { dayKey } from '@/domain/progression';
 import { useCouple } from '@/state/useCouple';
-import { useProfileStore } from '@/state/profileStore';
+import { selectStreak, useProfileStore } from '@/state/profileStore';
+import { setStepServiceEnabled } from '@/services/pedometer';
+import { useHydrationStore } from '@/state/hydrationStore';
 import { useSettingsStore, type SettingsToggle } from '@/state/settingsStore';
 import { reservedControlHeight } from '@/theme/fontScale';
 import { font, scaleForRole, text } from '@/theme/typography';
@@ -50,6 +55,13 @@ const WORKOUT_TOGGLES: ToggleRow[] = [
   },
 ];
 
+const STEP_COUNTING_ROW: ToggleRow = {
+  key: 'stepCounting',
+  emoji: '👟',
+  title: 'Background step counting',
+  subtitle: 'Keeps a quiet notification so your daily total is complete',
+};
+
 const PRIVACY_TOGGLES: ToggleRow[] = [
   { key: 'duelInvites', emoji: '🔔', title: 'Duel invites', subtitle: 'Get notified when challenged' },
   {
@@ -57,6 +69,12 @@ const PRIVACY_TOGGLES: ToggleRow[] = [
     emoji: '⏰',
     title: 'Daily reminders',
     subtitle: 'One evening nudge if you haven’t trained',
+  },
+  {
+    key: 'hydrationReminder',
+    emoji: '💧',
+    title: 'Water reminders',
+    subtitle: 'Up to two a day, only when you’re behind',
   },
   {
     key: 'privateProfile',
@@ -309,14 +327,42 @@ export default function SettingsScreen() {
                 settings.set(row.key, next);
                 // The daily-reminder toggle owns real OS schedules, so arm or
                 // clear them the moment it flips.
+                /* Water owns its own OS schedules, so flip them with the
+                   switch rather than waiting for the next foreground sync. */
+                if (row.key === 'stepCounting') {
+                  void setStepServiceEnabled(next);
+                }
+                if (row.key === 'hydrationReminder') {
+                  const h = useHydrationStore.getState();
+                  void syncHydrationReminders({
+                    enabled: next,
+                    drinks: h.drinks,
+                    goalMl: h.goalMl,
+                    day: dayKey(),
+                  });
+                }
                 if (row.key === 'dailyReminder') {
-                  const trainedToday = sessions.some((s) => s.day === dayKey());
+                  const today = dayKey();
+                  const trainedToday = sessions.some((s) => s.day === today);
                   if (next) {
                     void syncLocalReminders({
                       dailyReminderEnabled: true,
                       trainedToday,
                       coupleAtRisk: couple.paired && couple.atRisk,
                       partnerName: couple.partner?.displayName ?? null,
+                      /* `sessions` is what the schedule is *derived* from, not
+                         extra detail: `reminderHourFor` reads the training hours
+                         out of it, and `buildDormantReminder` the headline. Omit
+                         it and this call re-arms at a flat 19:00 with the generic
+                         copy — so toggling the switch off and on silently undid
+                         the learned hour for the athlete it was learned for. */
+                      sessions,
+                      streak: selectStreak({ sessions }, today),
+                      daysSinceLastSession: daysSinceLastSession(
+                        sessions.reduce((latest, s) => (s.day > latest ? s.day : latest), '') ||
+                          null,
+                        today,
+                      ),
                     });
                   } else {
                     void cancelDailyTrainingReminder();
@@ -344,7 +390,11 @@ export default function SettingsScreen() {
       {renderGroup(WORKOUT_TOGGLES)}
 
       <Eyebrow style={styles.eyebrow}>NOTIFICATIONS &amp; PRIVACY</Eyebrow>
-      {renderGroup(PRIVACY_TOGGLES)}
+      {renderGroup(
+        /* Android only: iOS counts steps without a background service, so the
+           switch would control nothing there. */
+        Platform.OS === 'android' ? [...PRIVACY_TOGGLES, STEP_COUNTING_ROW] : PRIVACY_TOGGLES,
+      )}
 
       {cloudConfigured ? (
         <>
@@ -365,6 +415,22 @@ export default function SettingsScreen() {
                 ]}
               />
             </View>
+          </Card>
+        </>
+      ) : null}
+
+      {/* Android-only: the row is hidden rather than shown-and-disabled on a
+          build that cannot host a widget, because a dead entry point is worse
+          than no entry point. */}
+      {isWidgetSupported() ? (
+        <>
+          <Eyebrow style={styles.eyebrow}>HOME SCREEN</Eyebrow>
+          <Card style={styles.group}>
+            <LinkRow
+              emoji="📲"
+              label="Add partner widget"
+              onPress={() => router.push('/modal/widget')}
+            />
           </Card>
         </>
       ) : null}

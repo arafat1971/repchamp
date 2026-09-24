@@ -20,6 +20,7 @@ import {
   normalizePairCode,
   nudgeAt,
   partnerOf,
+  partnerWaterToday,
   streakAtRisk,
   type Couple,
   type CoupleMember,
@@ -467,5 +468,53 @@ describe('syncStreakLabel', () => {
 
   it('always carries the count', () => {
     expect(syncStreakLabel(7)).toContain('7');
+  });
+});
+
+describe('the partner’s water today', () => {
+  const TODAY = '2026-09-23';
+  const water = (daily: CoupleMember['daily']): CoupleMember => ({
+    ...member('bob'),
+    daily,
+  });
+
+  it('is reported when their phone stamped today', () => {
+    expect(partnerWaterToday(water({ day: TODAY, waterMl: 1500 }), TODAY)).toBe(1500);
+  });
+
+  /* The reason the day is carried alongside the total: a phone that last
+     synced yesterday must not have 2 L read as today's. */
+  it('is withheld when their last sync was yesterday', () => {
+    expect(partnerWaterToday(water({ day: '2026-09-22', waterMl: 2000 }), TODAY)).toBeNull();
+  });
+
+  it('is withheld when they have logged nothing at all', () => {
+    expect(partnerWaterToday(member('bob'), TODAY)).toBeNull();
+  });
+
+  it('is withheld when there is no partner', () => {
+    expect(partnerWaterToday(null, TODAY)).toBeNull();
+    expect(partnerWaterToday(undefined, TODAY)).toBeNull();
+  });
+
+  /* A malformed document must read as "nothing to show" rather than
+     rendering NaN or a string into the card. */
+  it('is withheld for a malformed total', () => {
+    expect(partnerWaterToday(water({ day: TODAY }), TODAY)).toBeNull();
+    expect(
+      partnerWaterToday(water({ day: TODAY, waterMl: Number.NaN }), TODAY),
+    ).toBeNull();
+    expect(
+      partnerWaterToday(
+        water({ day: TODAY, waterMl: '2000' as unknown as number }),
+        TODAY,
+      ),
+    ).toBeNull();
+  });
+
+  /* Zero is a real value but not a claim worth making — it is
+     indistinguishable from "hasn't opened the app", so it stays hidden. */
+  it('is withheld for a zero total', () => {
+    expect(partnerWaterToday(water({ day: TODAY, waterMl: 0 }), TODAY)).toBeNull();
   });
 });

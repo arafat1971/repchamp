@@ -20,6 +20,8 @@ import { font, scaleForRole } from '@/theme/typography';
 import { gradients, palette, radius } from '@/theme/tokens';
 import { useProfileStore } from '@/state/profileStore';
 import { endgameLabel, type RaceRead } from '@/domain/duelTension';
+import { isFinalCountdown } from '@/domain/raceMomentum';
+import { EdgePulse, HeatChip, RivalPing, useRaceHeat } from '@/components/session/RaceEffects';
 
 /** The rival's colour on the live scoreboard — a clear blue against your green. */
 const DUEL_RIVAL = '#3b82f6';
@@ -77,6 +79,8 @@ export function DuelHud({
     exercise === 'squat' || exercise === 'stretch' ? palette.purple500 : palette.green500;
 
   const endgame = race ? endgameLabel(timeLeft, race) : '';
+  const heat = useRaceHeat(reps, opponentReps);
+  const finalSeconds = mode === 'versus' && isFinalCountdown(timeLeft);
   const total = reps + opponentReps;
   const tugPercent = total === 0 ? 50 : Math.round((reps / total) * 100);
   const soloPercent = target ? Math.min(100, Math.round((reps / target) * 100)) : 0;
@@ -99,6 +103,10 @@ export function DuelHud({
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+      {/* The last seconds press in from the rim — behind everything else, so it
+          never covers a number or a control. */}
+      <EdgePulse active={finalSeconds} />
+
       {/* Top: score / target bar */}
       <View style={[styles.top, { top: insets.top + 14 }]} pointerEvents="box-none">
         {mode === 'versus' ? (
@@ -130,13 +138,20 @@ export function DuelHud({
 
               <View style={styles.duelCenter}>
                 <Text style={styles.duelTimeLabel}>TIME</Text>
-                <Text style={styles.duelClock}>{Math.max(0, timeLeft)}S</Text>
+                {/* In the final seconds the clock turns red and throbs once a
+                    second — the count itself becomes the heartbeat. */}
+                <PopOnChange trigger={finalSeconds ? timeLeft : 0} scale={1.3}>
+                  <Text style={[styles.duelClock, finalSeconds && styles.duelClockFinal]}>
+                    {Math.max(0, timeLeft)}S
+                  </Text>
+                </PopOnChange>
               </View>
 
               <View style={[styles.duelScoreCol, styles.duelScoreColRight]}>
                 <PopOnChange trigger={opponentReps} scale={1.18}>
                   <Text style={styles.duelScoreThem}>{opponentReps}</Text>
                 </PopOnChange>
+                <RivalPing count={opponentReps} color={DUEL_RIVAL} />
                 <Text style={styles.duelNameThem} numberOfLines={1}>{opponent.name}</Text>
               </View>
 
@@ -156,6 +171,8 @@ export function DuelHud({
                 athlete to work out the gap themselves, mid-rep — a duel's
                 tension is the margin, and it was the one thing never said.
                 Late on, it becomes an instruction instead of a status. */}
+            <HeatChip heat={heat} rivalName={opponent.name} />
+
             {race ? (
               <Animated.View
                 key={endgame || race.label}
@@ -174,22 +191,18 @@ export function DuelHud({
           </View>
         ) : null}
 
-        {/* A lead change — the most galvanising event in a race, and it used
-            to pass in silence with two numbers swapping order. */}
-        {overtake ? (
+        {/* Taking the lead gets a banner. Losing it does not: the margin chip
+            and the rival's surge already say so, and a second banner over
+            the camera read as the app piling on. */}
+        {overtake === 'took' ? (
           <Animated.View
             key={`ot-${overtake}-${reps}`}
             entering={FadeIn.duration(180)}
             style={styles.overtake}
             pointerEvents="none"
           >
-            <Text
-              style={[
-                styles.overtakeText,
-                { color: overtake === 'took' ? palette.green300 : palette.amber300 },
-              ]}
-            >
-              {overtake === 'took' ? 'YOU TOOK THE LEAD' : 'THEY WENT AHEAD'}
+            <Text style={[styles.overtakeText, { color: palette.green300 }]}>
+              YOU TOOK THE LEAD
             </Text>
           </Animated.View>
         ) : null}
@@ -332,10 +345,13 @@ const styles = StyleSheet.create({
   /* An overtake should interrupt, but not over the rep counter at 38% — that
      number is what the athlete is actually watching, and covering it to say
      the lead changed trades the more important reading for the louder one. */
+  /* In flow, directly under the score card. It used to be absolute at
+     `top: '21%'`, but a percentage resolves against this container — only as
+     tall as the card — so the banner landed on the scores and the clock, the
+     very numbers a lead change is about. */
   overtake: {
-    position: 'absolute',
-    top: '21%',
     alignSelf: 'center',
+    marginTop: 10,
   },
   overtakeText: {
     ...font('extrabold', 26, {}),
@@ -417,6 +433,11 @@ const styles = StyleSheet.create({
     letterSpacing: 2.5,
   },
   duelClock: { ...font('extrabold', 22, { color: palette.white }), lineHeight: 24 },
+  duelClockFinal: {
+    color: palette.red500,
+    textShadowColor: 'rgba(239,68,68,0.7)',
+    textShadowRadius: 10,
+  },
   duelBarTrack: {
     height: 14,
     borderRadius: 7,
@@ -429,7 +450,7 @@ const styles = StyleSheet.create({
     width: 3,
     height: '100%',
     backgroundColor: palette.white,
-    shadowColor: '#ffffff',
+    shadowColor: palette.white,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
     shadowRadius: 6,
@@ -447,7 +468,7 @@ const styles = StyleSheet.create({
   horizontalDepthFill: {
     height: 3,
     borderRadius: 1.5,
-    shadowColor: '#22c55e',
+    shadowColor: palette.green500,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 4,

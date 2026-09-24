@@ -547,10 +547,12 @@ export default function ResultScreen() {
         <View style={styles.secondaryRow}>
           <PressableScale
             onPress={() => {
-              if (!canUse(isPro, 'advanced-stats')) {
-                router.push({ pathname: '/modal/paywall', params: { source: 'form-report' } });
-                return;
-              }
+              /* Always the report screen, Pro or not. It now shows a non-Pro
+                 athlete their real score with the detail locked, instead of
+                 bouncing them to a price list having seen nothing — the
+                 curiosity right after a set is the whole asset, and the old
+                 redirect spent it. That screen still forwards to the paywall
+                 when there is genuinely nothing to show. */
               router.push('/session/form-report');
             }}
             accessibilityRole="button"
@@ -654,7 +656,7 @@ const styles = StyleSheet.create({
   rewardChipFire: {
     backgroundColor: palette.amber50,
     borderWidth: 1,
-    borderColor: '#fcd34d',
+    borderColor: palette.amber200,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
@@ -662,7 +664,7 @@ const styles = StyleSheet.create({
   rewardChipGold: {
     backgroundColor: palette.amber50,
     borderWidth: 1,
-    borderColor: '#f59e0b',
+    borderColor: palette.amber500,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,

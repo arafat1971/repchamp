@@ -5,17 +5,21 @@
  * low-volume policy (see `syncLocalReminders` in lib/notifications.ts).
  */
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { AppState } from 'react-native';
 
 import { daysSinceLastSession } from '@/domain/dormantReminder';
 import { dayKey } from '@/domain/progression';
-import { syncLocalReminders } from '@/lib/notifications';
+import { reminderHourFor } from '@/domain/reminderSchedule';
+import { syncHydrationReminders, syncLocalReminders } from '@/lib/notifications';
+import { selectTodayMl, useHydrationStore } from '@/state/hydrationStore';
 import { useCouple } from '@/state/useCouple';
 import { selectStreak, useProfileStore } from '@/state/profileStore';
 import { useSettingsStore } from '@/state/settingsStore';
 
 export function useNotificationSync(): void {
   const dailyReminder = useSettingsStore((s) => s.dailyReminder);
+  const hydrationReminder = useSettingsStore((s) => s.hydrationReminder);
   const sessions = useProfileStore((s) => s.sessions);
   const couple = useCouple();
 
@@ -30,6 +34,90 @@ export function useNotificationSync(): void {
      one at all. Null with no history — never-started is not dormant. */
   const lastDay = sessions.reduce((latest, s) => (s.day > latest ? s.day : latest), '') || null;
   const daysAway = daysSinceLastSession(lastDay, today);
+  /* The hour the evening slots fire at, learned from the hours in `sessions`.
+     Reduced to a number here so the effect below can depend on it: the schedule
+     must follow a routine that moves, and nothing else in the dependency list
+     changes when it does. */
+  const reminderHour = reminderHourFor(sessions);
+
+  /**
+   * Bumped whenever the app returns to the foreground, to force a re-sync.
+   *
+   * `expo-notifications` bakes a notification's text in at *schedule* time, so
+   * the weekly recap carries whatever `buildWeeklyRecap` returned on the last
+   * sync — and that claim is a fact about training ("your best set has gone
+   * from 8 to 14"), not a static string. Nothing below re-runs on its own while
+   * the app sits closed, so a recap scheduled early in the week could fire on
+   * Monday describing a week that had barely started. That is a stale progress
+   * claim delivered as current, which is the fabrication `progressProof` exists
+   * to refuse, arriving through the one channel nothing was checking.
+   *
+   * Re-syncing on foreground bounds the staleness to "since you last opened the
+   * app" instead of "since you last trained". It cannot close the gap entirely
+   * — nothing can, while the OS owns the pending notification — but an athlete
+   * who never opens the app all week is not the one whose recap is wrong.
+   *
+   * Costs nothing when nothing changed: `syncLocalReminders` cancels and
+   * rewrites the same identifiers, so a re-sync is idempotent.
+   */
+  const [foregroundTick, setForegroundTick] = useState(0);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') setForegroundTick((n) => n + 1);
+    });
+    return () => sub.remove();
+  }, []);
+
+  /* `today` is read at render time, and `daysAway` is derived from it, so a day
+     boundary only reaches the schedule when something re-renders this hook. Its
+     other triggers are all user actions — training, a settings change, pairing
+     — plus the foreground tick above, which covers the usual case of the app
+     being backgrounded overnight.
+
+     What none of them cover is the app left open and untouched across midnight:
+     `AppState` stays 'active', nothing re-renders, and an athlete who crossed
+     into day three stays scheduled as day two — the dormant slot never takes
+     over from the daily one. Narrow, but it is exactly the lapsing athlete the
+     dormant slot exists for.
+
+     One timer, aligned to the next local midnight rather than polling. */
+  useEffect(() => {
+    const now = new Date();
+    const midnight = new Date(now);
+    midnight.setHours(24, 0, 5, 0); // five seconds past, so `dayKey()` has rolled
+    const ms = midnight.getTime() - now.getTime();
+    const id = setTimeout(() => setForegroundTick((n) => n + 1), ms);
+    return () => clearTimeout(id);
+    /* Re-armed after each tick, so a session left open for days keeps rolling. */
+  }, [foregroundTick]);
+
+  /* Water reminders, synced separately from the training slots.
+     
+     Its own effect because its inputs are different and it must re-run on a
+     trigger the other deliberately ignores: logging a drink. The training
+     sync excludes `drinks`-like churn for good reason (see its dependency
+     note below), but a hydration reminder that does not react to drinking is
+     the one thing it cannot afford — it would keep telling an athlete who
+     just hit their goal that they are behind.
+     
+     `todayMl` rather than the `drinks` array: the array is new on every write,
+     while the millilitre total is the only part of it this schedule reads. */
+  const hydrationGoalMl = useHydrationStore((s) => s.goalMl);
+  const drinks = useHydrationStore((s) => s.drinks);
+  const todayMl = selectTodayMl({ drinks }, today);
+
+  useEffect(() => {
+    void syncHydrationReminders({
+      enabled: hydrationReminder,
+      drinks: useHydrationStore.getState().drinks,
+      goalMl: hydrationGoalMl,
+      day: today,
+    });
+    /* `todayMl` stands in for `drinks`, which the body reads fresh from the
+       store: the array identity changes on every write, the total does not.
+       `foregroundTick` forces a re-sync on reopen, because the copy is baked
+       in at schedule time like every other slot here. */
+  }, [hydrationReminder, hydrationGoalMl, todayMl, today, foregroundTick]);
 
   useEffect(() => {
     void syncLocalReminders({
@@ -41,15 +129,34 @@ export function useNotificationSync(): void {
       sessions,
       daysSinceLastSession: daysAway,
     });
-    /* `sessions` is intentionally not a dependency: it is a new array on every
-       profile write, which would re-sync the schedules on each finished rep.
-       `trainedToday` and `streak` are the parts of it this copy reads, and both
-       are primitives that change only when the history meaningfully does. */
+    /* `sessions` itself is intentionally not a dependency: it is a new array on
+       every profile write, which would re-sync the schedules on each finished
+       rep. Instead every part of it this sync reads is listed as a primitive.
+
+       `trainedToday` and `streak` used to be that whole list, and the comment
+       here said so. They stopped being it when the schedule started reading a
+       third thing out of `sessions` — the *hours* the athlete trains at. Those
+       move independently of both: someone who shifts from an evening routine to
+       a 07:00 one breaks no streak and flips `trainedToday` exactly as before,
+       so neither primitive changes and the effect never re-runs. The learned
+       hour would then follow a moved routine only by accident, whenever a streak
+       break happened to re-fire this — defeating the `recentLimit` window in
+       `learnTrainingHour` that exists precisely to follow such a move.
+
+       `reminderHour` is that third reading, reduced to a number, so it belongs
+       here on the same terms as the other two.
+
+       `foregroundTick` is not read by the sync at all — it is here purely to
+       re-run it when the app is reopened, so the weekly recap's baked-in copy
+       is rebuilt from current history. See its declaration above. */
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     dailyReminder,
     trainedToday,
     streak,
+    reminderHour,
+    daysAway,
+    foregroundTick,
     couple.paired,
     couple.atRisk,
     couple.partner?.displayName,

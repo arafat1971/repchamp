@@ -33,10 +33,17 @@ offerings") no longer appears in logcat at all. The SDK is finding the offering.
 
 Two things that still need a human eye:
 
-- **The paywall has not been seen rendering.** No error is strong evidence but
-  not proof — open Profile → Upgrade, or tap a locked exercise, and check both
-  plans show with localised prices. Blank prices usually mean the base plans are
-  still propagating through Google's billing API, which can take a few hours.
+- ~~**The paywall has not been seen rendering.**~~ Seen on 2026-09-19, on the
+  Pixel_3a emulator via Profile → Upgrade. The screen renders correctly: hero,
+  all four benefits, Restore / Maybe later / Terms / Privacy. Because an
+  emulator has no Play billing, the plan list showed its "Couldn't load plans"
+  fallback with "You can keep training free in the meantime" — which is the
+  degradation path working, not a fault.
+
+  **Still unseen: real plans with localised prices.** That needs a device with
+  Play services and the products propagated. Blank prices there usually mean the
+  base plans are still moving through Google's billing API, which can take a few
+  hours.
 - **A real purchase cannot be tested from a sideloaded build.** That needs a
   licence tester account (Play Console → Setup → Licence testing) and a build
   installed from a Play track — which is what the `.aab` is for.

@@ -26,6 +26,7 @@ import {
   EXERCISE_SAFETY_CHIP,
 } from '@/domain/exerciseSafety';
 import { OpponentPacer, getOpponent, type Opponent } from '@/domain/opponent';
+import { matchedPace } from '@/domain/adaptivePace';
 import { FIRST_REP_MARKER, firstRepOutcome } from '@/domain/activation';
 import { storage } from '@/lib/storage';
 import { shouldPromptUpgrade } from '@/domain/paywallGate';
@@ -75,6 +76,22 @@ import { palette, radius } from '@/theme/tokens';
 
 /** Framing confidence that counts as "body locked". */
 const CALIBRATION_LOCK = 0.55;
+
+/**
+ * Whether the session store is finished *right now*, not as of this render.
+ *
+ * A result screen that closes without its Done or Rematch running (a deep link
+ * or notification opening over it) leaves the store at `finished`. The next
+ * session's first render then sees that stale phase: the bootstrap effect
+ * calls `start()`, but effects later in the same commit still hold the
+ * render-time `finished`. The hand-off effect used to act on it and send the
+ * brand-new session straight to a 0–0 result — and for a live duel the settle
+ * effect would have reported that result to the server. Every effect that acts
+ * on `finished` checks this as well.
+ */
+function isFinishedNow(): boolean {
+  return useSessionStore.getState().phase === 'finished';
+}
 
 export default function SessionScreen() {
   const router = useRouter();
@@ -136,7 +153,7 @@ export default function SessionScreen() {
         initial: name.charAt(0).toUpperCase(),
         color: '#1e3a5f',
         borderColor: '#3b82f6',
-        repColor: '#93c5fd',
+        repColor: palette.blue300,
         level: 1,
         online: true,
         repsPerMinute: 0,
@@ -352,10 +369,16 @@ export default function SessionScreen() {
     // flip live.active, which must never re-run startSession and wipe mid-set reps.
     // Do NOT depend on `opponent` / liveOpponentName — first name snapshot used to
     // recreate the opponent object and restart the whole set mid-rep.
-    pacerRef.current =
-      mode === 'versus' && !duelId
-        ? new OpponentPacer(getOpponent(opponentId), duration, Date.now() % 100000)
-        : null;
+    /* The bot races from this athlete's recent pace, not its listed one — see
+       `domain/adaptivePace`. Read once here from `getState()`, so a session
+       banked mid-set cannot re-pace a rival the athlete is already racing. */
+    let pacer: OpponentPacer | null = null;
+    if (mode === 'versus' && !duelId) {
+      const rival = getOpponent(opponentId);
+      const pace = matchedPace(rival.repsPerMinute, useProfileStore.getState().sessions, exercise);
+      pacer = new OpponentPacer({ ...rival, repsPerMinute: pace }, duration, Date.now() % 100000);
+    }
+    pacerRef.current = pacer;
 
     // Deliberately does NOT reset the session store. Navigating to the result
     // screen unmounts this one, and the result screen reads the finished
@@ -746,7 +769,7 @@ export default function SessionScreen() {
    * Couple credit (separate from navigation so partner hydrate can't cancel it)
    * ---------------------------------------------------------------- */
   useEffect(() => {
-    if (phase !== 'finished' || mode !== 'together') return;
+    if (phase !== 'finished' || mode !== 'together' || !isFinishedNow()) return;
     const s0 = useSessionStore.getState();
     if (
       s0.reps <= 0 ||
@@ -784,7 +807,7 @@ export default function SessionScreen() {
    * Hand off to the result screen (once)
    * ---------------------------------------------------------------- */
   useEffect(() => {
-    if (phase !== 'finished' || handedOffRef.current) return;
+    if (phase !== 'finished' || handedOffRef.current || !isFinishedNow()) return;
     handedOffRef.current = true;
     successHaptic();
 
@@ -809,7 +832,7 @@ export default function SessionScreen() {
 
   // Cold-start auth: finish handoff can run while `live` is still inert.
   useEffect(() => {
-    if (phase !== 'finished' || !live.active || !duelId) return;
+    if (phase !== 'finished' || !live.active || !duelId || !isFinishedNow()) return;
     const s0 = useSessionStore.getState();
     const form = s0.formReport?.score ?? 0;
     live.finish(s0.reps, form, forfeitedRef.current);
@@ -1101,7 +1124,12 @@ export default function SessionScreen() {
           used to read "run `npm run fetch-model`", which is a developer
           instruction nobody outside this repo can act on. */}
       {modelState === 'error' ? (
-        <PressableScale onPress={leaveSession} style={styles.modelBanner}>
+        <PressableScale
+          onPress={leaveSession}
+          accessibilityRole="button"
+          accessibilityLabel="Rep counting couldn’t start on this device. Tap to go back."
+          style={styles.modelBanner}
+        >
           <Text style={styles.modelBannerText}>
             Rep counting couldn’t start on this device. Tap to go back.
           </Text>
@@ -1132,7 +1160,8 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.camGreenBottom },
   /* Its own band.
    *
-   * The duel HUD owns 38% (the rep counter) and now 21% (an overtake); the
+   * The duel HUD owns 38% (the rep counter) and the band under its score card
+   * (an overtake); the
    * together HUD owns 34% (the combined score). A moment and an overtake can
    * land on the same rep — beating a personal best is often exactly what takes
    * the lead — so this sits below both rather than on either. */

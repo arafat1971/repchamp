@@ -104,3 +104,37 @@ describe('evaluateAchievements', () => {
     expect(new Set(list.map((a) => a.id)).size).toBe(ACHIEVEMENTS.length);
   });
 });
+
+/*
+ * A badge must describe what it actually measures.
+ *
+ * `streak-3` read "Train 3 days in a row" while its progress is `bestStreak`,
+ * and both streak functions deliberately keep a run alive across one rest day —
+ * so Monday/Wednesday/Friday unlocked a badge for three consecutive days that
+ * were never consecutive. The module contract is that the profile never shows a
+ * badge the athlete has not earned, and this was the definition breaking it.
+ */
+describe('badge text matches what the badge measures', () => {
+  const streakBadge = () => {
+    const found = ACHIEVEMENTS.find((a) => a.id === 'streak-3');
+    if (!found) throw new Error('streak-3 badge missing');
+    return found;
+  };
+
+  it('does not promise consecutive days when a rest day counts', () => {
+    expect(streakBadge().description.toLowerCase()).not.toContain('in a row');
+  });
+
+  it('says that a rest day keeps the streak alive', () => {
+    expect(streakBadge().description.toLowerCase()).toContain('rest day');
+  });
+
+  /* The streak rule itself is deliberately unchanged: tightening it would also
+     revoke badges already earned, and `selectBestStreak`'s tests argue for the
+     rest-day tolerance on its own terms. Only the wording moved. */
+  it('still unlocks at a streak of 3', () => {
+    const badge = streakBadge();
+    expect(badge.goal).toBe(3);
+    expect(badge.progress({ sessions: [], bestStreak: 3, weeklyXp: 0 })).toBe(3);
+  });
+});

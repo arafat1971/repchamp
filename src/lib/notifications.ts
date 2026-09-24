@@ -5,10 +5,10 @@
  *
  * | Kind                    | Frequency              | When it fires                          |
  * |-------------------------|------------------------|----------------------------------------|
- * | Workout reminder        | ≤1 / day               | Evening, only if not trained today     |
- * | Couple streak reminder  | ≤1 / day               | Evening, only if shared streak at risk |
- * | Dormant reminder        | ≤1 / day (replaces ↑)  | Evening, only after 3 days away        |
- * | Weekly summary          | 1 / week (Sunday 18:00)| Always (low-frequency payoff)          |
+ * | Workout reminder        | ≤1 / day               | Learned hour, only if not trained today|
+ * | Couple streak reminder  | ≤1 / day               | Learned hour, only if streak at risk   |
+ * | Dormant reminder        | ≤1 / day (replaces ↑)  | Learned hour, only after 3 days away   |
+ * | Weekly summary          | 1 / week (Monday 18:00)| Always (low-frequency payoff)          |
  * | Challenge invitation    | Event-driven           | When a friend challenges you (push)    |
  * | Couple nudge            | Event-driven           | Partner taps Nudge (push + in-app)     |
  * | Rival passed you        | ≤1 / week              | Soft alert if a rival overtakes weekly |
@@ -31,6 +31,17 @@
  * wins (more urgent). Turning "Daily reminders" off cancels the workout slot;
  * streak-at-risk still schedules while paired (protecting the bond).
  *
+ * ## Why "learned hour" rather than a fixed evening
+ *
+ * These slots all fired at 19:00/20:00 regardless of when the athlete trains,
+ * so the 07:00 athlete was reminded twelve hours after the moment that would
+ * have worked — a nag that cannot be acted on without rearranging the day.
+ * `domain/reminderSchedule` reads the hours already recorded on every session
+ * and returns the one they reliably train at, clamped to waking hours and
+ * offset an hour early. It returns the old 19:00 whenever history has not
+ * earned anything else, so this changes nothing for an athlete whose routine is
+ * genuinely scattered. Again: same slots, same volume, same words.
+ *
  * Two transports: local (`expo-notifications`) for schedules, Expo Push for
  * remote social events. Never throws — refused permission is a quiet no-op.
  */
@@ -40,9 +51,19 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 import { buildDormantReminder } from '@/domain/dormantReminder';
+import {
+  HYDRATION_SLOTS,
+  buildHydrationReminder,
+} from '@/domain/hydrationReminder';
+import type { DrinkEntry } from '@/domain/hydration';
 import { buildInviteNotification } from '@/domain/inviteNotification';
 import { parseInviteKind } from '@/domain/presence';
 import { buildDailyReminder, buildWeeklyRecap } from '@/domain/reminderCopy';
+import {
+  DEFAULT_REMINDER_HOUR,
+  LATEST_REMINDER_HOUR,
+  reminderHourFor,
+} from '@/domain/reminderSchedule';
 import { storage } from '@/lib/storage';
 import type { SessionSummary } from '@/state/profileStore';
 import { syncMyCouplePushToken } from '@/services/coupleService';
@@ -105,9 +126,79 @@ const WORKOUT_REMINDER_ID = 'workout-reminder-daily';
 const STREAK_REMINDER_ID = 'couple-streak-reminder-eve';
 const DORMANT_REMINDER_ID = 'dormant-reminder-eve';
 const WEEKLY_RECAP_ID = 'weekly-recap';
+/* One id per hydration slot, so each can be cancelled independently the
+   moment its own condition stops holding. */
+const HYDRATION_REMINDER_IDS = HYDRATION_SLOTS.map((h) => `hydration-reminder-${h}`);
 const RIVAL_PASSED_ID = 'rival-passed-weekly';
 
 const RIVAL_PASSED_KEY = 'repchamp.notif.rivalPassedWeek';
+
+/**
+ * Fallback hour for the couple streak-at-risk slot.
+ *
+ * An hour later than the solo default, which is how this slot has always been
+ * scheduled: it is the last call of the day for a streak that dies at midnight,
+ * so it sits behind the reminder that merely suggests training. Used when
+ * `reminderHourFor` has learned nothing; a learned hour shifts this slot too.
+ *
+ * The one-hour gap cannot always be honoured. A late-night athlete — a 22:00 or
+ * 23:00 routine — learns the hour 21, which is `LATEST_REMINDER_HOUR`, and
+ * there is no 22 to shift to: the waking-window ceiling exists precisely so the
+ * app is never the reason a phone lights up late. The gap yields to it rather
+ * than the other way round, so at the ceiling both slots would name 21:00.
+ *
+ * That costs nothing in practice, because the two never coexist —
+ * `syncLocalReminders` cancels the workout slot before arming this one and
+ * returns — but the arithmetic is written to say so explicitly rather than
+ * leave a reader to derive it. See `streakReminderHour`.
+ */
+const STREAK_REMINDER_HOUR = 20;
+
+/**
+ * The hour the couple streak-at-risk slot fires at, given the learned hour.
+ *
+ * Named rather than inlined because the rule has an exception worth stating:
+ * the slot trails the daily one by the same gap it has always had, *except* at
+ * `LATEST_REMINDER_HOUR`, where there is nowhere later to go and it lands on
+ * the ceiling instead. The ceiling wins because it is the promise that the app
+ * never wakes anyone; the gap is only a preference about ordering.
+ */
+export function streakReminderHour(reminderHour: number): number {
+  if (reminderHour === DEFAULT_REMINDER_HOUR) return STREAK_REMINDER_HOUR;
+  const gap = STREAK_REMINDER_HOUR - DEFAULT_REMINDER_HOUR;
+  return Math.min(reminderHour + gap, LATEST_REMINDER_HOUR);
+}
+
+/**
+ * When the weekly recap fires — Monday 18:00.
+ *
+ * `expo-notifications` numbers weekdays 1–7 with **1 = Sunday**, so the old
+ * `weekday: 1` genuinely was Sunday, exactly as the cadence table claimed. That
+ * was the bug: this app's week is Monday–Sunday everywhere else (`isoWeekKey`,
+ * `currentWeekDayKeys`, `selectWeekSessions`, `daysLeftInWeek` returning 1 on
+ * Sunday). A summary titled "Your week in reps" sent Sunday at 18:00 reports on
+ * a week with six hours still to run, and any set trained Sunday evening lands
+ * in the very week the recap just finished summarising.
+ *
+ * Monday (`2`) is the first moment the week being described is actually over.
+ * It also reads better: a recap on Monday evening is a week closed and the next
+ * one already begun, rather than a verdict delivered before the final whistle.
+ *
+ * ## Why this slot keeps a fixed hour when every other slot learned one
+ *
+ * `reminderHourFor` moves the daily, dormant and streak slots to the hour the
+ * athlete trains, because each of those asks them to *train today* and a
+ * prompt that lands after the moment has passed cannot be acted on. `LEAD_HOURS`
+ * exists for exactly that: arrive an hour early, while the choice is still open.
+ *
+ * The recap asks for nothing. It is a report on a finished week, and there is no
+ * moment it must beat. Applying the training hour would put a 07:00 athlete's
+ * weekly summary at 06:00 on a Monday — worse than 18:00, for no benefit anyone
+ * can name. So this is a decision rather than an oversight: the recap is the one
+ * slot where the learned hour is the wrong input, and it stays where it is.
+ */
+const WEEKLY_RECAP_WEEKDAY = 2;
+const WEEKLY_RECAP_HOUR = 18;
 
 let configured = false;
 let suppressCoupleNudgeInForeground = false;
@@ -272,8 +363,18 @@ export async function syncLocalReminders(ctx: ReminderContext): Promise<void> {
   try {
     await cancelIds(LEGACY_IDS);
 
-    // Weekly summary — always one quiet ping (not gated by daily toggle).
-    await scheduleWeeklyRecap(1, 18, {
+    /* When the evening slot fires, learned from the hours this athlete actually
+       trains at. Computed once and threaded into every slot below so the three
+       of them cannot drift apart. `reminderHourFor` returns the hour the app
+       has always used whenever history has not earned anything else, so an
+       athlete with no clear routine sees exactly the schedule they saw before. */
+    const reminderHour = reminderHourFor(ctx.sessions ?? []);
+
+    /* Weekly summary — always one quiet ping (not gated by daily toggle).
+       Monday rather than Sunday, and deliberately NOT the learned hour: see
+       `scheduleWeeklyRecap`. Re-scheduled on every sync so the claim it carries
+       is as fresh as the last time the app was open. */
+    await scheduleWeeklyRecap(WEEKLY_RECAP_WEEKDAY, WEEKLY_RECAP_HOUR, {
       sessions: ctx.sessions ?? [],
       streak: ctx.streak ?? 0,
     });
@@ -288,7 +389,10 @@ export async function syncLocalReminders(ctx: ReminderContext): Promise<void> {
     if (ctx.coupleAtRisk) {
       // Streak protection beats a generic workout nag — never both.
       await cancelIds([WORKOUT_REMINDER_ID, DORMANT_REMINDER_ID]);
-      await scheduleStreakReminder(ctx.partnerName ?? 'your partner');
+      await scheduleStreakReminder(
+        ctx.partnerName ?? 'your partner',
+        streakReminderHour(reminderHour),
+      );
       return;
     }
 
@@ -305,20 +409,27 @@ export async function syncLocalReminders(ctx: ReminderContext): Promise<void> {
        work; a third identical nag is the one that gets notifications disabled.
        Scheduling is all-or-nothing — when `buildDormantReminder` declines
        (no history, or no honest claim), fall through to the daily line. */
-    if (await scheduleDormantReminder(ctx)) {
+    if (await scheduleDormantReminder(ctx, reminderHour)) {
       await cancelIds([WORKOUT_REMINDER_ID]);
       return;
     }
 
     await cancelIds([DORMANT_REMINDER_ID]);
-    await scheduleDailyTrainingReminder(ctx.streak ?? 0);
+    await scheduleDailyTrainingReminder(
+      ctx.streak ?? 0,
+      reminderHour,
+      ctx.daysSinceLastSession ?? null,
+    );
   } catch {
     // Best-effort.
   }
 }
 
 /** @deprecated Prefer syncLocalReminders — kept for couple-invite call sites. */
-export async function scheduleStreakReminder(partnerName: string): Promise<void> {
+export async function scheduleStreakReminder(
+  partnerName: string,
+  hour = STREAK_REMINDER_HOUR,
+): Promise<void> {
   if (!(await ensureNotificationPermission())) return;
   try {
     await cancelIds([STREAK_REMINDER_ID, ...LEGACY_IDS.filter((id) => id.includes('streak'))]);
@@ -332,7 +443,7 @@ export async function scheduleStreakReminder(partnerName: string): Promise<void>
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
-        hour: 20,
+        hour,
         minute: 0,
       },
     });
@@ -348,11 +459,18 @@ export async function scheduleStreakReminder(partnerName: string): Promise<void>
  * without it the copy is exactly what it always was, so an older caller
  * schedules the same reminder it used to.
  */
-export async function scheduleDailyTrainingReminder(streak = 0): Promise<void> {
+export async function scheduleDailyTrainingReminder(
+  streak = 0,
+  hour = DEFAULT_REMINDER_HOUR,
+  daysAway: number | null = null,
+): Promise<void> {
   if (!(await ensureNotificationPermission())) return;
   try {
     await cancelIds([WORKOUT_REMINDER_ID, ...LEGACY_IDS.filter((id) => id.startsWith('daily-'))]);
-    const copy = buildDailyReminder({ streak });
+    /* `daysAway` distinguishes an ordinary evening from the last night of a
+       streak that has already spent its rest day. Optional and defaulted to
+       null, so the deprecated call sites below send exactly what they did. */
+    const copy = buildDailyReminder({ streak, daysAway });
     await Notifications.scheduleNotificationAsync({
       identifier: WORKOUT_REMINDER_ID,
       content: {
@@ -363,7 +481,7 @@ export async function scheduleDailyTrainingReminder(streak = 0): Promise<void> {
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
-        hour: 19,
+        hour,
         minute: 0,
       },
     });
@@ -383,7 +501,7 @@ export async function scheduleDailyTrainingReminder(streak = 0): Promise<void> {
  * Same evening hour as the workout reminder it replaces: this is a different
  * sentence in the existing slot, not an extra ping.
  */
-async function scheduleDormantReminder(ctx: ReminderContext): Promise<boolean> {
+async function scheduleDormantReminder(ctx: ReminderContext, hour: number): Promise<boolean> {
   const copy = buildDormantReminder({
     daysAway: ctx.daysSinceLastSession ?? null,
     sessions: ctx.sessions ?? [],
@@ -403,7 +521,7 @@ async function scheduleDormantReminder(ctx: ReminderContext): Promise<boolean> {
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
-        hour: 19,
+        hour,
         minute: 0,
       },
     });
@@ -423,16 +541,98 @@ export async function cancelDailyTrainingReminder(): Promise<void> {
 }
 
 /**
- * The Sunday recap.
+ * The Monday recap.
  *
  * `proof` carries the athlete's history so the banner can state a fact rather
  * than invite them to go and look. Optional for the same reason as
  * `scheduleDailyTrainingReminder`'s streak: absent it, the copy is the generic
  * line this always sent.
+ *
+ * The defaults are the named constants rather than bare numbers: they used to
+ * be `weekday = 1, hour = 18`, and `1` is Sunday, which is the bug
+ * `WEEKLY_RECAP_WEEKDAY` documents. A default spelled as a literal is how that
+ * would come back — a caller omitting the argument would quietly reinstate it.
+ *
+ * Note the copy is built HERE, at schedule time, and handed to the OS as a
+ * fixed string: `expo-notifications` has no way to compute content at delivery.
+ * So the freshness of the claim is exactly the freshness of the last sync,
+ * which is why `useNotificationSync` re-syncs when the app is foregrounded.
  */
+/**
+ * The hydration slots — two at most, and only when there is something true to
+ * say at that hour.
+ *
+ * Its own slots rather than the evening one, because a reminder to drink at
+ * 19:00 arrives when the day is over and the only honest line left is that
+ * the goal was missed. Each slot is cancelled rather than filled when
+ * `buildHydrationReminder` declines, so an athlete on pace hears nothing at
+ * all — the same all-or-nothing rule the dormant slot follows.
+ *
+ * Note this schedules against *today's* state on a DAILY trigger. A slot set
+ * while behind will fire again tomorrow with the same words, which is why
+ * every caller of `syncLocalReminders` re-runs this: the next sync corrects
+ * the copy, and logging a drink re-syncs immediately.
+ */
+export async function syncHydrationReminders(ctx: {
+  enabled: boolean;
+  drinks: readonly DrinkEntry[];
+  goalMl: number;
+  day: string;
+}): Promise<void> {
+  if (!ctx.enabled) {
+    await cancelIds(HYDRATION_REMINDER_IDS);
+    return;
+  }
+  if (!(await ensureNotificationPermission())) return;
+
+  for (const [index, hour] of HYDRATION_SLOTS.entries()) {
+    const id = HYDRATION_REMINDER_IDS[index]!;
+    const copy = buildHydrationReminder({
+      drinks: ctx.drinks,
+      goalMl: ctx.goalMl,
+      day: ctx.day,
+      hour,
+    });
+
+    if (!copy) {
+      await cancelIds([id]);
+      continue;
+    }
+
+    try {
+      await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
+      await Notifications.scheduleNotificationAsync({
+        identifier: id,
+        content: {
+          title: copy.title,
+          body: copy.body,
+          data: { type: 'hydration-reminder' },
+          ...(Platform.OS === 'android' ? { channelId: channelIdFor('reminders') } : {}),
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DAILY,
+          hour,
+          minute: 0,
+        },
+      });
+    } catch {
+      // Best-effort, like every other slot here.
+    }
+  }
+}
+
+/** Drop both hydration slots — used when the toggle goes off. */
+export async function cancelHydrationReminders(): Promise<void> {
+  try {
+    await cancelIds(HYDRATION_REMINDER_IDS);
+  } catch {
+    // Best-effort.
+  }
+}
+
 export async function scheduleWeeklyRecap(
-  weekday = 1,
-  hour = 18,
+  weekday = WEEKLY_RECAP_WEEKDAY,
+  hour = WEEKLY_RECAP_HOUR,
   proof?: { sessions: readonly SessionSummary[]; streak: number },
 ): Promise<void> {
   if (!(await ensureNotificationPermission())) return;

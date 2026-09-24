@@ -22,7 +22,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { reservedControlHeight } from '@/theme/fontScale';
-import { scaleFor, text } from '@/theme/typography';
+import { scaleFor, scaleForRole, text } from '@/theme/typography';
 import { gradients, palette, radius, shadow, space, SCREEN_GUTTER, type Gradient } from '@/theme/tokens';
 import { lightImpactHaptic } from '@/lib/feedback';
 
@@ -109,7 +109,11 @@ export function SectionLabel({
   children: ReactNode;
   style?: StyleProp<TextStyle>;
 }) {
-  return <Text style={[text.section, style]}>{children}</Text>;
+  return (
+    <Text style={[text.section, style]} {...scaleFor('section')}>
+      {children}
+    </Text>
+  );
 }
 
 /** Small muted all-caps label, e.g. "ONLINE NOW". */
@@ -120,7 +124,11 @@ export function Eyebrow({
   children: ReactNode;
   style?: StyleProp<TextStyle>;
 }) {
-  return <Text style={[text.eyebrow, style]}>{children}</Text>;
+  return (
+    <Text style={[text.eyebrow, style]} {...scaleFor('eyebrow')}>
+      {children}
+    </Text>
+  );
 }
 
 /* ------------------------------------------------------------------ *
@@ -273,7 +281,9 @@ export function IconButton({
       accessibilityLabel={label}
       style={[styles.iconButton, style]}
     >
-      <Text style={styles.iconButtonGlyph}>{glyph}</Text>
+      <Text style={styles.iconButtonGlyph} {...scaleForRole('control')}>
+        {glyph}
+      </Text>
     </PressableScale>
   );
 }
@@ -296,8 +306,12 @@ export function StatTile({
   return (
     <Card style={styles.statTile}>
       {emoji ? <Text style={styles.statEmoji}>{emoji}</Text> : null}
-      <Text style={[text.stat, { color }]}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={[text.stat, { color }]} {...scaleFor('stat')}>
+        {value}
+      </Text>
+      <Text style={styles.statLabel} {...scaleForRole('control')}>
+        {label}
+      </Text>
     </Card>
   );
 }
@@ -416,7 +430,9 @@ export function Badge({
 }) {
   return (
     <View style={[styles.badge, { backgroundColor: background }, style]}>
-      <Text style={[text.badgeSm, { color }]}>{label}</Text>
+      <Text style={[text.badgeSm, { color }]} {...scaleForRole('control')}>
+        {label}
+      </Text>
     </View>
   );
 }

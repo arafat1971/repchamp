@@ -12,9 +12,9 @@ import { font, text } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
 
 const TINTS: Record<string, { background: string; color: string }> = {
-  adrian: { background: '#ddd6fe', color: '#5b21b6' },
-  zheng: { background: '#bfdbfe', color: '#1e40af' },
-  mia: { background: '#fde68a', color: '#92400e' },
+  adrian: { background: palette.purple300, color: palette.purple900 },
+  zheng: { background: palette.blue100, color: palette.blue800 },
+  mia: { background: palette.amber100, color: palette.amber900 },
 };
 
 export default function OpponentPickerScreen() {

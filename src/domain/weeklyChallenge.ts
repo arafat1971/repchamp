@@ -12,6 +12,7 @@
  * retention + re-share loop, so it must be open to everyone, Pro or not.
  */
 
+import { dayKey } from '@/domain/progression';
 import type { ExerciseId } from '@/vision/exercises';
 
 export interface WeeklyChallengeDef {
@@ -77,6 +78,42 @@ export function isoWeekKey(date = new Date()): string {
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
   const week = Math.ceil(((d.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
   return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
+/**
+ * The `YYYY-MM-DD` day keys of the ISO week containing `date`.
+ *
+ * `WeeklyChallengeCard` built this itself, walking back to Monday with
+ * `getDay() || 7` and adding seven days — a third implementation of a week
+ * boundary that `isoWeekKey` already defined, sitting alongside the
+ * `selectWeekSessions` filter that uses the real thing.
+ *
+ * The two agreed: comparing them over 800 consecutive base dates, across year
+ * ends and DST edges, produced no disagreement. That is the argument for
+ * consolidating rather than against it — they matched by coincidence of two
+ * correct implementations, and nothing held them together. Derived from
+ * `isoWeekKey` here, a day is in this week exactly when the leaderboard, the
+ * weekly XP total and the league all say it is.
+ *
+ * Note this is the *calendar* week, which resets on Monday. The couple tracker
+ * deliberately uses a rolling last-7-days window instead (see `lastNDayKeys`
+ * and the reasoning in `coupleTracker`) — that is a different concept, not a
+ * fourth copy of this one, and must not be folded in here.
+ */
+export function currentWeekDayKeys(date = new Date()): Set<string> {
+  const week = isoWeekKey(date);
+  const keys = new Set<string>();
+
+  /* Walk out from `date` rather than computing Monday: the ISO week key is the
+     authority on membership, so asking it directly cannot disagree with it.
+     Seven days either side is more than the span of any week, and the key
+     check discards everything outside. */
+  for (let offset = -7; offset <= 7; offset++) {
+    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate() + offset);
+    if (isoWeekKey(d) === week) keys.add(dayKey(d));
+  }
+
+  return keys;
 }
 
 /** This week's challenge — the same for everyone, rotating by week number. */

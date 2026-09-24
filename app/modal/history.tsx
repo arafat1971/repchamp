@@ -81,7 +81,7 @@ export default function HistoryScreen() {
           <View style={styles.dayHeader}>
             <Eyebrow>{labelForDay(entry.day, today).toUpperCase()}</Eyebrow>
             <Text style={styles.dayTotal}>
-              {entry.totalReps} reps · +{entry.totalXp} XP
+              {entry.totalReps} {entry.totalReps === 1 ? 'rep' : 'reps'} · +{entry.totalXp} XP
             </Text>
           </View>
 

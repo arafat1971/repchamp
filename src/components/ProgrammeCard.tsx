@@ -13,6 +13,7 @@ import Animated, {
 import { useEffect } from 'react';
 
 import { PressableScale, ProgressBar } from '@/components/ui';
+import { canUse } from '@/domain/pro';
 import { PUSHUP_LADDER } from '@/domain/programme';
 import { getExercise } from '@/vision/exercises';
 import { isPurchasesConfigured } from '@/services/purchases';
@@ -87,7 +88,7 @@ function FloatingEmoji({ emoji, delay = 0 }: { emoji: string; delay?: number }) 
 function GlowRing({
   percent,
   size = 68,
-  color = '#15803d',
+  color = palette.green700,
 }: {
   percent: number;
   size?: number;
@@ -130,7 +131,12 @@ export function ProgrammeCard() {
   const completeProgrammeRestDay = useProfileStore((s) => s.completeProgrammeRestDay);
   const isPro = useEffectivePro();
 
-  const gated = !isPro && isPurchasesConfigured();
+  /* The Pro decision goes through `canUse` like every other gate, so
+     `custom-programmes` has a real call site and the split stays in `pro.ts`
+     rather than in an inline `!isPro` here. The billing-readiness check stays
+     on top of it, matching the session screen: on a build with no billing
+     configured, locking this would be a dead end with nothing to buy. */
+  const gated = !canUse(isPro, 'custom-programmes') && isPurchasesConfigured();
   const enroll = (programmeId: string) => {
     if (gated) {
       router.push({ pathname: '/modal/paywall', params: { source: 'programme' } });
@@ -148,7 +154,7 @@ export function ProgrammeCard() {
         accessibilityLabel={`Start the programme: ${PUSHUP_LADDER.title}`}
       >
         <LinearGradient
-          colors={['#15803d', '#16a34a', '#22c55e']}
+          colors={[palette.green700, palette.green600, palette.green500]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.card}
@@ -163,7 +169,7 @@ export function ProgrammeCard() {
             </View>
             {gated ? (
               <LinearGradient
-                colors={['#f59e0b', '#f97316']}
+                colors={[palette.amber500, palette.amber600]}
                 style={styles.proTag}
               >
                 <Text style={font('extrabold', 9.5, { color: palette.white })}>PRO</Text>
@@ -267,7 +273,7 @@ export function ProgrammeCard() {
       }
     >
       <LinearGradient
-        colors={['#15803d', '#16a34a', '#22c55e']}
+        colors={[palette.green700, palette.green600, palette.green500]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.card}
@@ -432,7 +438,7 @@ const styles = StyleSheet.create({
   ctaPillPro: {
     backgroundColor: palette.amber400,
     borderColor: palette.amber300,
-    shadowColor: '#f59e0b',
+    shadowColor: palette.amber500,
   },
   ctaText: font('extrabold', 14, { color: palette.white }),
   ctaArrow: {

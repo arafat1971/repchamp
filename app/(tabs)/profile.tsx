@@ -16,6 +16,7 @@ import {
   selectWinRate,
   useProfileStore,
 } from '@/state/profileStore';
+import { useTabView } from '@/lib/useTabView';
 import { useIsPro } from '@/state/proStore';
 import { useAuthStore } from '@/state/authStore';
 import { showDialog } from '@/state/useDialog';
@@ -120,6 +121,7 @@ function ProfileStat({ icon, value, label }: { icon: StatIconName; value: string
 }
 
 export default function ProfileScreen() {
+  useTabView('profile');
   const router = useRouter();
   const profile = useProfileStore();
   const isPro = useIsPro();
@@ -538,7 +540,7 @@ const styles = StyleSheet.create({
   badgeEarnedWrap: {
     backgroundColor: palette.tintGreenBottom,
     borderWidth: 1.5,
-    borderColor: '#4ade80',
+    borderColor: palette.green400,
   },
   badgeDot: {
     position: 'absolute',

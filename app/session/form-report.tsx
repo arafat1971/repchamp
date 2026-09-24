@@ -3,8 +3,9 @@ import { Redirect, useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { ProgressRing } from '@/components/session/ProgressRing';
-import { Card, IconButton, PrimaryButton, Screen, SectionLabel } from '@/components/ui';
+import { Card, IconButton, PressableScale, PrimaryButton, Screen, SectionLabel } from '@/components/ui';
 import { canUse } from '@/domain/pro';
+import { formReportTeaser, teaserLockLine } from '@/domain/formReportTeaser';
 import { useIsPro } from '@/state/proStore';
 import { useSessionStore } from '@/state/sessionStore';
 import { font, text } from '@/theme/typography';
@@ -16,8 +17,98 @@ export default function FormReportScreen() {
   const reps = useSessionStore((s) => s.reps);
   const isPro = useIsPro();
 
+  /* A free athlete used to be redirected straight to the paywall from here,
+     shown nothing of the report they had just earned. `buildFormReport` runs
+     for every session regardless of Pro, so the score was already computed and
+     sitting in the store — the pitch was "pay to find out whether this is worth
+     paying for", made to someone whose curiosity about their own set was the
+     whole asset. This shows the real headline and locks the detail. */
+  const teaser = formReportTeaser(report);
+
   if (!canUse(isPro, 'advanced-stats')) {
-    return <Redirect href={{ pathname: '/modal/paywall', params: { source: 'form-report' } }} />;
+    /* Nothing honest to tease — no report, or a set with no counted reps.
+       Falling through to the paywall is right here: there is no result to
+       withhold, so there is nothing to preview. */
+    if (!teaser) {
+      return <Redirect href={{ pathname: '/modal/paywall', params: { source: 'form-report' } }} />;
+    }
+
+    return (
+      <Screen>
+        <View style={styles.header}>
+          <IconButton glyph="‹" label="Back to results" onPress={() => router.back()} />
+          <Text style={[text.h2, { flex: 1 }]}>Form report</Text>
+        </View>
+
+        {/* Their real score, at full size. Not blurred and not rounded: a
+            teaser built on an invented number would differ from what they see
+            after paying, which is a lie told at the moment of payment. */}
+        <LinearGradient colors={gradients.brandDeep} style={[styles.scoreCard, shadow.brand]}>
+          <ProgressRing
+            percent={teaser.score}
+            size={88}
+            strokeWidth={7}
+            color={palette.white}
+            trackColor="rgba(255,255,255,0.25)"
+          >
+            <Text style={font('extrabold', 26, { color: palette.white })}>{teaser.score}</Text>
+            <Text style={font('bold', 9.5, { color: 'rgba(255,255,255,0.8)' })}>/100</Text>
+          </ProgressRing>
+          <View style={{ flex: 1 }}>
+            <Text style={font('extrabold', 18, { color: palette.white })}>{teaser.grade}</Text>
+            <Text style={styles.scoreSummary}>Your score for this set</Text>
+          </View>
+        </LinearGradient>
+
+        <Card style={styles.section}>
+          <SectionLabel>Movement quality</SectionLabel>
+          {/* Names, never values. "Depth" says the report has something to say
+              about depth, which is the pitch; "62%" would be the product. */}
+          <View style={{ gap: 12, marginTop: 16 }}>
+            {teaser.lockedMetrics.map((label) => (
+              <View key={label} style={styles.lockedRow}>
+                <Text style={font('bold', 12, { color: palette.ink })}>{label}</Text>
+                <Text style={font('extrabold', 12, { color: palette.grey450 })}>🔒</Text>
+              </View>
+            ))}
+          </View>
+          <Text style={styles.lockLine}>{teaserLockLine(teaser)}</Text>
+        </Card>
+
+        <PressableScale
+          onPress={() => {
+            /* No `paywall_viewed` here. The paywall fires that itself on mount,
+               from the `source` passed below — firing it again would count one
+               athlete as two views, and only on this source, which is exactly
+               the one the teaser exists to measure against `form-report`. The
+               comparison would have read as half the conversion it really is. */
+            router.push({
+              pathname: '/modal/paywall',
+              params: { source: 'form-report-teaser' },
+            });
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Unlock the full form report with Pro"
+          style={{ marginTop: 20 }}
+        >
+          <LinearGradient colors={gradients.brand} style={styles.unlockCta}>
+            <Text style={font('extrabold', 15, { color: palette.white })}>
+              Unlock the full report
+            </Text>
+          </LinearGradient>
+        </PressableScale>
+
+        {/* Declining must stay one obvious tap, same as the paywall itself. */}
+        <PressableScale
+          onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Back to results"
+          style={styles.laterHit}
+        >
+          <Text style={font('bold', 13, { color: palette.grey600 })}>Maybe later</Text>
+        </PressableScale>
+      </Screen>
+    );
   }
 
   if (!report) {
@@ -91,7 +182,9 @@ export default function FormReportScreen() {
       <Card style={styles.section}>
         <View style={styles.metricHeader}>
           <SectionLabel>Per-rep depth</SectionLabel>
-          <Text style={font('bold', 10, { color: palette.grey600 })}>{reps} reps tracked</Text>
+          <Text style={font('bold', 10, { color: palette.grey600 })}>
+            {reps} {reps === 1 ? 'rep' : 'reps'} tracked
+          </Text>
         </View>
 
         {report.bars.length > 0 ? (
@@ -156,6 +249,27 @@ function LegendDot({ color, label }: { color: string; label: string }) {
 }
 
 const styles = StyleSheet.create({
+  lockedRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  lockLine: {
+    ...font('semibold', 11, { color: palette.grey600 }),
+    marginTop: 16,
+    lineHeight: 16,
+  },
+  unlockCta: {
+    borderRadius: radius['3xl'],
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  laterHit: {
+    alignItems: 'center',
+    paddingVertical: 14,
+    marginTop: 4,
+  },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16, marginTop: 4 },
   scoreCard: {
     flexDirection: 'row',

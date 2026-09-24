@@ -100,6 +100,54 @@ export function headlineProof(
 }
 
 /**
+ * Where the athlete started — for someone who has not yet earned a headline.
+ *
+ * `headlineProof` refuses every tier for an athlete with one or two sessions,
+ * under 100 banked reps and no streak: no measurable gain (that needs three
+ * sessions), no streak, not enough volume, not enough sets. That refusal is
+ * correct — they have not improved yet, and saying they have would be the
+ * fabrication this module exists to avoid.
+ *
+ * But it leaves the dormant slot silent for exactly the athlete most likely to
+ * leave. Someone who trained twice and stopped gets the generic evening line
+ * that already failed them on days one and two, because
+ * `buildDormantReminder` has nothing true to put in its place.
+ *
+ * There is something true: where they began. "Your first set was 12 push-ups"
+ * claims no progress, no trend and no milestone — it is a fact about one
+ * recorded session, and it is the number every later gain will be measured
+ * from. That is a different sentence from the ones above, not a weakened
+ * version of them.
+ *
+ * ## Why this is separate rather than a fifth tier of `headlineProof`
+ *
+ * `headlineProof` feeds the weekly recap and, through `exerciseProgress`, the
+ * share card. Loosening any threshold there would let a two-session athlete's
+ * "progress" leak into a recap that claims improvement and a share card that
+ * broadcasts it — the two places where an overstatement is most expensive.
+ * Those refusals are load-bearing, so this adds a narrower claim beside them
+ * rather than widening any of them.
+ *
+ * Returns null once `headlineProof` can speak (three or more sessions), so the
+ * two never compete for the same slot, and null for an athlete with nothing on
+ * record at all — a first set of zero reps is not a starting point.
+ */
+export function startingPointProof(sessions: readonly SessionSummary[]): string | null {
+  if (sessions.length === 0 || sessions.length > 2) return null;
+
+  /* The earliest session on record. `sessions` is newest-first as the store
+     writes it, but that is the store's business — sorting by the timestamp
+     makes this correct whatever order arrives. */
+  const [first] = [...sessions].sort((a, b) => a.completedAt.localeCompare(b.completedAt));
+  if (!first || first.reps <= 0) return null;
+
+  /* Pluralised: a single-rep first set is exactly the athlete this line exists
+     for, and "1 reps" in the sentence meant to make them feel credited is the
+     one place sloppiness is least affordable. */
+  return `Your first set was ${first.reps} rep${first.reps === 1 ? '' : 's'}`;
+}
+
+/**
  * A line worth sharing, or null.
  *
  * Only offered when there is a real result behind it. Prompting someone to

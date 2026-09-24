@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
   earnedIcon: {
     backgroundColor: palette.tintGreenBottom,
     borderWidth: 1,
-    borderColor: '#86efac',
+    borderColor: palette.green300,
   },
   lockedIcon: {
     backgroundColor: '#f3f4f3',

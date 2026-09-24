@@ -102,6 +102,7 @@ export default function BlockedUsersScreen() {
       <PressableScale
         onPress={() => router.back()}
         accessibilityRole="button"
+        accessibilityLabel="Done"
         style={{ alignSelf: 'center', marginTop: 24, padding: 12 }}
       >
         <Text style={font('bold', 13, { color: palette.grey600 })}>Done</Text>

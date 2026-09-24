@@ -4,38 +4,43 @@ import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { PressableScale, ProgressBar } from '@/components/ui';
-import { dayKey } from '@/domain/progression';
-import { weeklyChallengeProgress } from '@/domain/weeklyChallenge';
+import { currentWeekDayKeys, weeklyChallengeProgress } from '@/domain/weeklyChallenge';
 import { useProfileStore } from '@/state/profileStore';
-import { font } from '@/theme/typography';
+import { font, scaleForRole } from '@/theme/typography';
 import { palette, radius, shadow } from '@/theme/tokens';
-
-/** The day-keys (YYYY-MM-DD) of the current Mon–Sun week. */
-function currentWeekDays(date = new Date()): Set<string> {
-  const dayNum = date.getDay() || 7; // Mon=1 … Sun=7
-  const monday = new Date(date);
-  monday.setDate(date.getDate() - (dayNum - 1));
-  const set = new Set<string>();
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    set.add(dayKey(d));
-  }
-  return set;
-}
 
 /**
  * This week's rotating challenge — a time-boxed goal that pulls athletes back
  * and gives them something to share. Progress + countdown come from the pure
  * `weeklyChallenge` domain; a tap starts the challenge exercise.
+ *
+ * ## Why `now` is a required prop rather than a clock read in here
+ *
+ * This memo used to key on `[sessions]` alone while reading `new Date()` twice
+ * inside itself — once for the day-set and once for the challenge definition.
+ * Two problems followed. The card froze at mount: nothing on the Arena tab
+ * refreshes it, so an app left backgrounded over Sunday night kept showing last
+ * week's title and target against this week's reps — two contradictory claims
+ * about one goal, which is the failure `domain/dailyChallenge` was written to
+ * end. And the two reads could straddle midnight, pairing one week's day-set
+ * with another week's challenge.
+ *
+ * One injected instant fixes both: every value on the card is now derived from
+ * the same moment, and the moment is the caller's to own and to refresh. The
+ * prop is required rather than defaulted because a default would let the next
+ * call site quietly reintroduce the frozen clock — the type should force the
+ * decision to be made at the screen, where the refresh policy lives.
  */
-export function WeeklyChallengeCard() {
+export function WeeklyChallengeCard({ now }: { now: Date }) {
   const router = useRouter();
   const sessions = useProfileStore((s) => s.sessions);
 
   const progress = useMemo(() => {
-    return weeklyChallengeProgress(sessions, currentWeekDays());
-  }, [sessions]);
+    /* One instant for both: the day-set and the challenge definition must agree
+       about which week it is, which two separate `new Date()` calls cannot
+       guarantee at a boundary. */
+    return weeklyChallengeProgress(sessions, currentWeekDayKeys(now), now);
+  }, [sessions, now]);
 
   const { def, reps, percent, complete, daysLeft } = progress;
 
@@ -64,9 +69,11 @@ export function WeeklyChallengeCard() {
         style={[styles.card, shadow.brand]}
       >
         <View style={styles.headerRow}>
-          <Text style={styles.eyebrow}>THIS WEEK’S CHALLENGE</Text>
+          <Text style={styles.eyebrow} {...scaleForRole('control')}>
+            THIS WEEK’S CHALLENGE
+          </Text>
           <View style={styles.countdown}>
-            <Text style={styles.countdownText}>
+            <Text style={styles.countdownText} {...scaleForRole('control')}>
               {daysLeft} {daysLeft === 1 ? 'DAY' : 'DAYS'} LEFT
             </Text>
           </View>
@@ -98,7 +105,18 @@ export function WeeklyChallengeCard() {
 
 const styles = StyleSheet.create({
   card: { borderRadius: radius['4xl'], padding: 20 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  /* Wraps rather than holding one rigid line. At large text sizes the eyebrow
+     and the countdown pill cannot both fit across the card, and `space-between`
+     simply pushed the pill off the right edge — "4 DA…". Wrapping drops it to
+     its own line instead, which costs a few points of height and keeps the
+     deadline readable. */
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
   eyebrow: { ...font('extrabold', 10, { color: 'rgba(255,255,255,0.85)' }), letterSpacing: 1.5 },
   countdown: {
     /* Lightened with the card. A 20%-black pill was a visible darker patch on

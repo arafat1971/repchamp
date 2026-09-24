@@ -37,6 +37,7 @@ import { GrowthChart } from '@/components/charts/GrowthChart';
 import { ProgressRing } from '@/components/session/ProgressRing';
 import { Card, PressableScale, PrimaryButton, ProgressBar } from '@/components/ui';
 import { captureError } from '@/lib/crash';
+import { pluralise } from '@/domain/plural';
 import { OPPONENTS } from '@/domain/opponent';
 import { track } from '@/lib/analytics';
 import { onboardingProgressPercent, onboardingStepName } from '@/domain/onboardingFunnel';
@@ -75,6 +76,7 @@ import {
 } from '@/lib/notifications';
 import { isValidUsername, usernameError as usernameValidationError } from '@/domain/input';
 import { useProfileStore } from '@/state/profileStore';
+import { matchedPace } from '@/domain/adaptivePace';
 import { reservedControlHeight } from '@/theme/fontScale';
 import { font, scaleForRole, text } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
@@ -128,7 +130,7 @@ const BLOCKERS = [
 /** Illustrative leaderboard rows for the antidote screen. */
 const BOARD_MOCK = [
   { medal: '🥇', emoji: '🏃‍♀️', name: 'Nova', xp: '1,240', tint: '#ede9fe', you: false },
-  { medal: '🥈', emoji: '💪', name: 'You', xp: '1,180', tint: '#eafaf0', you: true },
+  { medal: '🥈', emoji: '💪', name: 'You', xp: '1,180', tint: palette.green50, you: true },
   { medal: '🥉', emoji: '🤾‍♂️', name: 'Titan', xp: '1,020', tint: '#dbeafe', you: false },
 ] as const;
 
@@ -600,6 +602,7 @@ function Welcome({ onNext }: { onNext: () => void }) {
           style={styles.legalLink}
           onPress={() => router.push('/modal/legal?tab=terms')}
           accessibilityRole="link"
+          accessibilityLabel="Terms"
         >
           Terms
         </Text>{' '}
@@ -608,6 +611,7 @@ function Welcome({ onNext }: { onNext: () => void }) {
           style={styles.legalLink}
           onPress={() => router.push('/modal/legal')}
           accessibilityRole="link"
+          accessibilityLabel="Privacy Policy"
         >
           Privacy Policy
         </Text>
@@ -1085,7 +1089,11 @@ function Username({
           who already has an account: they invent a second handle, and the app
           only discovers the real one long after. Offering it here lets a
           returning athlete restore first and skip the invention entirely. */}
-      <PressableScale onPress={onSignIn} accessibilityRole="button">
+      <PressableScale
+        onPress={onSignIn}
+        accessibilityRole="button"
+        accessibilityLabel="Already have an account? Sign in"
+      >
         <Text style={styles.haveAccountLink}>
           Already have an account? <Text style={styles.haveAccountStrong}>Sign in</Text>
         </Text>
@@ -1142,7 +1150,12 @@ function Photo({
 
       <View style={{ flex: 1 }} />
       <PrimaryButton label="Continue" onPress={onNext} />
-      <Pressable onPress={onNext} accessibilityRole="button" style={styles.skip}>
+      <Pressable
+        onPress={onNext}
+        accessibilityRole="button"
+        accessibilityLabel="Skip for now"
+        style={styles.skip}
+      >
         <Text style={font('extrabold', 14, { color: palette.grey600 })}>Skip for now</Text>
       </Pressable>
     </View>
@@ -1625,14 +1638,18 @@ function YourFirstWeek({
         <View style={styles.commitRow}>
           <Text style={{ fontSize: 16 }}>🔥</Text>
           <Text style={[text.captionMd, { flex: 1 }]}>
-            Day one is the smallest day of the week — {opener?.target ?? 0} reps. It only gets
+            Day one is the smallest day of the week —{' '}
+            {pluralise(opener?.target ?? 0, 'rep')}. It only gets
             heavier once you&apos;ve proved you&apos;ll show up.
           </Text>
         </View>
       </StaggerIn>
 
       <View style={{ flex: 1 }} />
-      <PrimaryButton label={`Start day one — ${opener?.target ?? 0} reps`} onPress={onNext} />
+      <PrimaryButton
+        label={`Start day one — ${pluralise(opener?.target ?? 0, 'rep')}`}
+        onPress={onNext}
+      />
       <Text style={styles.commitFootnote}>Takes about 2 minutes · no equipment</Text>
     </View>
   );
@@ -1790,6 +1807,8 @@ function Reminders({
           <Pressable
             onPress={onNext}
             accessibilityRole="button"
+            accessibilityLabel="Not now"
+            accessibilityState={{ disabled: busy }}
             disabled={busy}
             style={styles.tryNow}
           >
@@ -2205,6 +2224,11 @@ function DayThumb({ value }: { value: number }) {
 function Challenge({ username, onNext }: { username: string; onNext: () => void }) {
   const { fontScale } = useWindowDimensions();
   const rival = OPPONENTS[0]!;
+  /* The pace they will actually face: bots race from the athlete's own
+     history (`domain/adaptivePace`), so the listed pace would be a number
+     this athlete never meets. */
+  const sessions = useProfileStore((s) => s.sessions);
+  const pace = Math.round(matchedPace(rival.repsPerMinute, sessions, 'push'));
   const pulse = useSharedValue(0);
 
   useEffect(() => {
@@ -2232,7 +2256,7 @@ function Challenge({ username, onNext }: { username: string; onNext: () => void 
         {rival.name} is ready{'\n'}to race you
       </Text>
       <Text style={[text.body, styles.centeredCopy]}>
-        He holds {rival.repsPerMinute} reps a minute. Beat his pace and the XP is yours.
+        He races at your pace, a touch faster. Out-rep him and the XP is yours.
       </Text>
 
       <View style={styles.versusRow}>
@@ -2244,7 +2268,7 @@ function Challenge({ username, onNext }: { username: string; onNext: () => void 
             <Text style={font('extrabold', 9.5, { color: palette.green700 })}>AI</Text>
           </View>
           <Text style={styles.rivalName}>{rival.name}</Text>
-          <Text style={styles.rivalPace}>{rival.repsPerMinute}/min</Text>
+          <Text style={styles.rivalPace}>{pace}/min</Text>
         </View>
 
         <Animated.Text style={[{ fontSize: 30 }, boltStyle]}>⚡</Animated.Text>
@@ -2265,6 +2289,7 @@ function Challenge({ username, onNext }: { username: string; onNext: () => void 
       <Pressable
         onPress={onNext}
         accessibilityRole="button"
+        accessibilityLabel="Not right now"
         style={[styles.declineButton, { minHeight: reservedControlHeight(54, fontScale) }]}
       >
         <Text style={font('extrabold', 15, { color: palette.ink })} {...scaleForRole('control')}>
@@ -2792,7 +2817,12 @@ function Offer({ onDone }: { onDone: () => void }) {
           <Text style={[text.captionMd, { textAlign: 'center', marginTop: 8 }]}>
             {annual ? renewDisclosure(annual) : null}
           </Text>
-          <Pressable onPress={onDone} accessibilityRole="button" style={styles.skip}>
+          <Pressable
+            onPress={onDone}
+            accessibilityRole="button"
+            accessibilityLabel="Maybe later"
+            style={styles.skip}
+          >
             <Text style={font('extrabold', 14, { color: palette.grey600 })}>Maybe later</Text>
           </Pressable>
         </>
@@ -2884,7 +2914,7 @@ const styles = StyleSheet.create({
     padding: 8,
     borderWidth: 2,
     borderColor: '#20302a',
-    shadowColor: '#16a34a',
+    shadowColor: palette.green600,
     shadowOffset: { width: 0, height: 16 },
     shadowOpacity: 0.35,
     shadowRadius: 30,
@@ -2938,7 +2968,7 @@ const styles = StyleSheet.create({
     borderColor: palette.green700,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#16a34a',
+    shadowColor: palette.green600,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.22,
     shadowRadius: 22,
@@ -3103,7 +3133,7 @@ const styles = StyleSheet.create({
     borderColor: palette.green700,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#16a34a',
+    shadowColor: palette.green600,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.22,
     shadowRadius: 22,
@@ -3144,7 +3174,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.purple100,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#7c3aed',
+    shadowColor: palette.purple600,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.2,
     shadowRadius: 22,
@@ -3697,7 +3727,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.amber50,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#f59e0b',
+    shadowColor: palette.amber500,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.24,
     shadowRadius: 22,

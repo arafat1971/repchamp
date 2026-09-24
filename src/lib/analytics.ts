@@ -53,6 +53,9 @@ export interface AnalyticsEvents {
   couple_paired: { via: 'code' | 'qr' | 'link' };
   couple_nudge_sent: Record<string, never>;
   couple_together_started: { exercise: string };
+  couple_partner_dashboard: Record<string, never>;
+  couple_sharing_changed: { metric: 'steps' | 'water'; on: boolean };
+  qr_scanned: { kind: 'couple' | 'duel' | 'friend' };
 
   /** Mirrors `couple_paired` so both invite surfaces are measured the same way. */
   duel_joined: { via: 'qr' | 'code' | 'invite' };
@@ -60,11 +63,56 @@ export interface AnalyticsEvents {
   paywall_viewed: { source: string };
   /** The athlete saw the price and chose not to buy — the other half of the funnel. */
   paywall_dismissed: { source: string };
+  /**
+   * The store sheet opened and the athlete backed out of it.
+   *
+   * Distinct from `paywall_dismissed`, and the distinction is the point: someone
+   * who never tapped Subscribe rejected the *offer*, while someone who reached
+   * Apple's or Google's confirmation sheet and cancelled had already accepted it
+   * and stopped at the payment. Those are different problems — the first is
+   * pricing or framing, the second is friction, a payment method, or second
+   * thoughts at the last step. Collapsing them into one number hides whichever
+   * is actually happening.
+   */
+  purchase_cancelled: { plan: string; source: string };
+  /**
+   * The purchase was attempted and failed — a declined card, a store error, a
+   * network drop. Never a cancellation; that is `purchase_cancelled`.
+   *
+   * `reason` is the store's own message, which is what distinguishes a billing
+   * outage the app cannot fix from a configuration fault it can.
+   */
+  purchase_failed: { plan: string; source: string; reason: string };
+  /**
+   * Longest `reason` sent with `purchase_failed`.
+   *
+   * Every other property in this catalogue is a number or a short enum. `reason`
+   * is the one place a raw third-party string — a store SDK's error message, of
+   * unbounded length and content — reaches an outbound payload, and nothing
+   * downstream bounds a single property: `MAX_BATCH` and `MAX_QUEUE` cap how
+   * many events are sent, not how large one is.
+   *
+   * 180 characters keeps the distinguishing part of every real message
+   * ("Invalid Play Store credentials.", "BILLING_UNAVAILABLE", a declined-card
+   * line) while making a pathological one impossible. Truncation is marked, so
+   * a cut message is never mistaken for the whole fault when someone is
+   * diagnosing from the dashboard.
+   */
   trial_started: { plan: string };
   subscribed: { plan: string };
   restore_completed: { restored: boolean };
 
   share_opened: { kind: string };
+
+  /* ── Hydration ──
+   * Declared above the `share_opened` marker deliberately: `declaredEvents()`
+   * in `paywallFunnel.test.ts` slices the catalogue at that line, so anything
+   * below it is invisible to the dead-entry check. */
+
+  /** A glass was logged. `ml` says which chip, so the sizes can be tuned. */
+  water_logged: { ml: number; source: 'home' };
+  /** The daily target was moved. Tells us whether 2 L is the right default. */
+  water_goal_set: { goalMl: number };
 
   /* ── Retention ──
    * The app ships streaks, leagues and three kinds of nudge, and until these
@@ -81,6 +129,36 @@ export interface AnalyticsEvents {
   day_n_return: { dayN: number; daysSinceLast: number };
   /** Movement on the weekly-XP ladder. Demotion is the more telling direction. */
   league_promoted: { from: string; to: string; direction: 'promoted' | 'demoted' };
+
+  /* ── Navigation & intent ──
+   * Home was the only instrumented tab, so the funnel could see an athlete
+   * arrive and see them convert, with the competitive and social surfaces in
+   * between completely dark. These close that gap: `tab_viewed` says which
+   * surfaces are actually visited, and the intent events say what people reach
+   * for once they are there. Deliberately a handful of broad events rather than
+   * one per button — the question is which surface earns its place, and a tap
+   * count per control answers a question nobody is asking yet. */
+
+  /** A tab became the active surface. The denominator for everything below. */
+  tab_viewed: { tab: 'train' | 'arena' | 'friends' | 'profile' };
+  /**
+   * An athlete reached for a workout from the Train tab.
+   *
+   * `mode` separates solo practice from a together-set: the second is the
+   * viral loop starting, and collapsing them hides which one Train drives.
+   */
+  train_intent: { exercise: string; mode: 'practice' | 'together' };
+  /** A competitive surface was opened from Arena. Which one is the question. */
+  arena_opened: { destination: 'leaderboard' | 'daily' | 'opponent-picker' };
+  /**
+   * An invite or duel was launched at someone from the Friends tab.
+   *
+   * `kind` mirrors the invite kinds the screen already routes with, and
+   * `isAI` marks a labelled AI opponent — without it a roster padded with AI
+   * partners reads as organic social activity, which is the one number here
+   * most likely to be believed and most misleading if wrong.
+   */
+  friend_invited: { kind: 'duel' | 'train' | 'compete'; isAI: boolean };
 }
 
 type EventName = keyof AnalyticsEvents;
@@ -94,6 +172,23 @@ interface QueuedEvent {
 const POSTHOG_HOST = 'https://us.i.posthog.com';
 /** Events are batched and flushed on this cadence to avoid a request per rep. */
 const FLUSH_INTERVAL_MS = 10_000;
+/** See `purchase_failed` — bounds the one free-text property in the catalogue. */
+export const MAX_REASON_LENGTH = 180;
+
+/**
+ * Trims a store error to something safe to send, marking the cut.
+ *
+ * Returns a stable placeholder for an absent or blank message so the event
+ * still records *that* a purchase failed — a missing reason is itself worth
+ * seeing, and an empty string in a dashboard reads as a bug in the chart.
+ */
+export function truncateReason(reason: string | null | undefined): string {
+  const trimmed = (reason ?? '').trim();
+  if (!trimmed) return 'unknown';
+  if (trimmed.length <= MAX_REASON_LENGTH) return trimmed;
+  return `${trimmed.slice(0, MAX_REASON_LENGTH - 1)}…`;
+}
+
 const MAX_BATCH = 20;
 /** Hard ceiling so a long offline session cannot grow the queue forever. */
 const MAX_QUEUE = 200;

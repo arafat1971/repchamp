@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
   type ColorValue,
 } from 'react-native';
@@ -27,17 +28,13 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 
+import { reservedControlHeight } from '@/theme/fontScale';
 import { ExerciseGlyph } from '@/components/ExerciseGlyph';
 import { selectTotalReps, useProfileStore } from '@/state/profileStore';
 import { useIncomingDuelCount } from '@/state/useIncomingDuelCount';
 import { buildFabModel } from '@/domain/fabActions';
-import {
-  markFabHintShown,
-  markFabHintUsed,
-  parseFabHint,
-  shouldShowFabHint,
-} from '@/domain/fabHint';
 import { dayKey } from '@/domain/progression';
+import { dailyChallengeProgress } from '@/domain/dailyChallenge';
 import type { ExerciseId } from '@/vision/exercises';
 import { useIsPro } from '@/state/proStore';
 import { canStartExercise } from '@/domain/pro';
@@ -46,7 +43,6 @@ import { isPurchasesConfigured } from '@/services/purchases';
 import { font, fontFamily } from '@/theme/typography';
 import { motion, palette } from '@/theme/tokens';
 import { selectionHaptic } from '@/lib/feedback';
-import { storage } from '@/lib/storage';
 
 /** Matches the shape React Navigation passes to `tabBarIcon`. */
 type IconProps = { color: ColorValue; focused: boolean; size: number };
@@ -174,8 +170,8 @@ function ProfileIcon({ color, focused }: IconProps) {
         {focused ? (
           <>
             <Circle cx={12} cy={12} r={9.3} fill={c} />
-            <Circle cx={12} cy={9.6} r={2.9} fill={'#ffffff'} />
-            <Path d="M6.8 18.9c0-2.9 2.3-4.8 5.2-4.8s5.2 1.9 5.2 4.8z" fill={'#ffffff'} />
+            <Circle cx={12} cy={9.6} r={2.9} fill={palette.white} />
+            <Path d="M6.8 18.9c0-2.9 2.3-4.8 5.2-4.8s5.2 1.9 5.2 4.8z" fill={palette.white} />
           </>
         ) : (
           <>
@@ -209,11 +205,9 @@ type FabAction = {
 
 /** Movements the FAB offers, in authored order — the ranking reorders them. */
 const FAB_EXERCISES: readonly ExerciseId[] = ['push', 'squat', 'situp'];
-/** Mirrors app/(tabs)/index.tsx and app/modal/daily.tsx. */
-const FAB_DAILY_EXERCISE: ExerciseId = 'push';
-const FAB_DAILY_TARGET = 25;
-/** Where the "Hold for more" teaching state lives. See `@/domain/fabHint`. */
-const FAB_HINT_KEY = 'fab.hint.v1';
+/* The daily challenge used to be re-declared here to mirror Home and the
+   modal. It now comes from `domain/dailyChallenge`, so the three cannot
+   disagree about what today's challenge is or whether it is cleared. */
 /**
  * How far above `bottomPosition` the hint pill sits.
  *
@@ -223,16 +217,6 @@ const FAB_HINT_KEY = 'fab.hint.v1';
  * it read as a label stuck to the Squats tile rather than a hint about the
  * button. Lifting it clear puts the gap where the eye expects one.
  */
-const FAB_HINT_OFFSET = 78;
-/** The FAB disc. 56 flat — the 3pt rim it used to carry is gone. */
-const FAB_DIAMETER = 56;
-/**
- * Fixed so the pill can be centred on the disc without measuring text.
- *
- * 110 rather than wider: centring pushes half the overhang right, and at 128
- * that put the pill 9pt off the screen edge, clipping the "e" in "more".
- */
-const HINT_WIDTH = 110;
 
 /**
  * The closed-state mark: a plus, drawn rather than typeset.
@@ -288,13 +272,13 @@ function PlusMark({ size }: { size: number }) {
     <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
       <Path
         d={`M${half} 3 L${half} ${size - 3}`}
-        stroke="#ffffff"
+        stroke={palette.white}
         strokeWidth={3}
         strokeLinecap="round"
       />
       <Path
         d={`M3 ${half} L${size - 3} ${half}`}
-        stroke="#ffffff"
+        stroke={palette.white}
         strokeWidth={3}
         strokeLinecap="round"
       />
@@ -323,27 +307,10 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
      to re-render. The impression count is decided once per mount and never
      read again this session, so writing it through state would only trigger a
      cascading render for a value nothing rerenders on. */
-  const [hintVisible, setHintVisible] = useState(() =>
-    shouldShowFabHint(parseFabHint(storage.getString(FAB_HINT_KEY))),
-  );
-  const showHint = !open && hintVisible;
-
-  /* Count this launch's impression once, not on every re-render of the tab
-     bar — the layout re-renders on navigation, which would burn the whole
-     allowance in a single session. */
-  useEffect(() => {
-    if (!hintVisible) return;
-    const stored = parseFabHint(storage.getString(FAB_HINT_KEY));
-    storage.set(FAB_HINT_KEY, JSON.stringify(markFabHintShown(stored)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount
-  }, []);
-
   const sessions = useProfileStore((st) => st.sessions);
   const pendingDuels = useIncomingDuelCount();
   const today = dayKey();
-  const dailyBest = sessions
-    .filter((x) => x.day === today && x.exercise === FAB_DAILY_EXERCISE)
-    .reduce((best, x) => Math.max(best, x.reps), 0);
+  const daily = useMemo(() => dailyChallengeProgress(sessions, today), [sessions, today]);
 
   const fab = useMemo(
     () =>
@@ -353,9 +320,9 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
         isPro,
         candidates: FAB_EXERCISES,
         pendingDuels,
-        daily: { exercise: FAB_DAILY_EXERCISE, done: dailyBest >= FAB_DAILY_TARGET },
+        daily: { exercise: daily.exercise, done: daily.cleared },
       }),
-    [sessions, today, isPro, pendingDuels, dailyBest],
+    [sessions, today, isPro, pendingDuels, daily],
   );
 
   const reduced = useReducedMotion();
@@ -513,27 +480,32 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
   const openedAtRef = useRef(0);
 
   const openMenu = () => {
-    const stored = parseFabHint(storage.getString(FAB_HINT_KEY));
-    storage.set(FAB_HINT_KEY, JSON.stringify(markFabHintUsed(stored)));
-    setHintVisible(false);
     openedAtRef.current = Date.now();
     setOpen(true);
   };
 
+  /**
+   * A tap opens the menu. It used to fire the top-ranked action directly.
+   *
+   * The split was tap-for-the-best-guess, hold-for-everything-else, and the
+   * guess is exactly the problem: the athlete could not see what it was going
+   * to be before committing, so the most prominent control on screen did
+   * something different depending on state they had not been shown. Landing in
+   * a squat session when you meant push-ups is a worse outcome than one extra
+   * tap, because the recovery is backing out of a started set.
+   *
+   * The menu leads with the same ranked action it would have fired, so the fast
+   * path costs one tap and is now visible before it happens. Hold still opens
+   * the menu too — see `onLongPress` — so the gesture athletes already learned
+   * keeps working rather than becoming a dead input.
+   */
   const onFabPress = () => {
     selectionHaptic();
     if (open) {
       setOpen(false);
       return;
     }
-    const p = fab.primary;
-    if (!p) {
-      openMenu();
-      return;
-    }
-    if (p.kind === 'duel') router.push('/(tabs)/friends');
-    else if (p.kind === 'daily') router.push('/modal/daily');
-    else startExercise(p.exercise);
+    openMenu();
   };
 
   const close = () => setOpen(false);
@@ -558,7 +530,16 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
   return (
     <>
       <Modal visible={open} transparent animationType="fade" onRequestClose={close}>
-        <Pressable style={styles.fabScrim} onPress={closeFromScrim}>
+        {/* The scrim is the only way out of this sheet for someone who cannot
+            see where it ends, so it is announced as a real dismiss control
+            rather than left as an unlabelled full-screen target. Its children
+            keep their own labels — the menu is nested inside it. */}
+        <Pressable
+          style={styles.fabScrim}
+          onPress={closeFromScrim}
+          accessibilityRole="button"
+          accessibilityLabel="Close menu"
+        >
           <View
             style={[styles.fabMenu, { bottom: bottomPosition + 70 }]}
             pointerEvents="box-none"
@@ -621,45 +602,28 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
         </Pressable>
       </Modal>
 
-      {/* Teaching pill for the hold gesture. Decorative to assistive tech —
-          the same information reaches those athletes through the FAB's
-          accessibilityHint, and announcing it twice is worse than once. */}
-      {showHint ? (
-        <View
-          style={[styles.fabHint, { bottom: bottomPosition + FAB_HINT_OFFSET }]}
-          pointerEvents="none"
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-        >
-          <Text style={font('semibold', 12, { color: '#ffffff' })}>Hold for more</Text>
-        </View>
-      ) : null}
 
       <Animated.View style={[styles.fabContainer, { bottom: bottomPosition }, scaleStyle]}>
         <Animated.View style={glowStyle}>
           <TouchableOpacity
             activeOpacity={0.85}
             onPress={onFabPress}
+            /* Kept, and now a synonym for the tap rather than the only way in.
+               Athletes taught by the old hint still hold; that must not become
+               a dead input. */
             onLongPress={() => {
               selectionHaptic();
               openMenu();
             }}
             delayLongPress={280}
             accessibilityRole="button"
-            accessibilityLabel={open ? 'Close workout menu' : 'Start workout'}
-            /* The menu is reachable only by holding, and a hold is not a
-               gesture a screen reader can produce — without the hint and the
-               explicit action below, every action but the primary one is
-               unreachable with TalkBack or VoiceOver on. */
-            accessibilityHint={
-              open ? undefined : 'Double tap to start. Touch and hold for all workout options.'
-            }
-            accessibilityActions={
-              open ? undefined : [{ name: 'longpress', label: 'Show all workout options' }]
-            }
-            onAccessibilityAction={(e) => {
-              if (e.nativeEvent.actionName === 'longpress') openMenu();
-            }}
+            accessibilityLabel={open ? 'Close workout menu' : 'Open workout menu'}
+            /* No `accessibilityActions` escape hatch any more. The menu used to
+               be reachable only by holding — a gesture a screen reader cannot
+               produce — so every action but the primary one needed a custom
+               action to be reachable at all. A plain tap opens it now, which is
+               a gesture every assistive technology already has. */
+            accessibilityHint={open ? undefined : 'Double tap to choose a workout.'}
             style={styles.fabButton}
           >
             {/* Closed: a near-black disc. The full-colour flex mark keeps its
@@ -699,7 +663,7 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
                 Hidden while the menu is open, where it would sit over the ×. */}
             {fab.badgeCount > 0 && !open ? (
               <View style={styles.fabBadge} pointerEvents="none">
-                <Text style={font('extrabold', 10.5, { color: '#ffffff' })}>
+                <Text style={font('extrabold', 10.5, { color: palette.white })}>
                   {fab.badgeCount > 9 ? '9+' : fab.badgeCount}
                 </Text>
               </View>
@@ -714,10 +678,19 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
 export default function TabsLayout() {
   const onboarded = useProfileStore((s) => s.onboarded);
   const insets = useSafeAreaInsets();
+  // Above the early return: hooks must run in the same order every render.
+  const { fontScale } = useWindowDimensions();
 
   if (!onboarded) return <Redirect href="/onboarding" />;
 
-  const tabBarHeight = 60 + Math.max(insets.bottom, 16);
+  /* The bar grows with its labels, like every other control in the app.
+     
+     It was a flat `60 + inset`, which held at the design text size and failed
+     at large ones: the labels grew inside a bar that could not, so "Arena" and
+     "Friends" were drawn straight through by the gesture bar. `Screen`'s FAB
+     clearance is derived from this same number, so raising it here keeps the
+     two in step rather than letting content slide under a taller bar. */
+  const tabBarHeight = reservedControlHeight(60, fontScale) + Math.max(insets.bottom, 16);
 
   return (
     <View style={StyleSheet.absoluteFill}>
@@ -729,8 +702,8 @@ export default function TabsLayout() {
         }}
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: '#16a34a',
-          tabBarInactiveTintColor: '#475569',
+          tabBarActiveTintColor: palette.green600,
+          tabBarInactiveTintColor: palette.slate600,
           tabBarStyle: [
             styles.tabBar,
             {
@@ -780,7 +753,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     marginBottom: 4,
     elevation: 8,
-    shadowColor: '#0f172a',
+    shadowColor: palette.slate900,
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.08,
     shadowRadius: 16,
@@ -802,38 +775,10 @@ const styles = StyleSheet.create({
     width: 36,
   },
   iconFocused: {
-    shadowColor: '#16a34a',
+    shadowColor: palette.green600,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 8,
     elevation: 3,
-  },
-  fabHint: {
-    position: 'absolute',
-    /* Centred on the FAB rather than right-aligned to it.
-     *
-     * Right-aligning looked correct in isolation and was wrong on screen: the
-     * pill is far wider than the 58pt disc, so all of that extra width grew
-     * leftward, across the Quick Start card. Raising it did not help — the
-     * card is tall, so any offset that still reads as "attached to the
-     * button" lands on it.
-     *
-     * Centring splits the overhang either side, and the right half falls off
-     * the screen edge where there is nothing to collide with. */
-    right: 23 - (HINT_WIDTH - FAB_DIAMETER) / 2,
-    width: HINT_WIDTH,
-    alignItems: 'center',
-    paddingVertical: 6,
-    borderRadius: 12,
-    // Near-black rather than the FAB's green: the pill is a passing hint, and
-    // repeating the button's own colour would make it compete with the thing it
-    // is explaining. Kept dark so it reads as a tooltip, not a second action.
-    backgroundColor: '#1C2320',
-    zIndex: 999,
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOpacity: 0.18,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
   },
   fabContainer: {
     position: 'absolute',
@@ -909,7 +854,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: palette.border,
-    shadowColor: '#000000',
+    shadowColor: palette.black,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.12,
     shadowRadius: 16,

@@ -113,6 +113,7 @@ export default function LeaderboardScreen() {
             key={value}
             onPress={() => setScope(value)}
             accessibilityRole="tab"
+            accessibilityLabel={value === 'global' ? 'Global' : 'Friends'}
             accessibilityState={{ selected: scope === value }}
             style={[styles.segment, scope === value && styles.segmentActive]}
           >

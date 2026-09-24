@@ -2,7 +2,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { AppState, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -14,6 +14,8 @@ import Svg, { Path } from 'react-native-svg';
 import { Avatar, Card, PressableScale, Screen, SectionLabel } from '@/components/ui';
 import { StaggerIn } from '@/components/motion';
 import { WeeklyChallengeCard } from '@/components/WeeklyChallengeCard';
+import { track } from '@/lib/analytics';
+import { useTabView } from '@/lib/useTabView';
 import { captureError } from '@/lib/crash';
 import { buildLeaderboard, type LeaderboardRow } from '@/domain/leaderboard';
 import { usePhantomSeed } from '@/domain/seedPhantoms';
@@ -99,6 +101,7 @@ function TrophyIcon({ size = 17, color = palette.green700 }: { size?: number; co
 }
 
 export default function ArenaScreen() {
+  useTabView('arena');
   const router = useRouter();
   const profile = useProfileStore();
   const uid = useAuthStore((s) => s.user?.uid);
@@ -107,6 +110,19 @@ export default function ArenaScreen() {
   const league = selectLeague(profile);
   const seed = usePhantomSeed();
   const username = profile.username || 'You';
+
+  /* The instant the weekly card renders against. Owned here rather than read
+     inside the card so its countdown, challenge and day-set all describe the
+     same moment; re-read whenever the screen returns to the foreground, since
+     this tab has no other reason to re-render and the card would otherwise sit
+     frozen on the week it mounted in. */
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') setNow(new Date());
+    });
+    return () => sub.remove();
+  }, []);
 
   // Local board paints instantly; swap to Firestore once it resolves.
   const [cloudBoard, setCloudBoard] = useState<LeaderboardRow[] | null>(null);
@@ -165,7 +181,10 @@ export default function ArenaScreen() {
       {/* ── Hero: live 1v1 duel with a personal face-off ── */}
       <StaggerIn index={1} style={{ marginTop: 16 }}>
         <PressableScale
-          onPress={() => router.push('/modal/opponent-picker')}
+          onPress={() => {
+            track('arena_opened', { destination: 'opponent-picker' });
+            router.push('/modal/opponent-picker');
+          }}
           accessibilityRole="button"
           accessibilityLabel="Start a 1 versus 1 duel"
         >
@@ -213,13 +232,16 @@ export default function ArenaScreen() {
       </StaggerIn>
 
       <StaggerIn index={2} style={{ marginTop: 12 }}>
-        <WeeklyChallengeCard />
+        <WeeklyChallengeCard now={now} />
       </StaggerIn>
 
       {/* ── Weekly leaderboard ── */}
       <StaggerIn index={3}>
         <PressableScale
-          onPress={() => router.push('/modal/leaderboard')}
+          onPress={() => {
+            track('arena_opened', { destination: 'leaderboard' });
+            router.push('/modal/leaderboard');
+          }}
           accessibilityRole="button"
           accessibilityLabel="Open the weekly leaderboard"
           style={{ marginTop: 12 }}
@@ -297,7 +319,10 @@ export default function ArenaScreen() {
       {/* ── Daily challenge ── */}
       <StaggerIn index={4}>
         <PressableScale
-          onPress={() => router.push('/modal/daily')}
+          onPress={() => {
+            track('arena_opened', { destination: 'daily' });
+            router.push('/modal/daily');
+          }}
           accessibilityRole="button"
           accessibilityLabel="Daily challenge"
           style={{ marginTop: 12 }}

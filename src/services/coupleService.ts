@@ -20,8 +20,11 @@ import {
   extractPairCode,
   makePairCode,
   type Couple,
+  type CoupleDailyMetrics,
   type CoupleMember,
 } from '@/domain/couple';
+import { MAX_DAILY_ML } from '@/domain/hydration';
+import { MAX_DAILY_STEPS } from '@/domain/steps';
 import {
   assertClientRateLimit,
   commitClientRateLimit,
@@ -158,7 +161,14 @@ export async function joinCoupleByCode(
 
   const membershipId = await findMembershipId(input.uid);
   if (membershipId && membershipId !== code) {
-    throw new Error('Leave your current couple before joining another.');
+    /* An empty invite of my own is not a bond, it is an open door. The invite
+       screen mints one on arrival, so two partners who both tapped "invite"
+       each hold one — and refusing here left neither able to redeem the
+       other's code. Close mine and take their seat; a real bond still blocks. */
+    const outcome = await cancelCoupleInvite(membershipId);
+    if (outcome === 'paired') {
+      throw new Error('Leave your current couple before joining another.');
+    }
   }
 
   const ref = coupleDoc(code);
@@ -297,6 +307,191 @@ export async function recordCoupleSession(
           ? { creditedIds: [...credited, creditId].slice(-CREDIT_HISTORY_LIMIT) }
           : {}),
       };
+    });
+    tx.set(ref, { members }, { merge: true });
+  });
+}
+
+/**
+ * Publish today's water total onto this member's slice.
+ *
+ * Set-to-value, not incremented: the caller passes the whole day's total read
+ * back out of the store, so a retry writes the same number twice and nothing
+ * double-counts. That is why this needs none of the `creditedIds` bookkeeping
+ * `recordCoupleSession` carries above.
+ *
+ * Same-day writes take the larger of the two. Two devices on one account both
+ * publish set-to-value, and without this a phone that has been asleep could
+ * clobber a live total with a stale smaller one.
+ *
+ * Keep the max. A downward correction — an undo — goes through
+ * `lowerCoupleHydration` instead, which subtracts what was undone rather
+ * than writing a smaller total, so a stale phone still cannot zero a live one.
+ *
+ * A write for a different day replaces the object outright rather than
+ * merging, so yesterday's numbers cannot survive into today.
+ */
+export async function recordCoupleHydration(
+  coupleId: string,
+  uid: string,
+  day: string,
+  waterMl: number,
+): Promise<void> {
+  if (!Number.isFinite(waterMl) || waterMl < 0 || waterMl > MAX_DAILY_ML) return;
+  await recordCoupleDaily(coupleId, uid, day, { waterMl });
+}
+
+/**
+ * Publish today's step count onto this member's slice.
+ *
+ * Same set-to-value contract as water. Android never calls this — it cannot
+ * answer "steps today" — so an absent value on a partner's slice means "their
+ * phone cannot count", not "they did not walk.
+ */
+export async function recordCoupleSteps(
+  coupleId: string,
+  uid: string,
+  day: string,
+  steps: number,
+): Promise<void> {
+  if (!Number.isFinite(steps) || steps < 0 || steps > MAX_DAILY_STEPS) return;
+  await recordCoupleDaily(coupleId, uid, day, { steps });
+}
+
+/**
+ * Merge one or more daily metrics into this member's slice.
+ *
+ * Shared by water and steps so the same-day max, the new-day replace and the
+ * byte-identical partner entry are written once rather than twice. Only the
+ * keys passed are touched, so a steps write cannot drop a water total
+ * published a moment earlier from the same phone.
+ */
+async function recordCoupleDaily(
+  coupleId: string,
+  uid: string,
+  day: string,
+  patch: { waterMl?: number; steps?: number },
+): Promise<void> {
+  if (!isFirebaseConfigured()) return;
+
+  const ref = coupleDoc(coupleId);
+  await firestore().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return;
+
+    const couple = snap.data() as Couple;
+    const members = couple.members.map((m) => {
+      // Byte-identical, or `onlyOwnMemberStatsChanged` rejects the write.
+      if (m.uid !== uid) return m;
+      const prev = m.daily;
+      const sameDay = prev && prev.day === day;
+
+      /* Same day takes the max so a stale device cannot walk a live figure
+         backwards; a new day replaces outright so yesterday's totals cannot
+         become today's floor. */
+      const merged: CoupleDailyMetrics = sameDay ? { ...prev, day } : { day };
+      if (patch.waterMl !== undefined) {
+        merged.waterMl = sameDay
+          ? Math.max(prev?.waterMl ?? 0, patch.waterMl)
+          : patch.waterMl;
+      }
+      if (patch.steps !== undefined) {
+        merged.steps = sameDay ? Math.max(prev?.steps ?? 0, patch.steps) : patch.steps;
+      }
+
+      return { ...m, daily: merged };
+    });
+    tx.set(ref, { members }, { merge: true });
+  });
+}
+
+/**
+ * Take an undone drink back off today's published water.
+ *
+ * `recordCoupleHydration` keeps the larger of two same-day totals, so a
+ * smaller total can never correct it — which is right, because a smaller total
+ * is usually a stale phone, not an undo. An undo is different: the device that
+ * made it knows exactly how much it took back. So this subtracts that amount
+ * from whatever is published, rather than writing a new total. Water logged
+ * from another device survives, and a phone with a stale total has no undo to
+ * send and so cannot lower anything.
+ *
+ * Nothing to lower (another day, or no water published) is a no-op. Reaching
+ * zero removes the key, keeping "absent means nothing to say" intact.
+ */
+export async function lowerCoupleHydration(
+  coupleId: string,
+  uid: string,
+  day: string,
+  byMl: number,
+): Promise<void> {
+  if (!isFirebaseConfigured()) return;
+  if (!Number.isFinite(byMl) || byMl <= 0) return;
+
+  const ref = coupleDoc(coupleId);
+  await firestore().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return;
+
+    const couple = snap.data() as Couple;
+    const mine = couple.members.find((m) => m.uid === uid);
+    const current = mine?.daily?.day === day ? mine.daily.waterMl : undefined;
+    if (typeof current !== 'number') return;
+
+    const next = current - byMl;
+    const members = couple.members.map((m) => {
+      if (m.uid !== uid || !m.daily) return m;
+      const daily: CoupleDailyMetrics = { ...m.daily };
+      if (next > 0) {
+        daily.waterMl = next;
+        return { ...m, daily };
+      }
+      delete daily.waterMl;
+      if (daily.steps !== undefined) return { ...m, daily };
+      const { daily: _gone, ...withoutDaily } = m;
+      return withoutDaily;
+    });
+    tx.set(ref, { members }, { merge: true });
+  });
+}
+
+/**
+ * Take one daily metric back off this member's slice.
+ *
+ * The counterpart to the sharing switches in `partnerSharing`. Stopping future
+ * writes is not enough on its own: today's figure is already on the couple
+ * document, and turning a switch off must mean the partner stops seeing it,
+ * not that it freezes where it was. `recordCoupleDaily` cannot do this — its
+ * same-day max refuses to walk a value down — so removal is its own write.
+ *
+ * Removing the key rather than writing 0 keeps the "absent means nothing
+ * honest to say" contract `partnerWaterToday` / `partnerStepsToday` rely on.
+ * When nothing but the day stamp would remain, the whole object goes.
+ */
+export async function withdrawCoupleDaily(
+  coupleId: string,
+  uid: string,
+  key: 'waterMl' | 'steps',
+): Promise<void> {
+  if (!isFirebaseConfigured()) return;
+
+  const ref = coupleDoc(coupleId);
+  await firestore().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return;
+
+    const couple = snap.data() as Couple;
+    const mine = couple.members.find((m) => m.uid === uid);
+    if (!mine?.daily || !(key in mine.daily)) return;
+
+    const members = couple.members.map((m) => {
+      if (m.uid !== uid || !m.daily) return m;
+      const rest: CoupleDailyMetrics = { ...m.daily };
+      delete rest[key];
+      const hasOther = rest.waterMl !== undefined || rest.steps !== undefined;
+      if (hasOther) return { ...m, daily: rest };
+      const { daily: _gone, ...withoutDaily } = m;
+      return withoutDaily;
     });
     tx.set(ref, { members }, { merge: true });
   });

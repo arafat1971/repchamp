@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
@@ -17,10 +17,23 @@ import { track } from '@/lib/analytics';
 import { HomeAmbient } from '@/components/home/HomeAmbient';
 import { HeroCard } from '@/components/home/HeroCard';
 import { CoupleStrip } from '@/components/home/CoupleStrip';
+import { DailyCard } from '@/components/home/DailyCard';
+import { PartnerPulseCard } from '@/components/home/PartnerPulseCard';
 import { CountUp, PopOnChange, StaggerIn } from '@/components/motion';
 import { Card, PressableScale, Screen, SectionLabel } from '@/components/ui';
 import { exerciseHomeStats } from '@/domain/exerciseHomeStats';
 import { firstNameOf, selectHomeGreeting } from '@/domain/homeGreeting';
+import { dailyChallengeProgress } from '@/domain/dailyChallenge';
+import { myExerciseBreakdown, partnerWidget } from '@/domain/coupleExercises';
+import { partnerWaterToday } from '@/domain/couple';
+import { drinksOnDay, hydrationProgress, stepGoalMl } from '@/domain/hydration';
+import { lightImpactHaptic, selectionHaptic } from '@/lib/feedback';
+import { syncHydrationNow, syncStepsNow } from '@/services/hydrationSync';
+import { useStepsToday } from '@/state/useStepsToday';
+import { buildDashboardSnapshot } from '@/domain/dashboardSnapshot';
+import { buildWidgetSnapshot } from '@/domain/widgetSnapshot';
+import { publishWidgetSnapshot } from '@/services/partnerWidget';
+import { trackerHistory } from '@/domain/coupleTracker';
 import { selectHomeFocus, type HomeFocus } from '@/domain/homeFocus';
 import { leagueProgressFromWeeklyXp } from '@/domain/leagueProgress';
 import { liveActivity } from '@/domain/liveActivity';
@@ -34,6 +47,7 @@ import {
   selectTotalReps,
   selectWeeklyXp,
 } from '@/state/profileStore';
+import { useHydrationStore } from '@/state/hydrationStore';
 import { useEffectivePro } from '@/state/proStore';
 import { isPurchasesConfigured } from '@/services/purchases';
 import { isWalled } from '@/domain/hardPaywall';
@@ -41,13 +55,14 @@ import { useCouple } from '@/state/useCouple';
 import { useIncomingDuelCount } from '@/state/useIncomingDuelCount';
 import { useLiveActivityCount } from '@/state/useLiveActivityCount';
 import { useSelfPlayer } from '@/state/useSelfPlayer';
-import type { ExerciseId } from '@/vision/exercises';
-import { font } from '@/theme/typography';
+import { font, scaleForRole } from '@/theme/typography';
 import { gradients, palette, shadow, radius } from '@/theme/tokens';
 
 /** Push-ups is the featured daily challenge; mirrors `app/modal/daily.tsx`. */
-const DAILY_EXERCISE: ExerciseId = 'push';
-const DAILY_TARGET = 25;
+/* The challenge itself lives in `domain/dailyChallenge`, which Home, the tab
+   layout's FAB and the daily modal all read — it used to be declared once in
+   each of the three, so changing the target left them contradicting one
+   another about whether it was cleared. */
 
 const MEDAL_BRONZE = require('../../assets/medal-bronze.png');
 const TROPHY_BRONZE = require('../../assets/trophy-bronze.png');
@@ -85,9 +100,112 @@ export default function HomeScreen() {
 
   const today = dayKey();
   const trainedToday = profile.sessions.some((s) => s.day === today);
-  const dailyBest = profile.sessions
-    .filter((s) => s.day === today && s.exercise === DAILY_EXERCISE)
-    .reduce((best, s) => Math.max(best, s.reps), 0);
+  const daily = useMemo(
+    () => dailyChallengeProgress(profile.sessions, today),
+    [profile.sessions, today],
+  );
+
+  /* The partner's live week. `watchMyCouple` holds an `onSnapshot` on the
+     couple document, so these numbers move when they finish a set — no
+     polling, no refresh. Their *days* sync; their reps never leave their
+     phone, which is why the widget counts days on their side and reps on
+     mine. */
+  const partnerPulse = useMemo(() => {
+    const uid = couple.me?.uid;
+    if (!couple.paired || !couple.partner || !uid) return null;
+    const history = trackerHistory(couple.couple, uid, today, 7);
+    const week = new Set(history.filter((h) => !h.isFuture).map((h) => h.day));
+    return {
+      widget: partnerWidget(history, profile.sessions, today),
+      mine: myExerciseBreakdown(profile.sessions, week).mine,
+    };
+  }, [couple.paired, couple.partner, couple.couple, couple.me?.uid, profile.sessions, today]);
+
+  /* Mirror the partner card into the OS widget's SharedPreferences whenever it
+     changes. No-op on iOS and on builds without the widget plugin, so this is
+     safe to call unconditionally. */
+  useEffect(() => {
+    if (!partnerPulse) return;
+    publishWidgetSnapshot(
+      buildWidgetSnapshot(couple.partner?.displayName ?? 'Your partner', partnerPulse.widget),
+    );
+  }, [partnerPulse, couple.partner?.displayName]);
+
+  /* Water. The store is the source of truth; the card is presentational, so
+     every decision about what counts stays in `domain/hydration`. */
+  const drinks = useHydrationStore((s) => s.drinks);
+  const goalMl = useHydrationStore((s) => s.goalMl);
+  const water = useMemo(
+    () => hydrationProgress(drinks, goalMl, today),
+    [drinks, goalMl, today],
+  );
+  const todayDrinks = useMemo(() => drinksOnDay(drinks, today), [drinks, today]);
+
+  /* The partner's intake, only when their phone stamped today. Null hides the
+     line entirely rather than showing a zero they never earned. */
+  const partnerWater = useMemo(() => {
+    const name = couple.partner?.displayName;
+    const ml = partnerWaterToday(couple.partner, today);
+    return ml == null || !name ? null : { name, ml };
+  }, [couple.partner, today]);
+
+  const coupleId = couple.couple?.id ?? null;
+  const myUid = couple.me?.uid ?? null;
+
+  /* Today's steps. Read on mount and on foreground — the count cannot move
+     while the app is backgrounded, but it will have moved by the time they
+     come back, which is when the ring is about to be read. */
+  const { steps: stepsToday, openSettings: openStepSettings } = useStepsToday();
+
+  /* Publish the count to the bond whenever a read lands. `syncStepsNow`
+     no-ops when it has not moved, so a foreground read that finds the same
+     number costs nothing. */
+  useEffect(() => {
+    if (stepsToday.status !== 'ready') return;
+    void syncStepsNow(coupleId, myUid, stepsToday.steps);
+  }, [stepsToday, coupleId, myUid]);
+
+  /* Mirror the same numbers into the daily dashboard widget. A no-op on any
+     build without the extension, so this is safe to call unconditionally —
+     on Android the bridge resolves the id to null and publishes nowhere. */
+  useEffect(() => {
+    publishWidgetSnapshot(
+      buildDashboardSnapshot(drinks, goalMl, stepsToday, partnerWater, today),
+      'dashboard',
+    );
+  }, [drinks, goalMl, stepsToday, partnerWater, today]);
+
+  const logWater = useCallback(
+    (ml: number) => {
+      const entry = useHydrationStore.getState().logDrink(ml);
+      // A refused tap gets no haptic: the confirmation must mean something.
+      if (!entry) return;
+      lightImpactHaptic();
+      track('water_logged', { ml: entry.ml, source: 'home' });
+      // Set-to-value, so this publishes the day's total rather than the tap.
+      void syncHydrationNow(coupleId, myUid);
+    },
+    [coupleId, myUid],
+  );
+
+  const undoWater = useCallback(() => {
+    useHydrationStore.getState().undoLast();
+    /* Sync sees the total fell below what this phone published and sends
+       the undone amount as a subtraction, so the partner's view walks back
+       too (see `syncHydrationNow`). */
+    void syncHydrationNow(coupleId, myUid);
+  }, [coupleId, myUid]);
+
+  const stepWaterGoal = useCallback((direction: 1 | -1) => {
+    const current = useHydrationStore.getState().goalMl;
+    const next = stepGoalMl(current, direction);
+    // Silent at the ends of the band — a tick that fires when nothing moved
+    // says the control worked when it did not.
+    if (next === current) return;
+    selectionHaptic();
+    useHydrationStore.getState().setGoalMl(next);
+    track('water_goal_set', { goalMl: next });
+  }, []);
 
   const greetingCopy = useMemo(
     () => selectHomeGreeting({ streak, trainedToday, firstName }),
@@ -118,12 +236,12 @@ export default function HomeScreen() {
           partnerTrainedToday: couple.partner?.trainedDays.includes(today) ?? false,
         },
         dailyChallenge: {
-          exercise: DAILY_EXERCISE,
-          target: DAILY_TARGET,
-          done: dailyBest >= DAILY_TARGET,
+          exercise: daily.exercise,
+          target: daily.target,
+          done: daily.cleared,
         },
       }),
-    [profile.sessions.length, trainedToday, daysTrained, goal, couple, today, dailyBest],
+    [profile.sessions.length, trainedToday, daysTrained, goal, couple, today, daily],
   );
 
   useEffect(() => {
@@ -204,7 +322,13 @@ export default function HomeScreen() {
     startCoupleTrain();
   };
 
-  const daysToReward = Math.max(0, goal - daysTrained);
+  /* Named for the goal, not for a reward. This was `daysToReward`, and the
+     caption below promised one — but nothing in the app pays out for hitting a
+     weekly goal: the only XP grant is `xpForSession` on a finished set. The
+     bar itself is honest (real days against a target the athlete chose in
+     onboarding); the promise underneath it was not, and a progress indicator
+     that pays nothing teaches the athlete to discount the next one. */
+  const daysToGoal = Math.max(0, goal - daysTrained);
 
   return (
     <View style={{ flex: 1 }}>
@@ -234,16 +358,34 @@ export default function HomeScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.greetingHook}>{greetingCopy.hook}</Text>
             <View style={styles.nameRow}>
-              <Text style={font('semibold', 18, { color: palette.ink })} numberOfLines={1}>
+              {/* Two lines, not one. At large text sizes a single line cannot
+                  hold the greeting and it truncated the athlete's own name —
+                  "Good evening, n…" — which is the one word here that should
+                  never be the thing that gets cut. */}
+              <Text
+                style={font('semibold', 18, { color: palette.ink })}
+                numberOfLines={2}
+                {...scaleForRole('heading')}
+              >
                 {greetingCopy.timeOfDay}, {firstName}
               </Text>
               <View style={styles.lvlChip}>
-                <Text style={font('bold', 11, { color: palette.green600 })}>Lv.{level.level}</Text>
+                <Text
+                  style={font('bold', 11, { color: palette.green600 })}
+                  {...scaleForRole('control')}
+                >
+                  Lv.{level.level}
+                </Text>
               </View>
               {streak > 0 ? (
                 <PopOnChange trigger={streak} style={styles.streakChip}>
                   <StreakFlame />
-                  <Text style={font('bold', 11, { color: palette.amber800 })}>{streak}</Text>
+                  <Text
+                    style={font('bold', 11, { color: palette.amber800 })}
+                    {...scaleForRole('control')}
+                  >
+                    {streak}
+                  </Text>
                 </PopOnChange>
               ) : null}
             </View>
@@ -292,6 +434,32 @@ export default function HomeScreen() {
         </StaggerIn>
       ) : null}
 
+      {/* The partner's week in detail, under the bond headline above. */}
+      {partnerPulse ? (
+        <StaggerIn index={1} style={{ marginTop: 12 }}>
+          <PartnerPulseCard
+            partnerName={couple.partner?.displayName ?? 'Partner'}
+            widget={partnerPulse.widget}
+            myExercises={partnerPulse.mine}
+            onPress={() => router.push('/couple/partner')}
+          />
+        </StaggerIn>
+      ) : null}
+
+      {/* Today's rings sit above the stats row: water is the one thing on Home
+          an athlete can act on right now, and an action outranks a scoreboard. */}
+      <StaggerIn index={2} style={{ marginTop: 12 }}>
+        <DailyCard
+          water={water}
+          steps={stepsToday}
+          partner={partnerWater}
+          onLogWater={logWater}
+          onUndoWater={todayDrinks.length > 0 ? undoWater : undefined}
+          onStepWaterGoal={stepWaterGoal}
+          onFixSteps={openStepSettings}
+        />
+      </StaggerIn>
+
       <StaggerIn index={2} style={styles.row}>
         <PressableScale
           onPress={() => router.push('/modal/recap')}
@@ -320,9 +488,9 @@ export default function HomeScreen() {
                 ))}
               </View>
               <Text style={font('regular', 11, { color: palette.green700, marginTop: 8 })}>
-                {daysToReward === 0
-                  ? 'Weekly reward unlocked'
-                  : `${daysToReward} day${daysToReward === 1 ? '' : 's'} until reward`}
+                {daysToGoal === 0
+                  ? `Weekly goal met — ${daysTrained} of ${goal} days`
+                  : `${daysToGoal} day${daysToGoal === 1 ? '' : 's'} to your weekly goal`}
               </Text>
             </View>
           </Card>
@@ -350,14 +518,14 @@ export default function HomeScreen() {
                   next to it. The medal is the clearest of the three and the
                   only one that sits with the tier name it labels. */}
               <View style={styles.miniHeader}>
-                <Text style={font('bold', 12, { color: '#92400e' })}>League</Text>
+                <Text style={font('bold', 12, { color: palette.amber900 })}>League</Text>
               </View>
               <View style={styles.leagueRow}>
                 <Image source={MEDAL_BRONZE} style={styles.medalIconSmall} contentFit="contain" />
                 <Text style={font('bold', 16, { color: palette.ink })}>{leagueProgress.title}</Text>
               </View>
-              <Text style={font('bold', 14, { color: '#b45309', marginTop: 4 })}>
-                <CountUp value={weeklyXp} style={font('bold', 14, { color: '#b45309' })} /> XP
+              <Text style={font('bold', 14, { color: palette.amber800, marginTop: 4 })}>
+                <CountUp value={weeklyXp} style={font('bold', 14, { color: palette.amber800 })} /> XP
               </Text>
               <LeagueXpBar fill={leagueProgress.fill} />
               <Text style={font('regular', 10.5, { color: palette.amber100Text, marginTop: 4 })} numberOfLines={1}>
@@ -392,7 +560,7 @@ export default function HomeScreen() {
           label="Push-Ups"
           locked={soloWalled}
           image={IC_PUSHUP}
-          accent="#16a34a"
+          accent={palette.green600}
           tint={[palette.tintGreenTop, palette.tintGreenBottom]}
           stats={pushStats}
           onPress={() => startSolo('push')}
@@ -401,7 +569,7 @@ export default function HomeScreen() {
           label="Squats"
           locked={soloWalled}
           image={IC_SQUAT}
-          accent="#7c3aed"
+          accent={palette.purple600}
           tint={[palette.tintPurpleTop, palette.tintPurpleBottom]}
           stats={squatStats}
           onPress={() => startSolo('squat')}
@@ -613,7 +781,7 @@ function QuickTile({
           <Text style={font('regular', 12, { color: palette.grey500 })}>reps</Text>
         </View>
         <Text style={font('regular', 11, { color: palette.grey500, marginTop: 4 })}>
-          Last {stats.lastBest} reps
+          Last {stats.lastBest} {stats.lastBest === 1 ? 'rep' : 'reps'}
         </Text>
       </LinearGradient>
     </PressableScale>
@@ -670,7 +838,7 @@ const styles = StyleSheet.create({
     gap: 4,
     backgroundColor: palette.amber50,
     borderWidth: 1,
-    borderColor: '#fcd34d',
+    borderColor: palette.amber200,
     borderRadius: radius.sm,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -717,7 +885,7 @@ const styles = StyleSheet.create({
   iconButtonAlert: {
     backgroundColor: palette.green50,
     borderColor: palette.green500,
-    shadowColor: '#16a34a',
+    shadowColor: palette.green600,
     shadowOpacity: 0.28,
     shadowRadius: 10,
   },
@@ -814,7 +982,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    shadowColor: '#0f172a',
+    shadowColor: palette.slate900,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 10,

@@ -22,9 +22,13 @@ import {
   createCouple,
   joinCoupleByCode,
   leaveCouple,
+  lowerCoupleHydration,
   nudgePartner,
+  recordCoupleHydration,
   recordCoupleSession,
+  recordCoupleSteps,
   syncCouplePushToken,
+  withdrawCoupleDaily,
   watchCouple,
   watchMyCouple,
 } from '../coupleService';
@@ -235,12 +239,16 @@ describe('joinCoupleByCode', () => {
     ).rejects.toThrow(/already paired up/i);
   });
 
-  it('refuses joining another couple while already a member elsewhere', async () => {
+  /* Reversed on 2026-09-24: an empty invite of my own used to block redeeming
+     a partner's code, and the invite screen mints one on arrival — so two
+     partners who both tapped "invite" could never pair. */
+  it('closes my own empty invite rather than refusing the join', async () => {
     const adaCode = await open();
     Math.random = () => 0.42;
     const beaCode = await createCouple(BEA);
-    await expect(joinCoupleByCode(adaCode, BEA)).rejects.toThrow(/Leave your current couple/i);
-    expect(mockStore.couples.get(beaCode!)!.memberUids).toEqual(['bea']);
+    const joined = await joinCoupleByCode(adaCode, BEA);
+    expect(joined?.memberUids).toEqual(['ada', 'bea']);
+    expect(mockStore.couples.has(beaCode!)).toBe(false);
   });
 
   it('refuses join when either athlete has blocked the other', async () => {
@@ -438,5 +446,196 @@ describe('cancelCoupleInvite', () => {
     await joinCoupleByCode(code!, BEA);
     expect(await cancelCoupleInvite(code!)).toBe('paired');
     expect(mockStore.couples.has(code!)).toBe(true);
+  });
+});
+
+describe('recordCoupleHydration', () => {
+  it('sets today’s total on the writing member only', async () => {
+    const code = await createCouple(ADA);
+    await joinCoupleByCode(code!, BEA);
+
+    await recordCoupleHydration(code!, 'ada', '2026-09-23', 1500);
+
+    const c = mockStore.couples.get(code!) as unknown as Couple;
+    expect(c.members.find((m) => m.uid === 'ada')!.daily).toEqual({
+      day: '2026-09-23',
+      waterMl: 1500,
+    });
+    expect(c.members.find((m) => m.uid === 'bea')!.daily).toBeUndefined();
+  });
+
+  /* The rules deep-compare the other member's map, so a write that rebuilds
+     it — even to an identical value — is rejected. */
+  it('leaves the partner’s entry untouched', async () => {
+    const code = await createCouple(ADA);
+    await joinCoupleByCode(code!, BEA);
+    const before = { ...(mockStore.couples.get(code!) as unknown as Couple).members[1] };
+
+    await recordCoupleHydration(code!, 'ada', '2026-09-23', 500);
+
+    const after = (mockStore.couples.get(code!) as unknown as Couple).members[1];
+    expect(after).toEqual(before);
+  });
+
+  it('keeps the higher total when a stale device writes a lower one', async () => {
+    const code = await createCouple(ADA);
+    await recordCoupleHydration(code!, 'ada', '2026-09-23', 1500);
+    await recordCoupleHydration(code!, 'ada', '2026-09-23', 750);
+
+    const c = mockStore.couples.get(code!) as unknown as Couple;
+    expect(c.members[0]!.daily?.waterMl).toBe(1500);
+  });
+
+  it('accepts a higher total on the same day', async () => {
+    const code = await createCouple(ADA);
+    await recordCoupleHydration(code!, 'ada', '2026-09-23', 750);
+    await recordCoupleHydration(code!, 'ada', '2026-09-23', 1500);
+
+    const c = mockStore.couples.get(code!) as unknown as Couple;
+    expect(c.members[0]!.daily?.waterMl).toBe(1500);
+  });
+
+  /* A new day must replace rather than max, or yesterday's 2 L would be the
+     floor for every day after it. */
+  it('replaces yesterday’s total rather than taking the larger', async () => {
+    const code = await createCouple(ADA);
+    await recordCoupleHydration(code!, 'ada', '2026-09-22', 2000);
+    await recordCoupleHydration(code!, 'ada', '2026-09-23', 250);
+
+    const c = mockStore.couples.get(code!) as unknown as Couple;
+    expect(c.members[0]!.daily).toEqual({ day: '2026-09-23', waterMl: 250 });
+  });
+
+  it('refuses a total beyond the daily ceiling', async () => {
+    const code = await createCouple(ADA);
+    await recordCoupleHydration(code!, 'ada', '2026-09-23', 99_999);
+
+    const c = mockStore.couples.get(code!) as unknown as Couple;
+    expect(c.members[0]!.daily).toBeUndefined();
+  });
+
+  it('refuses a negative or garbage total', async () => {
+    const code = await createCouple(ADA);
+    await recordCoupleHydration(code!, 'ada', '2026-09-23', -100);
+    await recordCoupleHydration(code!, 'ada', '2026-09-23', Number.NaN);
+
+    const c = mockStore.couples.get(code!) as unknown as Couple;
+    expect(c.members[0]!.daily).toBeUndefined();
+  });
+
+  it('writes nothing when Firebase is not configured', async () => {
+    const code = await createCouple(ADA);
+    mockState.configured = false;
+    try {
+      await recordCoupleHydration(code!, 'ada', '2026-09-23', 500);
+    } finally {
+      mockState.configured = true;
+    }
+    const c = mockStore.couples.get(code!) as unknown as Couple;
+    expect(c.members[0]!.daily).toBeUndefined();
+  });
+});
+
+describe('withdrawCoupleDaily', () => {
+  it('removes one metric and keeps the other', async () => {
+    const code = await createCouple(ADA);
+    await joinCoupleByCode(code!, BEA);
+    await recordCoupleHydration(code!, 'ada', '2026-09-24', 1500);
+    await recordCoupleSteps(code!, 'ada', '2026-09-24', 6000);
+
+    await withdrawCoupleDaily(code!, 'ada', 'steps');
+
+    const c = mockStore.couples.get(code!) as unknown as Couple;
+    expect(c.members[0]!.daily).toEqual({ day: '2026-09-24', waterMl: 1500 });
+  });
+
+  /* Leaving `{ day }` behind would be harmless to the reader, but an absent
+     object is what every member who never logged anything looks like. */
+  it('drops the whole daily object when nothing else is left', async () => {
+    const code = await createCouple(ADA);
+    await recordCoupleHydration(code!, 'ada', '2026-09-24', 500);
+
+    await withdrawCoupleDaily(code!, 'ada', 'waterMl');
+
+    const c = mockStore.couples.get(code!) as unknown as Couple;
+    expect(c.members[0]).not.toHaveProperty('daily');
+  });
+
+  it('leaves the partner’s entry untouched', async () => {
+    const code = await createCouple(ADA);
+    await joinCoupleByCode(code!, BEA);
+    await recordCoupleHydration(code!, 'bea', '2026-09-24', 900);
+    await recordCoupleHydration(code!, 'ada', '2026-09-24', 500);
+    const before = { ...(mockStore.couples.get(code!) as unknown as Couple).members[1] };
+
+    await withdrawCoupleDaily(code!, 'ada', 'waterMl');
+
+    expect((mockStore.couples.get(code!) as unknown as Couple).members[1]).toEqual(before);
+  });
+
+  it('is a no-op when there is nothing to withdraw', async () => {
+    const code = await createCouple(ADA);
+    const before = JSON.stringify(mockStore.couples.get(code!));
+
+    await withdrawCoupleDaily(code!, 'ada', 'steps');
+
+    expect(JSON.stringify(mockStore.couples.get(code!))).toBe(before);
+  });
+});
+
+describe('joinCoupleByCode while in a real bond', () => {
+  it('still refuses, and leaves the bond alone', async () => {
+    const bond = await createCouple(BEA);
+    await joinCoupleByCode(bond!, { uid: 'cal', displayName: 'Cal' });
+    Math.random = () => 0.42;
+    const other = await createCouple(ADA);
+
+    await expect(joinCoupleByCode(other!, BEA)).rejects.toThrow('Leave your current couple');
+    expect(mockStore.couples.get(bond!)!.memberUids).toEqual(['bea', 'cal']);
+  });
+});
+
+describe('lowerCoupleHydration', () => {
+  it('subtracts the undone amount from today’s total', async () => {
+    const code = await createCouple(ADA);
+    await recordCoupleHydration(code!, 'ada', '2026-09-24', 1500);
+    await lowerCoupleHydration(code!, 'ada', '2026-09-24', 250);
+    const c = mockStore.couples.get(code!) as unknown as Couple;
+    expect(c.members[0]!.daily).toEqual({ day: '2026-09-24', waterMl: 1250 });
+  });
+
+  it('removes the key at zero and keeps steps', async () => {
+    const code = await createCouple(ADA);
+    await recordCoupleHydration(code!, 'ada', '2026-09-24', 500);
+    await recordCoupleSteps(code!, 'ada', '2026-09-24', 4000);
+    await lowerCoupleHydration(code!, 'ada', '2026-09-24', 500);
+    const c = mockStore.couples.get(code!) as unknown as Couple;
+    expect(c.members[0]!.daily).toEqual({ day: '2026-09-24', steps: 4000 });
+  });
+
+  it('drops the daily object when water was all there was', async () => {
+    const code = await createCouple(ADA);
+    await recordCoupleHydration(code!, 'ada', '2026-09-24', 500);
+    await lowerCoupleHydration(code!, 'ada', '2026-09-24', 900);
+    expect((mockStore.couples.get(code!) as unknown as Couple).members[0]).not.toHaveProperty('daily');
+  });
+
+  /* Yesterday's figure is not today's to lower. */
+  it('does nothing on another day or with nothing published', async () => {
+    const code = await createCouple(ADA);
+    await recordCoupleHydration(code!, 'ada', '2026-09-23', 1500);
+    await lowerCoupleHydration(code!, 'ada', '2026-09-24', 250);
+    const c = mockStore.couples.get(code!) as unknown as Couple;
+    expect(c.members[0]!.daily).toEqual({ day: '2026-09-23', waterMl: 1500 });
+  });
+
+  it('leaves the partner’s entry untouched', async () => {
+    const code = await createCouple(ADA);
+    await joinCoupleByCode(code!, BEA);
+    await recordCoupleHydration(code!, 'bea', '2026-09-24', 900);
+    await recordCoupleHydration(code!, 'ada', '2026-09-24', 500);
+    const before = { ...(mockStore.couples.get(code!) as unknown as Couple).members[1] };
+    await lowerCoupleHydration(code!, 'ada', '2026-09-24', 250);
+    expect((mockStore.couples.get(code!) as unknown as Couple).members[1]).toEqual(before);
   });
 });

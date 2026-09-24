@@ -11,6 +11,9 @@ import {
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
+import { track } from '@/lib/analytics';
+import { useTabView } from '@/lib/useTabView';
+import { pluralise } from '@/domain/plural';
 import { ExerciseLibrary } from '@/components/ExerciseLibrary';
 import { ProgrammeCard } from '@/components/ProgrammeCard';
 import { Card, Chevron, PressableScale, ProgressBar, Screen, SectionLabel } from '@/components/ui';
@@ -36,6 +39,7 @@ const IC_PUSHUP = require('../../assets/ic-pushup.png');
 const IC_SQUAT = require('../../assets/ic-squat.png');
 
 export default function TrainScreen() {
+  useTabView('train');
   const { fontScale } = useWindowDimensions();
   const router = useRouter();
   const isPro = useEffectivePro();
@@ -51,6 +55,10 @@ export default function TrainScreen() {
      so this only exists to stop the tab opening a set that bounces straight
      back out. */
   const practice = (exercise: ExerciseId) => {
+    /* Recorded before the wall check, not after: a tap that bounces to the
+       paywall is still an athlete reaching to train, and it is the more
+       interesting half of the number. */
+    track('train_intent', { exercise, mode: 'practice' });
     if (
       isWalled({
         isPro,
@@ -71,6 +79,7 @@ export default function TrainScreen() {
    * existing lobby, which routes both devices into the together set.
    */
   const trainTogether = async (exercise: ExerciseId) => {
+    track('train_intent', { exercise, mode: 'together' });
     if (!paired || !partner || !self) {
       router.push('/modal/couple-invite');
       return;
@@ -238,7 +247,7 @@ export default function TrainScreen() {
                 ? 'Finish a set to log your first max'
                 : best >= nextMilestone
                   ? 'Top milestone cleared — keep pushing'
-                  : `${nextMilestone - best} reps to your next milestone`}
+                  : `${pluralise(nextMilestone - best, 'rep')} to your next milestone`}
             </Text>
           </View>
         </View>

@@ -23,6 +23,7 @@ import Animated, {
 import Svg, { ClipPath, Defs, G, LinearGradient as SvgGradient, Path, Stop } from 'react-native-svg';
 
 import { CountUp } from '@/components/motion';
+import { HomeSectionHeader } from '@/components/home/HomeSectionHeader';
 import { LemonAvatar } from '@/components/home/LemonAvatar';
 import { PressableScale } from '@/components/ui';
 import {
@@ -251,14 +252,16 @@ export function HydrationCard({
 
   return (
     <View onLayout={onLayout}>
-      <View style={styles.head}>
-        <Text style={styles.title}>💧 Hydration</Text>
-        <View style={[styles.chip, water.met && styles.chipMet]}>
-          <Text style={[styles.chipText, water.met && styles.chipTextMet]}>
-            {water.met ? 'Goal met ✓' : `${water.percent}%`}
-          </Text>
-        </View>
-      </View>
+      <HomeSectionHeader
+        title="Hydration"
+        right={
+          <View style={[styles.chip, water.met && styles.chipMet]}>
+            <Text style={[styles.chipText, water.met && styles.chipTextMet]}>
+              {water.met ? 'Goal met ✓' : `${water.percent}%`}
+            </Text>
+          </View>
+        }
+      />
 
       <View style={styles.glass}>
       {width > 0 ? (
@@ -522,14 +525,6 @@ const styles = StyleSheet.create({
     paddingBottom: GLASS_H - BASE_TOP + 8,
     justifyContent: 'space-between',
   },
-  head: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-    paddingHorizontal: 4,
-  },
-  title: { ...font('extrabold', 18, { color: '#0f172a' }), letterSpacing: -0.3 },
   /* The header sits on the page, not in the glass: light chip, dark text. */
   chip: { borderRadius: 999, paddingHorizontal: 11, paddingVertical: 4, backgroundColor: '#e0f2fe' },
   chipMet: { backgroundColor: '#dcfce7' },

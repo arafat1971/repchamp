@@ -59,7 +59,20 @@ export function StepsRace({
       />
       {partner ? (
         partner.steps == null ? (
-          <Text style={styles.waiting}>{partner.name} hasn’t shared steps yet today</Text>
+          /* An empty lane, not a sentence: the race is set, their runner
+             just hasn't shown up yet. */
+          <View style={styles.ghostLane}>
+            <View style={styles.laneHead}>
+              <Text style={[styles.laneLabel, styles.ghostText]} numberOfLines={1}>
+                {partner.name}
+              </Text>
+              <Text style={[styles.laneSteps, styles.ghostText]}>waiting…</Text>
+            </View>
+            <View style={styles.track}>
+              <View style={styles.dashes} />
+              <Text style={[styles.flag, { opacity: 0.4 }]}>🏁</Text>
+            </View>
+          </View>
         ) : (
           <Lane
             label={partner.name}
@@ -163,5 +176,6 @@ const styles = StyleSheet.create({
   fill: { position: 'absolute', left: 0, height: 6, borderRadius: 3, opacity: 0.85 },
   flag: { position: 'absolute', right: -2, fontSize: 16 },
   runner: { position: 'absolute', left: 0 },
-  waiting: { ...font('medium', 12.5, { color: 'rgba(255,255,255,0.5)' }) },
+  ghostLane: { opacity: 0.55 },
+  ghostText: { color: 'rgba(255,255,255,0.5)' },
 });

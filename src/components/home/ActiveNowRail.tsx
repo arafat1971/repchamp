@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { FireOrbit } from '@/components/FireOrbit';
+import { HomeSectionHeader, homeSectionLink } from '@/components/home/HomeSectionHeader';
 import { QrPlusIcon } from '@/components/QrPlusIcon';
 import { Avatar, PressableScale } from '@/components/ui';
 import { OPPONENTS } from '@/domain/opponent';
@@ -72,16 +73,18 @@ export function ActiveNowRail() {
 
   return (
     <View>
-      <View style={styles.head}>
-        <Text style={styles.title}>Race someone now</Text>
-        <PressableScale
-          onPress={() => router.push('/(tabs)/friends')}
-          accessibilityRole="button"
-          accessibilityLabel="See all friends"
-        >
-          <Text style={styles.link}>See all ›</Text>
-        </PressableScale>
-      </View>
+      <HomeSectionHeader
+        title="Race someone now"
+        right={
+          <PressableScale
+            onPress={() => router.push('/(tabs)/friends')}
+            accessibilityRole="button"
+            accessibilityLabel="See all friends"
+          >
+            <Text style={homeSectionLink}>See all ›</Text>
+          </PressableScale>
+        }
+      />
 
       <ScrollView
         horizontal
@@ -173,9 +176,6 @@ export function ActiveNowRail() {
 }
 
 const styles = StyleSheet.create({
-  head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  title: font('extrabold', 17, { color: palette.ink }),
-  link: font('bold', 12.5, { color: palette.green600 }),
   row: { gap: 14, paddingRight: 8 },
   item: { alignItems: 'center', width: 64 },
   addCircle: {

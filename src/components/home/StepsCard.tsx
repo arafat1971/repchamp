@@ -46,9 +46,9 @@ export function StepsCard({
   if (read && partner && me) {
     const gap = partner.steps == null ? null : read.steps - partner.steps;
     return (
-      <LinearGradient colors={['#2a1a06', '#1a1206']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.raceCard}>
+      <LinearGradient colors={['#131a2e', '#0b1120']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.raceCard}>
         <View style={styles.raceHead}>
-          <Text style={styles.eyebrow}>👟 STEPS RACE</Text>
+          <Text style={styles.eyebrow}>👟 TODAY’S RACE</Text>
           <Text style={styles.goalText}>to {formatSteps(read.goal)}</Text>
         </View>
         <StepsRace
@@ -70,7 +70,7 @@ export function StepsCard({
   }
 
   return (
-    <LinearGradient colors={['#2a1a06', '#1a1206']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.card}>
+    <LinearGradient colors={['#131a2e', '#0b1120']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.card}>
       <StepsTrail percent={read?.percent ?? null} width={124} height={92} />
       <View style={{ flex: 1 }}>
         <Text style={styles.eyebrow}>👟 STEPS</Text>

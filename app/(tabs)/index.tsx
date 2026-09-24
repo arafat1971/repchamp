@@ -17,11 +17,12 @@ import { track } from '@/lib/analytics';
 import { HomeAmbient } from '@/components/home/HomeAmbient';
 import { HeroCard } from '@/components/home/HeroCard';
 import { ActiveNowRail } from '@/components/home/ActiveNowRail';
+import { HomeSectionHeader, homeSectionLink } from '@/components/home/HomeSectionHeader';
 import { DuoCard } from '@/components/home/DuoCard';
 import { HydrationCard } from '@/components/home/HydrationCard';
 import { StepsCard } from '@/components/home/StepsCard';
 import { CountUp, PopOnChange, StaggerIn } from '@/components/motion';
-import { Card, PressableScale, Screen, SectionLabel } from '@/components/ui';
+import { Card, PressableScale, Screen } from '@/components/ui';
 import { exerciseHomeStats } from '@/domain/exerciseHomeStats';
 import { firstNameOf, selectHomeGreeting } from '@/domain/homeGreeting';
 import { dailyChallengeProgress } from '@/domain/dailyChallenge';
@@ -476,16 +477,18 @@ export default function HomeScreen() {
 
       {/* The action people open the app for, straight under the hero rather
           than below every scoreboard. */}
-      <View style={styles.sectionHeader}>
-        <SectionLabel style={styles.sectionSpacing}>Quick Start</SectionLabel>
-        <PressableScale
-          onPress={() => router.push('/(tabs)/train')}
-          accessibilityRole="button"
-          accessibilityLabel="View all exercises"
-        >
-          <Text style={font('bold', 12.5, { color: palette.green600 })}>View all ›</Text>
-        </PressableScale>
-      </View>
+      <HomeSectionHeader
+        title="Quick start"
+        right={
+          <PressableScale
+            onPress={() => router.push('/(tabs)/train')}
+            accessibilityRole="button"
+            accessibilityLabel="View all exercises"
+          >
+            <Text style={homeSectionLink}>View all ›</Text>
+          </PressableScale>
+        }
+      />
       <StaggerIn index={1} style={styles.quickGrid}>
         <QuickTile
           label="Push-Ups"
@@ -508,14 +511,15 @@ export default function HomeScreen() {
       </StaggerIn>
 
       {/* Faces to race, one tap from Home rather than a tab away. */}
-      <StaggerIn index={2} style={{ marginTop: 18 }}>
+      <StaggerIn index={2}>
         <ActiveNowRail />
       </StaggerIn>
 
       {/* The couple as one face-off — replaces the bond strip and the partner
           card, which told the same story twice. */}
       {couple.paired && couple.partner ? (
-        <StaggerIn index={3} style={{ marginTop: 16 }}>
+        <StaggerIn index={3}>
+          <HomeSectionHeader title="Your duo" />
           <DuoCard
             me={couple.me}
             partner={couple.partner}
@@ -534,7 +538,7 @@ export default function HomeScreen() {
 
       {/* Today's water as a filling glass and steps as a footprint trail, with
           drinks a tap away. */}
-      <StaggerIn index={4} style={{ marginTop: 16 }}>
+      <StaggerIn index={4}>
         <HydrationCard
           water={water}
           me={{ name: firstName || 'You', avatar: profile.avatarUri }}
@@ -549,7 +553,8 @@ export default function HomeScreen() {
           onStepWaterGoal={stepWaterGoal}
         />
       </StaggerIn>
-      <StaggerIn index={4} style={{ marginTop: 12 }}>
+      <StaggerIn index={4}>
+        <HomeSectionHeader title="Steps" />
         <StepsCard
           steps={stepsToday}
           onFixSteps={openStepSettings}
@@ -1059,10 +1064,6 @@ const styles = StyleSheet.create({
   },
 
   // Quick tiles
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  // Consistent section rhythm — iOS groups content with generous, even gaps
-  // rather than varying margins per section.
-  sectionSpacing: { marginTop: 28, marginBottom: 12 },
   quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   quickTileWrap: { width: '47%', flexGrow: 1 },
   quickTile: {

@@ -5,7 +5,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { StepsTrail, stepsTrailText } from '@/components/home/StepsTrail';
 import { WaterGlass } from '@/components/home/WaterGlass';
 import { PressableScale } from '@/components/ui';
-import { DRINK_SIZES_ML, type HydrationProgress, formatMl } from '@/domain/hydration';
+import { DEFAULT_DAILY_GOAL_ML, DRINK_SIZES_ML, type HydrationProgress, formatMl } from '@/domain/hydration';
 import { type StepsState, formatSteps, isFixableByAthlete, stepsProgress } from '@/domain/steps';
 import { font } from '@/theme/typography';
 import { palette, radius } from '@/theme/tokens';
@@ -44,6 +44,12 @@ export function TodayCard({
   const stepRead = steps.status === 'ready' ? stepsProgress(steps.steps, steps.goal) : null;
   const goals = stepRead ? 2 : 1;
   const met = Number(water.met) + Number(stepRead?.met ?? false);
+  /* Their goal is not synced, so their glass fills against the default; the
+     label shows only their real amount, never a goal they did not set. */
+  const partnerPercent = partner
+    ? Math.min(100, Math.round((partner.ml / DEFAULT_DAILY_GOAL_ML) * 100))
+    : 0;
+  const bothMet = !!partner && water.met && partner.ml >= DEFAULT_DAILY_GOAL_ML;
   const canFixSteps = steps.status === 'unavailable' && isFixableByAthlete(steps.reason) && !!onFixSteps;
 
   return (
@@ -59,14 +65,42 @@ export function TodayCard({
         </Text>
       </View>
 
-      <View style={styles.panels}>
-        <View style={styles.panel}>
-          <WaterGlass percent={water.percent} />
-          <Text style={styles.panelValue}>{formatMl(water.ml)}</Text>
-          <Text style={styles.panelSub}>of {formatMl(water.goalMl)} water</Text>
-        </View>
-
-        <View style={styles.panel}>
+      {partner ? (
+        <>
+          {/* A toast: two glasses leaning in, filling side by side. */}
+          <View style={styles.toast}>
+            <View style={[styles.panel, styles.leanRight]}>
+              <WaterGlass id="me" percent={water.percent} />
+              <Text style={styles.panelValue}>{formatMl(water.ml)}</Text>
+              <Text style={styles.panelSub}>You</Text>
+            </View>
+            <View style={styles.clink}>
+              <Text style={styles.clinkEmoji}>{bothMet ? '🥂' : '💧'}</Text>
+            </View>
+            <View style={[styles.panel, styles.leanLeft]}>
+              <WaterGlass id="partner" percent={partnerPercent} />
+              <Text style={styles.panelValue}>{formatMl(partner.ml)}</Text>
+              <Text style={styles.panelSub} numberOfLines={1}>
+                {partner.name}
+              </Text>
+            </View>
+          </View>
+          <Text style={[styles.toastLine, bothMet && styles.toastLineMet]}>
+            {bothMet
+              ? `Cheers! You and ${partner.name} both hit your water goal`
+              : water.ml >= partner.ml
+                ? `You're ${formatMl(water.ml - partner.ml)} ahead of ${partner.name}`
+                : `${partner.name} is ${formatMl(partner.ml - water.ml)} ahead — top up`}
+          </Text>
+        </>
+      ) : (
+        <View style={styles.panels}>
+          <View style={styles.panel}>
+            <WaterGlass id="me" percent={water.percent} />
+            <Text style={styles.panelValue}>{formatMl(water.ml)}</Text>
+            <Text style={styles.panelSub}>of {formatMl(water.goalMl)} water</Text>
+          </View>
+          <View style={styles.panel}>
           <StepsTrail percent={stepRead?.percent ?? null}>
             {stepRead ? (
               <>
@@ -88,12 +122,10 @@ export function TodayCard({
               </Text>
             )}
           </StepsTrail>
-          <Text style={styles.panelValue}>{stepRead?.met ? 'Goal met' : 'Steps'}</Text>
-          <Text style={styles.panelSub}>
-            {stepRead ? `${formatSteps(Math.max(0, stepRead.goal - stepRead.steps))} to go` : 'today'}
-          </Text>
+            <Text style={styles.panelValue}>{stepRead?.met ? 'Goal met' : 'Steps'}</Text>
+          </View>
         </View>
-      </View>
+      )}
 
       {/* Water, one tap away — the only ring you can close from Home. */}
       <View style={styles.waterRow}>
@@ -150,9 +182,35 @@ export function TodayCard({
       </View>
 
       {partner ? (
-        <Text style={styles.partner}>
-          {partner.name} has had {formatMl(partner.ml)} today
-        </Text>
+        <View style={styles.stepsRow}>
+          <StepsTrail percent={stepRead?.percent ?? null} width={124} height={92} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.stepsTitle}>
+              {stepRead ? formatSteps(stepRead.steps) : 'Steps today'}
+              {stepRead?.met ? ' 👟' : ''}
+            </Text>
+            {stepRead ? (
+              <Text style={styles.panelSub}>
+                {stepRead.met
+                  ? `Goal of ${formatSteps(stepRead.goal)} met`
+                  : `${formatSteps(stepRead.goal - stepRead.steps)} to your ${formatSteps(stepRead.goal)} goal`}
+              </Text>
+            ) : canFixSteps ? (
+              <PressableScale
+                onPress={onFixSteps}
+                accessibilityRole="button"
+                accessibilityLabel="Turn on step counting"
+                style={[styles.fixButton, styles.fixInline]}
+              >
+                <Text style={styles.fixText}>Turn on step counting</Text>
+              </PressableScale>
+            ) : (
+              <Text style={styles.panelSub}>
+                {steps.status === 'loading' ? 'Counting…' : 'Not available on this phone'}
+              </Text>
+            )}
+          </View>
+        </View>
       ) : null}
     </LinearGradient>
   );
@@ -163,6 +221,23 @@ const styles = StyleSheet.create({
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   eyebrow: { ...font('extrabold', 12, { color: 'rgba(255,255,255,0.55)' }), letterSpacing: 1.6 },
   closedText: font('bold', 13, { color: palette.white }),
+  toast: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 6, marginTop: 14 },
+  leanRight: { transform: [{ rotate: '5deg' }] },
+  leanLeft: { transform: [{ rotate: '-5deg' }] },
+  clink: { width: 40, alignItems: 'center', paddingBottom: 60 },
+  clinkEmoji: { fontSize: 24 },
+  toastLine: { ...font('semibold', 13, { color: 'rgba(255,255,255,0.8)' }), textAlign: 'center', marginTop: 12 },
+  toastLineMet: font('extrabold', 13.5, { color: '#fde68a' }),
+  stepsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 16,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.08)',
+  },
+  stepsTitle: font('extrabold', 15, { color: palette.white }),
   panels: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-end', marginTop: 14 },
   panel: { alignItems: 'center', flex: 1 },
   panelValue: { ...font('extrabold', 16, { color: palette.white }), marginTop: 10 },
@@ -174,6 +249,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   fixText: font('extrabold', 13, { color: palette.ink }),
+  fixInline: { alignSelf: 'flex-start', marginTop: 8 },
   waterRow: { flexDirection: 'row', gap: 8, marginTop: 18 },
   drink: {
     flex: 1,
@@ -201,5 +277,4 @@ const styles = StyleSheet.create({
   },
   stepText: font('bold', 15, { color: palette.white }),
   stepValue: font('semibold', 12, { color: 'rgba(255,255,255,0.75)' }),
-  partner: { ...font('medium', 12, { color: 'rgba(255,255,255,0.55)' }), marginTop: 10 },
 });

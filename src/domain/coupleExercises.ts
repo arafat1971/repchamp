@@ -257,8 +257,8 @@ export function sideTotals(days: readonly CoupleDay[]): SideTotals {
 /**
  * What the Home widget says about a partner right now.
  *
- * `CoupleStrip` already carries the bond's headline numbers — streak, combined
- * reps, a seven-day dot row. What it never answers is the question a partner
+ * The Home Duo card carries the bond's headline — streak and today's state
+ * for both. What it never answers is the question a partner
  * actually opens the app to ask: *have they trained today, and how do we
  * compare this week?*
  *

@@ -16,9 +16,8 @@ import Animated, {
 import { track } from '@/lib/analytics';
 import { HomeAmbient } from '@/components/home/HomeAmbient';
 import { HeroCard } from '@/components/home/HeroCard';
-import { CoupleStrip } from '@/components/home/CoupleStrip';
-import { DailyCard } from '@/components/home/DailyCard';
-import { PartnerPulseCard } from '@/components/home/PartnerPulseCard';
+import { DuoCard } from '@/components/home/DuoCard';
+import { TodayCard } from '@/components/home/TodayCard';
 import { CountUp, PopOnChange, StaggerIn } from '@/components/motion';
 import { Card, PressableScale, Screen, SectionLabel } from '@/components/ui';
 import { exerciseHomeStats } from '@/domain/exerciseHomeStats';
@@ -38,6 +37,7 @@ import { selectHomeFocus, type HomeFocus } from '@/domain/homeFocus';
 import { leagueProgressFromWeeklyXp } from '@/domain/leagueProgress';
 import { liveActivity } from '@/domain/liveActivity';
 import { usePhantomSeed } from '@/domain/seedPhantoms';
+import { rivalryWith } from '@/domain/rivalry';
 import { dayKey } from '@/domain/progression';
 import {
   useProfileStore,
@@ -248,6 +248,26 @@ export default function HomeScreen() {
     track('home_hero_shown', { kind: focus.kind });
   }, [focus.kind]);
 
+  const rivalry = useMemo(
+    () => rivalryWith(profile.sessions, couple.partner?.uid),
+    [profile.sessions, couple.partner?.uid],
+  );
+
+  /** A live duel with the partner, from the Duo card's Race button. */
+  const startCoupleRace = () => {
+    if (!couple.partner) return;
+    router.push({
+      pathname: '/duel/new',
+      params: {
+        role: 'host',
+        kind: 'duel',
+        target: couple.partner.uid,
+        name: couple.partner.displayName,
+        ...(couple.partner.avatarUrl ? { avatar: couple.partner.avatarUrl } : {}),
+      },
+    });
+  };
+
   /** Route the adaptive hero's single CTA when an urgent focus wins over the carousel. */
   const startCoupleTrain = () => {
     if (!couple.paired || !couple.partner || !self) {
@@ -291,7 +311,7 @@ export default function HomeScreen() {
         return startSolo('push');
       case 'streak-at-risk':
       case 'partner-trained':
-        // Same path as CoupleStrip "Train together" — invite modal has no train CTA.
+        // Same path as the Duo card's "Train together" — invite modal has no train CTA.
         return startCoupleTrain();
       case 'invite-partner':
         return router.push('/modal/couple-invite');
@@ -419,9 +439,45 @@ export default function HomeScreen() {
         <HeroCard focus={focus} onPress={onHeroPress} />
       </StaggerIn>
 
-      {couple.paired ? (
-        <StaggerIn index={1} style={{ marginTop: 12 }}>
-          <CoupleStrip
+      {/* The action people open the app for, straight under the hero rather
+          than below every scoreboard. */}
+      <View style={styles.sectionHeader}>
+        <SectionLabel style={styles.sectionSpacing}>Quick Start</SectionLabel>
+        <PressableScale
+          onPress={() => router.push('/(tabs)/train')}
+          accessibilityRole="button"
+          accessibilityLabel="View all exercises"
+        >
+          <Text style={font('bold', 12.5, { color: palette.green600 })}>View all ›</Text>
+        </PressableScale>
+      </View>
+      <StaggerIn index={3} style={styles.quickGrid}>
+        <QuickTile
+          label="Push-Ups"
+          locked={soloWalled}
+          image={IC_PUSHUP}
+          accent={palette.green600}
+          tint={[palette.tintGreenTop, palette.tintGreenBottom]}
+          stats={pushStats}
+          onPress={() => startSolo('push')}
+        />
+        <QuickTile
+          label="Squats"
+          locked={soloWalled}
+          image={IC_SQUAT}
+          accent={palette.purple600}
+          tint={[palette.tintPurpleTop, palette.tintPurpleBottom]}
+          stats={squatStats}
+          onPress={() => startSolo('squat')}
+        />
+      </StaggerIn>
+
+
+      {/* The couple as one face-off — replaces the bond strip and the partner
+          card, which told the same story twice. */}
+      {couple.paired && couple.partner ? (
+        <StaggerIn index={1} style={{ marginTop: 16 }}>
+          <DuoCard
             me={couple.me}
             partner={couple.partner}
             streak={couple.streak}
@@ -429,27 +485,19 @@ export default function HomeScreen() {
             atRisk={couple.atRisk}
             levelName={couple.level.name}
             today={today}
+            rivalry={rivalry}
             onAction={(action) => void onCoupleAction(action)}
+            onRace={startCoupleRace}
+            onOpen={() => router.push('/couple/partner')}
           />
         </StaggerIn>
       ) : null}
 
-      {/* The partner's week in detail, under the bond headline above. */}
-      {partnerPulse ? (
-        <StaggerIn index={1} style={{ marginTop: 12 }}>
-          <PartnerPulseCard
-            partnerName={couple.partner?.displayName ?? 'Partner'}
-            widget={partnerPulse.widget}
-            myExercises={partnerPulse.mine}
-            onPress={() => router.push('/couple/partner')}
-          />
-        </StaggerIn>
-      ) : null}
-
-      {/* Today's rings sit above the stats row: water is the one thing on Home
-          an athlete can act on right now, and an action outranks a scoreboard. */}
-      <StaggerIn index={2} style={{ marginTop: 12 }}>
-        <DailyCard
+      {/* Today as three nested rings — challenge, water, steps — with water
+          logging a tap away. */}
+      <StaggerIn index={2} style={{ marginTop: 16 }}>
+        <TodayCard
+          challenge={daily}
           water={water}
           steps={stepsToday}
           partner={partnerWater}
@@ -457,6 +505,7 @@ export default function HomeScreen() {
           onUndoWater={todayDrinks.length > 0 ? undoWater : undefined}
           onStepWaterGoal={stepWaterGoal}
           onFixSteps={openStepSettings}
+          onOpenChallenge={() => router.push('/modal/daily')}
         />
       </StaggerIn>
 
@@ -543,37 +592,6 @@ export default function HomeScreen() {
             </View>
           </LinearGradient>
         </PressableScale>
-      </StaggerIn>
-
-      <View style={styles.sectionHeader}>
-        <SectionLabel style={styles.sectionSpacing}>Quick Start</SectionLabel>
-        <PressableScale
-          onPress={() => router.push('/(tabs)/train')}
-          accessibilityRole="button"
-          accessibilityLabel="View all exercises"
-        >
-          <Text style={font('bold', 12.5, { color: palette.green600 })}>View all ›</Text>
-        </PressableScale>
-      </View>
-      <StaggerIn index={3} style={styles.quickGrid}>
-        <QuickTile
-          label="Push-Ups"
-          locked={soloWalled}
-          image={IC_PUSHUP}
-          accent={palette.green600}
-          tint={[palette.tintGreenTop, palette.tintGreenBottom]}
-          stats={pushStats}
-          onPress={() => startSolo('push')}
-        />
-        <QuickTile
-          label="Squats"
-          locked={soloWalled}
-          image={IC_SQUAT}
-          accent={palette.purple600}
-          tint={[palette.tintPurpleTop, palette.tintPurpleBottom]}
-          stats={squatStats}
-          onPress={() => startSolo('squat')}
-        />
       </StaggerIn>
 
       </Screen>

@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 
+import { ProgressSection } from '@/components/ProgressSection';
 import { Card, PressableScale, ProgressBar, Screen, SectionLabel } from '@/components/ui';
 import { StaggerIn } from '@/components/motion';
 import { ACHIEVEMENTS, evaluateAchievements } from '@/domain/achievements';
@@ -308,6 +309,16 @@ export default function ProfileScreen() {
           </View>
         )}
       </StaggerIn>
+
+      {/* ── Progress ── this week against last, twelve weeks of days, and
+          per-exercise gains. The totals above only ever go up; this is where
+          the athlete sees whether they are actually improving. */}
+      {profile.sessions.length > 0 ? (
+        <StaggerIn index={3}>
+          <SectionLabel>Progress</SectionLabel>
+          <ProgressSection sessions={profile.sessions} />
+        </StaggerIn>
+      ) : null}
 
       {/* ── History ──
           Sessions have been recorded since launch and never shown back; this is

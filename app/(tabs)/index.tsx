@@ -504,11 +504,10 @@ export default function HomeScreen() {
         </StaggerIn>
       ) : null}
 
-      {/* Today as three nested rings — challenge, water, steps — with water
-          logging a tap away. */}
+      {/* Today's water as a filling glass and steps as a footprint trail, with
+          drinks a tap away. */}
       <StaggerIn index={2} style={{ marginTop: 16 }}>
         <TodayCard
-          challenge={daily}
           water={water}
           steps={stepsToday}
           partner={partnerWater}
@@ -516,7 +515,6 @@ export default function HomeScreen() {
           onUndoWater={todayDrinks.length > 0 ? undoWater : undefined}
           onStepWaterGoal={stepWaterGoal}
           onFixSteps={openStepSettings}
-          onOpenChallenge={() => router.push('/modal/daily')}
         />
       </StaggerIn>
 

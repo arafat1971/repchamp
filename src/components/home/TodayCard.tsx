@@ -2,39 +2,29 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
-import { ProgressRing } from '@/components/home/ProgressRing';
+import { StepsTrail, stepsTrailText } from '@/components/home/StepsTrail';
+import { WaterGlass } from '@/components/home/WaterGlass';
 import { PressableScale } from '@/components/ui';
-import type { DailyChallengeProgress } from '@/domain/dailyChallenge';
 import { DRINK_SIZES_ML, type HydrationProgress, formatMl } from '@/domain/hydration';
 import { type StepsState, formatSteps, isFixableByAthlete, stepsProgress } from '@/domain/steps';
 import { font } from '@/theme/typography';
-import { gradients, palette, radius } from '@/theme/tokens';
-
-/** Ring colours: the three things a day is made of, each with its own hue. */
-const RING = {
-  reps: { from: '#4ade80', to: '#16a34a', dot: '#22c55e' },
-  water: { from: '#7dd3fc', to: '#2563eb', dot: '#38bdf8' },
-  steps: { from: '#fcd34d', to: '#f97316', dot: '#f59e0b' },
-} as const;
-
-const OUTER = 132;
-const THICK = 13;
-const GAP = 4;
+import { palette, radius } from '@/theme/tokens';
 
 /**
- * Today, as three rings — reps, water, steps — on one dark card.
+ * Today's water and steps, drawn as the things they are.
  *
- * Replaces the white two-ring `DailyCard` on Home. The rings nest, in the
- * activity-ring idiom, so a day reads as one shape that fills in rather than
- * three separate stats; the centre counts how many are closed, which is the
- * number people come back to finish. Every action the old card offered is
- * still here — the drink chips, undo, the goal stepper, the partner's water
- * and the steps fix — just compacted under the rings.
+ * Water is a glass that fills — waves, bubbles, a spring on every drink —
+ * and steps are a trail of footprints lighting up round an arc. They replace
+ * nested progress rings: a ring says "percentage", a glass and a trail say
+ * "drink" and "walk", which is what the card is asking for. Today's challenge
+ * is not repeated here; the hero above already leads with it.
+ *
+ * Every action the old card offered is still here — the drink chips, undo,
+ * the goal stepper, the partner's water and the steps fix.
  *
  * Presentational only: every figure is computed by the domain and passed in.
  */
 export function TodayCard({
-  challenge,
   water,
   steps,
   partner,
@@ -42,9 +32,7 @@ export function TodayCard({
   onUndoWater,
   onStepWaterGoal,
   onFixSteps,
-  onOpenChallenge,
 }: {
-  challenge: DailyChallengeProgress;
   water: HydrationProgress;
   steps: StepsState;
   partner: { name: string; ml: number } | null;
@@ -52,85 +40,58 @@ export function TodayCard({
   onUndoWater?: () => void;
   onStepWaterGoal: (direction: 1 | -1) => void;
   onFixSteps?: () => void;
-  onOpenChallenge: () => void;
 }) {
   const stepRead = steps.status === 'ready' ? stepsProgress(steps.steps, steps.goal) : null;
-  const closed =
-    Number(challenge.cleared) + Number(water.met) + Number(stepRead?.met ?? false);
-  const rings = stepRead ? 3 : 2;
+  const goals = stepRead ? 2 : 1;
+  const met = Number(water.met) + Number(stepRead?.met ?? false);
+  const canFixSteps = steps.status === 'unavailable' && isFixableByAthlete(steps.reason) && !!onFixSteps;
 
   return (
-    <LinearGradient colors={gradients.ink} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.card}>
+    <LinearGradient colors={['#0b1b2e', '#0f172a']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.card}>
       <View style={styles.head}>
         <Text style={styles.eyebrow}>TODAY</Text>
         <Text style={styles.closedText}>
-          {closed === rings ? 'All rings closed 🎉' : `${closed} of ${rings} rings closed`}
+          {met === goals
+            ? 'All goals met 🎉'
+            : goals === 1
+              ? `${water.percent}% of your water goal`
+              : `${met} of ${goals} goals met`}
         </Text>
       </View>
 
-      <View style={styles.body}>
-        {/* Three nested rings, each inset by its thickness plus a hairline gap. */}
-        <View style={{ width: OUTER, height: OUTER }}>
-          <View style={StyleSheet.absoluteFill}>
-            <ProgressRing
-              percent={challenge.percent}
-              size={OUTER}
-              thickness={THICK}
-              from={RING.reps.from}
-              to={RING.reps.to}
-              track="rgba(255,255,255,0.08)"
-            />
-          </View>
-          <View style={[styles.inset, { margin: THICK + GAP }]}>
-            <ProgressRing
-              percent={water.percent}
-              size={OUTER - 2 * (THICK + GAP)}
-              thickness={THICK}
-              from={RING.water.from}
-              to={RING.water.to}
-              track="rgba(255,255,255,0.08)"
-            />
-          </View>
-          <View style={[styles.inset, { margin: 2 * (THICK + GAP) }]}>
-            <ProgressRing
-              percent={stepRead?.percent ?? 0}
-              size={OUTER - 4 * (THICK + GAP)}
-              thickness={THICK}
-              from={RING.steps.from}
-              to={RING.steps.to}
-              track={stepRead ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.03)'}
-            />
-          </View>
+      <View style={styles.panels}>
+        <View style={styles.panel}>
+          <WaterGlass percent={water.percent} />
+          <Text style={styles.panelValue}>{formatMl(water.ml)}</Text>
+          <Text style={styles.panelSub}>of {formatMl(water.goalMl)} water</Text>
         </View>
 
-        <View style={styles.legend}>
-          <LegendRow
-            color={RING.reps.dot}
-            label="Challenge"
-            value={challenge.cleared ? 'Done ✓' : `${challenge.best}/${challenge.target}`}
-            onPress={onOpenChallenge}
-          />
-          <LegendRow
-            color={RING.water.dot}
-            label="Water"
-            value={`${formatMl(water.ml)} / ${formatMl(water.goalMl)}`}
-          />
-          {stepRead ? (
-            <LegendRow
-              color={RING.steps.dot}
-              label="Steps"
-              value={`${formatSteps(stepRead.steps)}`}
-            />
-          ) : steps.status === 'unavailable' && isFixableByAthlete(steps.reason) && onFixSteps ? (
-            <LegendRow color={RING.steps.dot} label="Steps" value="Turn on ›" onPress={onFixSteps} />
-          ) : (
-            <LegendRow
-              color="rgba(255,255,255,0.25)"
-              label="Steps"
-              value={steps.status === 'loading' ? 'Counting…' : 'Not on this phone'}
-              muted
-            />
-          )}
+        <View style={styles.panel}>
+          <StepsTrail percent={stepRead?.percent ?? null}>
+            {stepRead ? (
+              <>
+                <Text style={stepsTrailText.count}>{formatSteps(stepRead.steps)}</Text>
+                <Text style={stepsTrailText.sub}>of {formatSteps(stepRead.goal)}</Text>
+              </>
+            ) : canFixSteps ? (
+              <PressableScale
+                onPress={onFixSteps}
+                accessibilityRole="button"
+                accessibilityLabel="Turn on step counting"
+                style={styles.fixButton}
+              >
+                <Text style={styles.fixText}>Turn on</Text>
+              </PressableScale>
+            ) : (
+              <Text style={stepsTrailText.sub}>
+                {steps.status === 'loading' ? 'Counting…' : 'Not on this phone'}
+              </Text>
+            )}
+          </StepsTrail>
+          <Text style={styles.panelValue}>{stepRead?.met ? 'Goal met' : 'Steps'}</Text>
+          <Text style={styles.panelSub}>
+            {stepRead ? `${formatSteps(Math.max(0, stepRead.goal - stepRead.steps))} to go` : 'today'}
+          </Text>
         </View>
       </View>
 
@@ -197,51 +158,22 @@ export function TodayCard({
   );
 }
 
-function LegendRow({
-  color,
-  label,
-  value,
-  muted,
-  onPress,
-}: {
-  color: string;
-  label: string;
-  value: string;
-  muted?: boolean;
-  onPress?: () => void;
-}) {
-  const content = (
-    <View style={styles.legendRow}>
-      <View style={[styles.dot, { backgroundColor: color }]} />
-      <View style={{ flex: 1 }}>
-        <Text style={styles.legendLabel}>{label}</Text>
-        <Text style={[styles.legendValue, muted && styles.legendMuted]} numberOfLines={1}>
-          {value}
-        </Text>
-      </View>
-    </View>
-  );
-  if (!onPress) return content;
-  return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}: ${value}`}>
-      {content}
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   card: { borderRadius: radius['3xl'], padding: 18 },
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   eyebrow: { ...font('extrabold', 12, { color: 'rgba(255,255,255,0.55)' }), letterSpacing: 1.6 },
   closedText: font('bold', 13, { color: palette.white }),
-  body: { flexDirection: 'row', alignItems: 'center', gap: 18, marginTop: 14 },
-  inset: { position: 'absolute', top: 0, left: 0 },
-  legend: { flex: 1, gap: 12 },
-  legendRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  dot: { width: 10, height: 10, borderRadius: 5 },
-  legendLabel: font('semibold', 11.5, { color: 'rgba(255,255,255,0.6)' }),
-  legendValue: font('extrabold', 15, { color: palette.white }),
-  legendMuted: font('medium', 12.5, { color: 'rgba(255,255,255,0.45)' }),
+  panels: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-end', marginTop: 14 },
+  panel: { alignItems: 'center', flex: 1 },
+  panelValue: { ...font('extrabold', 16, { color: palette.white }), marginTop: 10 },
+  panelSub: font('medium', 11.5, { color: 'rgba(255,255,255,0.55)' }),
+  fixButton: {
+    backgroundColor: '#f59e0b',
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  fixText: font('extrabold', 13, { color: palette.ink }),
   waterRow: { flexDirection: 'row', gap: 8, marginTop: 18 },
   drink: {
     flex: 1,

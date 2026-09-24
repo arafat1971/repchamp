@@ -16,6 +16,7 @@ import Animated, {
 import { track } from '@/lib/analytics';
 import { HomeAmbient } from '@/components/home/HomeAmbient';
 import { HeroCard } from '@/components/home/HeroCard';
+import { ActiveNowRail } from '@/components/home/ActiveNowRail';
 import { DuoCard } from '@/components/home/DuoCard';
 import { TodayCard } from '@/components/home/TodayCard';
 import { CountUp, PopOnChange, StaggerIn } from '@/components/motion';
@@ -38,6 +39,7 @@ import { leagueProgressFromWeeklyXp } from '@/domain/leagueProgress';
 import { liveActivity } from '@/domain/liveActivity';
 import { usePhantomSeed } from '@/domain/seedPhantoms';
 import { rivalryWith } from '@/domain/rivalry';
+import { weekStrip } from '@/domain/weekStrip';
 import { dayKey } from '@/domain/progression';
 import {
   useProfileStore,
@@ -89,6 +91,10 @@ export default function HomeScreen() {
     billingReady: isPurchasesConfigured(),
   });
   const daysTrained = selectDaysTrainedThisWeek(profile);
+  const week = useMemo(
+    () => weekStrip(profile.sessions.map((x) => x.day)),
+    [profile.sessions],
+  );
   const goal = profile.weeklyGoal;
   const initial = (profile.username || 'C').charAt(0).toUpperCase();
   const pendingDuels = useIncomingDuelCount();
@@ -473,6 +479,11 @@ export default function HomeScreen() {
       </StaggerIn>
 
 
+      {/* Faces to race, one tap from Home rather than a tab away. */}
+      <StaggerIn index={1} style={{ marginTop: 18 }}>
+        <ActiveNowRail />
+      </StaggerIn>
+
       {/* The couple as one face-off — replaces the bond strip and the partner
           card, which told the same story twice. */}
       {couple.paired && couple.partner ? (
@@ -525,15 +536,25 @@ export default function HomeScreen() {
               <Text style={font('bold', 20, { color: palette.ink, marginTop: 8 })}>
                 {streak > 0 ? `${streak} day streak` : 'Start a streak'}
               </Text>
-              <View style={styles.weekBars}>
-                {Array.from({ length: goal }, (_, i) => (
-                  <View
-                    key={i}
-                    style={[
-                      styles.weekBarTall,
-                      { backgroundColor: i < daysTrained ? palette.green500 : palette.green50 },
-                    ]}
-                  />
+              {/* This calendar week, Monday to Sunday: a flame for every day
+                  trained, today outlined, the rest of the week still ahead. */}
+              <View style={styles.weekStrip}>
+                {week.map((cell) => (
+                  <View key={cell.day} style={styles.weekCell}>
+                    <View
+                      style={[
+                        styles.weekDot,
+                        cell.trained && styles.weekDotTrained,
+                        !cell.trained && cell.isToday && styles.weekDotToday,
+                        cell.isFuture && styles.weekDotFuture,
+                      ]}
+                    >
+                      {cell.trained ? <Text style={styles.weekFlame}>🔥</Text> : null}
+                    </View>
+                    <Text style={[styles.weekLetter, cell.isToday && styles.weekLetterToday]}>
+                      {cell.letter}
+                    </Text>
+                  </View>
                 ))}
               </View>
               <Text style={font('regular', 11, { color: palette.green700, marginTop: 8 })}>
@@ -808,6 +829,22 @@ function QuickTile({
 
 
 const styles = StyleSheet.create({
+  weekStrip: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },
+  weekCell: { alignItems: 'center', gap: 4 },
+  weekDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: palette.divider,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  weekDotTrained: { backgroundColor: '#ffedd5' },
+  weekDotToday: { borderWidth: 2, borderColor: palette.green500, backgroundColor: palette.white },
+  weekDotFuture: { opacity: 0.45 },
+  weekFlame: { fontSize: 11 },
+  weekLetter: font('semibold', 9.5, { color: palette.grey500 }),
+  weekLetterToday: font('extrabold', 9.5, { color: palette.green700 }),
   header: {
     flexDirection: 'row',
     // Top-aligned: the identity block runs to three lines, so centring pushed
@@ -954,7 +991,6 @@ const styles = StyleSheet.create({
   },
   statCardInner: { flex: 1, padding: 16, borderRadius: radius.lg },
   miniHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  weekBars: { flexDirection: 'row', gap: 4, marginTop: 8 },
   weekBar: { flex: 1, height: 6, borderRadius: radius.xs },
   leagueRow: { flexDirection: 'row', alignItems: 'center', gap: 0, marginTop: 4, marginBottom: 0 },
   medalIcon: { width: 66, height: 44, marginRight: -8, marginLeft: -6, marginTop: -4 },
@@ -1024,7 +1060,6 @@ const styles = StyleSheet.create({
 
   greetingHook: { ...font('regular', 12, { color: palette.grey600 }) },
   greetingBonus: { ...font('regular', 11, { color: palette.green700, marginTop: 4 }) },
-  weekBarTall: { flex: 1, height: 10, borderRadius: 5 },
   medalIconSmall: { width: 42, height: 32, marginRight: -4, marginLeft: -4 },
   leagueXpTrack: {
     height: 8,

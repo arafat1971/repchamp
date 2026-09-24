@@ -60,6 +60,8 @@ export default function PartnerDashboardScreen() {
   const drinks = useHydrationStore((s) => s.drinks);
   const shareSteps = useSharingStore((s) => s.steps);
   const shareWater = useSharingStore((s) => s.water);
+  const drinkUpdates = useSharingStore((s) => s.drinkUpdates);
+  const setDrinkUpdates = useSharingStore((s) => s.setDrinkUpdates);
   const { steps: myStepsState } = useStepsToday();
   const [sending, setSending] = useState<ReminderKind | null>(null);
 
@@ -319,6 +321,13 @@ export default function PartnerDashboardScreen() {
             detail="How much you've drunk"
             value={shareWater}
             onChange={(v) => toggle('water', v)}
+          />
+          <View style={styles.divider} />
+          <ShareRow
+            label={`Tell ${partnerName} when I drink`}
+            detail="They get “just drank 250 ml” — at most once every 90 minutes"
+            value={shareWater && drinkUpdates}
+            onChange={(v) => setDrinkUpdates(v)}
           />
           <View style={styles.divider} />
           <View style={styles.shareRow}>

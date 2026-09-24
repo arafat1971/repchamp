@@ -151,7 +151,11 @@ export function useCouple(): CoupleView {
         // Foreground presentation. A recent presentNudge briefly suppresses the
         // twin FCM banner (see `installForegroundNudgeSuppressor`); if Firestore
         // is slow, the push still shows. When the app is closed, Expo push lands.
-        void presentNudge(sender?.displayName ?? 'Your partner', parseReminderKind(next?.nudge?.kind));
+        void presentNudge(
+          sender?.displayName ?? 'Your partner',
+          parseReminderKind(next?.nudge?.kind),
+          next?.nudge?.ml,
+        );
       }
     });
     return unsubscribe;

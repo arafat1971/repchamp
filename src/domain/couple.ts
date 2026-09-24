@@ -87,6 +87,8 @@ export interface Couple {
     fromUid: string;
     /** Reminder kind (see `partnerReminder`); absent on nudges from older apps. */
     kind?: string;
+    /** For a `drank` nudge, the amount just logged. */
+    ml?: number;
     at?: { toMillis?: () => number } | null;
   } | null;
 }

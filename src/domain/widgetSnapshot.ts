@@ -25,6 +25,7 @@
  * there is no `theirReps`, and `headline` never claims a number about them.
  */
 
+import { formatMl } from '@/domain/hydration';
 import type { PartnerWidget } from '@/domain/coupleExercises';
 
 export interface WidgetSnapshot {
@@ -98,6 +99,8 @@ export function buildWidgetSnapshot(
   partnerName: string,
   widget: PartnerWidget,
   now = Date.now(),
+  /** Today's water, when known: theirs only if they shared it today. */
+  water?: { theirMl: number | null; myMl: number },
 ): WidgetSnapshot {
   const name = partnerName.trim() || 'Your partner';
   const { pulse } = widget;
@@ -116,7 +119,7 @@ export function buildWidgetSnapshot(
   return {
     partnerName: name,
     headline,
-    nudge: nudgeFor(name, widget),
+    nudge: withWater(nudgeFor(name, widget), name, widget, water),
     theirDays: widget.theirDays,
     myDays: widget.myDays,
     sharedDays: widget.sharedDays,
@@ -126,6 +129,25 @@ export function buildWidgetSnapshot(
   };
 }
 
+
+/**
+ * Swap in the partner's water when it is the better reason to act.
+ *
+ * Training keeps priority: "your turn to train" is the widget's core loop.
+ * Otherwise, a partner ahead on water today is a true and actionable fact —
+ * and it is what makes the widget move when they drink, not only when they
+ * train. Only their shared total counts; an unknown is never read as zero.
+ */
+function withWater(
+  base: string,
+  name: string,
+  widget: PartnerWidget,
+  water?: { theirMl: number | null; myMl: number },
+): string {
+  const trainTurn = widget.pulse.kind === 'trained-today' && !widget.pulse.sharedToday;
+  if (trainTurn || !water || water.theirMl == null || water.theirMl <= water.myMl) return base;
+  return `${name} has had ${formatMl(water.theirMl)} 💧 — your turn`;
+}
 
 /**
  * The line that turns a status into a reason.

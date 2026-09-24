@@ -18,7 +18,8 @@ import { HomeAmbient } from '@/components/home/HomeAmbient';
 import { HeroCard } from '@/components/home/HeroCard';
 import { ActiveNowRail } from '@/components/home/ActiveNowRail';
 import { DuoCard } from '@/components/home/DuoCard';
-import { TodayCard } from '@/components/home/TodayCard';
+import { HydrationCard } from '@/components/home/HydrationCard';
+import { StepsCard } from '@/components/home/StepsCard';
 import { CountUp, PopOnChange, StaggerIn } from '@/components/motion';
 import { Card, PressableScale, Screen, SectionLabel } from '@/components/ui';
 import { exerciseHomeStats } from '@/domain/exerciseHomeStats';
@@ -26,9 +27,9 @@ import { firstNameOf, selectHomeGreeting } from '@/domain/homeGreeting';
 import { dailyChallengeProgress } from '@/domain/dailyChallenge';
 import { myExerciseBreakdown, partnerWidget } from '@/domain/coupleExercises';
 import { partnerWaterToday } from '@/domain/couple';
-import { drinksOnDay, hydrationProgress, stepGoalMl } from '@/domain/hydration';
+import { DEFAULT_DAILY_GOAL_ML, drinksOnDay, hydrationProgress, stepGoalMl } from '@/domain/hydration';
 import { lightImpactHaptic, selectionHaptic } from '@/lib/feedback';
-import { syncHydrationNow, syncStepsNow } from '@/services/hydrationSync';
+import { shareDrink, syncHydrationNow, syncStepsNow } from '@/services/hydrationSync';
 import { useStepsToday } from '@/state/useStepsToday';
 import { buildDashboardSnapshot } from '@/domain/dashboardSnapshot';
 import { buildWidgetSnapshot } from '@/domain/widgetSnapshot';
@@ -49,7 +50,7 @@ import {
   selectTotalReps,
   selectWeeklyXp,
 } from '@/state/profileStore';
-import { useHydrationStore } from '@/state/hydrationStore';
+import { selectTodayMl, useHydrationStore } from '@/state/hydrationStore';
 import { useEffectivePro } from '@/state/proStore';
 import { isPurchasesConfigured } from '@/services/purchases';
 import { isWalled } from '@/domain/hardPaywall';
@@ -127,15 +128,23 @@ export default function HomeScreen() {
     };
   }, [couple.paired, couple.partner, couple.couple, couple.me?.uid, profile.sessions, today]);
 
+  /* Today's own water, for the partner widget's water line — read straight
+     from the store so the widget effect can sit here, above the card's
+     fuller hydration progress. */
+  const todayMl = useHydrationStore((st) => selectTodayMl(st, today));
+
   /* Mirror the partner card into the OS widget's SharedPreferences whenever it
      changes. No-op on iOS and on builds without the widget plugin, so this is
      safe to call unconditionally. */
   useEffect(() => {
     if (!partnerPulse) return;
     publishWidgetSnapshot(
-      buildWidgetSnapshot(couple.partner?.displayName ?? 'Your partner', partnerPulse.widget),
+      buildWidgetSnapshot(couple.partner?.displayName ?? 'Your partner', partnerPulse.widget, Date.now(), {
+        theirMl: partnerWaterToday(couple.partner, today),
+        myMl: todayMl,
+      }),
     );
-  }, [partnerPulse, couple.partner?.displayName]);
+  }, [partnerPulse, couple.partner, today, todayMl]);
 
   /* Water. The store is the source of truth; the card is presentational, so
      every decision about what counts stays in `domain/hydration`. */
@@ -198,9 +207,20 @@ export default function HomeScreen() {
       lightImpactHaptic();
       track('water_logged', { ml: entry.ml, source: 'home' });
       // Set-to-value, so this publishes the day's total rather than the tap.
-      void syncHydrationNow(coupleId, myUid);
+      void syncHydrationNow(coupleId, myUid).then(() =>
+        /* "Just drank 250 ml — your turn" to the partner, when it is useful
+           and not throttled; see `shareDrink`. After the sync, so their
+           card already shows the new total when the push lands. */
+        shareDrink({
+          coupleId,
+          uid: myUid,
+          senderName: profile.displayName || profile.username || 'Your partner',
+          ml: entry.ml,
+          partnerMet: (partnerWaterToday(couple.partner, dayKey()) ?? 0) >= DEFAULT_DAILY_GOAL_ML,
+        }),
+      );
     },
-    [coupleId, myUid],
+    [coupleId, myUid, profile.displayName, profile.username, couple.partner],
   );
 
   const undoWater = useCallback(() => {
@@ -515,15 +535,22 @@ export default function HomeScreen() {
       {/* Today's water as a filling glass and steps as a footprint trail, with
           drinks a tap away. */}
       <StaggerIn index={4} style={{ marginTop: 16 }}>
-        <TodayCard
+        <HydrationCard
           water={water}
-          steps={stepsToday}
-          partner={partnerGlass}
+          me={{ name: firstName || 'You', avatar: profile.avatarUri }}
+          partner={
+            partnerGlass
+              ? { name: partnerGlass.name, avatar: couple.partner?.avatarUrl ?? null }
+              : null
+          }
+          partnerMl={partnerGlass?.ml ?? null}
           onLogWater={logWater}
           onUndoWater={todayDrinks.length > 0 ? undoWater : undefined}
           onStepWaterGoal={stepWaterGoal}
-          onFixSteps={openStepSettings}
         />
+      </StaggerIn>
+      <StaggerIn index={4} style={{ marginTop: 12 }}>
+        <StepsCard steps={stepsToday} onFixSteps={openStepSettings} />
       </StaggerIn>
 
       <StaggerIn index={5} style={styles.row}>

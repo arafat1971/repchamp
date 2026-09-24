@@ -15,8 +15,10 @@
 
 import { partnerStepsToday, partnerWaterToday } from '@/domain/couple';
 import { METRIC_FIELD, type SharedMetricKey } from '@/domain/partnerSharing';
+import { shouldShareDrink } from '@/domain/waterShare';
 import {
   lowerCoupleHydration,
+  nudgePartner,
   recordCoupleHydration,
   recordCoupleSteps,
   withdrawCoupleDaily,
@@ -46,7 +48,25 @@ export function resetHydrationSyncMemo(): void {
  * Never throws: a water number failing to sync is not worth interrupting
  * anything for, and the next call repairs it.
  */
-export async function syncHydrationNow(
+/**
+ * Syncs run one at a time. Two quick taps each started a sync, both measured
+ * the undo from the same stale `lastPublished`, and the partner's total was
+ * lowered twice for one change — seen on device: two undos of 500 ml took
+ * the published figure 500 ml below the real one. Chaining makes each sync
+ * see the previous one's memo.
+ */
+let syncChain: Promise<void> = Promise.resolve();
+
+export function syncHydrationNow(
+  coupleId: string | null | undefined,
+  uid: string | null | undefined,
+): Promise<void> {
+  const run = syncChain.then(() => syncHydrationOnce(coupleId, uid));
+  syncChain = run.catch(() => {});
+  return run;
+}
+
+async function syncHydrationOnce(
   coupleId: string | null | undefined,
   uid: string | null | undefined,
 ): Promise<void> {
@@ -156,6 +176,43 @@ export async function setMetricSharing(
     }
   } catch {
     // Best-effort, as above.
+  }
+}
+
+/**
+ * Tell the partner a drink was just logged ("Bea just drank 250 ml 💧").
+ *
+ * Automatic, so it must never be a nuisance: `shouldShareDrink` decides
+ * whether it is worth sending at all, and the `waterShare` rate limit allows
+ * one per 90 minutes from its own bucket — it never spends the athlete's
+ * manual reminders. A throttled or failed send is silent: an automatic update
+ * has no business raising an error dialog.
+ */
+export async function shareDrink(input: {
+  coupleId: string | null | undefined;
+  uid: string | null | undefined;
+  senderName: string;
+  ml: number;
+  partnerMet: boolean;
+}): Promise<void> {
+  const { coupleId, uid } = input;
+  if (!coupleId || !uid) return;
+  const prefs = useSharingStore.getState();
+  if (
+    !shouldShareDrink({
+      paired: true,
+      sharingWater: prefs.water,
+      drinkUpdates: prefs.drinkUpdates,
+      ml: input.ml,
+      partnerMet: input.partnerMet,
+    })
+  ) {
+    return;
+  }
+  try {
+    await nudgePartner(coupleId, uid, input.senderName, 'drank', { ml: input.ml, limit: 'waterShare' });
+  } catch {
+    // Throttled or offline — the partner still sees the total live.
   }
 }
 

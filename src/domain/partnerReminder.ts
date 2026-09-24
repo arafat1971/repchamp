@@ -1,3 +1,5 @@
+import { formatMl } from '@/domain/hydration';
+
 /**
  * What a partner can remind the other to do.
  *
@@ -12,7 +14,12 @@
  */
 
 export const REMINDER_KINDS = ['water', 'walk', 'run', 'stretch', 'train'] as const;
-export type ReminderKind = (typeof REMINDER_KINDS)[number];
+/**
+ * Every kind a nudge can carry. `drank` is sent automatically when a partner
+ * logs water (see `waterShare`), so it is not one of the buttons.
+ */
+export const NUDGE_KINDS = [...REMINDER_KINDS, 'drank'] as const;
+export type ReminderKind = (typeof NUDGE_KINDS)[number];
 
 interface ReminderDef {
   emoji: string;
@@ -48,6 +55,12 @@ const DEFS: Record<ReminderKind, ReminderDef> = {
     title: (n) => `${n} says: take a stretch break 🧘`,
     body: 'Two minutes to loosen up. Your body will feel it.',
   },
+  drank: {
+    emoji: '💧',
+    label: 'Drank',
+    title: (n) => `${n} just drank some water 💧`,
+    body: 'Your turn — log a glass and keep pace.',
+  },
   train: {
     emoji: '💪',
     label: 'Train',
@@ -58,7 +71,7 @@ const DEFS: Record<ReminderKind, ReminderDef> = {
 
 /** Anything unknown or missing is the original nudge: a call to train. */
 export function parseReminderKind(raw: unknown): ReminderKind {
-  return typeof raw === 'string' && (REMINDER_KINDS as readonly string[]).includes(raw)
+  return typeof raw === 'string' && (NUDGE_KINDS as readonly string[]).includes(raw)
     ? (raw as ReminderKind)
     : 'train';
 }
@@ -68,9 +81,17 @@ export function reminderButton(kind: ReminderKind): { emoji: string; label: stri
   return { emoji: d.emoji, label: d.label };
 }
 
-export function reminderNotification(kind: ReminderKind, senderName: string): { title: string; body: string } {
+export function reminderNotification(
+  kind: ReminderKind,
+  senderName: string,
+  /** For `drank`: the amount just logged, when known. */
+  ml?: number | null,
+): { title: string; body: string } {
   const name = senderName.trim() || 'Your partner';
   const d = DEFS[kind];
+  if (kind === 'drank' && typeof ml === 'number' && ml > 0) {
+    return { title: `${name} just drank ${formatMl(ml)} 💧`, body: d.body };
+  }
   return { title: d.title(name), body: d.body };
 }
 

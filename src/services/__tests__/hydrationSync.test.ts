@@ -7,17 +7,20 @@ const mockRecordWater = jest.fn(async () => {});
 const mockRecordSteps = jest.fn(async () => {});
 const mockWithdraw = jest.fn(async () => {});
 const mockLower = jest.fn(async () => {});
+const mockNudge = jest.fn(async () => {});
 
 jest.mock('@/services/coupleService', () => ({
   recordCoupleHydration: (...a: unknown[]) => mockRecordWater(...(a as [])),
   recordCoupleSteps: (...a: unknown[]) => mockRecordSteps(...(a as [])),
   withdrawCoupleDaily: (...a: unknown[]) => mockWithdraw(...(a as [])),
   lowerCoupleHydration: (...a: unknown[]) => mockLower(...(a as [])),
+  nudgePartner: (...a: unknown[]) => mockNudge(...(a as [])),
 }));
 
 import {
   resetHydrationSyncMemo,
   setMetricSharing,
+  shareDrink,
   syncHydrationNow,
   syncStepsNow,
 } from '../hydrationSync';
@@ -109,5 +112,49 @@ describe('undo reaches the partner', () => {
     useHydrationStore.setState({ drinks: [drink('a', 250)] as never });
     await syncHydrationNow('C1', 'ada');
     expect(mockLower).not.toHaveBeenCalled();
+  });
+});
+
+describe('shareDrink', () => {
+  const input = { coupleId: 'C1', uid: 'ada', senderName: 'Ada', ml: 250, partnerMet: false };
+
+  beforeEach(() => useSharingStore.setState({ water: true, drinkUpdates: true }));
+
+  it('tells the partner, with the amount, from its own rate-limit bucket', async () => {
+    await shareDrink(input);
+    expect(mockNudge).toHaveBeenCalledWith('C1', 'ada', 'Ada', 'drank', { ml: 250, limit: 'waterShare' });
+  });
+
+  it('stays quiet when switched off, not sharing water, or the partner is done', async () => {
+    useSharingStore.setState({ drinkUpdates: false });
+    await shareDrink(input);
+    useSharingStore.setState({ drinkUpdates: true, water: false });
+    await shareDrink(input);
+    useSharingStore.setState({ water: true });
+    await shareDrink({ ...input, partnerMet: true });
+    expect(mockNudge).not.toHaveBeenCalled();
+  });
+
+  /* Throttled or offline must never surface: this runs on every drink. */
+  it('swallows a throttled send', async () => {
+    mockNudge.mockRejectedValueOnce(new Error('rate limited'));
+    await expect(shareDrink(input)).resolves.toBeUndefined();
+  });
+});
+
+describe('concurrent syncs', () => {
+  const drink = (id: string, ml: number) => ({ id, ml, at: new Date().toISOString(), day: dayKey() });
+
+  /* Two undos in quick succession must lower by exactly what was undone. */
+  it('lowers once per change when syncs overlap', async () => {
+    useHydrationStore.setState({ drinks: [drink('a', 500), drink('b', 500), drink('c', 500)] as never });
+    await syncHydrationNow('C1', 'ada');
+    useHydrationStore.setState({ drinks: [drink('a', 500), drink('b', 500)] as never });
+    const first = syncHydrationNow('C1', 'ada');
+    useHydrationStore.setState({ drinks: [drink('a', 500)] as never });
+    const second = syncHydrationNow('C1', 'ada');
+    await Promise.all([first, second]);
+    const lowered = mockLower.mock.calls.reduce((sum, c) => sum + (c as unknown as number[])[3]!, 0);
+    expect(lowered).toBe(1000);
   });
 });

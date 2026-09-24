@@ -1,10 +1,16 @@
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, SlideInDown, SlideInUp } from 'react-native-reanimated';
 import Svg, { Path, Rect } from 'react-native-svg';
 
 import { PressableScale } from '@/components/ui';
-import { DRINK_SIZES_ML, type HydrationProgress, formatMl } from '@/domain/hydration';
-import { selectionHaptic } from '@/lib/feedback';
+import {
+  DRINK_SIZES_ML,
+  MAX_DAILY_GOAL_ML,
+  MIN_DAILY_GOAL_ML,
+  type HydrationProgress,
+  formatMl,
+} from '@/domain/hydration';
 import { font } from '@/theme/typography';
 import { palette } from '@/theme/tokens';
 
@@ -30,6 +36,9 @@ export function WaterControls({
   onUndoWater?: () => void;
   onStepWaterGoal: (direction: 1 | -1) => void;
 }) {
+  const [dir, setDir] = useState<1 | -1 | 0>(0);
+  const atMin = water.goalMl <= MIN_DAILY_GOAL_ML;
+  const atMax = water.goalMl >= MAX_DAILY_GOAL_ML;
   return (
     <View>
       <View style={styles.tiles}>
@@ -70,33 +79,48 @@ export function WaterControls({
         ) : null}
       </View>
 
-      {/* A Settings-style row: label on the left, a UIStepper-style capsule on the right. */}
+      {/* A Settings-style row: label on the left, a UIStepper-style capsule on
+          the right. The goal rolls in the direction it moved; each end of the
+          band dims its button rather than ticking with nothing to change.
+          The haptic belongs to the caller, which knows whether it moved. */}
       <View style={styles.goalRow}>
         <View>
           <Text style={styles.goalLabel}>Daily goal</Text>
-          <Text style={styles.goalValue}>{formatMl(water.goalMl)}</Text>
+          <View style={styles.goalClip}>
+            <Animated.Text
+              key={water.goalMl}
+              entering={dir === 1 ? SlideInDown.duration(220) : dir === -1 ? SlideInUp.duration(220) : undefined}
+              style={styles.goalValue}
+            >
+              {formatMl(water.goalMl)}
+            </Animated.Text>
+          </View>
         </View>
         <View style={styles.stepper}>
           <Pressable
             onPress={() => {
-              selectionHaptic();
+              setDir(-1);
               onStepWaterGoal(-1);
             }}
+            disabled={atMin}
             accessibilityRole="button"
             accessibilityLabel="Lower the water goal"
-            style={({ pressed }) => [styles.stepHalf, pressed && styles.stepPressed]}
+            accessibilityState={{ disabled: atMin }}
+            style={({ pressed }) => [styles.stepHalf, pressed && styles.stepPressed, atMin && styles.stepOff]}
           >
             <StepGlyph plus={false} />
           </Pressable>
           <View style={styles.stepDivider} />
           <Pressable
             onPress={() => {
-              selectionHaptic();
+              setDir(1);
               onStepWaterGoal(1);
             }}
+            disabled={atMax}
             accessibilityRole="button"
             accessibilityLabel="Raise the water goal"
-            style={({ pressed }) => [styles.stepHalf, pressed && styles.stepPressed]}
+            accessibilityState={{ disabled: atMax }}
+            style={({ pressed }) => [styles.stepHalf, pressed && styles.stepPressed, atMax && styles.stepOff]}
           >
             <StepGlyph plus />
           </Pressable>
@@ -227,7 +251,7 @@ const styles = StyleSheet.create({
     borderTopColor: HAIRLINE,
   },
   goalLabel: font('medium', 12, { color: 'rgba(235,235,245,0.6)' }),
-  goalValue: { ...font('bold', 17, { color: palette.white }), letterSpacing: -0.3 },
+  goalValue: { ...font('bold', 17, { color: palette.white }), letterSpacing: -0.3, lineHeight: 24 },
   stepper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -237,5 +261,7 @@ const styles = StyleSheet.create({
   },
   stepHalf: { width: 48, height: 34, alignItems: 'center', justifyContent: 'center' },
   stepPressed: { backgroundColor: 'rgba(255,255,255,0.14)' },
+  stepOff: { opacity: 0.3 },
+  goalClip: { overflow: 'hidden', height: 26, justifyContent: 'center' },
   stepDivider: { width: StyleSheet.hairlineWidth * 2, height: 18, backgroundColor: 'rgba(255,255,255,0.25)' },
 });

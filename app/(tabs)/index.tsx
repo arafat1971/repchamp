@@ -29,7 +29,9 @@ import { dailyChallengeProgress } from '@/domain/dailyChallenge';
 import { myExerciseBreakdown, partnerWidget } from '@/domain/coupleExercises';
 import {
   partnerGoalToday,
+  partnerLastDrinkToday,
   partnerLayersToday,
+  partnerWaterRevToday,
   partnerStepsToday,
   partnerWaterToday,
 } from '@/domain/couple';
@@ -39,7 +41,8 @@ import { shareDrink, syncHydrationNow, syncStepsNow } from '@/services/hydration
 import { useStepsToday } from '@/state/useStepsToday';
 import { buildDashboardSnapshot } from '@/domain/dashboardSnapshot';
 import { buildWidgetSnapshot } from '@/domain/widgetSnapshot';
-import { publishWidgetSnapshot } from '@/services/partnerWidget';
+import { buildWaterWidgetSnapshot } from '@/domain/waterWidget';
+import { clearWidgetSnapshot, publishWidgetSnapshot } from '@/services/partnerWidget';
 import { trackerHistory } from '@/domain/coupleTracker';
 import { selectHomeFocus, type HomeFocus } from '@/domain/homeFocus';
 import { leagueProgressFromWeeklyXp } from '@/domain/leagueProgress';
@@ -183,6 +186,29 @@ export default function HomeScreen() {
       layers: partnerLayersToday(couple.partner, today),
     };
   }, [couple.paired, couple.partner, today]);
+
+  /* The partner's bear on the home screen. Their own phone also pushes it
+     straight to the widget as they drink; this keeps it right whenever this
+     app is open, from the same builder, so the two can never disagree. */
+  useEffect(() => {
+    if (!partnerGlass) {
+      // Unpaired: an old partner's bear must not linger on the home screen.
+      if (!couple.loading) clearWidgetSnapshot('water');
+      return;
+    }
+    publishWidgetSnapshot(
+      buildWaterWidgetSnapshot({
+        name: partnerGlass.name,
+        day: today,
+        ml: partnerGlass.ml ?? 0,
+        goalMl: partnerGlass.goalMl,
+        layers: partnerGlass.layers,
+        last: partnerLastDrinkToday(couple.partner, today),
+        rev: partnerWaterRevToday(couple.partner, today),
+      }),
+      'water',
+    );
+  }, [partnerGlass, couple.partner, couple.loading, today]);
 
   const coupleId = couple.couple?.id ?? null;
   const myUid = couple.me?.uid ?? null;

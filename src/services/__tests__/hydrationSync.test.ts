@@ -9,12 +9,14 @@ const mockWithdraw = jest.fn(async () => {});
 const mockLower = jest.fn(async () => {});
 const mockNudge = jest.fn(async () => {});
 
+const mockWidgetPush = jest.fn(async () => {});
 jest.mock('@/services/coupleService', () => ({
   recordCoupleHydration: (...a: unknown[]) => mockRecordWater(...(a as [])),
   recordCoupleSteps: (...a: unknown[]) => mockRecordSteps(...(a as [])),
   withdrawCoupleDaily: (...a: unknown[]) => mockWithdraw(...(a as [])),
   lowerCoupleHydration: (...a: unknown[]) => mockLower(...(a as [])),
   nudgePartner: (...a: unknown[]) => mockNudge(...(a as [])),
+  pushPartnerWaterWidget: (...a: unknown[]) => mockWidgetPush(...(a as [])),
 }));
 
 import {
@@ -27,6 +29,9 @@ import {
 import { useHydrationStore } from '@/state/hydrationStore';
 import { useSharingStore } from '@/state/sharingStore';
 import { dayKey } from '@/domain/progression';
+
+// Drop the debounced widget push each test leaves behind.
+afterEach(() => resetHydrationSyncMemo());
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -175,7 +180,74 @@ describe('goal and layers ride along', () => {
         { k: 'water', ml: 500 },
         { k: 'coffee', ml: 250 },
       ],
+      last: { k: 'coffee', ml: 250, at: expect.any(Number) },
+      rev: expect.any(Number),
     });
+  });
+
+  /* The version only orders copies; a sync with nothing new must not write
+     just because the clock moved. */
+  it('does not republish an unchanged state for a newer rev alone', async () => {
+    useHydrationStore.setState({ goalMl: 2000, drinks: [drink('d1', 500)] as never });
+    await syncHydrationNow('C1', 'ada');
+    mockRecordWater.mockClear();
+    await syncHydrationNow('C1', 'ada');
+    expect(mockRecordWater).not.toHaveBeenCalled();
+  });
+
+  /* However fast + and − are tapped, the partner's phone hears at most one
+     widget push every eight seconds, and it carries the newest state. */
+  it('spaces widget pushes at least eight seconds apart', async () => {
+    jest.useFakeTimers();
+    try {
+      mockWidgetPush.mockClear();
+      useHydrationStore.setState({ goalMl: 2000, drinks: [drink('d1', 500)] as never });
+      await syncHydrationNow('C1', 'ada');
+      jest.advanceTimersByTime(2600);
+      expect(mockWidgetPush).toHaveBeenCalledTimes(1);
+
+      useHydrationStore.setState({ goalMl: 2000, drinks: [drink('d1', 500), drink('d2', 250)] as never });
+      await syncHydrationNow('C1', 'ada');
+      jest.advanceTimersByTime(2600);
+      expect(mockWidgetPush).toHaveBeenCalledTimes(1);
+      jest.advanceTimersByTime(6000);
+      expect(mockWidgetPush).toHaveBeenCalledTimes(2);
+      const build = (mockWidgetPush.mock.calls[1] as unknown as [string, string, (me: { displayName: string }) => { amount: string; rev: number }])[2];
+      expect(build({ displayName: 'Ada' }).amount).toBe('750 ml');
+      expect(build({ displayName: 'Ada' }).rev).toBeGreaterThan(0);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  /* The partner's home-screen widget: one silent push per burst of taps,
+     carrying the final state, built with my name as they see it. */
+  it('sends one debounced widget push with the latest state', async () => {
+    jest.useFakeTimers();
+    try {
+      mockWidgetPush.mockClear();
+      useHydrationStore.setState({ goalMl: 2000, drinks: [drink('d1', 500)] as never });
+      await syncHydrationNow('C1', 'ada');
+      useHydrationStore.setState({ goalMl: 2000, drinks: [drink('d1', 500), drink('d2', 250, 'tea')] as never });
+      await syncHydrationNow('C1', 'ada');
+      expect(mockWidgetPush).not.toHaveBeenCalled();
+
+      jest.advanceTimersByTime(3000);
+      expect(mockWidgetPush).toHaveBeenCalledTimes(1);
+      const [coupleId, uid, build] = mockWidgetPush.mock.calls[0] as unknown as [
+        string,
+        string,
+        (me: { displayName: string }) => { title: string; amount: string; last: string },
+      ];
+      expect([coupleId, uid]).toEqual(['C1', 'ada']);
+      expect(build({ displayName: 'Ada' })).toMatchObject({
+        title: 'Ada’s water',
+        amount: '750 ml',
+        last: '🍵 Tea · 250 ml',
+      });
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   /* A goal step changes nothing about the total, but the partner's jar

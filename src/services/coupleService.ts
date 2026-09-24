@@ -16,12 +16,14 @@
 import firestore from '@react-native-firebase/firestore';
 
 import { isFirebaseConfigured } from '@/lib/firebase';
+import type { WaterWidgetSnapshot } from '@/domain/waterWidget';
 import {
   extractPairCode,
   makePairCode,
   type Couple,
   type CoupleDailyMetrics,
   type CoupleMember,
+  type DrinkLast,
 } from '@/domain/couple';
 import { MAX_DAILY_GOAL_ML, MAX_DAILY_ML, MIN_DAILY_GOAL_ML } from '@/domain/hydration';
 import { reminderNotification, type ReminderKind } from '@/domain/partnerReminder';
@@ -68,6 +70,15 @@ async function findMembershipId(uid: string): Promise<string | null> {
 }
 
 /**
+ * Tells the partner's phone this build handles the silent widget push.
+ *
+ * Older builds hand an untitled push to the foreground handler, which shows
+ * it as a blank banner — so a sender only sends one to a partner advertising
+ * this. Published with the push token, the one write every build makes.
+ */
+export const WIDGET_PUSH_VERSION = 1;
+
+/**
  * Write this athlete's Expo push token onto their own couple-member slice so the
  * partner can nudge without reading a world-readable profile field.
  */
@@ -85,7 +96,7 @@ export async function syncCouplePushToken(
     const couple = snap.data() as Couple;
     if (!couple.memberUids.includes(uid)) return;
     const members = couple.members.map((m) =>
-      m.uid === uid ? { ...m, expoPushToken: token } : m,
+      m.uid === uid ? { ...m, expoPushToken: token, widgetPush: WIDGET_PUSH_VERSION } : m,
     );
     tx.set(ref, { members }, { merge: true });
   });
@@ -347,6 +358,10 @@ export async function recordCoupleHydration(
 export interface HydrationExtras {
   goalMl?: number;
   layers?: { k: string; ml: number }[];
+  /** The latest drink still on the total; `null` when there is none. */
+  last?: DrinkLast | null;
+  /** When this state was written, epoch ms — see `CoupleDailyMetrics.rev`. */
+  rev?: number;
 }
 
 /**
@@ -364,6 +379,21 @@ function cleanExtras(extras: HydrationExtras): HydrationExtras {
       .filter((l) => typeof l.k === 'string' && l.k.length <= 12 && Number.isFinite(l.ml) && l.ml > 0 && l.ml <= MAX_DAILY_ML)
       .slice(-6)
       .map((l) => ({ k: l.k, ml: Math.round(l.ml) }));
+  }
+  const last = extras.last;
+  if (
+    last &&
+    typeof last.k === 'string' &&
+    last.k.length <= 12 &&
+    Number.isFinite(last.ml) &&
+    last.ml > 0 &&
+    last.ml <= MAX_DAILY_ML &&
+    Number.isFinite(last.at)
+  ) {
+    out.last = { k: last.k, ml: Math.round(last.ml), at: Math.round(last.at) };
+  }
+  if (typeof extras.rev === 'number' && Number.isFinite(extras.rev) && extras.rev > 0) {
+    out.rev = Math.round(extras.rev);
   }
   return out;
 }
@@ -397,7 +427,7 @@ async function recordCoupleDaily(
   coupleId: string,
   uid: string,
   day: string,
-  patch: { waterMl?: number; steps?: number; goalMl?: number; layers?: { k: string; ml: number }[] },
+  patch: { waterMl?: number; steps?: number } & HydrationExtras,
 ): Promise<void> {
   if (!isFirebaseConfigured()) return;
 
@@ -429,6 +459,8 @@ async function recordCoupleDaily(
          write simply wins — no max. */
       if (patch.goalMl !== undefined) merged.goalMl = patch.goalMl;
       if (patch.layers !== undefined) merged.layers = patch.layers;
+      if (patch.last) merged.last = patch.last;
+      if (patch.rev !== undefined) merged.rev = patch.rev;
 
       return { ...m, daily: merged };
     });
@@ -479,10 +511,17 @@ export async function lowerCoupleHydration(
       if (next > 0) {
         daily.waterMl = next;
         if (clean.layers !== undefined) daily.layers = clean.layers;
+        /* An undo can take the latest drink with it; whatever is newest now
+           replaces it, and nothing left means no "last" to report. */
+        if (clean.last) daily.last = clean.last;
+        else delete daily.last;
+        if (clean.rev !== undefined) daily.rev = clean.rev;
         return { ...m, daily };
       }
       delete daily.waterMl;
       delete daily.layers;
+      delete daily.last;
+      delete daily.rev;
       if (daily.steps !== undefined) return { ...m, daily };
       const { daily: _gone, ...withoutDaily } = m;
       return withoutDaily;
@@ -528,6 +567,8 @@ export async function withdrawCoupleDaily(
       if (key === 'waterMl') {
         delete rest.goalMl;
         delete rest.layers;
+        delete rest.last;
+        delete rest.rev;
       }
       const hasOther = rest.waterMl !== undefined || rest.steps !== undefined;
       if (hasOther) return { ...m, daily: rest };
@@ -627,6 +668,56 @@ export async function nudgePartner(
     });
   } catch {
     // The push is best-effort; the in-app nudge in (1) is the guarantee.
+  }
+}
+
+/**
+ * Move the partner's home-screen bear, silently.
+ *
+ * A data-only push — no title, no body, so no banner — carrying the finished
+ * widget payload built from *my* numbers as my partner should see them. Their
+ * native messaging service writes it into the widget's storage and redraws,
+ * which is what makes the widget live while their app is closed. `null`
+ * empties their widget (I stopped sharing water).
+ *
+ * Only sent to a partner whose build advertises `widgetPush`; an older build
+ * would surface the untitled push as a blank banner. Best-effort throughout:
+ * their app refreshes the widget from the couple document when it next runs.
+ */
+export async function pushPartnerWaterWidget(
+  coupleId: string,
+  fromUid: string,
+  build: ((me: CoupleMember) => WaterWidgetSnapshot) | null,
+): Promise<void> {
+  if (!isFirebaseConfigured()) return;
+  try {
+    /* Cache first: the live subscription on Home keeps this document in the
+       local cache, so a drink costs no server read. The server is asked only
+       when the cache has nothing (a cold start straight into a sync). */
+    let snap = await coupleDoc(coupleId)
+      .get({ source: 'cache' })
+      .catch(() => null);
+    if (!snap?.exists()) snap = await coupleDoc(coupleId).get();
+    if (!snap.exists()) return;
+    const couple = snap.data() as Couple;
+    const me = couple.members.find((m) => m.uid === fromUid);
+    const partner = couple.members.find((m) => m.uid !== fromUid);
+    if (!me || !partner) return;
+    if ((partner.widgetPush ?? 0) < WIDGET_PUSH_VERSION) return;
+    const token = partner.expoPushToken ?? null;
+    if (!token || !token.startsWith('ExponentPushToken')) return;
+
+    await fetch(EXPO_PUSH_ENDPOINT, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({
+        to: token,
+        data: { type: 'partner-water', coupleId, widget: build ? build(me) : null },
+        priority: 'high',
+      }),
+    });
+  } catch {
+    // Best-effort; see above.
   }
 }
 

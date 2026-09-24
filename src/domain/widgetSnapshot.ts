@@ -63,7 +63,7 @@ export interface WidgetSnapshot {
  * agree, because nothing else would catch a rename — a mismatched id resolves
  * to `null` natively and silently publishes nowhere.
  */
-export const WIDGET_IDS = ['partner', 'dashboard'] as const;
+export const WIDGET_IDS = ['partner', 'dashboard', 'water'] as const;
 export type WidgetId = (typeof WIDGET_IDS)[number];
 
 /**
@@ -76,12 +76,15 @@ export type WidgetId = (typeof WIDGET_IDS)[number];
  * intended behaviour rather than an oversight — but it means the id contract
  * test must know which ids to expect in the plugin.
  */
-export const ANDROID_WIDGET_IDS: readonly WidgetId[] = ['partner'];
+export const ANDROID_WIDGET_IDS: readonly WidgetId[] = ['partner', 'water'];
 
 /** Storage keys, shared with the native side. Changing one breaks the bridge. */
 export const WIDGET_SNAPSHOT_KEYS: Record<WidgetId, string> = {
   partner: 'repchamp.widget.partner.v1',
   dashboard: 'repchamp.widget.dashboard.v1',
+  /* Also written natively, by the messaging service, from a partner's silent
+     push — see `domain/waterWidget`. */
+  water: 'repchamp.widget.water.v1',
 };
 
 /** The partner widget's key. Kept for the call sites that name it directly. */

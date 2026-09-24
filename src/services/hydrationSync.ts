@@ -17,9 +17,12 @@ import { partnerStepsToday, partnerWaterToday } from '@/domain/couple';
 import { METRIC_FIELD, type SharedMetricKey } from '@/domain/partnerSharing';
 import { drinkLayers } from '@/domain/drinkKinds';
 import { planDrinkNotice } from '@/domain/waterShare';
+import { buildWaterWidgetSnapshot } from '@/domain/waterWidget';
+import type { DrinkLast } from '@/domain/couple';
 import {
   lowerCoupleHydration,
   nudgePartner,
+  pushPartnerWaterWidget,
   recordCoupleHydration,
   recordCoupleSteps,
   withdrawCoupleDaily,
@@ -35,21 +38,73 @@ import { dayKey } from '@/domain/progression';
  * redundant write of a value that is already correct, which is cheaper than
  * another key in storage to keep consistent.
  */
-let lastPublished: { day: string; ml: number; sig: string } | null = null;
+let lastPublished: { day: string; ml: number; sig: string; extras: WaterExtras } | null = null;
+
+type WaterExtras = ReturnType<typeof hydrationExtras>;
 
 /**
  * My goal and today's drink layers, as they go onto the couple document —
  * so my partner's jar fills against my own goal, in my drinks' colours.
  */
-function hydrationExtras(today: string): { goalMl: number; layers: { k: string; ml: number }[] } {
+function hydrationExtras(today: string): {
+  goalMl: number;
+  layers: { k: string; ml: number }[];
+  last: DrinkLast | null;
+  rev: number;
+} {
   const state = useHydrationStore.getState();
-  const layers = drinkLayers(state.drinks.filter((d) => d.day === today)).map((l) => ({ k: l.kind, ml: l.ml }));
-  return { goalMl: state.goalMl, layers };
+  const drinks = state.drinks.filter((d) => d.day === today);
+  const layers = drinkLayers(drinks).map((l) => ({ k: l.kind, ml: l.ml }));
+  let newest: (typeof drinks)[number] | undefined;
+  for (const d of drinks) if (!newest || d.at > newest.at) newest = d;
+  const at = newest ? Date.parse(newest.at) : NaN;
+  const last = newest && Number.isFinite(at) ? { k: newest.kind ?? 'water', ml: newest.ml, at } : null;
+  /* The state's version, for the partner's widget to order copies by. Never
+     below the previous one, so a clock stepped backwards cannot demote it. */
+  const rev = Math.max(Date.now(), (lastPublished?.extras.rev ?? 0) + 1);
+  return { goalMl: state.goalMl, layers, last, rev };
+}
+
+/**
+ * The partner's home-screen widget, kept moving.
+ *
+ * Debounced: a burst of taps is one push carrying the final state, not a
+ * handful racing each other through FCM — and never more than one every
+ * `WIDGET_PUSH_MIN_GAP_MS`, however fast someone taps + and −.
+ *
+ * The push carries exactly what was last *published*, with its `rev`, never
+ * a fresher local state: the partner's widget orders copies by `rev`, and a
+ * push claiming an old rev for new numbers would be overwritten by the
+ * document's copy of the old numbers.
+ */
+const WIDGET_PUSH_DEBOUNCE_MS = 2500;
+const WIDGET_PUSH_MIN_GAP_MS = 8000;
+let widgetPushTimer: ReturnType<typeof setTimeout> | null = null;
+let lastWidgetPushAt = 0;
+
+function scheduleWidgetPush(coupleId: string, uid: string, clear = false): void {
+  if (widgetPushTimer) clearTimeout(widgetPushTimer);
+  const wait = Math.max(WIDGET_PUSH_DEBOUNCE_MS, lastWidgetPushAt + WIDGET_PUSH_MIN_GAP_MS - Date.now());
+  widgetPushTimer = setTimeout(() => {
+    widgetPushTimer = null;
+    lastWidgetPushAt = Date.now();
+    const published = lastPublished;
+    if (clear || !published) {
+      void pushPartnerWaterWidget(coupleId, uid, null);
+      return;
+    }
+    void pushPartnerWaterWidget(coupleId, uid, (me) =>
+      buildWaterWidgetSnapshot({ name: me.displayName, day: published.day, ml: published.ml, ...published.extras }),
+    );
+  }, wait);
 }
 
 /** Forget the publish memo — for tests, and for a uid change. */
 export function resetHydrationSyncMemo(): void {
   lastPublished = null;
+  if (widgetPushTimer) clearTimeout(widgetPushTimer);
+  widgetPushTimer = null;
+  lastWidgetPushAt = 0;
   lastSteps = null;
 }
 
@@ -90,7 +145,8 @@ async function syncHydrationOnce(
   /* The goal and layers can change without the total — a goal step, or a
      coffee swapped for a water of the same size — so they are part of what
      "unchanged" means. */
-  const sig = JSON.stringify(extras);
+  const { rev: _rev, ...content } = extras;
+  const sig = JSON.stringify(content);
 
   /* Less than this phone itself published earlier today can only mean an undo
      here — the local store never shrinks any other way. Send the difference,
@@ -101,7 +157,8 @@ async function syncHydrationOnce(
   if (lastPublished && lastPublished.day === today && ml < lastPublished.ml) {
     try {
       await lowerCoupleHydration(coupleId, uid, today, lastPublished.ml - ml, extras);
-      lastPublished = { day: today, ml, sig };
+      lastPublished = { day: today, ml, sig, extras };
+      scheduleWidgetPush(coupleId, uid);
     } catch {
       // Best-effort; the next call retries the same difference.
     }
@@ -118,7 +175,8 @@ async function syncHydrationOnce(
 
   try {
     await recordCoupleHydration(coupleId, uid, today, ml, extras);
-    lastPublished = { day: today, ml, sig };
+    lastPublished = { day: today, ml, sig, extras };
+    scheduleWidgetPush(coupleId, uid);
   } catch {
     // Best-effort; the next foreground repairs it.
   }
@@ -191,6 +249,8 @@ export async function setMetricSharing(
       if (key === 'water') await syncHydrationNow(coupleId, uid);
     } else {
       await withdrawCoupleDaily(coupleId, uid, METRIC_FIELD[key]);
+      // Their widget must stop showing it too, not freeze on the last value.
+      if (key === 'water') scheduleWidgetPush(coupleId, uid, true);
     }
   } catch {
     // Best-effort, as above.

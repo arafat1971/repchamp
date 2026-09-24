@@ -272,6 +272,12 @@ function configureHandler(): void {
     handleNotification: async (notification) => {
       const data = notification.request.content.data;
       const type = data?.type;
+      /* The partner-water widget push is data for the home-screen widget,
+         never a banner. The native messaging service normally keeps it from
+         reaching here at all; this is the backstop. */
+      if (type === 'partner-water') {
+        return { shouldShowBanner: false, shouldShowList: false, shouldPlaySound: false, shouldSetBadge: false };
+      }
       // Only suppress the remote twin when we *just* showed the Firestore
       // in-app nudge — and never the in-app one itself (see `isDuplicateNudge`).
       // Blanket foreground suppress dropped pushes when Firestore was

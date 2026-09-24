@@ -15,6 +15,7 @@
 import { NativeModules, Platform } from 'react-native';
 
 import type { DashboardSnapshot } from '@/domain/dashboardSnapshot';
+import type { WaterWidgetSnapshot } from '@/domain/waterWidget';
 import type { WidgetId, WidgetSnapshot } from '@/domain/widgetSnapshot';
 
 /**
@@ -29,7 +30,7 @@ import type { WidgetId, WidgetSnapshot } from '@/domain/widgetSnapshot';
  * Adding a widget means adding its type here, which is the intended friction:
  * the flat-primitives rule is enforced by each payload's own test.
  */
-export type WidgetPayload = WidgetSnapshot | DashboardSnapshot;
+export type WidgetPayload = WidgetSnapshot | DashboardSnapshot | WaterWidgetSnapshot;
 
 interface PartnerWidgetNative {
   setSnapshot(widget: string, json: string): void;
@@ -64,11 +65,42 @@ export function publishWidgetSnapshot(
 ): void {
   const mod = native();
   if (!mod) return;
+  /* Home re-renders on every change to the couple document — a rep, a nudge,
+     a streak tick — and most of them change nothing a widget shows. Skipping
+     a payload identical but for its build time saves a disk write, a
+     broadcast and a bitmap redraw in the launcher each time. */
+  const { updatedAt: _at, ...content } = snapshot;
+  const sig = JSON.stringify(content);
+  if (lastSent.get(widget) === sig) return;
   try {
     mod.setSnapshot(widget, JSON.stringify(snapshot));
+    lastSent.set(widget, sig);
   } catch {
     // Best-effort.
   }
+}
+
+/** What each widget was last handed, minus its build time. */
+const lastSent = new Map<WidgetId, string>();
+
+/**
+ * Empty a widget — unpaired, or the partner stopped sharing — so it shows
+ * its empty state instead of freezing on someone's last numbers.
+ */
+export function clearWidgetSnapshot(widget: WidgetId): void {
+  const mod = native();
+  if (!mod || lastSent.get(widget) === '') return;
+  try {
+    mod.setSnapshot(widget, '');
+    lastSent.set(widget, '');
+  } catch {
+    // Best-effort.
+  }
+}
+
+/** Forget what was sent — for tests. */
+export function resetWidgetPublishMemo(): void {
+  lastSent.clear();
 }
 
 /**

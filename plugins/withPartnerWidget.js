@@ -23,11 +23,14 @@
 const {
   AndroidConfig,
   withAndroidManifest,
+  withAppBuildGradle,
   withDangerousMod,
   withMainApplication,
 } = require('@expo/config-plugins');
 const fs = require('fs');
 const path = require('path');
+
+const water = require('./waterWidgetTemplates');
 
 /**
  * Every widget this plugin installs.
@@ -51,6 +54,14 @@ const WIDGETS = [
     /* `provider`, `layoutXml` and `infoXml` are attached further down, once
        those templates are declared — they are large enough that inlining
        them here would bury the registry they belong to. */
+  },
+  {
+    /* The partner's bear, filling live — see waterWidgetTemplates.js. */
+    id: 'water',
+    className: 'WaterWidgetProvider',
+    prefsKey: 'repchamp.widget.water.v1',
+    layout: 'water_widget',
+    info: 'water_widget_info',
   },
 ];
 
@@ -226,6 +237,9 @@ ${KEY_CASES}
         val ctx = reactApplicationContext
         val key = keyFor(widget) ?: return
         val provider = providerFor(widget) ?: return
+
+        // The water widget also hears the partner's pushes; keep the newest.
+        if (widget == "water" && !WaterWidgetProvider.accept(ctx, json)) return
 
         ctx.getSharedPreferences("repchamp.widget", Context.MODE_PRIVATE)
             .edit()
@@ -655,13 +669,19 @@ const withWidgetSources = (config) =>
       write(path.join(res, 'values/widget_dimens.xml'), DIMENS_XML);
       write(path.join(res, 'values-v31/widget_dimens.xml'), DIMENS_V31_XML);
 
+      /* The water widget's drawables and the FCM service that feeds it. */
+      for (const [file, contents] of Object.entries(water.waterResources())) {
+        write(path.join(res, file), contents);
+      }
+      write(path.join(javaDir, 'RepChampMessagingService.kt'), water.MESSAGING_KT(pkg));
+
       /* Strings are merged rather than overwritten — `strings.xml` already
          carries the app name and Expo's own entries. */
       const stringsPath = path.join(res, 'values/strings.xml');
       let xml = fs.existsSync(stringsPath)
         ? fs.readFileSync(stringsPath, 'utf8')
         : '<resources></resources>';
-      for (const [name, value] of Object.entries(STRINGS)) {
+      for (const [name, value] of Object.entries({ ...STRINGS, ...water.WATER_STRINGS })) {
         if (xml.includes(`name="${name}"`)) continue;
         const escaped = value.replace(/&/g, '&amp;').replace(/'/g, "\\'");
         xml = xml.replace('</resources>', `  <string name="${name}">${escaped}</string>\n</resources>`);
@@ -678,6 +698,9 @@ const withWidgetSources = (config) =>
 WIDGETS[0].provider = PROVIDER_KT;
 WIDGETS[0].layoutXml = LAYOUT_XML;
 WIDGETS[0].infoXml = INFO_XML;
+WIDGETS[1].provider = water.WATER_PROVIDER_KT;
+WIDGETS[1].layoutXml = water.WATER_LAYOUT_XML;
+WIDGETS[1].infoXml = water.WATER_INFO_XML;
 
 /** Registers the provider so the launcher offers it in the widget picker. */
 const withWidgetManifest = (config) =>
@@ -712,6 +735,38 @@ const withWidgetManifest = (config) =>
       });
     }
 
+    /* The messaging service that feeds the water widget from a silent push.
+       Priority 10 beats Expo's own service (-1): FCM delivers to the
+       highest-priority match only, and ours hands everything that is not a
+       widget update straight back to Expo. */
+    app.service = app.service ?? [];
+    const svc = '.RepChampMessagingService';
+    if (!app.service.some((s) => s.$?.['android:name'] === svc)) {
+      app.service.push({
+        $: { 'android:name': svc, 'android:exported': 'false' },
+        'intent-filter': [
+          {
+            $: { 'android:priority': '10' },
+            action: [{ $: { 'android:name': 'com.google.firebase.MESSAGING_EVENT' } }],
+          },
+        ],
+      });
+    }
+
+    return cfg;
+  });
+
+/* The service subclasses Expo's, which extends FirebaseMessagingService —
+   but expo-notifications takes firebase-messaging as `implementation`, so the
+   app module cannot see it. Same version as expo-notifications pins. */
+const withMessagingDependency = (config) =>
+  withAppBuildGradle(config, (cfg) => {
+    const dep = "implementation 'com.google.firebase:firebase-messaging:25.0.1'";
+    if (cfg.modResults.contents.includes(dep)) return cfg;
+    cfg.modResults.contents = cfg.modResults.contents.replace(
+      /dependencies\s*\{/,
+      (m) => `${m}\n    ${dep}`,
+    );
     return cfg;
   });
 
@@ -747,4 +802,4 @@ const withWidgetPackage = (config) =>
   });
 
 module.exports = (config) =>
-  withWidgetPackage(withWidgetManifest(withWidgetSources(config)));
+  withMessagingDependency(withWidgetPackage(withWidgetManifest(withWidgetSources(config))));

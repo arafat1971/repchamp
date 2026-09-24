@@ -29,6 +29,8 @@ export interface CoupleMember {
    * so the partner can nudge without reading a world-readable profile field.
    */
   expoPushToken?: string | null;
+  /** Set by builds that handle the silent partner-water widget push. */
+  widgetPush?: number;
   /**
    * Recent outbox credit ids applied to this member — prevents double
    * `totalReps` when a flush crashes between write and local "done".
@@ -79,6 +81,26 @@ export interface CoupleDailyMetrics {
    * apps, which read as all water.
    */
   layers?: { k: string; ml: number }[];
+  /**
+   * The most recent drink still on today's total — its kind, size and when
+   * (epoch ms) — so the partner's widget can say "☕ Coffee · 250 ml".
+   * Absent from older apps.
+   */
+  last?: DrinkLast;
+  /**
+   * When this water state was written, epoch ms on the writer's clock. The
+   * partner's widget hears the same state twice — from a silent push and
+   * from this document — in either order; the higher `rev` wins, so an older
+   * copy can never walk the bear backwards.
+   */
+  rev?: number;
+}
+
+/** One drink, as a partner sees it. */
+export interface DrinkLast {
+  k: string;
+  ml: number;
+  at: number;
 }
 
 export interface Couple {
@@ -790,6 +812,25 @@ export function partnerGoalToday(
   if (!daily || daily.day !== today) return null;
   const g = daily.goalMl;
   return typeof g === 'number' && Number.isFinite(g) && g > 0 ? g : null;
+}
+
+/** The partner's latest drink today, or null when unknown or not today. */
+export function partnerLastDrinkToday(
+  member: CoupleMember | null | undefined,
+  today: string,
+): DrinkLast | null {
+  const daily = member?.daily;
+  const last = daily && daily.day === today ? daily.last : undefined;
+  if (!last || typeof last.k !== 'string') return null;
+  if (!Number.isFinite(last.ml) || last.ml <= 0 || !Number.isFinite(last.at)) return null;
+  return last;
+}
+
+/** The version of the partner's water state today, or 0 when unknown. */
+export function partnerWaterRevToday(member: CoupleMember | null | undefined, today: string): number {
+  const daily = member?.daily;
+  const rev = daily && daily.day === today ? daily.rev : undefined;
+  return typeof rev === 'number' && Number.isFinite(rev) && rev > 0 ? rev : 0;
 }
 
 /** The partner's drink layers today, bottom to top; empty when not shared. */

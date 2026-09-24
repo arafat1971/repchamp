@@ -1,3 +1,4 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import Animated, {
@@ -8,26 +9,21 @@ import Animated, {
   SlideInDown,
   SlideInUp,
   cancelAnimation,
-  useAnimatedProps,
   useAnimatedSensor,
-  useAnimatedStyle,
   useDerivedValue,
   useReducedMotion,
   useSharedValue,
   withRepeat,
-  withSequence,
-  withSpring,
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import Svg, { ClipPath, Defs, G, LinearGradient as SvgGradient, Path, Stop } from 'react-native-svg';
 
-import { CountUp } from '@/components/motion';
+import { BearJar } from '@/components/home/BearJar';
 import { HomeSectionHeader } from '@/components/home/HomeSectionHeader';
 import { LemonAvatar } from '@/components/home/LemonAvatar';
+import { CountUp } from '@/components/motion';
 import { PressableScale } from '@/components/ui';
 import {
-  DEFAULT_DAILY_GOAL_ML,
   DRINK_SIZES_ML,
   MAX_DAILY_GOAL_ML,
   MIN_DAILY_GOAL_ML,
@@ -36,42 +32,11 @@ import {
 } from '@/domain/hydration';
 import { lightImpactHaptic, selectionHaptic } from '@/lib/feedback';
 import { font } from '@/theme/typography';
+import { radius } from '@/theme/tokens';
 
-const AnimatedPath = Animated.createAnimatedComponent(Path);
-
-/** The glass: a tumbler filling the card's width, tapering to a thick base. */
-const GLASS_H = 360;
-const RIM_Y = 14;
-const RIM_RY = 11;
-const WALL = 4;
-const BASE_TOP = GLASS_H - 20;
-/** Highest the water sits: under the rim, clear of the number. */
-const MAX_Y = RIM_Y + 36;
-/** Water never sits lower than this, so an empty day still shows a surface. */
-const FLOOR = 0.06;
-/** …nor higher, so the number and the controls stay readable on a met goal. */
-const CEIL = 0.82;
-/** Bottom width as a share of the top — the taper that makes it a glass. */
-const TAPER = 0.72;
-
-/** Water surface y for a 0..1 level. */
-function surfaceY(level: number): number {
-  'worklet';
-  return BASE_TOP - level * (BASE_TOP - MAX_Y);
-}
-
-/** Inner half-width of the glass at height y, for a glass `w` wide. */
-function halfAt(w: number, y: number): number {
-  'worklet';
-  const top = w / 2 - WALL - 2;
-  const bottom = (w / 2) * TAPER - WALL;
-  return top + ((bottom - top) * (y - RIM_Y)) / (GLASS_H - RIM_Y);
-}
-
-function levelFor(percent: number): number {
-  const p = Math.max(0, Math.min(100, percent)) / 100;
-  return FLOOR + p * (CEIL - FLOOR);
-}
+const INK = '#1e293b';
+const MUTED = '#64748b';
+const DRINK_ICONS = ['🥛', '🧃', '🍶'] as const;
 
 interface Person {
   name: string;
@@ -79,21 +44,17 @@ interface Person {
 }
 
 /**
- * Hydration as a tank: the card itself is the water.
+ * Hydration as two bear-shaped water jars: mine and my partner's.
  *
- * The level rises from the floor of the card toward the top as the day's
- * intake climbs; the surface is two drifting sine waves that tilt with the
- * phone (Reanimated's gravity sensor, on the UI thread). Tapping a size pours
- * a stream in from the top, and the level springs up to meet it. The big
- * number rolls to the new total, and the goal steps right beside it.
+ * Each bear fills from its soles to its ears with the day's intake — waves
+ * drifting inside and tilting with the phone — and wears its owner's face as
+ * a lemon-slice badge at its feet. A drink squishes the bear as it lands; my
+ * partner's bear does the same live over the couple document when they drink,
+ * with a banner and a tap. A bear that reaches its goal sparkles.
  *
- * My lemon-slice face floats on my surface. My partner's rides a dashed line
- * at their level — live over the couple document, so when they drink their
- * marker glides up, a banner says so, and the phone taps.
- *
- * Their line is drawn on my tank's scale (their goal is not synced), so the
- * two heights compare honestly, and it is labelled with their real amount. Under Reduce Motion: no tilt,
- * no drift, no pour — the level still moves, without the bounce.
+ * My partner's bear fills against my goal (theirs is not synced), so the two
+ * compare honestly, and is labelled with their real amount only. Unpaired,
+ * one bear takes the stage. Under Reduce Motion: no tilt, sway or squish.
  */
 export function HydrationCard({
   water,
@@ -116,103 +77,56 @@ export function HydrationCard({
   const [width, setWidth] = useState(0);
   const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
 
-  /* ── Level ── */
-  const level = useSharedValue(levelFor(water.percent));
-  useEffect(() => {
-    const target = levelFor(water.percent);
-    level.value = reduced
-      ? withTiming(target, { duration: 250 })
-      : withSpring(target, { damping: 11, stiffness: 55, mass: 1 });
-  }, [water.percent, reduced, level]);
-
-  /* ── Surface motion: drift + tilt ── */
+  /* Shared surface motion for both bears: drift, and tilt with the phone. */
   const phase = useSharedValue(0);
   useEffect(() => {
     if (reduced) {
       cancelAnimation(phase);
       return;
     }
-    phase.value = withRepeat(withTiming(2 * Math.PI, { duration: 3200, easing: Easing.linear }), -1);
+    phase.value = withRepeat(withTiming(2 * Math.PI, { duration: 3000, easing: Easing.linear }), -1);
     return () => cancelAnimation(phase);
   }, [reduced, phase]);
 
   const gravity = useAnimatedSensor(SensorType.GRAVITY, { interval: 32 });
-  /* Tilt the surface against the phone's roll — water stays level while the
-     card rotates — smoothed and capped so it reads as liquid, not a seesaw. */
   const tilt = useSharedValue(0);
   useDerivedValue(() => {
     if (reduced) return;
     const gx = gravity.sensor.value.x ?? 0;
-    const target = Math.max(-0.22, Math.min(0.22, gx / 9.81 / 2.2));
+    const target = Math.max(-0.25, Math.min(0.25, gx / 9.81 / 2));
     tilt.value = tilt.value + (target - tilt.value) * 0.12;
   });
 
-  /* A splash bump on each pour, decaying back to calm. */
-  const slosh = useSharedValue(0);
-
-  const back = useSurface(level, phase, tilt, slosh, width, 10, -1, 1.9);
-  const front = useSurface(level, phase, tilt, slosh, width, 13, 1, 0);
-
-  /* ── Pour ── */
-  const [pour, setPour] = useState<{ id: number; ml: number } | null>(null);
+  /* My squish on each of my drinks. */
+  const [myPour, setMyPour] = useState(0);
   const log = (ml: number) => {
     onLogWater(ml);
-    if (reduced) return;
-    setPour((p) => ({ id: (p?.id ?? 0) + 1, ml }));
+    setMyPour((n) => n + 1);
   };
-  const pourId = pour?.id;
-  useEffect(() => {
-    if (pourId == null) return;
-    slosh.set(withSequence(withTiming(1, { duration: 520 }), withTiming(0, { duration: 900 })));
-  }, [pourId, slosh]);
 
-  /* ── Partner live ── */
-  /* Their line on the same scale as my water — my goal is the tank's height —
-     so the two heights compare honestly: 2 L against my 5.5 L sits well below
-     my surface. (Their own goal is not synced.) */
-  const partnerPct = (ml: number | null) =>
-    ml == null ? 0 : Math.round((ml / Math.max(1, water.goalMl)) * 100);
-  const partnerLevel = useSharedValue(levelFor(partnerPct(partnerMl)));
-  useEffect(() => {
-    if (partnerMl == null) return;
-    const target = levelFor(partnerPct(partnerMl));
-    partnerLevel.value = reduced ? target : withSpring(target, { damping: 14, stiffness: 50 });
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- partnerPct only reads water.goalMl, listed
-  }, [partnerMl, water.goalMl, reduced, partnerLevel]);
-
+  /* Theirs, live: their total rising while the card is on screen. The first
+     value is a baseline — opening the app is not them drinking. */
   const lastPartner = useRef<number | null>(partnerMl);
+  const [theirPour, setTheirPour] = useState(0);
   const [live, setLive] = useState<{ id: number; ml: number } | null>(null);
   useEffect(() => {
     const before = lastPartner.current;
     lastPartner.current = partnerMl;
     if (before == null || partnerMl == null || partnerMl <= before) return;
     lightImpactHaptic();
+    setTheirPour((n) => n + 1);
     setLive((l) => ({ id: (l?.id ?? 0) + 1, ml: partnerMl - before }));
     const t = setTimeout(() => setLive(null), 3600);
     return () => clearTimeout(t);
   }, [partnerMl]);
 
-  const partnerStyle = useAnimatedStyle(() => {
-    const y = surfaceY(partnerLevel.value);
-    const half = halfAt(width, y) - 6;
-    return { top: y - 15, left: width / 2 - half, width: half * 2 };
-  });
-  const meStyle = useAnimatedStyle(() => {
-    const surface = surfaceY(level.value);
-    // Ride the front wave toward the right wall, with a gentle bob.
-    const x = width / 2 + halfAt(width, surface) * 0.62;
-    const bob = Math.sin((x / Math.max(1, width)) * 2 * Math.PI * 1.1 + phase.value) * 5;
-    const tiltY = tilt.value * (x - width / 2);
-    return {
-      transform: [
-        { translateX: x - 19 },
-        { translateY: surface - 19 + bob + tiltY },
-        { rotate: `${bob * 2 - tilt.value * 40}deg` },
-      ],
-    };
-  });
+  const partnerPercent =
+    partnerMl == null ? 0 : Math.min(100, Math.round((partnerMl / Math.max(1, water.goalMl)) * 100));
+  /* Same yardstick as the fill: a bear sparkles only when it looks full. */
+  const partnerMet = partnerPercent >= 100;
+  const bothMet = water.met && partnerMet;
 
-  /* ── Goal stepper ── */
+  /* Goal stepper. */
   const [dir, setDir] = useState<1 | -1 | 0>(0);
   const atMin = water.goalMl <= MIN_DAILY_GOAL_ML;
   const atMax = water.goalMl >= MAX_DAILY_GOAL_ML;
@@ -221,37 +135,11 @@ export function HydrationCard({
     onStepWaterGoal(d);
   };
 
-  const bothMet = partnerMl != null && water.met && partnerMl >= DEFAULT_DAILY_GOAL_ML;
-
-  /* The glass silhouette at this width: outer wall down to a rounded base,
-     and the inner wall the water is clipped to. */
-  const W = width;
-  const cx = W / 2;
-  const topHalf = W / 2 - 2;
-  const botHalf = (W / 2) * TAPER;
-  const innerBase = halfAt(W, BASE_TOP);
-  const outer = [
-    `M ${cx - topHalf} ${RIM_Y}`,
-    `L ${cx - botHalf} ${GLASS_H - 12}`,
-    `Q ${cx - botHalf} ${GLASS_H - 1} ${cx - botHalf + 12} ${GLASS_H - 1}`,
-    `L ${cx + botHalf - 12} ${GLASS_H - 1}`,
-    `Q ${cx + botHalf} ${GLASS_H - 1} ${cx + botHalf} ${GLASS_H - 12}`,
-    `L ${cx + topHalf} ${RIM_Y}`,
-  ].join(' ');
-  const inner = [
-    `M ${cx - topHalf + WALL} ${RIM_Y}`,
-    `L ${cx - innerBase} ${BASE_TOP - 8}`,
-    `Q ${cx - innerBase} ${BASE_TOP} ${cx - innerBase + 8} ${BASE_TOP}`,
-    `L ${cx + innerBase - 8} ${BASE_TOP}`,
-    `Q ${cx + innerBase} ${BASE_TOP} ${cx + innerBase} ${BASE_TOP - 8}`,
-    `L ${cx + topHalf - WALL} ${RIM_Y}`,
-    'Z',
-  ].join(' ');
-  /* Controls sit in the narrow lower part, so inset them to the wall there. */
-  const lowerInset = W / 2 - halfAt(W, BASE_TOP - 70) + 8;
+  const inner = Math.max(0, width - 32);
+  const bearW = partner ? Math.min(150, (inner - 16) / 2) : Math.min(170, inner * 0.55);
 
   return (
-    <View onLayout={onLayout}>
+    <View>
       <HomeSectionHeader
         title="Hydration"
         right={
@@ -263,122 +151,70 @@ export function HydrationCard({
         }
       />
 
-      <View style={styles.glass}>
-      {width > 0 ? (
-        <Svg width={W} height={GLASS_H} style={StyleSheet.absoluteFill} pointerEvents="none">
-          <Defs>
-            <SvgGradient id="tank" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0" stopColor="#7dd3fc" />
-              <Stop offset="0.3" stopColor="#0ea5e9" />
-              <Stop offset="1" stopColor="#1e3a8a" />
-            </SvgGradient>
-            <SvgGradient id="glassBody" x1="0" y1="0" x2="1" y2="0">
-              <Stop offset="0" stopColor="#0b2239" />
-              <Stop offset="0.5" stopColor="#081a2e" />
-              <Stop offset="1" stopColor="#0b2239" />
-            </SvgGradient>
-            <ClipPath id="glassInner">
-              <Path d={inner} />
-            </ClipPath>
-          </Defs>
-
-          {/* Back of the rim, seen through the glass. */}
-          <Path
-            d={`M ${cx - topHalf} ${RIM_Y} A ${topHalf} ${RIM_RY} 0 0 1 ${cx + topHalf} ${RIM_Y}`}
-            stroke="rgba(186,230,253,0.35)"
-            strokeWidth={2}
-            fill="none"
-          />
-          {/* The glass body, then the water inside it. */}
-          <Path d={outer} fill="url(#glassBody)" />
-          <G clipPath="url(#glassInner)">
-            <AnimatedPath animatedProps={back} fill="#38bdf8" opacity={0.35} />
-            <AnimatedPath animatedProps={front} fill="url(#tank)" />
-          </G>
-          {/* Thick glass base with a lit top edge. */}
-          <Path
-            d={`M ${cx - innerBase} ${BASE_TOP} L ${cx + innerBase} ${BASE_TOP} L ${cx + botHalf - 6} ${GLASS_H - 4} L ${cx - botHalf + 6} ${GLASS_H - 4} Z`}
-            fill="rgba(186,230,253,0.14)"
-          />
-          <Path
-            d={`M ${cx - innerBase + 10} ${BASE_TOP + 1} L ${cx + innerBase - 10} ${BASE_TOP + 1}`}
-            stroke="rgba(255,255,255,0.4)"
-            strokeWidth={1.5}
-            strokeLinecap="round"
-          />
-          {/* Walls and the front of the rim. */}
-          <Path d={outer} stroke="rgba(186,230,253,0.7)" strokeWidth={2.2} fill="none" strokeLinejoin="round" />
-          <Path
-            d={`M ${cx - topHalf} ${RIM_Y} A ${topHalf} ${RIM_RY} 0 0 0 ${cx + topHalf} ${RIM_Y}`}
-            stroke="rgba(224,242,254,0.85)"
-            strokeWidth={2.2}
-            fill="none"
-          />
-          {/* Reflections: a long streak down the left wall, a short one right. */}
-          <Path
-            d={`M ${cx - topHalf + 16} ${RIM_Y + 26} L ${cx - botHalf + 14} ${GLASS_H - 34}`}
-            stroke="rgba(255,255,255,0.22)"
-            strokeWidth={6}
-            strokeLinecap="round"
-          />
-          <Path
-            d={`M ${cx + topHalf - 18} ${RIM_Y + 30} L ${cx + topHalf - 24} ${RIM_Y + 90}`}
-            stroke="rgba(255,255,255,0.16)"
-            strokeWidth={3}
-            strokeLinecap="round"
-          />
-        </Svg>
-      ) : null}
-
-      {pour && width > 0 ? (
-        <PourStream key={pour.id} level={level} width={width} onDone={() => setPour(null)} />
-      ) : null}
-
-      {/* Partner's level: a dashed line with their face, gliding when they drink. */}
-      {partner && partnerMl != null && width > 0 ? (
-        <Animated.View style={[styles.partnerLine, partnerStyle]} pointerEvents="none">
-          <LemonAvatar uri={partner.avatar} initial={(partner.name.charAt(0) || '?').toUpperCase()} size={30} />
-          <View style={styles.dash} />
-          <Text style={styles.partnerTag}>
-            {partner.name} · {formatMl(partnerMl)}
-          </Text>
-        </Animated.View>
-      ) : null}
-
-      {/* Me: my face floating on my own surface. */}
-      {width > 0 ? (
-        <Animated.View style={[styles.meFloat, meStyle]} pointerEvents="none">
-          <LemonAvatar uri={me.avatar} initial={(me.name.charAt(0) || '?').toUpperCase()} size={38} />
-        </Animated.View>
-      ) : null}
-
-      {/* Inside the glass: banner, number, goal, controls. */}
-      <View style={styles.content} pointerEvents="box-none">
-        <View style={styles.bannerSlot}>
-          {live && partner ? (
-            <Animated.View
-              key={live.id}
-              entering={FadeInDown.springify().damping(14)}
-              exiting={FadeOutUp.duration(250)}
-              style={styles.banner}
-            >
-              <Text style={styles.bannerText}>
-                {partner.name} just had {formatMl(live.ml)} 💧
+      <View onLayout={onLayout}>
+        <LinearGradient
+          colors={['#e0f2fe', '#ede9fe', '#fce7f3']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.card}
+        >
+          <View style={styles.bannerSlot}>
+            {live && partner ? (
+              <Animated.View
+                key={live.id}
+                entering={FadeInDown.springify().damping(14)}
+                exiting={FadeOutUp.duration(250)}
+                style={styles.banner}
+              >
+                <Text style={styles.bannerText}>
+                  {partner.name} just had {formatMl(live.ml)} 💧
+                </Text>
+              </Animated.View>
+            ) : bothMet && partner ? (
+              <Text style={styles.cheers}>🥂 You and {partner.name} both hit your goal!</Text>
+            ) : partner && partnerMl != null ? (
+              <Text style={styles.race}>
+                {water.ml >= partnerMl
+                  ? `You're ${formatMl(water.ml - partnerMl)} ahead of ${partner.name}`
+                  : `${partner.name} is ${formatMl(partnerMl - water.ml)} ahead — top up!`}
               </Text>
-            </Animated.View>
-          ) : bothMet && partner ? (
-            <Text style={styles.cheers}>🥂 You and {partner.name} both hit your goal</Text>
-          ) : null}
-        </View>
+            ) : null}
+          </View>
 
-        <View style={styles.center}>
-          <CountUp
-            value={water.ml}
-            duration={700}
-            delay={0}
-            format={(n) => formatMl(n)}
-            style={styles.big}
-          />
+          {width > 0 ? (
+            <View style={styles.bears}>
+              <BearColumn
+                id="me"
+                person={me}
+                label="You"
+                ml={water.ml}
+                percent={water.percent}
+                width={bearW}
+                tint="#fb7185"
+                tilt={tilt}
+                phase={phase}
+                pourKey={myPour}
+                met={water.met}
+                countUp
+              />
+              {partner ? (
+                <BearColumn
+                  id="partner"
+                  person={partner}
+                  label={partner.name}
+                  ml={partnerMl}
+                  percent={partnerPercent}
+                  width={bearW}
+                  tint="#a78bfa"
+                  tilt={tilt}
+                  phase={phase}
+                  pourKey={theirPour}
+                  met={partnerMet}
+                />
+              ) : null}
+            </View>
+          ) : null}
+
           <View style={styles.goalRow}>
             <Pressable
               onPress={() => step(-1)}
@@ -396,7 +232,7 @@ export function HydrationCard({
                 entering={dir === 1 ? SlideInDown.duration(220) : dir === -1 ? SlideInUp.duration(220) : undefined}
                 style={styles.goalText}
               >
-                of {formatMl(water.goalMl)} goal
+                Daily goal {formatMl(water.goalMl)}
               </Animated.Text>
             </View>
             <Pressable
@@ -410,26 +246,26 @@ export function HydrationCard({
               <Text style={styles.goalBtnText}>+</Text>
             </Pressable>
           </View>
-        </View>
 
-        <View style={[styles.bottom, { paddingHorizontal: lowerInset }]}>
           <View style={styles.pills}>
-            {DRINK_SIZES_ML.map((ml) => (
+            {DRINK_SIZES_ML.map((ml, i) => (
               <PressableScale
                 key={ml}
                 onPress={() => log(ml)}
                 accessibilityRole="button"
-                accessibilityLabel={`Pour ${formatMl(ml)}`}
+                accessibilityLabel={`Drink ${formatMl(ml)}`}
                 style={styles.pill}
               >
+                <Text style={styles.pillEmoji}>{DRINK_ICONS[i]}</Text>
                 <Text style={styles.pillText}>+{ml}</Text>
                 <Text style={styles.pillUnit}>ml</Text>
               </PressableScale>
             ))}
           </View>
+
           <View style={styles.footRow}>
             <Text style={styles.hint}>
-              {water.met ? 'Goal met — anything more is a bonus' : `${formatMl(water.remainingMl)} to go`}
+              {water.met ? 'Goal met — anything more is a bonus 💙' : `${formatMl(water.remainingMl)} to go`}
             </Text>
             {onUndoWater ? (
               <Pressable
@@ -440,166 +276,135 @@ export function HydrationCard({
                 hitSlop={8}
                 accessibilityRole="button"
                 accessibilityLabel="Undo the last drink"
+                style={styles.undo}
               >
-                <Text style={styles.undo}>↺ Undo</Text>
+                <Text style={styles.undoText}>↺ Undo</Text>
               </Pressable>
             ) : null}
           </View>
-        </View>
-      </View>
+        </LinearGradient>
       </View>
     </View>
   );
 }
 
-/** A filled wave surface across the card at the current level. */
-function useSurface(
-  level: SharedValue<number>,
-  phase: SharedValue<number>,
-  tilt: SharedValue<number>,
-  slosh: SharedValue<number>,
-  W: number,
-  amp: number,
-  direction: 1 | -1,
-  offset: number,
-) {
-  return useAnimatedProps(() => {
-    const steps = 24;
-    const base = surfaceY(level.value);
-    const a = amp * (1 + slosh.value * 1.4);
-    let d = '';
-    for (let i = 0; i <= steps; i++) {
-      const x = (i / steps) * W;
-      const y =
-        base +
-        a * Math.sin((i / steps) * 2 * Math.PI * 1.1 + direction * phase.value + offset) +
-        tilt.value * (x - W / 2);
-      d += `${i === 0 ? 'M' : 'L'} ${Math.round(x)} ${Math.round(y * 10) / 10} `;
-    }
-    d += `L ${W} ${GLASS_H} L 0 ${GLASS_H} Z`;
-    return { d };
-  });
-}
-
-/** A stream falling from the top of the card into the water, then thinning out. */
-function PourStream({
-  level,
+function BearColumn({
+  id,
+  person,
+  label,
+  ml,
+  percent,
   width,
-  onDone,
+  tint,
+  tilt,
+  phase,
+  pourKey,
+  met,
+  countUp,
 }: {
-  level: SharedValue<number>;
+  id: string;
+  person: Person;
+  label: string;
+  ml: number | null;
+  percent: number;
   width: number;
-  onDone: () => void;
+  tint: string;
+  tilt: SharedValue<number>;
+  phase: SharedValue<number>;
+  pourKey: number;
+  met: boolean;
+  countUp?: boolean;
 }) {
-  const t = useSharedValue(0);
-  useEffect(() => {
-    t.value = withTiming(1, { duration: 900, easing: Easing.inOut(Easing.quad) });
-    const id = setTimeout(onDone, 950);
-    return () => clearTimeout(id);
-  }, [t, onDone]);
-
-  const style = useAnimatedStyle(() => {
-    const surface = surfaceY(level.value) + 6;
-    const grow = Math.min(1, t.value / 0.3);
-    const fade = t.value > 0.6 ? 1 - (t.value - 0.6) / 0.4 : 1;
-    return {
-      height: surface * grow,
-      opacity: fade,
-      width: 10 * (0.5 + fade * 0.5),
-    };
-  });
-
   return (
-    <Animated.View
-      pointerEvents="none"
-      style={[styles.stream, { left: width * 0.5 - 5 }, style]}
-    />
+    <View style={styles.column}>
+      <View>
+        <BearJar
+          id={id}
+          percent={percent}
+          width={width}
+          tint={tint}
+          tilt={tilt}
+          phase={phase}
+          pourKey={pourKey}
+          met={met}
+        />
+        {/* The owner's face as a lemon-slice badge at the bear's feet. */}
+        <View style={styles.badge}>
+          <LemonAvatar uri={person.avatar} initial={(person.name.charAt(0) || '?').toUpperCase()} size={34} />
+        </View>
+      </View>
+      {ml == null ? (
+        <Text style={[styles.amount, styles.amountMuted]}>—</Text>
+      ) : countUp ? (
+        <CountUp value={ml} duration={600} delay={0} format={(n) => formatMl(n)} style={styles.amount} />
+      ) : (
+        <Text style={styles.amount}>{formatMl(ml)}</Text>
+      )}
+      <Text style={styles.label} numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  glass: { height: GLASS_H },
-  content: {
-    ...StyleSheet.absoluteFill,
-    paddingTop: RIM_Y + 16,
-    paddingBottom: GLASS_H - BASE_TOP + 8,
-    justifyContent: 'space-between',
-  },
-  /* The header sits on the page, not in the glass: light chip, dark text. */
   chip: { borderRadius: 999, paddingHorizontal: 11, paddingVertical: 4, backgroundColor: '#e0f2fe' },
   chipMet: { backgroundColor: '#dcfce7' },
   chipText: font('bold', 12.5, { color: '#0369a1' }),
   chipTextMet: font('bold', 12.5, { color: '#15803d' }),
-  bannerSlot: { height: 30, alignItems: 'center', justifyContent: 'center' },
+  card: { borderRadius: radius['3xl'], padding: 16, gap: 12 },
+  bannerSlot: { minHeight: 26, alignItems: 'center', justifyContent: 'center' },
   banner: {
     paddingHorizontal: 14,
     paddingVertical: 5,
     borderRadius: 999,
-    backgroundColor: 'rgba(56,189,248,0.25)',
-    borderWidth: 1,
-    borderColor: 'rgba(125,211,252,0.45)',
+    backgroundColor: 'rgba(56,189,248,0.2)',
   },
-  bannerText: font('bold', 13, { color: '#e0f2fe' }),
-  cheers: font('extrabold', 13, { color: '#fde68a' }),
-  center: { alignItems: 'center', marginTop: -6 },
-  big: {
-    ...font('extrabold', 52, { color: '#ffffff' }),
-    letterSpacing: -2,
-    textShadowColor: 'rgba(7,22,42,0.55)',
-    textShadowRadius: 12,
-  },
-  goalRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2 },
+  bannerText: font('bold', 13, { color: '#0369a1' }),
+  cheers: font('extrabold', 13.5, { color: '#b45309' }),
+  race: font('semibold', 13, { color: MUTED }),
+  bears: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-end' },
+  column: { alignItems: 'center' },
+  badge: { position: 'absolute', right: -6, bottom: -4 },
+  amount: { ...font('extrabold', 22, { color: INK }), marginTop: 8, letterSpacing: -0.5 },
+  amountMuted: { color: '#94a3b8' },
+  label: { ...font('semibold', 12.5, { color: MUTED }), maxWidth: 140 },
+  goalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 },
   goalBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.8)',
   },
-  goalBtnDim: { opacity: 0.35 },
-  goalBtnText: { ...font('bold', 17, { color: '#ffffff' }), lineHeight: 20 },
+  goalBtnDim: { opacity: 0.4 },
+  goalBtnText: { ...font('bold', 18, { color: INK }), lineHeight: 21 },
   goalClip: { height: 22, overflow: 'hidden', justifyContent: 'center' },
-  goalText: { ...font('semibold', 14, { color: 'rgba(255,255,255,0.8)' }), lineHeight: 20 },
-  bottom: { gap: 10 },
+  goalText: { ...font('semibold', 14, { color: INK }), lineHeight: 20 },
   pills: { flexDirection: 'row', gap: 10 },
   pill: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'center',
-    gap: 3,
-    paddingVertical: 11,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.28)',
-  },
-  pillText: { ...font('extrabold', 16, { color: '#ffffff' }), letterSpacing: -0.3 },
-  pillUnit: font('semibold', 11.5, { color: 'rgba(255,255,255,0.75)' }),
-  footRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 4 },
-  hint: font('semibold', 12.5, { color: 'rgba(255,255,255,0.85)' }),
-  undo: font('bold', 12.5, { color: '#ffffff' }),
-  partnerLine: {
-    position: 'absolute',
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    shadowColor: '#6366f1',
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
   },
-  dash: {
-    flex: 1,
-    height: 0,
-    borderTopWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: 'rgba(253,224,71,0.75)',
+  pillEmoji: { fontSize: 18 },
+  pillText: { ...font('extrabold', 15, { color: INK }), marginTop: 2, letterSpacing: -0.3 },
+  pillUnit: font('semibold', 11, { color: MUTED }),
+  footRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 4 },
+  hint: font('semibold', 12.5, { color: MUTED }),
+  undo: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.8)',
   },
-  partnerTag: { ...font('bold', 11.5, { color: '#fde68a' }) },
-  meFloat: { position: 'absolute', top: 0, left: 0 },
-  stream: {
-    position: 'absolute',
-    top: -6,
-    borderBottomLeftRadius: 6,
-    borderBottomRightRadius: 6,
-    backgroundColor: '#7dd3fc',
-  },
+  undoText: font('bold', 12.5, { color: '#0369a1' }),
 });

@@ -2,6 +2,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { FireOrbit } from '@/components/FireOrbit';
 import { QrPlusIcon } from '@/components/QrPlusIcon';
 import { Avatar, PressableScale } from '@/components/ui';
 import { OPPONENTS } from '@/domain/opponent';
@@ -93,9 +94,11 @@ export function ActiveNowRail() {
           accessibilityLabel="Scan or show a QR code"
           style={styles.item}
         >
-          <View style={styles.addCircle}>
-            <QrPlusIcon size={28} />
-          </View>
+          <FireOrbit size={58}>
+            <View style={styles.addCircle}>
+              <QrPlusIcon size={28} />
+            </View>
+          </FireOrbit>
           <Text style={styles.name}>Scan</Text>
         </PressableScale>
 

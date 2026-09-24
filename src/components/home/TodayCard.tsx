@@ -1,12 +1,18 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { StepsTrail, stepsTrailText } from '@/components/home/StepsTrail';
+import { WaterControls } from '@/components/home/WaterControls';
 import { WaterGlass } from '@/components/home/WaterGlass';
 import { PressableScale } from '@/components/ui';
-import { DEFAULT_DAILY_GOAL_ML, DRINK_SIZES_ML, type HydrationProgress, formatMl } from '@/domain/hydration';
-import { type StepsState, formatSteps, isFixableByAthlete, stepsProgress } from '@/domain/steps';
+import { DEFAULT_DAILY_GOAL_ML, type HydrationProgress, formatMl } from '@/domain/hydration';
+import {
+  type StepsState,
+  formatSteps,
+  isFixableByAthlete,
+  stepsProgress,
+  stepsUnavailableCopy,
+} from '@/domain/steps';
 import { font } from '@/theme/typography';
 import { palette, radius } from '@/theme/tokens';
 
@@ -50,6 +56,14 @@ export function TodayCard({
     ? Math.min(100, Math.round((partner.ml / DEFAULT_DAILY_GOAL_ML) * 100))
     : 0;
   const bothMet = !!partner && water.met && partner.ml >= DEFAULT_DAILY_GOAL_ML;
+  /* Each reason in its own words — "Counting your steps from now" on the first
+     read of a day is not "not available on this phone". */
+  const stepsNote =
+    steps.status === 'unavailable'
+      ? stepsUnavailableCopy(steps.reason)
+      : steps.status === 'loading'
+        ? 'Counting…'
+        : '';
   const canFixSteps = steps.status === 'unavailable' && isFixableByAthlete(steps.reason) && !!onFixSteps;
 
   return (
@@ -118,7 +132,7 @@ export function TodayCard({
               </PressableScale>
             ) : (
               <Text style={stepsTrailText.sub}>
-                {steps.status === 'loading' ? 'Counting…' : 'Not on this phone'}
+                {stepsNote}
               </Text>
             )}
           </StepsTrail>
@@ -127,59 +141,12 @@ export function TodayCard({
         </View>
       )}
 
-      {/* Water, one tap away — the only ring you can close from Home. */}
-      <View style={styles.waterRow}>
-        {DRINK_SIZES_ML.map((ml) => (
-          <PressableScale
-            key={ml}
-            onPress={() => onLogWater(ml)}
-            accessibilityRole="button"
-            accessibilityLabel={`Log ${formatMl(ml)} of water`}
-            style={styles.drink}
-          >
-            <Text style={styles.drinkText}>💧 +{ml}</Text>
-          </PressableScale>
-        ))}
-      </View>
-
-      <View style={styles.foot}>
-        <View style={styles.footLeft}>
-          <Text style={water.met ? styles.footMet : styles.footHint}>
-            {water.met ? 'Water goal met' : `${formatMl(water.remainingMl)} to go`}
-          </Text>
-          {onUndoWater ? (
-            <Animated.View entering={FadeIn.duration(200)}>
-              <Pressable
-                onPress={onUndoWater}
-                accessibilityRole="button"
-                accessibilityLabel="Undo the last drink"
-                hitSlop={8}
-              >
-                <Text style={styles.undo}>Undo</Text>
-              </Pressable>
-            </Animated.View>
-          ) : null}
-        </View>
-        <View style={styles.stepper}>
-          <PressableScale
-            onPress={() => onStepWaterGoal(-1)}
-            accessibilityRole="button"
-            accessibilityLabel="Lower the water goal"
-            style={styles.stepHit}
-          >
-            <Text style={styles.stepText}>−</Text>
-          </PressableScale>
-          <Text style={styles.stepValue}>Goal {formatMl(water.goalMl)}</Text>
-          <PressableScale
-            onPress={() => onStepWaterGoal(1)}
-            accessibilityRole="button"
-            accessibilityLabel="Raise the water goal"
-            style={styles.stepHit}
-          >
-            <Text style={styles.stepText}>+</Text>
-          </PressableScale>
-        </View>
-      </View>
+      <WaterControls
+        water={water}
+        onLogWater={onLogWater}
+        onUndoWater={onUndoWater}
+        onStepWaterGoal={onStepWaterGoal}
+      />
 
       {partner ? (
         <View style={styles.stepsRow}>
@@ -206,7 +173,7 @@ export function TodayCard({
               </PressableScale>
             ) : (
               <Text style={styles.panelSub}>
-                {steps.status === 'loading' ? 'Counting…' : 'Not available on this phone'}
+                {stepsNote}
               </Text>
             )}
           </View>
@@ -250,31 +217,4 @@ const styles = StyleSheet.create({
   },
   fixText: font('extrabold', 13, { color: palette.ink }),
   fixInline: { alignSelf: 'flex-start', marginTop: 8 },
-  waterRow: { flexDirection: 'row', gap: 8, marginTop: 18 },
-  drink: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: 'rgba(56,189,248,0.16)',
-    borderWidth: 1,
-    borderColor: 'rgba(56,189,248,0.35)',
-  },
-  drinkText: font('extrabold', 13, { color: '#bae6fd' }),
-  foot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 },
-  footLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  footHint: font('medium', 12.5, { color: 'rgba(255,255,255,0.6)' }),
-  footMet: font('bold', 12.5, { color: '#86efac' }),
-  undo: font('bold', 12.5, { color: '#7dd3fc' }),
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  stepHit: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  stepText: font('bold', 15, { color: palette.white }),
-  stepValue: font('semibold', 12, { color: 'rgba(255,255,255,0.75)' }),
 });

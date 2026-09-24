@@ -42,7 +42,12 @@ export function StepsTrail({
   width?: number;
   height?: number;
 }) {
-  const lit = percent == null ? 0 : Math.round((Math.max(0, Math.min(100, percent)) / 100) * PRINTS);
+  /* Any walking at all lights the first print — a trail that stays dark
+     after the first few hundred steps reads as "not counting". */
+  const lit =
+    percent == null || percent <= 0
+      ? 0
+      : Math.max(1, Math.round((Math.min(100, percent) / 100) * PRINTS));
   const cx = width / 2;
   const cy = height - 16;
   const r = Math.min(cx - 14, cy - 10);

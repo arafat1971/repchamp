@@ -42,7 +42,7 @@ export interface HydrationState {
    * carries the day the entry actually landed on, which is the day the couple
    * write must be stamped with.
    */
-  logDrink: (ml: number) => DrinkEntry | null;
+  logDrink: (ml: number, kind?: string) => DrinkEntry | null;
   /** Remove one entry by id. */
   undoDrink: (id: string) => void;
   /** Remove the newest entry on a day. No-op when that day is empty. */
@@ -61,7 +61,7 @@ export const useHydrationStore = create<HydrationState>()(
     (set, get) => ({
       ...initialState,
 
-      logDrink: (ml) => {
+      logDrink: (ml, kind) => {
         const amount = sanitizeDrinkMl(ml);
         if (amount === 0) return null;
 
@@ -72,7 +72,7 @@ export const useHydrationStore = create<HydrationState>()(
            nobody chose. */
         if (mlOnDay(get().drinks, today) + amount > MAX_DAILY_ML) return null;
 
-        const entry = makeDrinkEntry(amount);
+        const entry = makeDrinkEntry(amount, new Date(), kind);
         set((s) => ({ drinks: [entry, ...s.drinks].slice(0, DRINK_LOG_LIMIT) }));
         return entry;
       },

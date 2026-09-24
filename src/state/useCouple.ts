@@ -31,6 +31,7 @@ import {
 } from '@/domain/couple';
 import { dayKey } from '@/domain/progression';
 import { presentNudge } from '@/lib/notifications';
+import { parseReminderKind } from '@/domain/partnerReminder';
 import {
   flushCoupleCreditOutbox,
   promotePendingCoupleCredit,
@@ -86,6 +87,9 @@ const EMPTY: CoupleView = {
   loading: false,
 };
 
+/** The newest nudge any `useCouple` instance has presented, shared across them. */
+let lastPresentedNudgeAt: number | null = null;
+
 export function useCouple(): CoupleView {
   const uid = useAuthStore((s) => s.user?.uid);
   const [couple, setCouple] = useState<Couple | null>(null);
@@ -138,11 +142,20 @@ export function useCouple(): CoupleView {
       }
       if (at !== null && at !== seenNudgeAt.current && from && from !== uid) {
         seenNudgeAt.current = at;
+        /* Several screens mount this hook at once, each with its own
+           subscription — so each saw the same nudge and each presented it,
+           and every reminder showed twice. Present each nudge once. */
+        if (at === lastPresentedNudgeAt) return;
+        lastPresentedNudgeAt = at;
         const sender = next?.members.find((m) => m.uid === from);
         // Foreground presentation. A recent presentNudge briefly suppresses the
         // twin FCM banner (see `installForegroundNudgeSuppressor`); if Firestore
         // is slow, the push still shows. When the app is closed, Expo push lands.
-        void presentNudge(sender?.displayName ?? 'Your partner');
+        void presentNudge(
+          sender?.displayName ?? 'Your partner',
+          parseReminderKind(next?.nudge?.kind),
+          next?.nudge?.ml,
+        );
       }
     });
     return unsubscribe;

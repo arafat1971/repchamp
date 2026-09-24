@@ -24,6 +24,7 @@ import {
   type CoupleMember,
 } from '@/domain/couple';
 import { MAX_DAILY_ML } from '@/domain/hydration';
+import { reminderNotification, type ReminderKind } from '@/domain/partnerReminder';
 import { MAX_DAILY_STEPS } from '@/domain/steps';
 import {
   assertClientRateLimit,
@@ -518,18 +519,35 @@ export async function nudgePartner(
   coupleId: string,
   fromUid: string,
   senderName: string,
+  /** What the reminder is for; the default is the original "come train". */
+  kind: ReminderKind = 'train',
+  options: {
+    /** For `drank`: the amount just logged. */
+    ml?: number;
+    /** Which spam bucket this spends; automatic updates use their own. */
+    limit?: 'coupleNudge' | 'waterShare';
+  } = {},
 ): Promise<void> {
   if (!isFirebaseConfigured()) return;
+  const limit = options.limit ?? 'coupleNudge';
+  const ml = typeof options.ml === 'number' && options.ml > 0 ? Math.round(options.ml) : undefined;
 
   // Cap spam — friend-add / duel-invite already rate-limit; nudges did not.
-  assertClientRateLimit('coupleNudge', fromUid);
+  assertClientRateLimit(limit, fromUid);
 
   // (1) In-app path — the record the partner's subscription watches.
   await coupleDoc(coupleId).set(
-    { nudge: { fromUid, at: firestore.FieldValue.serverTimestamp() } },
+    {
+      nudge: {
+        fromUid,
+        kind,
+        ...(ml ? { ml } : {}),
+        at: firestore.FieldValue.serverTimestamp(),
+      },
+    },
     { merge: true },
   );
-  commitClientRateLimit('coupleNudge', fromUid);
+  commitClientRateLimit(limit, fromUid);
 
   // (2) Remote path — push to the partner's device via Expo.
   try {
@@ -550,11 +568,10 @@ export async function nudgePartner(
       headers: { 'content-type': 'application/json', accept: 'application/json' },
       body: JSON.stringify({
         to: token,
-        title: `${senderName} is training`,
-        body: 'Jump in and keep your streak alive.',
+        ...reminderNotification(kind, senderName, ml),
         // Tagged so the foreground handler can suppress the duplicate (the in-app
         // nudge already showed it) — see `installForegroundNudgeSuppressor`.
-        data: { type: 'couple-nudge', coupleId },
+        data: { type: 'couple-nudge', coupleId, kind, ...(ml ? { ml } : {}) },
         channelId: 'social',
         priority: 'high',
       }),

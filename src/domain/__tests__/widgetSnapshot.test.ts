@@ -264,3 +264,27 @@ describe('nudge', () => {
     }
   });
 });
+
+describe('the water line', () => {
+  const recent = w({ pulse: { kind: 'recent', daysAgo: 1 } });
+
+  it('names a partner who is ahead on water today', () => {
+    expect(buildWidgetSnapshot('Bea', recent, 0, { theirMl: 1750, myMl: 500 }).nudge).toBe(
+      'Bea has had 1.75 L 💧 — your turn',
+    );
+  });
+
+  it('keeps the training turn first', () => {
+    const trained = w({ pulse: { kind: 'trained-today', sharedToday: false } });
+    expect(buildWidgetSnapshot('Bea', trained, 0, { theirMl: 1750, myMl: 0 }).nudge).toBe(
+      'Your turn — train to make it a shared day',
+    );
+  });
+
+  /* Not shared today is unknown, not zero; and behind is not "your turn". */
+  it('says nothing about water it does not know or that is not a reason', () => {
+    const base = buildWidgetSnapshot('Bea', recent, 0).nudge;
+    expect(buildWidgetSnapshot('Bea', recent, 0, { theirMl: null, myMl: 0 }).nudge).toBe(base);
+    expect(buildWidgetSnapshot('Bea', recent, 0, { theirMl: 500, myMl: 900 }).nudge).toBe(base);
+  });
+});

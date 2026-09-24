@@ -8,6 +8,7 @@ import { captureRef } from 'react-native-view-shot';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Confetti } from '@/components/session/Confetti';
+import { ScoreReveal } from '@/components/session/ScoreReveal';
 import { ResultShareCard } from '@/components/session/ResultShareCard';
 import { CountUp } from '@/components/motion';
 import { PressableScale } from '@/components/ui';
@@ -511,6 +512,20 @@ export default function ResultScreen() {
             </View>
           ) : null}
         </Animated.View>
+
+        {/* The reveal: both scores counting up together, then the crown. */}
+        {mode === 'versus' || mode === 'together' ? (
+          <Animated.View entering={FadeInDown.duration(450).delay(150)}>
+            <ScoreReveal
+              myReps={session.reps}
+              theirReps={session.opponentReps}
+              theirName={opponentLabel}
+              won={session.won}
+              drew={session.drew}
+              cooperative={mode === 'together'}
+            />
+          </Animated.View>
+        ) : null}
 
         {/* The Beautiful 3D Viral Share Card rendered on screen */}
         <Animated.View entering={FadeInDown.duration(600).delay(200)} style={styles.shareCardOnScreen}>

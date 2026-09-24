@@ -20,6 +20,13 @@ import { dayKey } from '@/domain/progression';
 import { rivalryLine, rivalryNudge, rivalryWith } from '@/domain/rivalry';
 import { formatSteps } from '@/domain/steps';
 import { nudgePartner } from '@/services/coupleService';
+import {
+  REMINDER_KINDS,
+  reminderButton,
+  reminderSentLine,
+  type ReminderKind,
+} from '@/domain/partnerReminder';
+import { successHaptic } from '@/lib/feedback';
 import { setMetricSharing, syncHydrationNow } from '@/services/hydrationSync';
 import { useAuthStore } from '@/state/authStore';
 import { selectTodayMl, useHydrationStore } from '@/state/hydrationStore';
@@ -53,8 +60,10 @@ export default function PartnerDashboardScreen() {
   const drinks = useHydrationStore((s) => s.drinks);
   const shareSteps = useSharingStore((s) => s.steps);
   const shareWater = useSharingStore((s) => s.water);
+  const drinkUpdates = useSharingStore((s) => s.drinkUpdates);
+  const setDrinkUpdates = useSharingStore((s) => s.setDrinkUpdates);
   const { steps: myStepsState } = useStepsToday();
-  const [nudging, setNudging] = useState(false);
+  const [sending, setSending] = useState<ReminderKind | null>(null);
 
   const today = dayKey();
   const iTrained = sessions.some((s) => s.day === today);
@@ -108,31 +117,32 @@ export default function PartnerDashboardScreen() {
     void setMetricSharing(couple.id, uid, key, on);
   };
 
-  const onNudge = async () => {
-    if (!uid || nudging) return;
-    setNudging(true);
+  const sendReminder = async (kind: ReminderKind) => {
+    if (!uid || sending) return;
+    setSending(kind);
     try {
-      await nudgePartner(couple.id, uid, myName);
+      await nudgePartner(couple.id, uid, myName, kind);
       track('couple_nudge_sent');
+      successHaptic();
       showDialog({
-        title: 'Nudge sent',
-        message: `${partnerName} will get a push to come train.`,
+        title: 'Reminder sent',
+        message: reminderSentLine(kind, partnerName),
         tone: 'success',
         actions: [{ label: 'Got it', variant: 'primary' }],
       });
     } catch (error) {
       captureError(error);
       showDialog({
-        title: 'Nudge failed',
+        title: 'Reminder not sent',
         message:
           error instanceof Error
             ? error.message
-            : "We couldn't send that nudge. Check your connection and try again.",
+            : "We couldn't send that reminder. Check your connection and try again.",
         tone: 'danger',
         actions: [{ label: 'OK', variant: 'primary' }],
       });
     } finally {
-      setNudging(false);
+      setSending(null);
     }
   };
 
@@ -262,13 +272,37 @@ export default function PartnerDashboardScreen() {
           colors={gradients.brandStrong}
           onPress={() => openDuel('train')}
         />
-        <ActionTile
-          emoji="👋"
-          label={nudging ? 'Sending…' : 'Nudge'}
-          hint="Push them to move"
-          colors={gradients.amber}
-          onPress={() => void onNudge()}
-        />
+      </Animated.View>
+
+      {/* ── Reminders ── the nudge, for more than training: one push each. */}
+      <SectionLabel>SEND A REMINDER</SectionLabel>
+      <Animated.View entering={FadeInDown.delay(170).duration(320)}>
+        <Card style={styles.pad}>
+          <View style={styles.reminderRow}>
+            {REMINDER_KINDS.map((kind) => {
+              const b = reminderButton(kind);
+              const busy = sending === kind;
+              return (
+                <PressableScale
+                  key={kind}
+                  onPress={() => void sendReminder(kind)}
+                  disabled={sending !== null}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remind ${partnerName}: ${b.label}`}
+                  style={styles.reminder}
+                >
+                  <View style={[styles.reminderBubble, busy && styles.reminderBusy]}>
+                    <Text style={styles.reminderEmoji}>{busy ? '…' : b.emoji}</Text>
+                  </View>
+                  <Text style={styles.reminderLabel}>{b.label}</Text>
+                </PressableScale>
+              );
+            })}
+          </View>
+          <Text style={[text.caption, styles.reminderNote]}>
+            {partnerName} gets a push, even with the app closed.
+          </Text>
+        </Card>
       </Animated.View>
 
       {/* ── What I share ── */}
@@ -287,6 +321,13 @@ export default function PartnerDashboardScreen() {
             detail="How much you've drunk"
             value={shareWater}
             onChange={(v) => toggle('water', v)}
+          />
+          <View style={styles.divider} />
+          <ShareRow
+            label={`Tell ${partnerName} when I drink`}
+            detail="They get “just drank 250 ml” — at most once every 90 minutes"
+            value={shareWater && drinkUpdates}
+            onChange={(v) => setDrinkUpdates(v)}
           />
           <View style={styles.divider} />
           <View style={styles.shareRow}>
@@ -512,6 +553,20 @@ const styles = StyleSheet.create({
   dot: { width: 10, height: 10, borderRadius: 5 },
   dotLabel: { color: palette.slate500 },
   actions: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  reminderRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  reminder: { alignItems: 'center', width: 58 },
+  reminderBubble: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: palette.green50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reminderBusy: { backgroundColor: palette.green100 },
+  reminderEmoji: { fontSize: 22 },
+  reminderLabel: { ...font('bold', 12, { color: palette.ink }), marginTop: 6 },
+  reminderNote: { color: palette.slate500, marginTop: 12, textAlign: 'center' },
   actionWrap: { flex: 1 },
   action: { paddingVertical: 14, paddingHorizontal: 10, minHeight: 104, borderRadius: radius.lg },
   actionEmoji: { fontSize: 24 },

@@ -16,19 +16,21 @@ import Animated, {
 import { track } from '@/lib/analytics';
 import { HomeAmbient } from '@/components/home/HomeAmbient';
 import { HeroCard } from '@/components/home/HeroCard';
-import { CoupleStrip } from '@/components/home/CoupleStrip';
-import { DailyCard } from '@/components/home/DailyCard';
-import { PartnerPulseCard } from '@/components/home/PartnerPulseCard';
+import { ActiveNowRail } from '@/components/home/ActiveNowRail';
+import { HomeSectionHeader, homeSectionLink } from '@/components/home/HomeSectionHeader';
+import { DuoCard } from '@/components/home/DuoCard';
+import { HydrationCard } from '@/components/home/HydrationCard';
+import { StepsCard } from '@/components/home/StepsCard';
 import { CountUp, PopOnChange, StaggerIn } from '@/components/motion';
-import { Card, PressableScale, Screen, SectionLabel } from '@/components/ui';
+import { Card, PressableScale, Screen } from '@/components/ui';
 import { exerciseHomeStats } from '@/domain/exerciseHomeStats';
 import { firstNameOf, selectHomeGreeting } from '@/domain/homeGreeting';
 import { dailyChallengeProgress } from '@/domain/dailyChallenge';
 import { myExerciseBreakdown, partnerWidget } from '@/domain/coupleExercises';
-import { partnerWaterToday } from '@/domain/couple';
-import { drinksOnDay, hydrationProgress, stepGoalMl } from '@/domain/hydration';
+import { partnerStepsToday, partnerWaterToday } from '@/domain/couple';
+import { DEFAULT_DAILY_GOAL_ML, drinksOnDay, hydrationProgress, stepGoalMl } from '@/domain/hydration';
 import { lightImpactHaptic, selectionHaptic } from '@/lib/feedback';
-import { syncHydrationNow, syncStepsNow } from '@/services/hydrationSync';
+import { shareDrink, syncHydrationNow, syncStepsNow } from '@/services/hydrationSync';
 import { useStepsToday } from '@/state/useStepsToday';
 import { buildDashboardSnapshot } from '@/domain/dashboardSnapshot';
 import { buildWidgetSnapshot } from '@/domain/widgetSnapshot';
@@ -38,6 +40,8 @@ import { selectHomeFocus, type HomeFocus } from '@/domain/homeFocus';
 import { leagueProgressFromWeeklyXp } from '@/domain/leagueProgress';
 import { liveActivity } from '@/domain/liveActivity';
 import { usePhantomSeed } from '@/domain/seedPhantoms';
+import { rivalryWith } from '@/domain/rivalry';
+import { weekStrip } from '@/domain/weekStrip';
 import { dayKey } from '@/domain/progression';
 import {
   useProfileStore,
@@ -47,7 +51,7 @@ import {
   selectTotalReps,
   selectWeeklyXp,
 } from '@/state/profileStore';
-import { useHydrationStore } from '@/state/hydrationStore';
+import { selectTodayMl, useHydrationStore } from '@/state/hydrationStore';
 import { useEffectivePro } from '@/state/proStore';
 import { isPurchasesConfigured } from '@/services/purchases';
 import { isWalled } from '@/domain/hardPaywall';
@@ -89,6 +93,10 @@ export default function HomeScreen() {
     billingReady: isPurchasesConfigured(),
   });
   const daysTrained = selectDaysTrainedThisWeek(profile);
+  const week = useMemo(
+    () => weekStrip(profile.sessions.map((x) => x.day)),
+    [profile.sessions],
+  );
   const goal = profile.weeklyGoal;
   const initial = (profile.username || 'C').charAt(0).toUpperCase();
   const pendingDuels = useIncomingDuelCount();
@@ -121,15 +129,23 @@ export default function HomeScreen() {
     };
   }, [couple.paired, couple.partner, couple.couple, couple.me?.uid, profile.sessions, today]);
 
+  /* Today's own water, for the partner widget's water line — read straight
+     from the store so the widget effect can sit here, above the card's
+     fuller hydration progress. */
+  const todayMl = useHydrationStore((st) => selectTodayMl(st, today));
+
   /* Mirror the partner card into the OS widget's SharedPreferences whenever it
      changes. No-op on iOS and on builds without the widget plugin, so this is
      safe to call unconditionally. */
   useEffect(() => {
     if (!partnerPulse) return;
     publishWidgetSnapshot(
-      buildWidgetSnapshot(couple.partner?.displayName ?? 'Your partner', partnerPulse.widget),
+      buildWidgetSnapshot(couple.partner?.displayName ?? 'Your partner', partnerPulse.widget, Date.now(), {
+        theirMl: partnerWaterToday(couple.partner, today),
+        myMl: todayMl,
+      }),
     );
-  }, [partnerPulse, couple.partner?.displayName]);
+  }, [partnerPulse, couple.partner, today, todayMl]);
 
   /* Water. The store is the source of truth; the card is presentational, so
      every decision about what counts stays in `domain/hydration`. */
@@ -148,6 +164,15 @@ export default function HomeScreen() {
     const ml = partnerWaterToday(couple.partner, today);
     return ml == null || !name ? null : { name, ml };
   }, [couple.partner, today]);
+
+  /* The partner's glass on the Today card: present whenever paired, with
+     `ml` null until they share water today — so the toast does not vanish
+     every morning and reappear once they drink. */
+  const partnerGlass = useMemo(() => {
+    const name = couple.partner?.displayName;
+    if (!couple.paired || !name) return null;
+    return { name, ml: partnerWaterToday(couple.partner, today) };
+  }, [couple.paired, couple.partner, today]);
 
   const coupleId = couple.couple?.id ?? null;
   const myUid = couple.me?.uid ?? null;
@@ -176,16 +201,27 @@ export default function HomeScreen() {
   }, [drinks, goalMl, stepsToday, partnerWater, today]);
 
   const logWater = useCallback(
-    (ml: number) => {
-      const entry = useHydrationStore.getState().logDrink(ml);
+    (ml: number, kind?: string) => {
+      const entry = useHydrationStore.getState().logDrink(ml, kind);
       // A refused tap gets no haptic: the confirmation must mean something.
       if (!entry) return;
       lightImpactHaptic();
       track('water_logged', { ml: entry.ml, source: 'home' });
       // Set-to-value, so this publishes the day's total rather than the tap.
-      void syncHydrationNow(coupleId, myUid);
+      void syncHydrationNow(coupleId, myUid).then(() =>
+        /* "Just drank 250 ml — your turn" to the partner, when it is useful
+           and not throttled; see `shareDrink`. After the sync, so their
+           card already shows the new total when the push lands. */
+        shareDrink({
+          coupleId,
+          uid: myUid,
+          senderName: profile.displayName || profile.username || 'Your partner',
+          ml: entry.ml,
+          partnerMet: (partnerWaterToday(couple.partner, dayKey()) ?? 0) >= DEFAULT_DAILY_GOAL_ML,
+        }),
+      );
     },
-    [coupleId, myUid],
+    [coupleId, myUid, profile.displayName, profile.username, couple.partner],
   );
 
   const undoWater = useCallback(() => {
@@ -248,6 +284,26 @@ export default function HomeScreen() {
     track('home_hero_shown', { kind: focus.kind });
   }, [focus.kind]);
 
+  const rivalry = useMemo(
+    () => rivalryWith(profile.sessions, couple.partner?.uid),
+    [profile.sessions, couple.partner?.uid],
+  );
+
+  /** A live duel with the partner, from the Duo card's Race button. */
+  const startCoupleRace = () => {
+    if (!couple.partner) return;
+    router.push({
+      pathname: '/duel/new',
+      params: {
+        role: 'host',
+        kind: 'duel',
+        target: couple.partner.uid,
+        name: couple.partner.displayName,
+        ...(couple.partner.avatarUrl ? { avatar: couple.partner.avatarUrl } : {}),
+      },
+    });
+  };
+
   /** Route the adaptive hero's single CTA when an urgent focus wins over the carousel. */
   const startCoupleTrain = () => {
     if (!couple.paired || !couple.partner || !self) {
@@ -291,7 +347,7 @@ export default function HomeScreen() {
         return startSolo('push');
       case 'streak-at-risk':
       case 'partner-trained':
-        // Same path as CoupleStrip "Train together" — invite modal has no train CTA.
+        // Same path as the Duo card's "Train together" — invite modal has no train CTA.
         return startCoupleTrain();
       case 'invite-partner':
         return router.push('/modal/couple-invite');
@@ -419,9 +475,52 @@ export default function HomeScreen() {
         <HeroCard focus={focus} onPress={onHeroPress} />
       </StaggerIn>
 
-      {couple.paired ? (
-        <StaggerIn index={1} style={{ marginTop: 12 }}>
-          <CoupleStrip
+      {/* The action people open the app for, straight under the hero rather
+          than below every scoreboard. */}
+      <HomeSectionHeader
+        title="Quick start"
+        right={
+          <PressableScale
+            onPress={() => router.push('/(tabs)/train')}
+            accessibilityRole="button"
+            accessibilityLabel="View all exercises"
+          >
+            <Text style={homeSectionLink}>View all ›</Text>
+          </PressableScale>
+        }
+      />
+      <StaggerIn index={1} style={styles.quickGrid}>
+        <QuickTile
+          label="Push-Ups"
+          locked={soloWalled}
+          image={IC_PUSHUP}
+          accent={palette.green600}
+          tint={[palette.tintGreenTop, palette.tintGreenBottom]}
+          stats={pushStats}
+          onPress={() => startSolo('push')}
+        />
+        <QuickTile
+          label="Squats"
+          locked={soloWalled}
+          image={IC_SQUAT}
+          accent={palette.purple600}
+          tint={[palette.tintPurpleTop, palette.tintPurpleBottom]}
+          stats={squatStats}
+          onPress={() => startSolo('squat')}
+        />
+      </StaggerIn>
+
+      {/* Faces to race, one tap from Home rather than a tab away. */}
+      <StaggerIn index={2}>
+        <ActiveNowRail />
+      </StaggerIn>
+
+      {/* The couple as one face-off — replaces the bond strip and the partner
+          card, which told the same story twice. */}
+      {couple.paired && couple.partner ? (
+        <StaggerIn index={3}>
+          <HomeSectionHeader title="Your duo" />
+          <DuoCard
             me={couple.me}
             partner={couple.partner}
             streak={couple.streak}
@@ -429,38 +528,52 @@ export default function HomeScreen() {
             atRisk={couple.atRisk}
             levelName={couple.level.name}
             today={today}
+            rivalry={rivalry}
             onAction={(action) => void onCoupleAction(action)}
+            onRace={startCoupleRace}
+            onOpen={() => router.push('/couple/partner')}
           />
         </StaggerIn>
       ) : null}
 
-      {/* The partner's week in detail, under the bond headline above. */}
-      {partnerPulse ? (
-        <StaggerIn index={1} style={{ marginTop: 12 }}>
-          <PartnerPulseCard
-            partnerName={couple.partner?.displayName ?? 'Partner'}
-            widget={partnerPulse.widget}
-            myExercises={partnerPulse.mine}
-            onPress={() => router.push('/couple/partner')}
-          />
-        </StaggerIn>
-      ) : null}
-
-      {/* Today's rings sit above the stats row: water is the one thing on Home
-          an athlete can act on right now, and an action outranks a scoreboard. */}
-      <StaggerIn index={2} style={{ marginTop: 12 }}>
-        <DailyCard
+      {/* Today's water as a filling glass and steps as a footprint trail, with
+          drinks a tap away. */}
+      <StaggerIn index={4}>
+        <HydrationCard
           water={water}
-          steps={stepsToday}
-          partner={partnerWater}
+          drinks={todayDrinks}
+          me={{ name: firstName || 'You', avatar: profile.avatarUri }}
+          partner={
+            partnerGlass
+              ? { name: partnerGlass.name, avatar: couple.partner?.avatarUrl ?? null }
+              : null
+          }
+          partnerMl={partnerGlass?.ml ?? null}
           onLogWater={logWater}
           onUndoWater={todayDrinks.length > 0 ? undoWater : undefined}
           onStepWaterGoal={stepWaterGoal}
+        />
+      </StaggerIn>
+      <StaggerIn index={4}>
+        <HomeSectionHeader title="Steps" />
+        <StepsCard
+          steps={stepsToday}
           onFixSteps={openStepSettings}
+          me={{ name: firstName || 'You', avatar: profile.avatarUri }}
+          partner={
+            couple.paired && couple.partner
+              ? {
+                  name: couple.partner.displayName,
+                  avatar: couple.partner.avatarUrl ?? null,
+                  steps: partnerStepsToday(couple.partner, today),
+                }
+              : null
+          }
         />
       </StaggerIn>
 
-      <StaggerIn index={2} style={styles.row}>
+      <HomeSectionHeader title="Your progress" />
+      <StaggerIn index={5} style={styles.row}>
         <PressableScale
           onPress={() => router.push('/modal/recap')}
           accessibilityRole="button"
@@ -476,15 +589,25 @@ export default function HomeScreen() {
               <Text style={font('bold', 20, { color: palette.ink, marginTop: 8 })}>
                 {streak > 0 ? `${streak} day streak` : 'Start a streak'}
               </Text>
-              <View style={styles.weekBars}>
-                {Array.from({ length: goal }, (_, i) => (
-                  <View
-                    key={i}
-                    style={[
-                      styles.weekBarTall,
-                      { backgroundColor: i < daysTrained ? palette.green500 : palette.green50 },
-                    ]}
-                  />
+              {/* This calendar week, Monday to Sunday: a flame for every day
+                  trained, today outlined, the rest of the week still ahead. */}
+              <View style={styles.weekStrip}>
+                {week.map((cell) => (
+                  <View key={cell.day} style={styles.weekCell}>
+                    <View
+                      style={[
+                        styles.weekDot,
+                        cell.trained && styles.weekDotTrained,
+                        !cell.trained && cell.isToday && styles.weekDotToday,
+                        cell.isFuture && styles.weekDotFuture,
+                      ]}
+                    >
+                      {cell.trained ? <Text style={styles.weekFlame}>🔥</Text> : null}
+                    </View>
+                    <Text style={[styles.weekLetter, cell.isToday && styles.weekLetterToday]}>
+                      {cell.letter}
+                    </Text>
+                  </View>
                 ))}
               </View>
               <Text style={font('regular', 11, { color: palette.green700, marginTop: 8 })}>
@@ -543,37 +666,6 @@ export default function HomeScreen() {
             </View>
           </LinearGradient>
         </PressableScale>
-      </StaggerIn>
-
-      <View style={styles.sectionHeader}>
-        <SectionLabel style={styles.sectionSpacing}>Quick Start</SectionLabel>
-        <PressableScale
-          onPress={() => router.push('/(tabs)/train')}
-          accessibilityRole="button"
-          accessibilityLabel="View all exercises"
-        >
-          <Text style={font('bold', 12.5, { color: palette.green600 })}>View all ›</Text>
-        </PressableScale>
-      </View>
-      <StaggerIn index={3} style={styles.quickGrid}>
-        <QuickTile
-          label="Push-Ups"
-          locked={soloWalled}
-          image={IC_PUSHUP}
-          accent={palette.green600}
-          tint={[palette.tintGreenTop, palette.tintGreenBottom]}
-          stats={pushStats}
-          onPress={() => startSolo('push')}
-        />
-        <QuickTile
-          label="Squats"
-          locked={soloWalled}
-          image={IC_SQUAT}
-          accent={palette.purple600}
-          tint={[palette.tintPurpleTop, palette.tintPurpleBottom]}
-          stats={squatStats}
-          onPress={() => startSolo('squat')}
-        />
       </StaggerIn>
 
       </Screen>
@@ -780,8 +872,13 @@ function QuickTile({
           <CountUp value={stats.todayBest} duration={800} style={font('bold', 22, { color: accent })} />
           <Text style={font('regular', 12, { color: palette.grey500 })}>reps</Text>
         </View>
+        {/* "Last 0 reps" said nothing — there was no last session to beat. */}
         <Text style={font('regular', 11, { color: palette.grey500, marginTop: 4 })}>
-          Last {stats.lastBest} {stats.lastBest === 1 ? 'rep' : 'reps'}
+          {stats.lastBest > 0
+            ? `Last time ${stats.lastBest} ${stats.lastBest === 1 ? 'rep' : 'reps'}`
+            : stats.todayBest > 0
+              ? 'Beat it next time'
+              : 'Set your first best'}
         </Text>
       </LinearGradient>
     </PressableScale>
@@ -790,6 +887,22 @@ function QuickTile({
 
 
 const styles = StyleSheet.create({
+  weekStrip: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },
+  weekCell: { alignItems: 'center', gap: 4 },
+  weekDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: palette.divider,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  weekDotTrained: { backgroundColor: '#ffedd5' },
+  weekDotToday: { borderWidth: 2, borderColor: palette.green500, backgroundColor: palette.white },
+  weekDotFuture: { opacity: 0.45 },
+  weekFlame: { fontSize: 11 },
+  weekLetter: font('semibold', 9.5, { color: palette.grey500 }),
+  weekLetterToday: font('extrabold', 9.5, { color: palette.green700 }),
   header: {
     flexDirection: 'row',
     // Top-aligned: the identity block runs to three lines, so centring pushed
@@ -905,7 +1018,7 @@ const styles = StyleSheet.create({
   liveDotSmall: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: palette.green500 },
 
   // Stat cards
-  row: { flexDirection: 'row', gap: 12, marginTop: 16, alignItems: 'stretch' },
+  row: { flexDirection: 'row', gap: 12, alignItems: 'stretch' },
   /* The pair reads as a pair now. Both carried a 1.5pt border in their own
      accent — hard green against hard amber — which made two cards of the same
      size and role look like they belonged to different screens. A hairline in
@@ -936,7 +1049,6 @@ const styles = StyleSheet.create({
   },
   statCardInner: { flex: 1, padding: 16, borderRadius: radius.lg },
   miniHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  weekBars: { flexDirection: 'row', gap: 4, marginTop: 8 },
   weekBar: { flex: 1, height: 6, borderRadius: radius.xs },
   leagueRow: { flexDirection: 'row', alignItems: 'center', gap: 0, marginTop: 4, marginBottom: 0 },
   medalIcon: { width: 66, height: 44, marginRight: -8, marginLeft: -6, marginTop: -4 },
@@ -959,10 +1071,6 @@ const styles = StyleSheet.create({
   },
 
   // Quick tiles
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  // Consistent section rhythm — iOS groups content with generous, even gaps
-  // rather than varying margins per section.
-  sectionSpacing: { marginTop: 28, marginBottom: 12 },
   quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   quickTileWrap: { width: '47%', flexGrow: 1 },
   quickTile: {
@@ -1006,7 +1114,6 @@ const styles = StyleSheet.create({
 
   greetingHook: { ...font('regular', 12, { color: palette.grey600 }) },
   greetingBonus: { ...font('regular', 11, { color: palette.green700, marginTop: 4 }) },
-  weekBarTall: { flex: 1, height: 10, borderRadius: 5 },
   medalIconSmall: { width: 42, height: 32, marginRight: -4, marginLeft: -4 },
   leagueXpTrack: {
     height: 8,

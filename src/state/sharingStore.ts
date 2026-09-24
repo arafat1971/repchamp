@@ -13,13 +13,18 @@ import { DEFAULT_SHARING, type SharedMetricKey, type SharingPrefs } from '@/doma
  * keeping it small keeps `getState()` at the write site obvious.
  */
 interface SharingState extends SharingPrefs {
+  /** Tell the partner automatically when I log water ("just drank 250 ml"). */
+  drinkUpdates: boolean;
   setShared: (key: SharedMetricKey, value: boolean) => void;
+  setDrinkUpdates: (value: boolean) => void;
 }
 
 export const useSharingStore = create<SharingState>()(
   persist(
     (set) => ({
       ...DEFAULT_SHARING,
+      drinkUpdates: true,
+      setDrinkUpdates: (value) => set({ drinkUpdates: value }),
       setShared: (key, value) => set({ [key]: value } as Pick<SharingState, SharedMetricKey>),
     }),
     {

@@ -1,3 +1,4 @@
+import { QrPlusIcon } from '@/components/QrPlusIcon';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View, TextInput } from 'react-native';
@@ -262,7 +263,7 @@ export default function FriendsScreen() {
             style={styles.onlineItem}
           >
             <View style={styles.addCircle}>
-              <Text style={{ fontSize: 22 }}>📷</Text>
+              <QrPlusIcon size={28} />
             </View>
             <Text style={styles.onlineName}>Scan</Text>
           </PressableScale>

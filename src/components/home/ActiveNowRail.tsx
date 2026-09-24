@@ -2,6 +2,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { QrPlusIcon } from '@/components/QrPlusIcon';
 import { Avatar, PressableScale } from '@/components/ui';
 import { OPPONENTS } from '@/domain/opponent';
 import { usePhantomSeed } from '@/domain/seedPhantoms';
@@ -93,7 +94,7 @@ export function ActiveNowRail() {
           style={styles.item}
         >
           <View style={styles.addCircle}>
-            <Text style={{ fontSize: 22 }}>📷</Text>
+            <QrPlusIcon size={28} />
           </View>
           <Text style={styles.name}>Scan</Text>
         </PressableScale>

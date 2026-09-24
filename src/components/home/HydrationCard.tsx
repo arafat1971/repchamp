@@ -20,7 +20,7 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import Svg, { Defs, LinearGradient as SvgGradient, Path, Stop } from 'react-native-svg';
+import Svg, { ClipPath, Defs, G, LinearGradient as SvgGradient, Path, Stop } from 'react-native-svg';
 
 import { CountUp } from '@/components/motion';
 import { LemonAvatar } from '@/components/home/LemonAvatar';
@@ -35,15 +35,37 @@ import {
 } from '@/domain/hydration';
 import { lightImpactHaptic, selectionHaptic } from '@/lib/feedback';
 import { font } from '@/theme/typography';
-import { radius } from '@/theme/tokens';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
-const CARD_H = 340;
+/** The glass: a tumbler filling the card's width, tapering to a thick base. */
+const GLASS_H = 360;
+const RIM_Y = 14;
+const RIM_RY = 11;
+const WALL = 4;
+const BASE_TOP = GLASS_H - 20;
+/** Highest the water sits: under the rim, clear of the number. */
+const MAX_Y = RIM_Y + 36;
 /** Water never sits lower than this, so an empty day still shows a surface. */
-const FLOOR = 0.1;
+const FLOOR = 0.06;
 /** …nor higher, so the number and the controls stay readable on a met goal. */
-const CEIL = 0.8;
+const CEIL = 0.82;
+/** Bottom width as a share of the top — the taper that makes it a glass. */
+const TAPER = 0.72;
+
+/** Water surface y for a 0..1 level. */
+function surfaceY(level: number): number {
+  'worklet';
+  return BASE_TOP - level * (BASE_TOP - MAX_Y);
+}
+
+/** Inner half-width of the glass at height y, for a glass `w` wide. */
+function halfAt(w: number, y: number): number {
+  'worklet';
+  const top = w / 2 - WALL - 2;
+  const bottom = (w / 2) * TAPER - WALL;
+  return top + ((bottom - top) * (y - RIM_Y)) / (GLASS_H - RIM_Y);
+}
 
 function levelFor(percent: number): number {
   const p = Math.max(0, Math.min(100, percent)) / 100;
@@ -169,17 +191,20 @@ export function HydrationCard({
     return () => clearTimeout(t);
   }, [partnerMl]);
 
-  const partnerStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: CARD_H * (1 - partnerLevel.value) - 15 }],
-  }));
+  const partnerStyle = useAnimatedStyle(() => {
+    const y = surfaceY(partnerLevel.value);
+    const half = halfAt(width, y) - 6;
+    return { top: y - 15, left: width / 2 - half, width: half * 2 };
+  });
   const meStyle = useAnimatedStyle(() => {
-    const surface = CARD_H * (1 - level.value);
-    // Ride the front wave at the float's x (right side), with a gentle bob.
-    const x = width * 0.8;
+    const surface = surfaceY(level.value);
+    // Ride the front wave toward the right wall, with a gentle bob.
+    const x = width / 2 + halfAt(width, surface) * 0.62;
     const bob = Math.sin((x / Math.max(1, width)) * 2 * Math.PI * 1.1 + phase.value) * 5;
     const tiltY = tilt.value * (x - width / 2);
     return {
       transform: [
+        { translateX: x - 19 },
         { translateY: surface - 19 + bob + tiltY },
         { rotate: `${bob * 2 - tilt.value * 40}deg` },
       ],
@@ -197,20 +222,108 @@ export function HydrationCard({
 
   const bothMet = partnerMl != null && water.met && partnerMl >= DEFAULT_DAILY_GOAL_ML;
 
+  /* The glass silhouette at this width: outer wall down to a rounded base,
+     and the inner wall the water is clipped to. */
+  const W = width;
+  const cx = W / 2;
+  const topHalf = W / 2 - 2;
+  const botHalf = (W / 2) * TAPER;
+  const innerBase = halfAt(W, BASE_TOP);
+  const outer = [
+    `M ${cx - topHalf} ${RIM_Y}`,
+    `L ${cx - botHalf} ${GLASS_H - 12}`,
+    `Q ${cx - botHalf} ${GLASS_H - 1} ${cx - botHalf + 12} ${GLASS_H - 1}`,
+    `L ${cx + botHalf - 12} ${GLASS_H - 1}`,
+    `Q ${cx + botHalf} ${GLASS_H - 1} ${cx + botHalf} ${GLASS_H - 12}`,
+    `L ${cx + topHalf} ${RIM_Y}`,
+  ].join(' ');
+  const inner = [
+    `M ${cx - topHalf + WALL} ${RIM_Y}`,
+    `L ${cx - innerBase} ${BASE_TOP - 8}`,
+    `Q ${cx - innerBase} ${BASE_TOP} ${cx - innerBase + 8} ${BASE_TOP}`,
+    `L ${cx + innerBase - 8} ${BASE_TOP}`,
+    `Q ${cx + innerBase} ${BASE_TOP} ${cx + innerBase} ${BASE_TOP - 8}`,
+    `L ${cx + topHalf - WALL} ${RIM_Y}`,
+    'Z',
+  ].join(' ');
+  /* Controls sit in the narrow lower part, so inset them to the wall there. */
+  const lowerInset = W / 2 - halfAt(W, BASE_TOP - 70) + 8;
+
   return (
-    <View style={styles.card} onLayout={onLayout}>
-      {/* The water. */}
+    <View onLayout={onLayout}>
+      <View style={styles.head}>
+        <Text style={styles.title}>💧 Hydration</Text>
+        <View style={[styles.chip, water.met && styles.chipMet]}>
+          <Text style={[styles.chipText, water.met && styles.chipTextMet]}>
+            {water.met ? 'Goal met ✓' : `${water.percent}%`}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.glass}>
       {width > 0 ? (
-        <Svg width={width} height={CARD_H} style={StyleSheet.absoluteFill} pointerEvents="none">
+        <Svg width={W} height={GLASS_H} style={StyleSheet.absoluteFill} pointerEvents="none">
           <Defs>
             <SvgGradient id="tank" x1="0" y1="0" x2="0" y2="1">
               <Stop offset="0" stopColor="#7dd3fc" />
               <Stop offset="0.3" stopColor="#0ea5e9" />
               <Stop offset="1" stopColor="#1e3a8a" />
             </SvgGradient>
+            <SvgGradient id="glassBody" x1="0" y1="0" x2="1" y2="0">
+              <Stop offset="0" stopColor="#0b2239" />
+              <Stop offset="0.5" stopColor="#081a2e" />
+              <Stop offset="1" stopColor="#0b2239" />
+            </SvgGradient>
+            <ClipPath id="glassInner">
+              <Path d={inner} />
+            </ClipPath>
           </Defs>
-          <AnimatedPath animatedProps={back} fill="#38bdf8" opacity={0.35} />
-          <AnimatedPath animatedProps={front} fill="url(#tank)" />
+
+          {/* Back of the rim, seen through the glass. */}
+          <Path
+            d={`M ${cx - topHalf} ${RIM_Y} A ${topHalf} ${RIM_RY} 0 0 1 ${cx + topHalf} ${RIM_Y}`}
+            stroke="rgba(186,230,253,0.35)"
+            strokeWidth={2}
+            fill="none"
+          />
+          {/* The glass body, then the water inside it. */}
+          <Path d={outer} fill="url(#glassBody)" />
+          <G clipPath="url(#glassInner)">
+            <AnimatedPath animatedProps={back} fill="#38bdf8" opacity={0.35} />
+            <AnimatedPath animatedProps={front} fill="url(#tank)" />
+          </G>
+          {/* Thick glass base with a lit top edge. */}
+          <Path
+            d={`M ${cx - innerBase} ${BASE_TOP} L ${cx + innerBase} ${BASE_TOP} L ${cx + botHalf - 6} ${GLASS_H - 4} L ${cx - botHalf + 6} ${GLASS_H - 4} Z`}
+            fill="rgba(186,230,253,0.14)"
+          />
+          <Path
+            d={`M ${cx - innerBase + 10} ${BASE_TOP + 1} L ${cx + innerBase - 10} ${BASE_TOP + 1}`}
+            stroke="rgba(255,255,255,0.4)"
+            strokeWidth={1.5}
+            strokeLinecap="round"
+          />
+          {/* Walls and the front of the rim. */}
+          <Path d={outer} stroke="rgba(186,230,253,0.7)" strokeWidth={2.2} fill="none" strokeLinejoin="round" />
+          <Path
+            d={`M ${cx - topHalf} ${RIM_Y} A ${topHalf} ${RIM_RY} 0 0 0 ${cx + topHalf} ${RIM_Y}`}
+            stroke="rgba(224,242,254,0.85)"
+            strokeWidth={2.2}
+            fill="none"
+          />
+          {/* Reflections: a long streak down the left wall, a short one right. */}
+          <Path
+            d={`M ${cx - topHalf + 16} ${RIM_Y + 26} L ${cx - botHalf + 14} ${GLASS_H - 34}`}
+            stroke="rgba(255,255,255,0.22)"
+            strokeWidth={6}
+            strokeLinecap="round"
+          />
+          <Path
+            d={`M ${cx + topHalf - 18} ${RIM_Y + 30} L ${cx + topHalf - 24} ${RIM_Y + 90}`}
+            stroke="rgba(255,255,255,0.16)"
+            strokeWidth={3}
+            strokeLinecap="round"
+          />
         </Svg>
       ) : null}
 
@@ -231,22 +344,13 @@ export function HydrationCard({
 
       {/* Me: my face floating on my own surface. */}
       {width > 0 ? (
-        <Animated.View style={[styles.meFloat, { left: width * 0.8 - 19 }, meStyle]} pointerEvents="none">
+        <Animated.View style={[styles.meFloat, meStyle]} pointerEvents="none">
           <LemonAvatar uri={me.avatar} initial={(me.name.charAt(0) || '?').toUpperCase()} size={38} />
         </Animated.View>
       ) : null}
 
-      {/* Foreground: header, number, goal, controls. */}
+      {/* Inside the glass: banner, number, goal, controls. */}
       <View style={styles.content} pointerEvents="box-none">
-        <View style={styles.head}>
-          <Text style={styles.title}>💧 Hydration</Text>
-          <View style={[styles.chip, water.met && styles.chipMet]}>
-            <Text style={[styles.chipText, water.met && styles.chipTextMet]}>
-              {water.met ? 'Goal met ✓' : `${water.percent}%`}
-            </Text>
-          </View>
-        </View>
-
         <View style={styles.bannerSlot}>
           {live && partner ? (
             <Animated.View
@@ -305,7 +409,7 @@ export function HydrationCard({
           </View>
         </View>
 
-        <View style={styles.bottom}>
+        <View style={[styles.bottom, { paddingHorizontal: lowerInset }]}>
           <View style={styles.pills}>
             {DRINK_SIZES_ML.map((ml) => (
               <PressableScale
@@ -340,6 +444,7 @@ export function HydrationCard({
           </View>
         </View>
       </View>
+      </View>
     </View>
   );
 }
@@ -357,7 +462,7 @@ function useSurface(
 ) {
   return useAnimatedProps(() => {
     const steps = 24;
-    const base = CARD_H * (1 - level.value);
+    const base = surfaceY(level.value);
     const a = amp * (1 + slosh.value * 1.4);
     let d = '';
     for (let i = 0; i <= steps; i++) {
@@ -368,7 +473,7 @@ function useSurface(
         tilt.value * (x - W / 2);
       d += `${i === 0 ? 'M' : 'L'} ${Math.round(x)} ${Math.round(y * 10) / 10} `;
     }
-    d += `L ${W} ${CARD_H + 40} L 0 ${CARD_H + 40} Z`;
+    d += `L ${W} ${GLASS_H} L 0 ${GLASS_H} Z`;
     return { d };
   });
 }
@@ -391,7 +496,7 @@ function PourStream({
   }, [t, onDone]);
 
   const style = useAnimatedStyle(() => {
-    const surface = CARD_H * (1 - level.value);
+    const surface = surfaceY(level.value) + 6;
     const grow = Math.min(1, t.value / 0.3);
     const fade = t.value > 0.6 ? 1 - (t.value - 0.6) / 0.4 : 1;
     return {
@@ -410,19 +515,26 @@ function PourStream({
 }
 
 const styles = StyleSheet.create({
-  card: {
-    height: CARD_H,
-    borderRadius: radius['3xl'],
-    overflow: 'hidden',
-    backgroundColor: '#07162a',
+  glass: { height: GLASS_H },
+  content: {
+    ...StyleSheet.absoluteFill,
+    paddingTop: RIM_Y + 16,
+    paddingBottom: GLASS_H - BASE_TOP + 8,
+    justifyContent: 'space-between',
   },
-  content: { ...StyleSheet.absoluteFill, padding: 18, justifyContent: 'space-between' },
-  head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { ...font('extrabold', 17, { color: '#ffffff' }), letterSpacing: -0.3 },
-  chip: { borderRadius: 999, paddingHorizontal: 11, paddingVertical: 4, backgroundColor: 'rgba(125,211,252,0.18)' },
-  chipMet: { backgroundColor: 'rgba(48,209,88,0.22)' },
-  chipText: font('bold', 12.5, { color: '#bae6fd' }),
-  chipTextMet: font('bold', 12.5, { color: '#30d158' }),
+  head: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+    paddingHorizontal: 4,
+  },
+  title: { ...font('extrabold', 18, { color: '#0f172a' }), letterSpacing: -0.3 },
+  /* The header sits on the page, not in the glass: light chip, dark text. */
+  chip: { borderRadius: 999, paddingHorizontal: 11, paddingVertical: 4, backgroundColor: '#e0f2fe' },
+  chipMet: { backgroundColor: '#dcfce7' },
+  chipText: font('bold', 12.5, { color: '#0369a1' }),
+  chipTextMet: font('bold', 12.5, { color: '#15803d' }),
   bannerSlot: { height: 30, alignItems: 'center', justifyContent: 'center' },
   banner: {
     paddingHorizontal: 14,
@@ -475,9 +587,6 @@ const styles = StyleSheet.create({
   undo: font('bold', 12.5, { color: '#ffffff' }),
   partnerLine: {
     position: 'absolute',
-    left: 12,
-    right: 12,
-    top: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -490,10 +599,10 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(253,224,71,0.75)',
   },
   partnerTag: { ...font('bold', 11.5, { color: '#fde68a' }) },
-  meFloat: { position: 'absolute', top: 0 },
+  meFloat: { position: 'absolute', top: 0, left: 0 },
   stream: {
     position: 'absolute',
-    top: 0,
+    top: -6,
     borderBottomLeftRadius: 6,
     borderBottomRightRadius: 6,
     backgroundColor: '#7dd3fc',

@@ -682,13 +682,14 @@ export async function presentNudge(
   fromName: string,
   kind: ReminderKind = 'train',
   ml?: number | null,
+  detail: { drink?: string | null; milestone?: 'half' | 'goal' | null } = {},
 ): Promise<void> {
   if (!(await ensureNotificationPermission())) return;
   try {
     lastInAppNudgeAt = Date.now();
     await Notifications.scheduleNotificationAsync({
       content: {
-        ...reminderNotification(kind, fromName, ml),
+        ...reminderNotification(kind, fromName, ml, detail),
         // `local` marks this as the in-app copy, which is never the duplicate.
         data: { type: 'couple-nudge', kind, local: true },
       },

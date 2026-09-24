@@ -518,3 +518,20 @@ describe('the partner’s water today', () => {
     expect(partnerWaterToday(water({ day: TODAY, waterMl: 0 }), TODAY)).toBeNull();
   });
 });
+
+describe('partner goal and layers', () => {
+  const { partnerGoalToday, partnerLayersToday } = jest.requireActual('../couple') as typeof import('../couple');
+  const m = (daily: unknown) => ({ uid: 'b', displayName: 'Bea', avatarUrl: null, trainedDays: [], totalReps: 0, daily }) as never;
+
+  it('reads today’s shared goal and layers', () => {
+    const member = m({ day: '2026-09-24', waterMl: 750, goalMl: 3000, layers: [{ k: 'coffee', ml: 250 }] });
+    expect(partnerGoalToday(member, '2026-09-24')).toBe(3000);
+    expect(partnerLayersToday(member, '2026-09-24')).toEqual([{ k: 'coffee', ml: 250 }]);
+  });
+
+  it('is empty for another day, an older app, or junk', () => {
+    expect(partnerGoalToday(m({ day: '2026-09-23', goalMl: 3000 }), '2026-09-24')).toBeNull();
+    expect(partnerGoalToday(m({ day: '2026-09-24' }), '2026-09-24')).toBeNull();
+    expect(partnerLayersToday(m({ day: '2026-09-24', layers: [{ k: 'x', ml: 'no' }] }), '2026-09-24')).toEqual([]);
+  });
+});

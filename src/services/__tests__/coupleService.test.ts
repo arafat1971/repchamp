@@ -653,3 +653,51 @@ describe('lowerCoupleHydration', () => {
     expect((mockStore.couples.get(code!) as unknown as Couple).members[1]).toEqual(before);
   });
 });
+
+describe('hydration extras: goal and layers', () => {
+  it('writes a sane goal and layers with the total', async () => {
+    const code = await createCouple(ADA);
+    await recordCoupleHydration(code!, 'ada', '2026-09-24', 750, {
+      goalMl: 3000,
+      layers: [
+        { k: 'water', ml: 500 },
+        { k: 'coffee', ml: 250 },
+      ],
+    });
+    const c = mockStore.couples.get(code!) as unknown as Couple;
+    expect(c.members[0]!.daily).toEqual({
+      day: '2026-09-24',
+      waterMl: 750,
+      goalMl: 3000,
+      layers: [
+        { k: 'water', ml: 500 },
+        { k: 'coffee', ml: 250 },
+      ],
+    });
+  });
+
+  it('drops an out-of-band goal and malformed layers', async () => {
+    const code = await createCouple(ADA);
+    await recordCoupleHydration(code!, 'ada', '2026-09-24', 500, {
+      goalMl: 99_000,
+      layers: [
+        { k: 'water', ml: -5 },
+        { k: 'a-very-long-kind-name', ml: 100 },
+        { k: 'tea', ml: 500 },
+      ],
+    });
+    const daily = (mockStore.couples.get(code!) as unknown as Couple).members[0]!.daily!;
+    expect(daily.goalMl).toBeUndefined();
+    expect(daily.layers).toEqual([{ k: 'tea', ml: 500 }]);
+  });
+
+  /* Not sharing water means none of it: the goal and layers go too. */
+  it('withdraws goal and layers with the water', async () => {
+    const code = await createCouple(ADA);
+    await recordCoupleHydration(code!, 'ada', '2026-09-24', 500, { goalMl: 2000, layers: [{ k: 'water', ml: 500 }] });
+    await recordCoupleSteps(code!, 'ada', '2026-09-24', 4000);
+    await withdrawCoupleDaily(code!, 'ada', 'waterMl');
+    const daily = (mockStore.couples.get(code!) as unknown as Couple).members[0]!.daily;
+    expect(daily).toEqual({ day: '2026-09-24', steps: 4000 });
+  });
+});

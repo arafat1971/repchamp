@@ -68,6 +68,17 @@ export interface CoupleDailyMetrics {
    * never "they did not walk".
    */
   steps?: number;
+  /**
+   * This member's own daily water goal, so a partner's jar fills against the
+   * goal they actually set rather than a default. Absent from older apps.
+   */
+  goalMl?: number;
+  /**
+   * Today's drinks as bottom-to-top layers — `k` a drink kind, `ml` its
+   * volume — so a partner's jar shows the same colours. Absent from older
+   * apps, which read as all water.
+   */
+  layers?: { k: string; ml: number }[];
 }
 
 export interface Couple {
@@ -89,6 +100,10 @@ export interface Couple {
     kind?: string;
     /** For a `drank` nudge, the amount just logged. */
     ml?: number;
+    /** For a `drank` nudge, the drink kind when it wasn't water. */
+    drink?: string;
+    /** For a `drank` nudge, a half-goal or goal crossing. */
+    milestone?: 'half' | 'goal';
     at?: { toMillis?: () => number } | null;
   } | null;
 }
@@ -761,4 +776,30 @@ export function partnerStepsToday(
   const steps = daily.steps;
   if (typeof steps !== 'number' || !Number.isFinite(steps) || steps <= 0) return null;
   return steps;
+}
+
+/**
+ * The partner's water goal today, or null when their app has not shared one
+ * (older app, or not synced today). The caller falls back to a default.
+ */
+export function partnerGoalToday(
+  member: CoupleMember | null | undefined,
+  today: string,
+): number | null {
+  const daily = member?.daily;
+  if (!daily || daily.day !== today) return null;
+  const g = daily.goalMl;
+  return typeof g === 'number' && Number.isFinite(g) && g > 0 ? g : null;
+}
+
+/** The partner's drink layers today, bottom to top; empty when not shared. */
+export function partnerLayersToday(
+  member: CoupleMember | null | undefined,
+  today: string,
+): { k: string; ml: number }[] {
+  const daily = member?.daily;
+  if (!daily || daily.day !== today || !Array.isArray(daily.layers)) return [];
+  return daily.layers.filter(
+    (l) => l && typeof l.k === 'string' && typeof l.ml === 'number' && Number.isFinite(l.ml) && l.ml > 0,
+  );
 }

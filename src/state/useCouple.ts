@@ -155,6 +155,7 @@ export function useCouple(): CoupleView {
           sender?.displayName ?? 'Your partner',
           parseReminderKind(next?.nudge?.kind),
           next?.nudge?.ml,
+          { drink: next?.nudge?.drink, milestone: next?.nudge?.milestone },
         );
       }
     });

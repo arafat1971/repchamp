@@ -27,8 +27,13 @@ import { exerciseHomeStats } from '@/domain/exerciseHomeStats';
 import { firstNameOf, selectHomeGreeting } from '@/domain/homeGreeting';
 import { dailyChallengeProgress } from '@/domain/dailyChallenge';
 import { myExerciseBreakdown, partnerWidget } from '@/domain/coupleExercises';
-import { partnerStepsToday, partnerWaterToday } from '@/domain/couple';
-import { DEFAULT_DAILY_GOAL_ML, drinksOnDay, hydrationProgress, stepGoalMl } from '@/domain/hydration';
+import {
+  partnerGoalToday,
+  partnerLayersToday,
+  partnerStepsToday,
+  partnerWaterToday,
+} from '@/domain/couple';
+import { drinksOnDay, hydrationProgress, stepGoalMl } from '@/domain/hydration';
 import { lightImpactHaptic, selectionHaptic } from '@/lib/feedback';
 import { shareDrink, syncHydrationNow, syncStepsNow } from '@/services/hydrationSync';
 import { useStepsToday } from '@/state/useStepsToday';
@@ -171,7 +176,12 @@ export default function HomeScreen() {
   const partnerGlass = useMemo(() => {
     const name = couple.partner?.displayName;
     if (!couple.paired || !name) return null;
-    return { name, ml: partnerWaterToday(couple.partner, today) };
+    return {
+      name,
+      ml: partnerWaterToday(couple.partner, today),
+      goalMl: partnerGoalToday(couple.partner, today),
+      layers: partnerLayersToday(couple.partner, today),
+    };
   }, [couple.paired, couple.partner, today]);
 
   const coupleId = couple.couple?.id ?? null;
@@ -202,6 +212,7 @@ export default function HomeScreen() {
 
   const logWater = useCallback(
     (ml: number, kind?: string) => {
+      const before = selectTodayMl(useHydrationStore.getState(), dayKey());
       const entry = useHydrationStore.getState().logDrink(ml, kind);
       // A refused tap gets no haptic: the confirmation must mean something.
       if (!entry) return;
@@ -217,11 +228,13 @@ export default function HomeScreen() {
           uid: myUid,
           senderName: profile.displayName || profile.username || 'Your partner',
           ml: entry.ml,
-          partnerMet: (partnerWaterToday(couple.partner, dayKey()) ?? 0) >= DEFAULT_DAILY_GOAL_ML,
+          kind,
+          beforeMl: before,
+          goalMl: useHydrationStore.getState().goalMl,
         }),
       );
     },
-    [coupleId, myUid, profile.displayName, profile.username, couple.partner],
+    [coupleId, myUid, profile.displayName, profile.username],
   );
 
   const undoWater = useCallback(() => {
@@ -240,8 +253,10 @@ export default function HomeScreen() {
     if (next === current) return;
     selectionHaptic();
     useHydrationStore.getState().setGoalMl(next);
+    // The partner's jar of mine fills against this goal — tell them it moved.
+    void syncHydrationNow(coupleId, myUid);
     track('water_goal_set', { goalMl: next });
-  }, []);
+  }, [coupleId, myUid]);
 
   const greetingCopy = useMemo(
     () => selectHomeGreeting({ streak, trainedToday, firstName }),
@@ -549,6 +564,8 @@ export default function HomeScreen() {
               : null
           }
           partnerMl={partnerGlass?.ml ?? null}
+          partnerGoalMl={partnerGlass?.goalMl ?? null}
+          partnerLayers={partnerGlass?.layers}
           onLogWater={logWater}
           onUndoWater={todayDrinks.length > 0 ? undoWater : undefined}
           onStepWaterGoal={stepWaterGoal}

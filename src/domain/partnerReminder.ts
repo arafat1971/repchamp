@@ -1,3 +1,4 @@
+import { DRINK_META, parseDrinkKind } from '@/domain/drinkKinds';
 import { formatMl } from '@/domain/hydration';
 
 /**
@@ -86,13 +87,35 @@ export function reminderNotification(
   senderName: string,
   /** For `drank`: the amount just logged, when known. */
   ml?: number | null,
+  /** For `drank`: what it was, and whether it crossed a milestone. */
+  detail: { drink?: string | null; milestone?: 'half' | 'goal' | null } = {},
 ): { title: string; body: string } {
   const name = senderName.trim() || 'Your partner';
   const d = DEFS[kind];
-  if (kind === 'drank' && typeof ml === 'number' && ml > 0) {
-    return { title: `${name} just drank ${formatMl(ml)} 💧`, body: d.body };
+  if (kind === 'drank') {
+    if (detail.milestone === 'goal') {
+      return { title: `${name} hit their water goal 🎉`, body: 'Your turn — can you match it today?' };
+    }
+    if (detail.milestone === 'half') {
+      return { title: `${name} is halfway to their water goal 💧`, body: 'Keep pace — log a drink.' };
+    }
+    const drink = parseDrinkKind(detail.drink);
+    if (drink !== 'water' && typeof ml === 'number' && ml > 0) {
+      const m = DRINK_META[drink];
+      return {
+        title: `${name} had ${article(m.label)} ${m.label.toLowerCase()} ${m.emoji} · ${formatMl(ml)}`,
+        body: d.body,
+      };
+    }
+    if (typeof ml === 'number' && ml > 0) {
+      return { title: `${name} just drank ${formatMl(ml)} 💧`, body: d.body };
+    }
   }
   return { title: d.title(name), body: d.body };
+}
+
+function article(word: string): string {
+  return /^[aeiou]/i.test(word) ? 'an' : 'a';
 }
 
 /** Confirmation on the sender's side. */

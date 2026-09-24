@@ -24,8 +24,9 @@ import { BearJar, type BearTheme } from '@/components/home/BearJar';
 import { HomeSectionHeader } from '@/components/home/HomeSectionHeader';
 import { LemonAvatar } from '@/components/home/LemonAvatar';
 import { CountUp } from '@/components/motion';
-import { DRINK_KINDS, DRINK_META, drinkLayers, type DrinkKind } from '@/domain/drinkKinds';
+import { DRINK_KINDS, DRINK_META, drinkLayers, parseDrinkKind, type DrinkKind } from '@/domain/drinkKinds';
 import {
+  DEFAULT_DAILY_GOAL_ML,
   DRINK_SIZES_ML,
   MAX_DAILY_GOAL_ML,
   MIN_DAILY_GOAL_ML,
@@ -69,6 +70,8 @@ export function HydrationCard({
   me,
   partner,
   partnerMl,
+  partnerGoalMl,
+  partnerLayers,
   onLogWater,
   onUndoWater,
   onStepWaterGoal,
@@ -79,6 +82,10 @@ export function HydrationCard({
   me: Person;
   partner: Person | null;
   partnerMl: number | null;
+  /** Their own goal when their app shares it; otherwise the default. */
+  partnerGoalMl?: number | null;
+  /** Their drinks as layers (kind + ml), bottom to top; empty reads as water. */
+  partnerLayers?: readonly { k: string; ml: number }[];
   onLogWater: (ml: number, kind: DrinkKind) => void;
   onUndoWater?: () => void;
   onStepWaterGoal: (direction: 1 | -1) => void;
@@ -141,9 +148,19 @@ export function HydrationCard({
     return () => clearTimeout(t);
   }, [partnerMl]);
 
+  /* Their jar fills against their own goal — shared by their app — so a full
+     bear means they really met it. Older apps share none: the default. */
+  const theirGoal = partnerGoalMl && partnerGoalMl > 0 ? partnerGoalMl : DEFAULT_DAILY_GOAL_ML;
   const partnerPercent =
-    partnerMl == null ? 0 : Math.min(100, Math.round((partnerMl / Math.max(1, water.goalMl)) * 100));
-  const partnerMet = partnerPercent >= 100;
+    partnerMl == null ? 0 : Math.min(100, Math.round((partnerMl / theirGoal) * 100));
+  const partnerMet = partnerMl != null && partnerMl >= theirGoal;
+  const theirLayers = useMemo(() => {
+    const list = partnerLayers ?? [];
+    const total = list.reduce((sum, l) => sum + l.ml, 0) || 1;
+    return list.map((l) => ({ color: DRINK_META[parseDrinkKind(l.k)].color, share: l.ml / total }));
+  }, [partnerLayers]);
+  /* What they just had, for the live banner: their newest layer's kind. */
+  const theirLatest = parseDrinkKind(partnerLayers?.[partnerLayers.length - 1]?.k);
   const bothMet = water.met && partnerMet;
 
   const atMin = water.goalMl <= MIN_DAILY_GOAL_ML;
@@ -171,7 +188,9 @@ export function HydrationCard({
             exiting={FadeOutUp.duration(250)}
             style={styles.live}
           >
-            {partner.name} just had {formatMl(live.ml)} 💧
+            {theirLatest === 'water'
+              ? `${partner.name} just drank ${formatMl(live.ml)} 💧`
+              : `${partner.name} had ${DRINK_META[theirLatest].label.toLowerCase()} ${DRINK_META[theirLatest].emoji} · ${formatMl(live.ml)}`}
           </Animated.Text>
         ) : bothMet && partner ? (
           <Text style={styles.cheers}>🥂 You both hit your goal</Text>
@@ -195,6 +214,7 @@ export function HydrationCard({
             width={bearW}
             theme={MY_BEAR}
             layers={layers}
+            goalMl={water.goalMl}
             tilt={tilt}
             phase={phase}
             pourKey={myPour}
@@ -210,6 +230,8 @@ export function HydrationCard({
               percent={partnerPercent}
               width={bearW}
               theme={THEIR_BEAR}
+              layers={theirLayers}
+              goalMl={theirGoal}
               tilt={tilt}
               phase={phase}
               pourKey={theirPour}
@@ -370,6 +392,7 @@ function BearColumn({
   width,
   theme,
   layers,
+  goalMl,
   tilt,
   phase,
   pourKey,
@@ -384,6 +407,8 @@ function BearColumn({
   width: number;
   theme: BearTheme;
   layers?: readonly { color: string; share: number }[];
+  /** Whose goal this bear fills against, shown under the amount. */
+  goalMl: number;
   tilt: SharedValue<number>;
   phase: SharedValue<number>;
   pourKey: number;
@@ -415,6 +440,7 @@ function BearColumn({
       ) : (
         <Text style={styles.amount}>{formatMl(ml)}</Text>
       )}
+      <Text style={styles.ofGoal}>of {formatMl(goalMl)}</Text>
       <Text style={styles.label} numberOfLines={1}>
         {label}
       </Text>
@@ -434,7 +460,8 @@ const styles = StyleSheet.create({
   badge: { position: 'absolute', right: -4, bottom: -2 },
   amount: { ...font('extrabold', 19, { color: INK }), marginTop: 6, letterSpacing: -0.4 },
   amountMuted: { color: '#94a3b8' },
-  label: { ...font('medium', 12, { color: MUTED }), maxWidth: 120 },
+  ofGoal: font('medium', 11.5, { color: '#94a3b8' }),
+  label: { ...font('semibold', 12.5, { color: MUTED }), maxWidth: 120, marginTop: 1 },
   picker: {
     marginTop: 14,
     padding: 12,
@@ -463,11 +490,11 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
     borderColor: HAIR,
-    paddingHorizontal: 4,
-    height: 40,
+    paddingHorizontal: 2,
+    height: 44,
   },
-  goalBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  goalGlyph: { ...font('bold', 18, { color: INK }), lineHeight: 21 },
+  goalBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  goalGlyph: { ...font('bold', 20, { color: INK }), lineHeight: 23 },
   goalText: font('semibold', 13.5, { color: INK }),
   off: { opacity: 0.3 },
   undo: {

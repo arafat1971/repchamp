@@ -15,7 +15,8 @@
 
 import { partnerStepsToday, partnerWaterToday } from '@/domain/couple';
 import { METRIC_FIELD, type SharedMetricKey } from '@/domain/partnerSharing';
-import { shouldShareDrink } from '@/domain/waterShare';
+import { drinkLayers } from '@/domain/drinkKinds';
+import { planDrinkNotice } from '@/domain/waterShare';
 import {
   lowerCoupleHydration,
   nudgePartner,
@@ -34,7 +35,17 @@ import { dayKey } from '@/domain/progression';
  * redundant write of a value that is already correct, which is cheaper than
  * another key in storage to keep consistent.
  */
-let lastPublished: { day: string; ml: number } | null = null;
+let lastPublished: { day: string; ml: number; sig: string } | null = null;
+
+/**
+ * My goal and today's drink layers, as they go onto the couple document —
+ * so my partner's jar fills against my own goal, in my drinks' colours.
+ */
+function hydrationExtras(today: string): { goalMl: number; layers: { k: string; ml: number }[] } {
+  const state = useHydrationStore.getState();
+  const layers = drinkLayers(state.drinks.filter((d) => d.day === today)).map((l) => ({ k: l.kind, ml: l.ml }));
+  return { goalMl: state.goalMl, layers };
+}
 
 /** Forget the publish memo — for tests, and for a uid change. */
 export function resetHydrationSyncMemo(): void {
@@ -75,6 +86,11 @@ async function syncHydrationOnce(
 
   const today = dayKey();
   const ml = selectTodayMl(useHydrationStore.getState(), today);
+  const extras = hydrationExtras(today);
+  /* The goal and layers can change without the total — a goal step, or a
+     coffee swapped for a water of the same size — so they are part of what
+     "unchanged" means. */
+  const sig = JSON.stringify(extras);
 
   /* Less than this phone itself published earlier today can only mean an undo
      here — the local store never shrinks any other way. Send the difference,
@@ -84,8 +100,8 @@ async function syncHydrationOnce(
      the day is exactly the case that must reach the partner. */
   if (lastPublished && lastPublished.day === today && ml < lastPublished.ml) {
     try {
-      await lowerCoupleHydration(coupleId, uid, today, lastPublished.ml - ml);
-      lastPublished = { day: today, ml };
+      await lowerCoupleHydration(coupleId, uid, today, lastPublished.ml - ml, extras);
+      lastPublished = { day: today, ml, sig };
     } catch {
       // Best-effort; the next call retries the same difference.
     }
@@ -96,11 +112,13 @@ async function syncHydrationOnce(
      no claim to make, and writing 0 would overwrite a total this athlete
      published from another device. */
   if (ml <= 0) return;
-  if (lastPublished && lastPublished.day === today && lastPublished.ml === ml) return;
+  if (lastPublished && lastPublished.day === today && lastPublished.ml === ml && lastPublished.sig === sig) {
+    return;
+  }
 
   try {
-    await recordCoupleHydration(coupleId, uid, today, ml);
-    lastPublished = { day: today, ml };
+    await recordCoupleHydration(coupleId, uid, today, ml, extras);
+    lastPublished = { day: today, ml, sig };
   } catch {
     // Best-effort; the next foreground repairs it.
   }
@@ -193,24 +211,31 @@ export async function shareDrink(input: {
   uid: string | null | undefined;
   senderName: string;
   ml: number;
-  partnerMet: boolean;
+  /** What it was — named in the notification when it isn't water. */
+  kind?: string;
+  /** My total before this drink, and my goal — for the milestones. */
+  beforeMl: number;
+  goalMl: number;
 }): Promise<void> {
   const { coupleId, uid } = input;
   if (!coupleId || !uid) return;
   const prefs = useSharingStore.getState();
-  if (
-    !shouldShareDrink({
-      paired: true,
-      sharingWater: prefs.water,
-      drinkUpdates: prefs.drinkUpdates,
-      ml: input.ml,
-      partnerMet: input.partnerMet,
-    })
-  ) {
-    return;
-  }
+  const plan = planDrinkNotice({
+    paired: true,
+    sharingWater: prefs.water,
+    drinkUpdates: prefs.drinkUpdates,
+    ml: input.ml,
+    beforeMl: input.beforeMl,
+    goalMl: input.goalMl,
+  });
+  if (!plan) return;
   try {
-    await nudgePartner(coupleId, uid, input.senderName, 'drank', { ml: input.ml, limit: 'waterShare' });
+    await nudgePartner(coupleId, uid, input.senderName, 'drank', {
+      ml: input.ml,
+      drink: input.kind,
+      milestone: plan.milestone,
+      limit: plan.limit,
+    });
   } catch {
     // Throttled or offline — the partner still sees the total live.
   }

@@ -88,11 +88,11 @@ describe('undo reaches the partner', () => {
   it('sends the undone amount as a subtraction', async () => {
     useHydrationStore.setState({ drinks: [drink('a', 500), drink('b', 250)] as never });
     await syncHydrationNow('C1', 'ada');
-    expect(mockRecordWater).toHaveBeenLastCalledWith('C1', 'ada', dayKey(), 750);
+    expect(mockRecordWater).toHaveBeenLastCalledWith('C1', 'ada', dayKey(), 750, expect.anything());
 
     useHydrationStore.setState({ drinks: [drink('a', 500)] as never });
     await syncHydrationNow('C1', 'ada');
-    expect(mockLower).toHaveBeenCalledWith('C1', 'ada', dayKey(), 250);
+    expect(mockLower).toHaveBeenCalledWith('C1', 'ada', dayKey(), 250, expect.anything());
     expect(mockRecordWater).toHaveBeenCalledTimes(1);
   });
 
@@ -103,7 +103,7 @@ describe('undo reaches the partner', () => {
     await syncHydrationNow('C1', 'ada');
     useHydrationStore.setState({ drinks: [] as never });
     await syncHydrationNow('C1', 'ada');
-    expect(mockLower).toHaveBeenCalledWith('C1', 'ada', dayKey(), 500);
+    expect(mockLower).toHaveBeenCalledWith('C1', 'ada', dayKey(), 500, expect.anything());
   });
 
   /* After a restart the memo is gone: the phone cannot tell an undo from a
@@ -116,22 +116,37 @@ describe('undo reaches the partner', () => {
 });
 
 describe('shareDrink', () => {
-  const input = { coupleId: 'C1', uid: 'ada', senderName: 'Ada', ml: 250, partnerMet: false };
+  const input = { coupleId: 'C1', uid: 'ada', senderName: 'Ada', ml: 250, beforeMl: 0, goalMl: 2000 };
 
   beforeEach(() => useSharingStore.setState({ water: true, drinkUpdates: true }));
 
-  it('tells the partner, with the amount, from its own rate-limit bucket', async () => {
-    await shareDrink(input);
-    expect(mockNudge).toHaveBeenCalledWith('C1', 'ada', 'Ada', 'drank', { ml: 250, limit: 'waterShare' });
+  it('sends a regular update, with the drink, from the throttled bucket', async () => {
+    await shareDrink({ ...input, kind: 'coffee' });
+    expect(mockNudge).toHaveBeenCalledWith('C1', 'ada', 'Ada', 'drank', {
+      ml: 250,
+      drink: 'coffee',
+      milestone: null,
+      limit: 'waterShare',
+    });
   });
 
-  it('stays quiet when switched off, not sharing water, or the partner is done', async () => {
+  /* The old bug: a partner past the default 2 L never heard again. The
+     partner no longer gates the send; milestones always go. */
+  it('sends a milestone from its own bucket', async () => {
+    await shareDrink({ ...input, beforeMl: 1750 });
+    expect(mockNudge).toHaveBeenCalledWith('C1', 'ada', 'Ada', 'drank', {
+      ml: 250,
+      drink: undefined,
+      milestone: 'goal',
+      limit: 'waterMilestone',
+    });
+  });
+
+  it('stays quiet when switched off or not sharing water', async () => {
     useSharingStore.setState({ drinkUpdates: false });
     await shareDrink(input);
     useSharingStore.setState({ drinkUpdates: true, water: false });
     await shareDrink(input);
-    useSharingStore.setState({ water: true });
-    await shareDrink({ ...input, partnerMet: true });
     expect(mockNudge).not.toHaveBeenCalled();
   });
 
@@ -139,6 +154,38 @@ describe('shareDrink', () => {
   it('swallows a throttled send', async () => {
     mockNudge.mockRejectedValueOnce(new Error('rate limited'));
     await expect(shareDrink(input)).resolves.toBeUndefined();
+  });
+});
+
+describe('goal and layers ride along', () => {
+  const drink = (id: string, ml: number, kind?: string) => ({
+    id,
+    ml,
+    kind,
+    at: new Date(Date.now() + Number(id.slice(1)) * 1000).toISOString(),
+    day: dayKey(),
+  });
+
+  it('publishes my goal and drink layers with the total', async () => {
+    useHydrationStore.setState({ goalMl: 3000, drinks: [drink('d1', 500), drink('d2', 250, 'coffee')] as never });
+    await syncHydrationNow('C1', 'ada');
+    expect(mockRecordWater).toHaveBeenLastCalledWith('C1', 'ada', dayKey(), 750, {
+      goalMl: 3000,
+      layers: [
+        { k: 'water', ml: 500 },
+        { k: 'coffee', ml: 250 },
+      ],
+    });
+  });
+
+  /* A goal step changes nothing about the total, but the partner's jar
+     fills against it — so it must still go out. */
+  it('republishes when only the goal changes', async () => {
+    useHydrationStore.setState({ goalMl: 2000, drinks: [drink('d1', 500)] as never });
+    await syncHydrationNow('C1', 'ada');
+    useHydrationStore.setState({ goalMl: 2250 });
+    await syncHydrationNow('C1', 'ada');
+    expect(mockRecordWater).toHaveBeenCalledTimes(2);
   });
 });
 

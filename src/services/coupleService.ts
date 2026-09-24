@@ -23,7 +23,7 @@ import {
   type CoupleDailyMetrics,
   type CoupleMember,
 } from '@/domain/couple';
-import { MAX_DAILY_ML } from '@/domain/hydration';
+import { MAX_DAILY_GOAL_ML, MAX_DAILY_ML, MIN_DAILY_GOAL_ML } from '@/domain/hydration';
 import { reminderNotification, type ReminderKind } from '@/domain/partnerReminder';
 import { MAX_DAILY_STEPS } from '@/domain/steps';
 import {
@@ -337,9 +337,35 @@ export async function recordCoupleHydration(
   uid: string,
   day: string,
   waterMl: number,
+  extras: HydrationExtras = {},
 ): Promise<void> {
   if (!Number.isFinite(waterMl) || waterMl < 0 || waterMl > MAX_DAILY_ML) return;
-  await recordCoupleDaily(coupleId, uid, day, { waterMl });
+  await recordCoupleDaily(coupleId, uid, day, { waterMl, ...cleanExtras(extras) });
+}
+
+/** The goal and drink layers that ride along with a water total. */
+export interface HydrationExtras {
+  goalMl?: number;
+  layers?: { k: string; ml: number }[];
+}
+
+/**
+ * Only sane extras reach the document: a goal inside the app's band, at
+ * most six layers, each a short kind with a positive, finite volume.
+ */
+function cleanExtras(extras: HydrationExtras): HydrationExtras {
+  const out: HydrationExtras = {};
+  const g = extras.goalMl;
+  if (typeof g === 'number' && Number.isFinite(g) && g >= MIN_DAILY_GOAL_ML && g <= MAX_DAILY_GOAL_ML) {
+    out.goalMl = Math.round(g);
+  }
+  if (Array.isArray(extras.layers)) {
+    out.layers = extras.layers
+      .filter((l) => typeof l.k === 'string' && l.k.length <= 12 && Number.isFinite(l.ml) && l.ml > 0 && l.ml <= MAX_DAILY_ML)
+      .slice(-6)
+      .map((l) => ({ k: l.k, ml: Math.round(l.ml) }));
+  }
+  return out;
 }
 
 /**
@@ -371,7 +397,7 @@ async function recordCoupleDaily(
   coupleId: string,
   uid: string,
   day: string,
-  patch: { waterMl?: number; steps?: number },
+  patch: { waterMl?: number; steps?: number; goalMl?: number; layers?: { k: string; ml: number }[] },
 ): Promise<void> {
   if (!isFirebaseConfigured()) return;
 
@@ -399,6 +425,10 @@ async function recordCoupleDaily(
       if (patch.steps !== undefined) {
         merged.steps = sameDay ? Math.max(prev?.steps ?? 0, patch.steps) : patch.steps;
       }
+      /* Goal and layers describe *now*, not a running total, so the newest
+         write simply wins — no max. */
+      if (patch.goalMl !== undefined) merged.goalMl = patch.goalMl;
+      if (patch.layers !== undefined) merged.layers = patch.layers;
 
       return { ...m, daily: merged };
     });
@@ -425,9 +455,11 @@ export async function lowerCoupleHydration(
   uid: string,
   day: string,
   byMl: number,
+  extras: HydrationExtras = {},
 ): Promise<void> {
   if (!isFirebaseConfigured()) return;
   if (!Number.isFinite(byMl) || byMl <= 0) return;
+  const clean = cleanExtras(extras);
 
   const ref = coupleDoc(coupleId);
   await firestore().runTransaction(async (tx) => {
@@ -443,11 +475,14 @@ export async function lowerCoupleHydration(
     const members = couple.members.map((m) => {
       if (m.uid !== uid || !m.daily) return m;
       const daily: CoupleDailyMetrics = { ...m.daily };
+      if (clean.goalMl !== undefined) daily.goalMl = clean.goalMl;
       if (next > 0) {
         daily.waterMl = next;
+        if (clean.layers !== undefined) daily.layers = clean.layers;
         return { ...m, daily };
       }
       delete daily.waterMl;
+      delete daily.layers;
       if (daily.steps !== undefined) return { ...m, daily };
       const { daily: _gone, ...withoutDaily } = m;
       return withoutDaily;
@@ -489,6 +524,11 @@ export async function withdrawCoupleDaily(
       if (m.uid !== uid || !m.daily) return m;
       const rest: CoupleDailyMetrics = { ...m.daily };
       delete rest[key];
+      // Water's goal and layers go with it: not sharing water means none of it.
+      if (key === 'waterMl') {
+        delete rest.goalMl;
+        delete rest.layers;
+      }
       const hasOther = rest.waterMl !== undefined || rest.steps !== undefined;
       if (hasOther) return { ...m, daily: rest };
       const { daily: _gone, ...withoutDaily } = m;
@@ -524,8 +564,12 @@ export async function nudgePartner(
   options: {
     /** For `drank`: the amount just logged. */
     ml?: number;
+    /** For `drank`: the drink kind, when it wasn't water. */
+    drink?: string;
+    /** For `drank`: a half-goal or goal crossing. */
+    milestone?: 'half' | 'goal' | null;
     /** Which spam bucket this spends; automatic updates use their own. */
-    limit?: 'coupleNudge' | 'waterShare';
+    limit?: 'coupleNudge' | 'waterShare' | 'waterMilestone';
   } = {},
 ): Promise<void> {
   if (!isFirebaseConfigured()) return;
@@ -542,6 +586,8 @@ export async function nudgePartner(
         fromUid,
         kind,
         ...(ml ? { ml } : {}),
+        ...(options.drink && options.drink !== 'water' ? { drink: options.drink } : {}),
+        ...(options.milestone ? { milestone: options.milestone } : {}),
         at: firestore.FieldValue.serverTimestamp(),
       },
     },
@@ -568,7 +614,10 @@ export async function nudgePartner(
       headers: { 'content-type': 'application/json', accept: 'application/json' },
       body: JSON.stringify({
         to: token,
-        ...reminderNotification(kind, senderName, ml),
+        ...reminderNotification(kind, senderName, ml, {
+          drink: options.drink,
+          milestone: options.milestone,
+        }),
         // Tagged so the foreground handler can suppress the duplicate (the in-app
         // nudge already showed it) — see `installForegroundNudgeSuppressor`.
         data: { type: 'couple-nudge', coupleId, kind, ...(ml ? { ml } : {}) },

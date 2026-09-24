@@ -112,6 +112,9 @@ export const RATE_LIMITS = {
   /* Automatic "just drank" updates: their own bucket, so they never spend
      the manual reminders, and at most one per 90 minutes. */
   waterShare: { max: 1, windowMs: 90 * 60 * 1000 },
+  /* Half-goal and goal crossings: at most twice a day by nature; the cap only
+     stops a goal nudged up and down from repeating them. */
+  waterMilestone: { max: 3, windowMs: 12 * 60 * 60 * 1000 },
   report: { max: 10, windowMs: 24 * 60 * 60 * 1000 },
   reportSameTarget: { max: 1, windowMs: 24 * 60 * 60 * 1000 },
 } as const;

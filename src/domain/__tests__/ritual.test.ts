@@ -11,6 +11,7 @@ import {
   cleanTicks,
   isHere,
   isNewPoke,
+  journey,
   lastDays,
   ritualFor,
   ritualLine,
@@ -204,5 +205,29 @@ describe('the couple plan', () => {
     const s = ritualFor({ ml: 0, goalMl: 2000, steps: 5000, reps: 0, ticks: ['sleep'] }, { ...plan, picks: [...plan.picks] });
     expect(s.find((x) => x.habit.id === 'walk')!.done).toBe(true);
     expect(s.find((x) => x.habit.id === 'sleep')!.done).toBe(true);
+  });
+});
+
+describe('journey', () => {
+  const today = '2026-09-25';
+  it('lays out thirty days with both scores added', () => {
+    const j = journey({ [today]: { me: 4, them: 3 } }, today);
+    expect(j.days).toHaveLength(30);
+    expect(j.days[29]).toEqual({ day: today, together: 7 });
+    expect(j.since).toBe(today);
+    expect(j.tracked).toBe(1);
+  });
+
+  it('counts perfect days across everything recorded', () => {
+    const j = journey({ '2026-08-01': { me: 6, them: 6 }, [today]: { me: 6, them: 6 }, '2026-09-24': { me: 6, them: 5 } }, today);
+    expect(j.perfectDays).toBe(2);
+  });
+
+  it('only reports a change with a first and a latest week that do not overlap', () => {
+    const h: Record<string, { me: number; them: number }> = {};
+    lastDays(today, 9).forEach((d) => (h[d] = { me: 2, them: 2 }));
+    expect(journey(h, today).change).toBeNull();
+    lastDays(today, 14).forEach((d, i) => (h[d] = { me: i < 7 ? 2 : 4, them: 3 }));
+    expect(journey(h, today).change).toEqual({ from: 2, to: 4 });
   });
 });

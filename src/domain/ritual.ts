@@ -360,3 +360,45 @@ export function trendLine(trend: RitualWeek['trend']): string {
   if (diff <= -0.3) return `Down ${Math.abs(diff)} a day on last week.`;
   return `Steady at ${Math.round(trend.now * 10) / 10} a day.`;
 }
+
+/* ------------------------------------------------------------------ *
+ * The long view
+ * ------------------------------------------------------------------ */
+
+export interface Journey {
+  /** The last 30 days, oldest first: both scores added, of `total * 2`. */
+  days: { day: string; together: number }[];
+  perfectDays: number;
+  /** Days this phone has recorded at all. */
+  tracked: number;
+  /** The first recorded day, `YYYY-MM-DD`, or null. */
+  since: string | null;
+  /**
+   * My habits a day over my first recorded week against my latest week —
+   * null until each side has at least three days, so a single day is never
+   * called a change.
+   */
+  change: { from: number; to: number } | null;
+}
+
+export function journey(history: Readonly<Record<string, RitualDay>>, today: string, total = HABITS.length): Journey {
+  const keys = Object.keys(history).filter((k) => k <= today).sort();
+  const days = lastDays(today, 30).map((day) => {
+    const h = history[day];
+    return { day, together: h ? Math.max(0, h.me) + Math.max(0, h.them) : 0 };
+  });
+  const perfectDays = keys.filter((k) => history[k]!.me >= total && history[k]!.them >= total).length;
+  const avg = (ks: string[]) => {
+    const seen = ks.map((k) => history[k]!).filter((h) => h.me >= 0);
+    return seen.length >= 3 ? seen.reduce((s, h) => s + h.me, 0) / seen.length : null;
+  };
+  const first = avg(keys.slice(0, 7));
+  const latest = keys.length >= 10 ? avg(keys.slice(-7)) : null;
+  return {
+    days,
+    perfectDays,
+    tracked: keys.length,
+    since: keys[0] ?? null,
+    change: first != null && latest != null ? { from: Math.round(first * 10) / 10, to: Math.round(latest * 10) / 10 } : null,
+  };
+}

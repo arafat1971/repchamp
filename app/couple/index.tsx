@@ -6,7 +6,10 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { ModalHeader } from '@/components/ModalHeader';
 import { Avatar, Card, GradientCard, PressableScale, PrimaryButton, Screen } from '@/components/ui';
+import { JourneyCard } from '@/components/together/JourneyCard';
 import { ME, THEM } from '@/components/together/RitualCard';
+import { HABITS, journey } from '@/domain/ritual';
+import { useRitualStore } from '@/state/ritualStore';
 import { track } from '@/lib/analytics';
 import {
   contributionSplit,
@@ -51,6 +54,7 @@ export default function CoupleTrackerScreen() {
   const weeklyGoal = useProfileStore((s) => s.weeklyGoal);
   const displayName = useProfileStore((s) => s.displayName);
   const avatarUri = useProfileStore((s) => s.avatarUri);
+  const ritualHistory = useRitualStore((s) => s.history);
   const sessions = useProfileStore((s) => s.sessions);
 
   const today = dayKey();
@@ -199,6 +203,7 @@ export default function CoupleTrackerScreen() {
   const consistencyPct = Math.round(summary.consistency * 100);
   const bondDay = new Map(history.map((h) => [h.day, h.status]));
   const noBondReps = !split || (split.mine.reps === 0 && split.theirs.reps === 0);
+  const longView = journey(ritualHistory, today);
 
   return (
     <Screen>
@@ -263,6 +268,9 @@ export default function CoupleTrackerScreen() {
         </View>
         <Text style={styles.chevron}>›</Text>
       </PressableScale>
+
+      <Heading title="Your ritual" aside={longView.since ? `since ${shortDate(longView.since)}` : undefined} />
+      <JourneyCard journey={longView} total={HABITS.length} />
 
       <Heading title="This week" aside={`${pace.bothDays} of ${pace.goal} days`} />
       <Card style={styles.pad}>
@@ -506,6 +514,12 @@ function describeDay(day: TrackerDay): string {
     default:
       return 'rest day';
   }
+}
+
+/** "25 Sep" — short, and in the phone's own month names. */
+function shortDate(day: string): string {
+  const [y, m, d] = day.split('-').map(Number);
+  return new Date(y as number, (m as number) - 1, d as number).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 }
 
 function paceHint(

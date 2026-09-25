@@ -283,6 +283,7 @@ export function HydrationCard({
 
         {/* Controls: goal stepper · undo · pour (hold for more drinks). */}
         <View style={styles.controls}>
+          <Text style={styles.goalCaption}>Goal</Text>
           <View style={styles.stepper}>
             <Pressable
               onPress={() => onStepWaterGoal(-1)}
@@ -306,7 +307,6 @@ export function HydrationCard({
               <Text style={styles.stepGlyph}>+</Text>
             </Pressable>
           </View>
-          <Text style={styles.goalCaption}>Goal</Text>
 
           <View style={{ flex: 1 }} />
 

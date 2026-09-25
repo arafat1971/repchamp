@@ -7,10 +7,14 @@ import {
   cleanTicks,
   isHere,
   isNewPoke,
+  lastDays,
   ritualFor,
   ritualLine,
   ritualScore,
   toggleTick,
+  trendLine,
+  withRitualDay,
+  ritualWeek,
 } from '@/domain/ritual';
 
 const side = (over: Partial<Parameters<typeof ritualFor>[0]> = {}) => ({
@@ -132,5 +136,38 @@ describe('buildRitualReminder', () => {
 
   it('leads with a partner who finished', () => {
     expect(buildRitualReminder({ mine: states(['water']), theirs: { name: 'Sam', score: 6 } })?.title).toBe('Sam finished the ritual 🏆');
+  });
+});
+
+describe('better, week on week', () => {
+  it('keeps each day as last seen, an unknown side as last known, and forgets old days', () => {
+    let h = withRitualDay({}, '2026-09-25', { me: 3, them: 2 });
+    h = withRitualDay(h, '2026-09-25', { me: 2, them: -1 });
+    expect(h['2026-09-25']).toEqual({ me: 2, them: 2 });
+    const many = Object.fromEntries(Array.from({ length: 5 }, (_, i) => [`2026-09-0${i + 1}`, { me: 1, them: 1 }]));
+    expect(Object.keys(withRitualDay(many, '2026-09-25', { me: 1, them: 1 }, 3))).toEqual(['2026-09-04', '2026-09-05', '2026-09-25']);
+  });
+
+  it('lists the last seven days, today last, and counts perfect ones', () => {
+    const w = ritualWeek({ '2026-09-25': { me: 6, them: 6 }, '2026-09-24': { me: 6, them: 5 } }, '2026-09-25');
+    expect(w.days).toHaveLength(7);
+    expect(w.days[6]).toMatchObject({ day: '2026-09-25', perfect: true });
+    expect(w.days[0]!.day).toBe('2026-09-19');
+    expect(w.perfectDays).toBe(1);
+  });
+
+  it('only claims a trend with enough days on both sides', () => {
+    const h: Record<string, { me: number; them: number }> = {};
+    for (const d of lastDays('2026-09-25', 14).slice(0, 7)) h[d] = { me: 2, them: 2 };
+    expect(ritualWeek(h, '2026-09-25').trend).toBeNull();
+    for (const d of lastDays('2026-09-25', 3)) h[d] = { me: 4, them: 3 };
+    expect(ritualWeek(h, '2026-09-25').trend).toEqual({ now: 4, before: 2 });
+  });
+
+  it('words the trend kindly', () => {
+    expect(trendLine({ now: 4, before: 2.5 })).toBe('+1.5 habits a day vs last week 📈');
+    expect(trendLine({ now: 3, before: 3.1 })).toBe('Steady at 3 a day — consistency is the win');
+    expect(trendLine({ now: 2, before: 3 })).toBe("1 fewer a day than last week — tomorrow's a fresh start");
+    expect(trendLine(null)).toBe('Your trend appears after a few days together 🌱');
   });
 });

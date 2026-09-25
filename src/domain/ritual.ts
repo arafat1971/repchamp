@@ -12,6 +12,7 @@
  * cannot — an unknown count is never read as "didn't walk".
  */
 
+import { previousDay } from '@/domain/duoStreak';
 import { isRecentlyActive } from '@/domain/presence';
 
 export type HabitId = 'water' | 'walk' | 'move' | 'stretch' | 'greens' | 'rest';
@@ -203,4 +204,86 @@ export function buildRitualReminder(input: {
     title: `${total - left.length}/${total} today — ${left.length} to go`,
     body: them ? `Still time for ${what}. ${them.name} is at ${them.score}/${total} 💞` : `Still time for ${what}.`,
   };
+}
+
+/* ------------------------------------------------------------------ *
+ * Better, week on week
+ * ------------------------------------------------------------------ */
+
+/** One day's ritual scores as this phone saw them; -1 when a side is unknown. */
+export interface RitualDay {
+  me: number;
+  them: number;
+}
+
+/**
+ * Record a day's scores as last seen. Latest, not best: a tick taken back was a
+ * mistake, not an achievement. Past days freeze on their own — nothing writes
+ * to them once the day has turned.
+ */
+export function withRitualDay(
+  history: Readonly<Record<string, RitualDay>>,
+  day: string,
+  seen: RitualDay,
+  keepDays = 60,
+): Record<string, RitualDay> {
+  const prev = history[day];
+  // An unknown side keeps what was known earlier in the day.
+  const next: RitualDay = prev ? { me: seen.me >= 0 ? seen.me : prev.me, them: seen.them >= 0 ? seen.them : prev.them } : seen;
+  if (prev && prev.me === next.me && prev.them === next.them) return history as Record<string, RitualDay>;
+  const merged = { ...history, [day]: next };
+  const keys = Object.keys(merged).sort();
+  for (const k of keys.slice(0, Math.max(0, keys.length - keepDays))) delete merged[k];
+  return merged;
+}
+
+/** The last `n` day keys, oldest first, today last. */
+export function lastDays(today: string, n: number): string[] {
+  const out = [today];
+  for (let i = 1; i < n; i++) out.unshift(previousDay(out[0]!));
+  return out;
+}
+
+export interface RitualWeek {
+  days: { day: string; me: number; them: number; perfect: boolean }[];
+  perfectDays: number;
+  /** Average habits a day for me over the 7 days vs the 7 before; null without enough history. */
+  trend: { now: number; before: number } | null;
+}
+
+/**
+ * The last seven days of the ritual, and whether I am doing better than the
+ * week before. The comparison needs at least three recorded days on each side
+ * — a trend from one day is noise dressed as insight.
+ */
+export function ritualWeek(history: Readonly<Record<string, RitualDay>>, today: string, total = HABITS.length): RitualWeek {
+  const keys = lastDays(today, 14);
+  const recent = keys.slice(7);
+  const earlier = keys.slice(0, 7);
+  const days = recent.map((day) => {
+    const h = history[day];
+    const me = h ? Math.max(0, h.me) : 0;
+    const them = h ? Math.max(0, h.them) : 0;
+    return { day, me, them, perfect: me >= total && them >= total };
+  });
+  const avg = (ks: string[]) => {
+    const seen = ks.map((k) => history[k]).filter((h): h is RitualDay => !!h && h.me >= 0);
+    return seen.length >= 3 ? seen.reduce((s, h) => s + h.me, 0) / seen.length : null;
+  };
+  const now = avg(recent);
+  const before = avg(earlier);
+  return {
+    days,
+    perfectDays: days.filter((d) => d.perfect).length,
+    trend: now != null && before != null ? { now, before } : null,
+  };
+}
+
+/** The trend in words: up is celebrated, flat is steady, down is tomorrow. */
+export function trendLine(trend: RitualWeek['trend']): string {
+  if (!trend) return 'Your trend appears after a few days together 🌱';
+  const diff = Math.round((trend.now - trend.before) * 10) / 10;
+  if (diff >= 0.3) return `+${diff} habits a day vs last week 📈`;
+  if (diff <= -0.3) return `${Math.abs(diff)} fewer a day than last week — tomorrow's a fresh start`;
+  return `Steady at ${Math.round(trend.now * 10) / 10} a day — consistency is the win`;
 }

@@ -7,6 +7,7 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { Avatar, Card, GradientCard, PressableScale, Screen, SectionLabel, Toggle } from '@/components/ui';
 import { LiveStage } from '@/components/together/LiveStage';
 import { RitualCard } from '@/components/together/RitualCard';
+import { RitualWeekCard } from '@/components/together/RitualWeekCard';
 import { bearLayers } from '@/components/widget/WidgetPreview';
 import { track } from '@/lib/analytics';
 import { captureError } from '@/lib/crash';
@@ -28,6 +29,7 @@ import {
   isNewPoke,
   ritualFor,
   ritualScore,
+  ritualWeek,
   type HabitId,
   type Poke,
 } from '@/domain/ritual';
@@ -161,6 +163,12 @@ export default function PartnerDashboardScreen() {
   );
   const myScore = ritualScore(mineRitual);
   const theirScore = ritualScore(theirRitual);
+  const recordRitual = useRitualStore((s) => s.record);
+  const ritualHistory = useRitualStore((s) => s.history);
+  useEffect(() => {
+    recordRitual(today, { me: myScore, them: theirScore });
+  }, [recordRitual, today, myScore, theirScore]);
+  const week7 = useMemo(() => ritualWeek(ritualHistory, today), [ritualHistory, today]);
 
   /* Publish my ticks on arrival, so a tick made offline reaches them. */
   useEffect(() => {
@@ -482,6 +490,12 @@ export default function PartnerDashboardScreen() {
       <SectionLabel>OUR DAILY RITUAL</SectionLabel>
       <Animated.View entering={FadeInDown.delay(60).duration(320)} style={styles.block}>
         <RitualCard mine={mineRitual} theirs={theirRitual} name={partnerName} onToggle={onToggle} />
+      </Animated.View>
+
+      {/* ── Better, week on week ── */}
+      <SectionLabel>OUR WEEK OF HABITS</SectionLabel>
+      <Animated.View entering={FadeInDown.delay(80).duration(320)} style={styles.block}>
+        <RitualWeekCard week={week7} total={HABITS.length} name={partnerName} />
       </Animated.View>
 
       {/* ── Today's tally ── */}

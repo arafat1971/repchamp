@@ -344,6 +344,7 @@ export default function HomeScreen() {
       me: ritualScore(ritualFor({ ml: todayMl, goalMl: myGoalMl, steps: myStepsCount, reps: myReps.reps, ticks: myRitualTicks })),
       total: HABITS.length,
     };
+    useRitualStore.getState().record(today, { me: ritual.me, them: ritual.them });
     publishWidgetSnapshot(
       buildWaterWidgetSnapshot({
         name: partnerGlass.name,

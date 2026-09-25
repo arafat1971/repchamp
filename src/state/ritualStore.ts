@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
-import { cleanTicks, toggleTick, type HabitId } from '@/domain/ritual';
+import { cleanTicks, toggleTick, withRitualDay, type HabitId, type RitualDay } from '@/domain/ritual';
 import { zustandStorage } from '@/lib/storage';
 
 /**
@@ -13,6 +13,9 @@ interface RitualState {
   day: string;
   ticks: HabitId[];
   toggle: (day: string, id: HabitId) => HabitId[];
+  /** Each day's scores as this phone last saw them — the week-on-week view. */
+  history: Record<string, RitualDay>;
+  record: (day: string, seen: RitualDay) => void;
 }
 
 export const useRitualStore = create<RitualState>()(
@@ -26,12 +29,18 @@ export const useRitualStore = create<RitualState>()(
         set({ day, ticks });
         return ticks;
       },
+      history: {},
+      record: (day, seen) => {
+        const next = withRitualDay(get().history, day, seen);
+        if (next !== get().history) set({ history: next });
+      },
     }),
     {
       name: 'repchamp.ritual',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => zustandStorage),
-      migrate: (p) => ({ day: '', ...(p as object), ticks: cleanTicks((p as { ticks?: unknown })?.ticks) }) as RitualState,
+      migrate: (p) =>
+        ({ day: '', history: {}, ...(p as object), ticks: cleanTicks((p as { ticks?: unknown })?.ticks) }) as RitualState,
     },
   ),
 );

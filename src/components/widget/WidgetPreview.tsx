@@ -21,6 +21,7 @@ import { BearJar, type BearTheme } from '@/components/home/BearJar';
 import {
   WATER_WIDGET_LIVE_MS,
   buildWaterWidgetSnapshot,
+  sippedTogether,
   type WaterWidgetSnapshot,
   type WidgetStyle,
   type WidgetTheme,
@@ -341,10 +342,12 @@ function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: n
       </Svg>
 
       <SceneBear left={leftX - bw / 2} top={feet - bh} bw={bw} bh={bh} lean={themLean}>
+        {snap.streak >= 30 ? <Wings bw={bw} bh={bh} /> : null}
         <BearJar id="scene-them" percent={snap.pct * 100} width={bw} theme={THEIR_BEAR} layers={bearLayers(snap.layers)} tilt={tilt} phase={phase} pourKey={0} met={snap.met} />
         <Outfit streak={snap.streak} bw={bw} bh={bh} />
       </SceneBear>
       <SceneBear left={rightX - bw / 2} top={feet - bh} bw={bw} bh={bh} lean={meLean}>
+        {snap.streak >= 30 ? <Wings bw={bw} bh={bh} /> : null}
         <BearJar id="scene-me" percent={snap.mePct * 100} width={bw} theme={MY_BEAR} layers={bearLayers(snap.meLayers)} tilt={tilt} phase={phase} pourKey={0} met={snap.meMet} />
         <Outfit streak={snap.streak} bw={bw} bh={bh} />
       </SceneBear>
@@ -355,6 +358,30 @@ function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: n
         <Path d={`M${fx} ${fy} L${fx} ${fy - 14}`} stroke="#7C2D12" strokeWidth={1.6} />
         <Path d={`M${fx} ${fy - 14} L${fx + 10} ${fy - 10.5} L${fx} ${fy - 7} Z`} fill="#EF4444" />
         <Circle cx={fx} cy={fy} r={2.6} fill="#DC2626" />
+        {sippedTogether(snap.lastAt, snap.meLastAt, snap.updatedAt) ? (
+          <>
+            {[-1, 1].map((side) => {
+              const l = mid + side * 7 - 5;
+              const top = ropeY - H * 0.2;
+              return (
+                <Path
+                  key={side}
+                  d={`M${l} ${top} L${l + 10} ${top} L${l + 8.5} ${top + 13} L${l + 1.5} ${top + 13} Z`}
+                  fill="#7DD3FC"
+                  stroke="#0369A1"
+                  strokeWidth={1}
+                  transform={`rotate(${side * 16} ${mid + side * 7} ${top + 12})`}
+                />
+              );
+            })}
+            <Path
+              d={`M${mid - 6} ${ropeY - H * 0.2 - 6} L${mid - 3} ${ropeY - H * 0.2 - 2} M${mid} ${ropeY - H * 0.2 - 8} L${mid} ${ropeY - H * 0.2 - 3} M${mid + 6} ${ropeY - H * 0.2 - 6} L${mid + 3} ${ropeY - H * 0.2 - 2}`}
+              stroke="#FDE047"
+              strokeWidth={1.4}
+              strokeLinecap="round"
+            />
+          </>
+        ) : null}
       </Svg>
 
       <Text style={[styles.sceneLabel, { left: leftX - 60, top: labelTop }]} numberOfLines={1}>
@@ -401,7 +428,29 @@ function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: n
   );
 }
 
-/** The streak's rewards, in BearJar's 100 x 120 box: sunglasses at 3, a crown at 7. */
+/** Wings behind a bear on a thirty-day streak — drawn under it. */
+function Wings({ bw, bh }: { bw: number; bh: number }) {
+  return (
+    <Svg width={bw} height={bh} viewBox="0 0 100 120" style={StyleSheet.absoluteFill}>
+      {[-1, 1].map((side) => {
+        const x = 50 + side * 36;
+        return (
+          <Path
+            key={side}
+            d={`M${50 + side * 26} 68 Q${x + side * 22} 50 ${x + side * 12} 84 Q${x} 94 ${50 + side * 30} 88 Z`}
+            fill="#FFFFFF"
+            opacity={0.95}
+          />
+        );
+      })}
+    </Svg>
+  );
+}
+
+/**
+ * The streak's rewards, in BearJar's 100 x 120 box: sunglasses at 3, a crown
+ * at 7, a party hat from 14 (the newest headwear shows).
+ */
 function Outfit({ streak, bw, bh }: { streak: number; bw: number; bh: number }) {
   if (streak < 3) return null;
   return (
@@ -411,7 +460,13 @@ function Outfit({ streak, bw, bh }: { streak: number; bw: number; bh: number }) 
       <Path d="M47 38 L53 38" stroke="#111827" strokeWidth={2.2} />
       <Rect x={34} y={36} width={5} height={3} rx={1.5} fill="#FFFFFF" opacity={0.6} />
       <Rect x={55} y={36} width={5} height={3} rx={1.5} fill="#FFFFFF" opacity={0.6} />
-      {streak >= 7 ? (
+      {streak >= 14 ? (
+        <>
+          <Path d="M41 12 L63 12 L54 -10 Z" fill="#8B5CF6" transform="rotate(12 52 10)" />
+          <Path d="M47 4 L58 4" stroke="#FDE047" strokeWidth={2.5} transform="rotate(12 52 10)" />
+          <Circle cx={56} cy={-9} r={3.4} fill="#F472B6" />
+        </>
+      ) : streak >= 7 ? (
         <>
           <Path d="M36 11 L38 -1 L44 6 L50 -4 L56 6 L62 -1 L64 11 Z" fill="#FACC15" />
           <Circle cx={50} cy={6} r={2.2} fill="#EF4444" />

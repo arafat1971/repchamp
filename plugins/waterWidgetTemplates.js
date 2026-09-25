@@ -276,7 +276,7 @@ class WaterWidgetProvider : AppWidgetProvider() {
         private const val LIVE_MS = 15L * 60L * 1000L
         private val ME_KEYS = arrayOf(
             "hasMe", "meWater", "meSteps", "meReps", "meWaterMl", "meStepsN", "meRepsN",
-            "mePct", "meMet", "meLayers", "streak"
+            "mePct", "meMet", "meLayers", "streak", "meLastAt"
         )
         private val STYLE_KEYS = arrayOf("styled", "layout", "theme", "showSteps", "showReps", "showMine", "motion")
 
@@ -679,6 +679,12 @@ class WaterWidgetProvider : AppWidgetProvider() {
             // They splashed me: hearts over my bear for the live window.
             val cheerAt = snap?.optLong("cheerAt", 0L) ?: 0L
             val cheered = cheerAt > 0L && now - cheerAt >= -60_000L && now - cheerAt <= LIVE_MS
+            // Both drank within ten minutes of each other, just now: a clink.
+            val meLastAt = if (hasMe) snap?.optLong("meLastAt", 0L) ?: 0L else 0L
+            val latestSip = max(lastAt, meLastAt)
+            val together = lastAt > 0L && meLastAt > 0L &&
+                kotlin.math.abs(lastAt - meLastAt) <= 10L * 60L * 1000L &&
+                now - latestSip >= -60_000L && now - latestSip <= LIVE_MS
             views.setViewVisibility(R.id.s_streak, if (streak > 0) View.VISIBLE else View.GONE)
             views.setTextViewText(R.id.s_streak, "🔥 " + streak)
             views.setImageViewBitmap(
@@ -687,7 +693,7 @@ class WaterWidgetProvider : AppWidgetProvider() {
                     context.resources.displayMetrics.density, wDp, hDp, hour, now,
                     SceneArt.Bear(fraction(snap, "pct"), layersOf(snap, "layers"), met, name ?: context.getString(R.string.pd_partner), snap?.optString("amount") ?: "0 ml", waterA),
                     SceneArt.Bear(if (hasMe) fraction(snap, "mePct") else 0f, if (hasMe) layersOf(snap, "meLayers") else emptyList(), meMet, context.getString(R.string.pd_you), if (hasMe) snap?.optString("meWater") ?: "—" else "—", waterB),
-                    share, drankFresh, streak, snap?.optInt("visitor", 0) ?: 0, cheered
+                    share, drankFresh, streak, snap?.optInt("visitor", 0) ?: 0, cheered, together
                 )
             )
 
@@ -695,7 +701,8 @@ class WaterWidgetProvider : AppWidgetProvider() {
             show(views, R.id.pt_live, fresh)
             show(views, R.id.s_stars, motion && night)
             show(views, R.id.s_rain, drankFresh)
-            show(views, R.id.s_confetti, motion && (met || meMet) && fresh)
+            show(views, R.id.s_confetti, motion && (((met || meMet) && fresh) || together))
+            if (together) scheduleCalm(context, latestSip + LIVE_MS + 5_000L)
             show(views, R.id.s_hearts, motion && cheered)
             if (fresh) scheduleCalm(context, activeAt + LIVE_MS + 5_000L)
             if (cheered) scheduleCalm(context, max(cheerAt, activeAt) + LIVE_MS + 5_000L)
@@ -912,7 +919,8 @@ object SceneArt {
         raining: Boolean,
         streak: Int,
         visitor: Int,
-        cheered: Boolean
+        cheered: Boolean,
+        together: Boolean
     ): Bitmap {
         /* 1.5x, not the screen's density: the picture rides in the update's
            binder transaction, and a full-density one can be too big. The
@@ -1062,6 +1070,9 @@ object SceneArt {
         paint.color = 0xFFDC2626.toInt()
         c.drawCircle(fx, fy, 2.6f * u, paint)
 
+        // A clink over the rope when they sipped together just now.
+        if (together) cheers(c, paint, (x0 + x1) / 2f, ropeY - H * 0.2f, u)
+
         // A little rain cloud over their bear, right after they drink.
         if (raining) {
             cloud(c, paint, 0xF2FFFFFF.toInt(), leftX - 10f * u, feet - bh - 12f * u, 0.7f * u)
@@ -1099,6 +1110,7 @@ object SceneArt {
         c.rotate(lean, cx, feet)
         c.translate(cx - bw / 2f, feet - bh)
         c.scale(bw / 100f, bw / 100f)
+        if (streak >= 30) wings(c)
         BearArt.drawInto(c, b.pct, b.layers, b.met, theme, now)
         outfit(c, streak)
         c.restore()
@@ -1122,7 +1134,22 @@ object SceneArt {
             c.drawRoundRect(RectF(34f, 38f, 39f, 41f), 1.5f, 1.5f, p)
             c.drawRoundRect(RectF(55f, 38f, 60f, 41f), 1.5f, 1.5f, p)
         }
-        if (streak >= 7) {
+        if (streak >= 14) {
+            // Party hat: a striped cone with a pom-pom, tipped at a jaunty angle.
+            c.save()
+            c.rotate(12f, 52f, 12f)
+            val cone = Path().apply { moveTo(41f, 14f); lineTo(63f, 14f); lineTo(52f, -10f); close() }
+            p.color = 0xFF8B5CF6.toInt()
+            c.drawPath(cone, p)
+            c.save()
+            c.clipPath(cone)
+            p.color = 0xFFFDE047.toInt()
+            for (k in 0 until 4) c.drawRect(38f, -10f + k * 7f, 66f, -7f + k * 7f, p)
+            c.restore()
+            p.color = 0xFFF472B6.toInt()
+            c.drawCircle(52f, -10f, 3.4f, p)
+            c.restore()
+        } else if (streak >= 7) {
             p.color = 0xFFFACC15.toInt()
             c.drawPath(Path().apply {
                 moveTo(36f, 13f); lineTo(38f, 1f); lineTo(44f, 8f); lineTo(50f, -2f)
@@ -1130,6 +1157,28 @@ object SceneArt {
             }, p)
             p.color = 0xFFEF4444.toInt()
             c.drawCircle(50f, 8f, 2.2f, p)
+        }
+    }
+
+    /** Little white wings behind the bear, for a thirty-day streak. */
+    private fun wings(c: Canvas) {
+        val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        p.color = 0xF2FFFFFF.toInt()
+        for (side in intArrayOf(-1, 1)) {
+            val x = 50f + side * 36f
+            c.drawPath(Path().apply {
+                moveTo(50f + side * 26f, 70f)
+                quadTo(x + side * 22f, 52f, x + side * 12f, 86f)
+                quadTo(x, 96f, 50f + side * 30f, 90f)
+                close()
+            }, p)
+        }
+        p.style = Paint.Style.STROKE
+        p.strokeWidth = 1.5f
+        p.color = 0x66A5B4FC
+        for (side in intArrayOf(-1, 1)) {
+            val x = 50f + side * 36f
+            c.drawPath(Path().apply { moveTo(50f + side * 30f, 76f); quadTo(x + side * 12f, 70f, x + side * 10f, 84f) }, p)
         }
     }
 
@@ -1230,6 +1279,40 @@ object SceneArt {
         c.drawCircle(x + 10f * s, y - 5f * s, 11f * s, paint)
         c.drawCircle(x + 22f * s, y, 9f * s, paint)
         c.drawRoundRect(RectF(x - 6f * s, y - 2f * s, x + 28f * s, y + 8f * s), 6f * s, 6f * s, paint)
+    }
+
+    /** Two glasses tipped together, with a burst where they meet. */
+    private fun cheers(c: Canvas, paint: Paint, cx: Float, cy: Float, u: Float) {
+        for (side in intArrayOf(-1, 1)) {
+            c.save()
+            c.rotate(side * 16f, cx + side * 7f * u, cy + 12f * u)
+            val l = cx + side * 7f * u - 5f * u
+            val glass = Path().apply {
+                moveTo(l, cy); lineTo(l + 10f * u, cy); lineTo(l + 8.5f * u, cy + 13f * u); lineTo(l + 1.5f * u, cy + 13f * u); close()
+            }
+            paint.color = 0xCCFFFFFF.toInt()
+            c.drawPath(glass, paint)
+            c.save()
+            c.clipPath(glass)
+            paint.color = 0xFF38BDF8.toInt()
+            c.drawRect(l, cy + 5f * u, l + 10f * u, cy + 14f * u, paint)
+            c.restore()
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 1f * u
+            paint.color = 0xFF0369A1.toInt()
+            c.drawPath(glass, paint)
+            paint.style = Paint.Style.FILL
+            c.restore()
+        }
+        paint.color = 0xFFFDE047.toInt()
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 1.4f * u
+        paint.strokeCap = Paint.Cap.ROUND
+        for (k in 0 until 5) {
+            val a = (-150f + k * 30f) * (PI.toFloat() / 180f)
+            c.drawLine(cx + cos(a) * 4f * u, cy - 3f * u + sin(a) * 4f * u, cx + cos(a) * 8f * u, cy - 3f * u + sin(a) * 8f * u, paint)
+        }
+        paint.style = Paint.Style.FILL
     }
 
     private fun heart(c: Canvas, paint: Paint, x: Float, y: Float, r: Float) {

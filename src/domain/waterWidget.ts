@@ -145,6 +145,8 @@ export interface WaterWidgetSnapshot {
    * none. Unlocks the bears' outfits: sunglasses at 3, crowns at 7.
    */
   streak: number;
+  /** When my latest drink today was logged, epoch ms; 0 when unknown. */
+  meLastAt: number;
   /**
    * When the partner last splashed me (a water nudge), epoch ms; 0 for none.
    * Hearts float over my bear for a while after it.
@@ -196,6 +198,8 @@ export interface WaterWidgetInput {
     reps: number;
     goalMl?: number | null;
     layers?: readonly { k: string; ml: number }[];
+    /** When my latest drink today was logged. */
+    lastAt?: number | null;
   } | null;
   /** The state's version; see `WaterWidgetSnapshot.rev`. */
   rev?: number;
@@ -257,12 +261,14 @@ export function buildWaterWidgetSnapshot(input: WaterWidgetInput, now = Date.now
 
   const fresh = lastAt > 0 && now - lastAt >= -60_000 && now - lastAt <= WATER_WIDGET_LIVE_MS;
   const cheerAt = time(input.cheerAt);
+  const meLastAt = me ? time(me.lastAt) : 0;
   const duel = duelLine({
     name,
     ml,
     met,
     reps,
     cheered: cheerAt > 0 && now - cheerAt >= -60_000 && now - cheerAt <= WATER_WIDGET_LIVE_MS,
+    together: sippedTogether(lastAt, meLastAt, now),
     fresh: fresh && lastMeta ? `${lastMeta.label.toLowerCase()} ${lastMeta.emoji}` : null,
     me: me ? { ml: meMl, met: meMl >= meGoal, reps: count(me.reps) } : null,
   });
@@ -306,6 +312,7 @@ export function buildWaterWidgetSnapshot(input: WaterWidgetInput, now = Date.now
     duel,
     streak: count(input.streak),
     cheerAt,
+    meLastAt,
     visitor: dailyVisitor(input.day),
     styled: !!input.style,
     ...(input.style ?? DEFAULT_WIDGET_STYLE),
@@ -338,6 +345,36 @@ function bands(
   });
 }
 
+/** How close two drinks must be to count as sipping together. */
+export const TOGETHER_MS = 10 * 60 * 1000;
+
+/**
+ * Both drank within ten minutes of each other, and the later sip was in the
+ * last few minutes — a moment worth a clink, gone once it has passed.
+ */
+export function sippedTogether(theirs: number, mine: number, now: number): boolean {
+  if (theirs <= 0 || mine <= 0) return false;
+  if (Math.abs(theirs - mine) > TOGETHER_MS) return false;
+  const latest = Math.max(theirs, mine);
+  return now - latest >= -60_000 && now - latest <= WATER_WIDGET_LIVE_MS;
+}
+
+/**
+ * The wardrobe: what a shared streak dresses the bears in, in order. Each
+ * item is kept once reached; headwear shows the newest.
+ */
+export const WARDROBE = [
+  { id: 'sunglasses', days: 3, emoji: '😎', label: 'Sunglasses' },
+  { id: 'crown', days: 7, emoji: '👑', label: 'Crown' },
+  { id: 'party-hat', days: 14, emoji: '🥳', label: 'Party hat' },
+  { id: 'wings', days: 30, emoji: '🪽', label: 'Wings' },
+] as const;
+
+/** The next item a streak is working toward, or null when all are earned. */
+export function nextOutfit(streak: number) {
+  return WARDROBE.find((w) => streak < w.days) ?? null;
+}
+
 /** The scene's visitors, one per day. */
 export const VISITORS = ['butterfly', 'ladybug', 'mushroom', 'snail'] as const;
 
@@ -368,11 +405,14 @@ export function duelLine(input: {
   fresh: string | null;
   /** They splashed me in the last few minutes. */
   cheered?: boolean;
+  /** We both drank within minutes of each other, just now. */
+  together?: boolean;
   me: { ml: number; met: boolean; reps: number } | null;
 }): string {
   const { name, ml, met, reps, fresh, me } = input;
   if (me && met && me.met) return 'Both bears full — dream team 🎉';
   if (input.cheered) return `${name} splashed you 💦 — drink up!`;
+  if (input.together) return 'You sipped together 🥂 — cheers!';
   if (fresh) return `${name} just had ${fresh} — your move!`;
   if (!me) {
     if (met) return `${name} filled their bear 🎉 — can you?`;

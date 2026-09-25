@@ -1,7 +1,14 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-import { DEFAULT_WIDGET_STYLE, buildWaterWidgetSnapshot, duelLine, repsOnDay } from '@/domain/waterWidget';
+import {
+  DEFAULT_WIDGET_STYLE,
+  buildWaterWidgetSnapshot,
+  duelLine,
+  nextOutfit,
+  repsOnDay,
+  sippedTogether,
+} from '@/domain/waterWidget';
 import { WIDGET_SNAPSHOT_KEYS } from '@/domain/widgetSnapshot';
 
 const base = { name: 'Nkll', day: '2026-09-24', ml: 0 };
@@ -210,6 +217,35 @@ describe('duelLine', () => {
     expect(line({ me: null, ml: 750 })).toBe('Bea is at 750 ml today 💧');
     expect(line({ me: null, ml: 2000, met: true })).toBe('Bea filled their bear 🎉 — can you?');
     expect(line({ me: null })).toBe('Bea hasn’t had a sip yet ☀️');
+  });
+});
+
+describe('sipping together', () => {
+  const now = 1_790_000_000_000;
+  it('counts two drinks within ten minutes, while the later one is fresh', () => {
+    expect(sippedTogether(now - 5 * 60_000, now - 60_000, now)).toBe(true);
+    expect(sippedTogether(now - 20 * 60_000, now - 60_000, now)).toBe(false);
+    expect(sippedTogether(now - 40 * 60_000, now - 35 * 60_000, now)).toBe(false);
+    expect(sippedTogether(0, now, now)).toBe(false);
+  });
+
+  it('leads the rivalry line after a splash', () => {
+    const s = buildWaterWidgetSnapshot(
+      { ...base, ml: 250, last: { k: 'water', ml: 250, at: now - 120_000 }, me: { ml: 250, steps: null, reps: 0, lastAt: now - 60_000 } },
+      now,
+    );
+    expect(s.duel).toBe('You sipped together 🥂 — cheers!');
+    expect(s.meLastAt).toBe(now - 60_000);
+  });
+});
+
+describe('wardrobe', () => {
+  it('names the next outfit to earn', () => {
+    expect(nextOutfit(0)?.id).toBe('sunglasses');
+    expect(nextOutfit(3)?.id).toBe('crown');
+    expect(nextOutfit(13)?.id).toBe('party-hat');
+    expect(nextOutfit(29)?.id).toBe('wings');
+    expect(nextOutfit(30)).toBeNull();
   });
 });
 

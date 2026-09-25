@@ -19,8 +19,11 @@ import {
 } from '@/domain/couple';
 import { dayKey } from '@/domain/progression';
 import { drinkLayers } from '@/domain/drinkKinds';
+import { duoStreak } from '@/domain/duoStreak';
 import {
+  WARDROBE,
   WIDGET_LAYOUTS,
+  nextOutfit,
   WIDGET_THEMES,
   buildWaterWidgetSnapshot,
   repsOnDay,
@@ -36,6 +39,7 @@ import { useProfileStore } from '@/state/profileStore';
 import { useCouple } from '@/state/useCouple';
 import { useStepsToday } from '@/state/useStepsToday';
 import { useWidgetStyleStore } from '@/state/widgetStyleStore';
+import { useDuoStreakStore } from '@/state/duoStreakStore';
 import { font, text } from '@/theme/typography';
 import { palette, radius } from '@/theme/tokens';
 
@@ -176,6 +180,9 @@ export default function WidgetStudioScreen() {
         ))}
       </View>
 
+      <SectionLabel>WARDROBE</SectionLabel>
+      <Wardrobe />
+
       <SectionLabel>WHAT IT SHOWS</SectionLabel>
       <Card style={styles.group}>
         <SwitchRow
@@ -307,6 +314,45 @@ function usePreviewData(): WaterWidgetSnapshot {
       },
     });
   }, [couple.paired, couple.partner, today, myMl, myGoal, drinks, sessions, mySteps]);
+}
+
+/**
+ * What the shared streak has dressed the bears in, and what it is working
+ * toward — earned items in colour, the rest waiting with the days to go.
+ */
+function Wardrobe() {
+  const days = useDuoStreakStore((s) => s.days);
+  const streak = duoStreak(days, dayKey());
+  const next = nextOutfit(streak);
+  return (
+    <Card style={styles.card}>
+      <Text style={styles.cardTitle}>
+        {streak > 0 ? `🔥 ${streak}-day streak together` : 'Fill both bears to start a streak'}
+      </Text>
+      <Text style={[text.caption, styles.cardBody]}>
+        {next
+          ? `${next.days - streak} more ${next.days - streak === 1 ? 'day' : 'days'} of both bears full unlocks the ${next.label.toLowerCase()} ${next.emoji}`
+          : 'Every outfit earned — your bears are fully dressed 🎉'}
+      </Text>
+      <View style={styles.wardrobe}>
+        {WARDROBE.map((item) => {
+          const earned = streak >= item.days;
+          return (
+            <View key={item.id} style={[styles.outfit, earned && styles.outfitOn]}>
+              <Text style={[styles.outfitEmoji, !earned && styles.outfitLocked]}>{item.emoji}</Text>
+              <Text style={[styles.outfitLabel, earned && { color: palette.ink }]}>{item.label}</Text>
+              <Text style={styles.outfitDays}>{earned ? 'Earned' : `${item.days} days`}</Text>
+            </View>
+          );
+        })}
+      </View>
+      {next ? (
+        <View style={styles.meter}>
+          <View style={[styles.meterFill, { width: `${Math.min(100, (streak / next.days) * 100)}%` }]} />
+        </View>
+      ) : null}
+    </Card>
+  );
 }
 
 const LAYOUT_LABEL: Record<WidgetLayout, { title: string; sub: string }> = {
@@ -516,6 +562,21 @@ const styles = StyleSheet.create({
   sketchRingInner: { width: 18, height: 18, borderRadius: 9, borderWidth: 3, borderColor: '#7DD3FC' },
   sketchLine: { height: 5, borderRadius: 3, width: '80%' },
   tileSub: font('semibold', 10, { color: palette.grey600 }),
+  wardrobe: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  outfit: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: '#F1F5F9',
+  },
+  outfitOn: { backgroundColor: '#FEF3C7' },
+  outfitEmoji: { fontSize: 26 },
+  outfitLocked: { opacity: 0.25 },
+  outfitLabel: { ...font('bold', 10.5, { color: palette.grey600 }), marginTop: 4 },
+  outfitDays: font('semibold', 9.5, { color: palette.grey600 }),
+  meter: { height: 6, borderRadius: 3, backgroundColor: '#F1F5F9', marginTop: 12, overflow: 'hidden' },
+  meterFill: { height: '100%', borderRadius: 3, backgroundColor: '#F59E0B' },
   lookNote: { ...font('semibold', 11.5, { color: palette.grey600 }), marginTop: -6, marginBottom: 10 },
   swatch: {
     width: '100%',

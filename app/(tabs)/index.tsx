@@ -234,6 +234,16 @@ export default function HomeScreen() {
     () => drinkLayers(allDrinks.filter((d) => d.day === today)).map((l) => ({ k: l.kind, ml: l.ml })),
     [allDrinks, today],
   );
+  /* My latest drink today — for the "sipped together" moment. */
+  const myLastAt = useMemo(() => {
+    let latest = 0;
+    for (const d of allDrinks) {
+      if (d.day !== today) continue;
+      const at = Date.parse(d.at);
+      if (Number.isFinite(at) && at > latest) latest = at;
+    }
+    return latest;
+  }, [allDrinks, today]);
   const layout = useWidgetStyleStore((st) => st.layout);
   const theme = useWidgetStyleStore((st) => st.theme);
   /* The duo streak: a day counts once both bears are full, as seen here. */
@@ -275,7 +285,14 @@ export default function HomeScreen() {
         reps: theirReps.reps,
         topExercise: theirReps.topEx,
         trainedAt: theirReps.trainedAt,
-        me: { ml: todayMl, steps: myStepsCount, reps: myReps.reps, goalMl: myGoalMl, layers: myLayers },
+        me: {
+          ml: todayMl,
+          steps: myStepsCount,
+          reps: myReps.reps,
+          goalMl: myGoalMl,
+          layers: myLayers,
+          lastAt: myLastAt,
+        },
         rev: partnerWaterRevToday(couple.partner, today),
         style: { layout, theme, showSteps, showReps, showMine, motion },
         streak: duoDays,
@@ -293,6 +310,7 @@ export default function HomeScreen() {
     myReps.reps,
     myGoalMl,
     myLayers,
+    myLastAt,
     duoDays,
     splashAt,
     layout,

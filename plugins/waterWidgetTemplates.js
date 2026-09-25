@@ -676,6 +676,9 @@ class WaterWidgetProvider : AppWidgetProvider() {
             val hDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0).takeIf { it > 0 } ?: 170
 
             val streak = if (hasMe) snap?.optInt("streak", 0) ?: 0 else 0
+            // They splashed me: hearts over my bear for the live window.
+            val cheerAt = snap?.optLong("cheerAt", 0L) ?: 0L
+            val cheered = cheerAt > 0L && now - cheerAt >= -60_000L && now - cheerAt <= LIVE_MS
             views.setViewVisibility(R.id.s_streak, if (streak > 0) View.VISIBLE else View.GONE)
             views.setTextViewText(R.id.s_streak, "🔥 " + streak)
             views.setImageViewBitmap(
@@ -684,7 +687,7 @@ class WaterWidgetProvider : AppWidgetProvider() {
                     context.resources.displayMetrics.density, wDp, hDp, hour, now,
                     SceneArt.Bear(fraction(snap, "pct"), layersOf(snap, "layers"), met, name ?: context.getString(R.string.pd_partner), snap?.optString("amount") ?: "0 ml", waterA),
                     SceneArt.Bear(if (hasMe) fraction(snap, "mePct") else 0f, if (hasMe) layersOf(snap, "meLayers") else emptyList(), meMet, context.getString(R.string.pd_you), if (hasMe) snap?.optString("meWater") ?: "—" else "—", waterB),
-                    share, drankFresh, streak, snap?.optInt("visitor", 0) ?: 0
+                    share, drankFresh, streak, snap?.optInt("visitor", 0) ?: 0, cheered
                 )
             )
 
@@ -693,7 +696,21 @@ class WaterWidgetProvider : AppWidgetProvider() {
             show(views, R.id.s_stars, motion && night)
             show(views, R.id.s_rain, drankFresh)
             show(views, R.id.s_confetti, motion && (met || meMet) && fresh)
+            show(views, R.id.s_hearts, motion && cheered)
             if (fresh) scheduleCalm(context, activeAt + LIVE_MS + 5_000L)
+            if (cheered) scheduleCalm(context, max(cheerAt, activeAt) + LIVE_MS + 5_000L)
+
+            // The splash: a playful water nudge to them, straight from here.
+            val splash = Intent(Intent.ACTION_VIEW, Uri.parse("repchamp://splash"))
+                .setPackage(context.packageName)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            views.setOnClickPendingIntent(
+                R.id.d_splash,
+                PendingIntent.getActivity(
+                    context, 7303, splash,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            )
 
             val drink = Intent(Intent.ACTION_VIEW, Uri.parse("repchamp://drink?ml=250"))
                 .setPackage(context.packageName)
@@ -894,7 +911,8 @@ object SceneArt {
         share: Float,
         raining: Boolean,
         streak: Int,
-        visitor: Int
+        visitor: Int,
+        cheered: Boolean
     ): Bitmap {
         /* 1.5x, not the screen's density: the picture rides in the update's
            binder transaction, and a full-density one can be too big. The
@@ -1064,6 +1082,12 @@ object SceneArt {
             }
         }
 
+        // Hearts around my bear when they have just splashed me.
+        if (cheered) {
+            val spots = arrayOf(floatArrayOf(-0.62f, 0.2f, 5f), floatArrayOf(0.6f, 0.32f, 4f), floatArrayOf(-0.5f, 0.62f, 3.4f), floatArrayOf(0.66f, 0.7f, 3f))
+            for (s in spots) heart(c, paint, rightX + s[0] * bw, feet - bh * (1f - s[1]), s[2] * u)
+        }
+
         // Names and amounts on the grass under each bear.
         label(c, them.label + " · " + them.amount, leftX, feet + 11f * u, u)
         label(c, me.label + " · " + me.amount, rightX, feet + 11f * u, u)
@@ -1206,6 +1230,15 @@ object SceneArt {
         c.drawCircle(x + 10f * s, y - 5f * s, 11f * s, paint)
         c.drawCircle(x + 22f * s, y, 9f * s, paint)
         c.drawRoundRect(RectF(x - 6f * s, y - 2f * s, x + 28f * s, y + 8f * s), 6f * s, 6f * s, paint)
+    }
+
+    private fun heart(c: Canvas, paint: Paint, x: Float, y: Float, r: Float) {
+        paint.color = 0xFFF43F5E.toInt()
+        c.drawCircle(x - r * 0.5f, y, r * 0.6f, paint)
+        c.drawCircle(x + r * 0.5f, y, r * 0.6f, paint)
+        c.drawPath(Path().apply {
+            moveTo(x - r * 1.05f, y + r * 0.15f); lineTo(x, y + r * 1.25f); lineTo(x + r * 1.05f, y + r * 0.15f); close()
+        }, paint)
     }
 
     private fun label(c: Canvas, text: String, cx: Float, y: Float, u: Float) {
@@ -2187,6 +2220,15 @@ const SCENE_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
         android:visibility="gone" />
 
     <ProgressBar
+        android:id="@+id/s_hearts"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:indeterminate="true"
+        android:indeterminateOnly="true"
+        android:indeterminateDrawable="@drawable/ps_hearts"
+        android:visibility="gone" />
+
+    <ProgressBar
         android:id="@+id/s_confetti"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -2339,6 +2381,20 @@ const SCENE_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
                 android:textStyle="bold" />
 
             <TextView
+                android:id="@+id/d_splash"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="5dp"
+                android:paddingBottom="5dp"
+                android:background="@drawable/ps_splash_pill"
+                android:text="@string/ps_splash"
+                android:contentDescription="@string/ps_splash_label"
+                android:textSize="12sp" />
+
+            <TextView
                 android:id="@+id/d_drink"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -2357,8 +2413,43 @@ const SCENE_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
 </FrameLayout>
 `;
 
+/* Hearts rising over my bear after a splash, on the right-hand side. */
+function sceneHearts() {
+  const files = {};
+  const hearts = [
+    [80, 0.9],
+    [87, 0.7],
+    [76, 0.6],
+    [91, 0.8],
+  ];
+  const frames = 10;
+  const heart = (x, y, r) =>
+    `M${round(x)},${round(y + r * 1.2)} C${round(x - r * 2)},${round(y - r * 0.2)} ${round(x - r * 0.9)},${round(y - r * 1.4)} ${round(x)},${round(y - r * 0.4)} C${round(x + r * 0.9)},${round(y - r * 1.4)} ${round(x + r * 2)},${round(y - r * 0.2)} ${round(x)},${round(y + r * 1.2)} Z`;
+  for (let f = 0; f < frames; f++) {
+    files[`drawable/ps_hearts_${f}.xml`] = wideVector(
+      hearts
+        .map(([x, size], i) => {
+          const p = (f / frames + i / hearts.length) % 1;
+          const y = 40 - p * 30;
+          const alpha = p > 0.75 ? round(1 - (p - 0.75) / 0.25) : 1;
+          return `    <path android:fillColor="#F43F5E" android:fillAlpha="${alpha}" android:pathData="${heart(x + Math.sin(p * Math.PI * 3) * 1.2, y, size * (0.8 + 0.4 * p))}" />`;
+        })
+        .join('\n'),
+    );
+  }
+  files['drawable/ps_hearts.xml'] = animationList('ps_hearts', frames, 110);
+  return files;
+}
+
 function sceneResources() {
   return {
+    ...sceneHearts(),
+    'drawable/ps_splash_pill.xml': `<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#E0F2FE" />
+    <corners android:radius="999dp" />
+</shape>
+`,
     'layout/water_widget_scene.xml': SCENE_LAYOUT_XML,
     'drawable/ps_preview.xml': SCENE_PREVIEW_XML,
     'drawable/ps_glass.xml': `<?xml version="1.0" encoding="utf-8"?>
@@ -2480,6 +2571,8 @@ const WATER_STRINGS = {
   pd_partner: 'Partner',
   pd_drink: '💧 +250',
   pd_you: 'You',
+  ps_splash: '💦',
+  ps_splash_label: 'Splash your partner',
   ps_scene: 'You and your partner in a tug-of-war over water',
   pd_preview_title: 'Alex vs you',
   pd_preview_duel: 'Alex just had a juice 🧃 — your move!',

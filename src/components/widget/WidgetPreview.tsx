@@ -306,6 +306,25 @@ function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: n
         <Visitor kind={snap.visitor} W={W} H={H} />
         <Garden ml={snap.waterMl} pct={snap.pct} layers={snap.layers} cx={leftX} feet={feet} bw={bw} />
         <Garden ml={snap.meWaterMl} pct={snap.mePct} layers={snap.meLayers} cx={rightX} feet={feet} bw={bw} />
+        {snap.cheerAt > 0 && snap.updatedAt - snap.cheerAt <= WATER_WIDGET_LIVE_MS
+          ? [
+              [-0.62, 0.2, 5],
+              [0.6, 0.32, 4],
+              [-0.5, 0.62, 3.4],
+              [0.66, 0.7, 3],
+            ].map(([dx, dy, r], i) => {
+              const x = rightX + dx! * bw;
+              const y = feet - bh * (1 - dy!);
+              const rr = r!;
+              return (
+                <Path
+                  key={`h${i}`}
+                  d={`M${x} ${y + rr * 1.2} C${x - rr * 2} ${y - rr * 0.2} ${x - rr * 0.9} ${y - rr * 1.4} ${x} ${y - rr * 0.4} C${x + rr * 0.9} ${y - rr * 1.4} ${x + rr * 2} ${y - rr * 0.2} ${x} ${y + rr * 1.2} Z`}
+                  fill="#F43F5E"
+                />
+              );
+            })
+          : null}
         {met
           ? Array.from({ length: 22 }, (_, i) => (
               <Rect
@@ -367,10 +386,13 @@ function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: n
         </View>
         <View style={{ flex: 1 }} />
         <View style={styles.duoFoot}>
-          <View style={[styles.glass, { flex: 1, marginRight: 8 }]}>
+          <View style={[styles.glass, { flex: 1, marginRight: 6 }]}>
             <Text style={[styles.duelLine, { color: '#FFFFFF', marginRight: 0 }]} numberOfLines={1}>
               {snap.duel}
             </Text>
+          </View>
+          <View style={styles.splash}>
+            <Text style={{ fontSize: 12 }}>💦</Text>
           </View>
           <DrinkPill animate={style.motion} />
         </View>
@@ -906,6 +928,13 @@ const styles = StyleSheet.create({
   glass: { backgroundColor: 'rgba(0,0,0,0.28)', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 },
   chipScene: font('extrabold', 10.5, { color: '#FFFFFF' }),
   streakText: font('extrabold', 11, { color: '#FDE68A' }),
+  splash: {
+    backgroundColor: '#E0F2FE',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginRight: 6,
+  },
   ringsBody: { flex: 1, marginLeft: 12 },
   metric: { flexDirection: 'row', alignItems: 'center', marginTop: 3 },
   metricVal: font('extrabold', 16),

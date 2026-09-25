@@ -104,6 +104,18 @@ function scheduleWidgetPush(coupleId: string, uid: string): void {
   }, wait);
 }
 
+/**
+ * When I last splashed my partner from the widget. It rides on the next
+ * widget push, so their bear gets hearts even while their app is closed.
+ */
+let lastSplashAt = 0;
+
+/** Record a splash and push it to the partner's widget straight away. */
+export function markSplash(coupleId: string, uid: string): void {
+  lastSplashAt = Date.now();
+  scheduleWidgetPush(coupleId, uid);
+}
+
 /** My day as my partner's widget should show it; see `scheduleWidgetPush`. */
 export function widgetFromPublished(me: CoupleMember) {
   const today = dayKey();
@@ -126,6 +138,7 @@ export function widgetFromPublished(me: CoupleMember) {
     topExercise: reps ? reps.topEx : (doc?.topEx ?? null),
     trainedAt: reps ? reps.trainedAt : (doc?.trainedAt ?? 0),
     rev: Math.max(doc?.rev ?? 0, water?.extras.rev ?? 0, steps?.rev ?? 0, reps?.rev ?? 0),
+    cheerAt: lastSplashAt,
   });
 }
 

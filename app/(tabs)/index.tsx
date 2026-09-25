@@ -30,6 +30,7 @@ import { myExerciseBreakdown, partnerWidget } from '@/domain/coupleExercises';
 import {
   partnerGoalToday,
   partnerLastDrinkToday,
+  nudgeAt,
   partnerLayersToday,
   partnerRepsToday,
   partnerWaterRevToday,
@@ -245,6 +246,12 @@ export default function HomeScreen() {
     if (bothFull) useDuoStreakStore.getState().record(today);
   }, [bothFull, today]);
   const duoDays = duoStreak(streakDays, today);
+  /* A splash from them: their latest water nudge, aimed at me. */
+  const lastNudge = couple.couple?.nudge;
+  const splashAt =
+    lastNudge && lastNudge.fromUid !== couple.me?.uid && lastNudge.kind === 'water'
+      ? (nudgeAt(couple.couple ?? null) ?? 0)
+      : 0;
   const showSteps = useWidgetStyleStore((st) => st.showSteps);
   const showReps = useWidgetStyleStore((st) => st.showReps);
   const showMine = useWidgetStyleStore((st) => st.showMine);
@@ -272,6 +279,7 @@ export default function HomeScreen() {
         rev: partnerWaterRevToday(couple.partner, today),
         style: { layout, theme, showSteps, showReps, showMine, motion },
         streak: duoDays,
+        cheerAt: splashAt,
       }),
       'water',
     );
@@ -286,6 +294,7 @@ export default function HomeScreen() {
     myGoalMl,
     myLayers,
     duoDays,
+    splashAt,
     layout,
     theme,
     showSteps,

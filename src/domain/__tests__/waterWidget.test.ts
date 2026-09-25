@@ -182,6 +182,11 @@ describe('duelLine', () => {
     expect(line({ ml: 2000, met: true, me: me(2100, 0, true) })).toBe('Both bears full — dream team 🎉');
   });
 
+  it('puts a splash from them first, after a shared win', () => {
+    expect(line({ ml: 500, cheered: true, fresh: 'juice 🧃' })).toBe('Bea splashed you 💦 — drink up!');
+    expect(line({ ml: 2000, met: true, cheered: true, me: me(2100, 0, true) })).toBe('Both bears full — dream team 🎉');
+  });
+
   it('turns a fresh drink into a nudge', () => {
     expect(line({ ml: 500, fresh: 'juice 🧃' })).toBe('Bea just had juice 🧃 — your move!');
   });

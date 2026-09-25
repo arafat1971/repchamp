@@ -145,6 +145,11 @@ export interface WaterWidgetSnapshot {
    * none. Unlocks the bears' outfits: sunglasses at 3, crowns at 7.
    */
   streak: number;
+  /**
+   * When the partner last splashed me (a water nudge), epoch ms; 0 for none.
+   * Hearts float over my bear for a while after it.
+   */
+  cheerAt: number;
   /** Today's visitor in the scene, the same all day: 0 butterfly, 1 ladybug, 2 mushroom, 3 snail. */
   visitor: number;
 
@@ -196,6 +201,8 @@ export interface WaterWidgetInput {
   rev?: number;
   /** The shared streak, when this copy is built on my phone. */
   streak?: number;
+  /** When they last splashed me — see `WaterWidgetSnapshot.cheerAt`. */
+  cheerAt?: number | null;
   /** My chosen look, when this copy is built on my phone. */
   style?: WidgetStyle | null;
 }
@@ -249,11 +256,13 @@ export function buildWaterWidgetSnapshot(input: WaterWidgetInput, now = Date.now
   const meSteps = me && me.steps != null && Number.isFinite(me.steps) && me.steps >= 0 ? Math.round(me.steps) : -1;
 
   const fresh = lastAt > 0 && now - lastAt >= -60_000 && now - lastAt <= WATER_WIDGET_LIVE_MS;
+  const cheerAt = time(input.cheerAt);
   const duel = duelLine({
     name,
     ml,
     met,
     reps,
+    cheered: cheerAt > 0 && now - cheerAt >= -60_000 && now - cheerAt <= WATER_WIDGET_LIVE_MS,
     fresh: fresh && lastMeta ? `${lastMeta.label.toLowerCase()} ${lastMeta.emoji}` : null,
     me: me ? { ml: meMl, met: meMl >= meGoal, reps: count(me.reps) } : null,
   });
@@ -296,6 +305,7 @@ export function buildWaterWidgetSnapshot(input: WaterWidgetInput, now = Date.now
     meLayers: me ? bands(me.layers, meMl, mePct) : [],
     duel,
     streak: count(input.streak),
+    cheerAt,
     visitor: dailyVisitor(input.day),
     styled: !!input.style,
     ...(input.style ?? DEFAULT_WIDGET_STYLE),
@@ -356,10 +366,13 @@ export function duelLine(input: {
   reps: number;
   /** "juice 🧃" when they drank in the last few minutes. */
   fresh: string | null;
+  /** They splashed me in the last few minutes. */
+  cheered?: boolean;
   me: { ml: number; met: boolean; reps: number } | null;
 }): string {
   const { name, ml, met, reps, fresh, me } = input;
   if (me && met && me.met) return 'Both bears full — dream team 🎉';
+  if (input.cheered) return `${name} splashed you 💦 — drink up!`;
   if (fresh) return `${name} just had ${fresh} — your move!`;
   if (!me) {
     if (met) return `${name} filled their bear 🎉 — can you?`;

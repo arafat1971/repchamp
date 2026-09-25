@@ -50,6 +50,7 @@ import { useDuoStreakStore } from '@/state/duoStreakStore';
 import { useWeatherStore } from '@/state/weatherStore';
 import { refreshWeather } from '@/services/weather';
 import { meadow, weekWrap, wrapLine } from '@/domain/week';
+import { bondMonths, occasionFor, seasonFor } from '@/domain/season';
 import { duoStreak } from '@/domain/duoStreak';
 import { DEFAULT_DAILY_GOAL_ML } from '@/domain/hydration';
 import { getExercise } from '@/vision/exercises';
@@ -276,6 +277,18 @@ export default function HomeScreen() {
     if (!partnerGlass) return;
     useDuoStreakStore.getState().recordTotals(today, { them: theirMlToday, me: todayMl });
   }, [partnerGlass, theirMlToday, todayMl, today]);
+  /* The calendar: the season (hemisphere from the weather reading when on)
+     and today's occasion — New Year, Valentine's, or our monthly bond. */
+  const pairedAtMs = (couple.couple as { pairedAt?: { toMillis?: () => number } } | null)?.pairedAt?.toMillis?.() ?? 0;
+  const weatherOn = useWidgetStyleStore((st) => st.weather);
+  const south = useWeatherStore((st) => !!(weatherOn && st.now?.south));
+  const calendar = useMemo(() => {
+    const [y, m, d] = today.split('-').map(Number);
+    const date = new Date(y as number, (m as number) - 1, d as number, 12);
+    const bond = bondMonths(pairedAtMs, date);
+    return { season: seasonFor(date, south), occasion: occasionFor(date, bond), bond };
+  }, [today, pairedAtMs, south]);
+
   const weekInfo = useMemo(() => {
     const name = partnerGlass?.name ?? 'Partner';
     return {
@@ -288,6 +301,7 @@ export default function HomeScreen() {
   const showMine = useWidgetStyleStore((st) => st.showMine);
   const motion = useWidgetStyleStore((st) => st.motion);
   const realWeather = useWidgetStyleStore((st) => st.weather);
+  const backdrop = useWidgetStyleStore((st) => st.backdrop);
   const weatherNow = useWeatherStore((st) => st.now);
   /* Real weather, when switched on: refreshed on focus, at most half-hourly. */
   useFocusEffect(
@@ -323,7 +337,8 @@ export default function HomeScreen() {
           lastAt: myLastAt,
         },
         rev: partnerWaterRevToday(couple.partner, today),
-        style: { layout, theme, showSteps, showReps, showMine, motion, weather: realWeather },
+        style: { layout, theme, showSteps, showReps, showMine, motion, weather: realWeather, backdrop },
+        calendar,
         streak: duoDays,
         cheerAt: splashAt,
         react: reactAt > 0 ? { at: reactAt, emoji: reactEmoji } : null,
@@ -350,6 +365,8 @@ export default function HomeScreen() {
     weekInfo,
     realWeather,
     weatherNow,
+    backdrop,
+    calendar,
     layout,
     theme,
     showSteps,

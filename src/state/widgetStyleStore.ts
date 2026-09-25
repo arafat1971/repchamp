@@ -42,6 +42,6 @@ export const useWidgetStyleStore = create<WidgetStyleState>()(
 
 /** The style alone, for code outside React and for the payload. */
 export function widgetStyle(): WidgetStyle {
-  const { layout, theme, showSteps, showReps, showMine, motion, weather } = useWidgetStyleStore.getState();
-  return { layout, theme, showSteps, showReps, showMine, motion, weather };
+  const { layout, theme, showSteps, showReps, showMine, motion, weather, backdrop } = useWidgetStyleStore.getState();
+  return { layout, theme, showSteps, showReps, showMine, motion, weather, backdrop };
 }

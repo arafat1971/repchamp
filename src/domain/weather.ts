@@ -9,6 +9,8 @@ export type WeatherKind = (typeof WEATHER_KINDS)[number];
 export interface WeatherNow {
   kind: WeatherKind;
   tempC: number;
+  /** South of the equator — flips the scene's seasons. */
+  south?: boolean;
   /** When it was fetched, epoch ms. */
   at: number;
 }

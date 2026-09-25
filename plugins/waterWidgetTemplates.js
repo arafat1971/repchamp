@@ -276,9 +276,11 @@ class WaterWidgetProvider : AppWidgetProvider() {
         private const val LIVE_MS = 15L * 60L * 1000L
         private val ME_KEYS = arrayOf(
             "hasMe", "meWater", "meSteps", "meReps", "meWaterMl", "meStepsN", "meRepsN",
-            "mePct", "meMet", "meLayers", "streak", "meLastAt", "meadow", "sky", "temp"
+            "mePct", "meMet", "meLayers", "streak", "meLastAt", "meadow", "sky", "temp", "season", "occasion"
         )
-        private val STYLE_KEYS = arrayOf("styled", "layout", "theme", "showSteps", "showReps", "showMine", "motion")
+        private val STYLE_KEYS = arrayOf(
+            "styled", "layout", "theme", "showSteps", "showReps", "showMine", "motion", "weather", "backdrop"
+        )
 
         /**
          * Whether a new copy should replace the stored one.
@@ -706,7 +708,10 @@ class WaterWidgetProvider : AppWidgetProvider() {
                     SceneArt.Bear(fraction(snap, "pct"), layersOf(snap, "layers"), met, name ?: context.getString(R.string.pd_partner), snap?.optString("amount") ?: "0 ml", waterA),
                     SceneArt.Bear(if (hasMe) fraction(snap, "mePct") else 0f, if (hasMe) layersOf(snap, "meLayers") else emptyList(), meMet, context.getString(R.string.pd_you), if (hasMe) snap?.optString("meWater") ?: "—" else "—", waterB),
                     share, drankFresh, streak, snap?.optInt("visitor", 0) ?: 0, cheered, together,
-                    skyKind, meadow, reactEmoji
+                    skyKind, meadow, reactEmoji,
+                    stored?.optBoolean("backdrop", false) ?: false,
+                    stored?.optString("season", "summer") ?: "summer",
+                    snap?.optString("occasion", "") ?: ""
                 )
             )
 
@@ -951,7 +956,10 @@ object SceneArt {
         together: Boolean,
         weather: String,
         meadow: IntArray,
-        reaction: String
+        reaction: String,
+        backdrop: Boolean,
+        season: String,
+        occasion: String
     ): Bitmap {
         /* 1.5x, not the screen's density: the picture rides in the update's
            binder transaction, and a full-density one can be too big. The
@@ -968,17 +976,23 @@ object SceneArt {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         val overcast = weather == "rain" || weather == "storm" || weather == "snow" || weather == "fog"
 
-        // The card itself, rounded like every widget on the launcher.
-        val radius = 22f * u
-        val card = Path().apply { addRoundRect(RectF(0f, 0f, W, H), radius, radius, Path.Direction.CW) }
-        c.clipPath(card)
+        val night = isNight(hour)
+        val grass = seasonGrass(season, night)
 
-        paint.shader = LinearGradient(0f, 0f, 0f, H, sky.top, sky.bottom, Shader.TileMode.CLAMP)
-        c.drawRect(0f, 0f, W, H, paint)
-        paint.shader = null
+        /* On a sky card, the card itself, rounded like every widget on the
+           launcher. Without one the picture is transparent: the scene floats
+           on the wallpaper, and only the island and the sky's things show. */
+        if (backdrop) {
+            val radius = 22f * u
+            val card = Path().apply { addRoundRect(RectF(0f, 0f, W, H), radius, radius, Path.Direction.CW) }
+            c.clipPath(card)
+            paint.shader = LinearGradient(0f, 0f, 0f, H, sky.top, sky.bottom, Shader.TileMode.CLAMP)
+            c.drawRect(0f, 0f, W, H, paint)
+            paint.shader = null
+        }
 
         // Stars, placed the same way every night so they do not jump about.
-        if (isNight(hour)) {
+        if (backdrop && night) {
             val rnd = java.util.Random(7L)
             paint.color = Color.WHITE
             repeat(34) {
@@ -991,7 +1005,6 @@ object SceneArt {
         }
 
         // Sun or moon, travelling across the sky with the hour — hidden by overcast.
-        val night = isNight(hour)
         val arc = if (night) ((if (hour >= 20f) hour - 20f else hour + 4f) / 9f) else ((hour - 5f) / 15f)
         val bx = W * (0.3f + 0.4f * arc.coerceIn(0f, 1f))
         val by = H * (0.3f - 0.14f * sin(PI.toFloat() * arc.coerceIn(0f, 1f)))
@@ -1002,8 +1015,15 @@ object SceneArt {
             paint.setShadowLayer(10f * u, 0f, 0f, 0x88FEF3C7.toInt())
             c.drawCircle(bx, by, 11f * u, paint)
             paint.clearShadowLayer()
-            paint.color = sky.top
-            c.drawCircle(bx + 5f * u, by - 3f * u, 9.5f * u, paint)
+            // The crescent's bite: sky on a card, cut clean on the wallpaper.
+            if (backdrop) {
+                paint.color = sky.top
+                c.drawCircle(bx + 5f * u, by - 3f * u, 9.5f * u, paint)
+            } else {
+                paint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
+                c.drawCircle(bx + 5f * u, by - 3f * u, 9.5f * u, paint)
+                paint.xfermode = null
+            }
         } else {
             val sun = if (hour >= 17f) 0xFFFDBA74.toInt() else 0xFFFDE047.toInt()
             paint.color = sun
@@ -1038,23 +1058,43 @@ object SceneArt {
             paint.style = Paint.Style.FILL
         }
 
-        // Two soft hills.
-        paint.color = sky.hillBack
+        // Seasonal things in the air: petals, leaves, or a special day's art.
+        seasonAir(c, paint, season, W, H, u)
+        occasionArt(c, paint, occasion, W, H, u)
+
+        // The ground: two soft hills on a card, or a floating island.
+        if (!backdrop) island(c, paint, grass, W, H, u)
+        if (backdrop) {
+        paint.color = grass[0]
         c.drawPath(Path().apply {
             moveTo(0f, H * 0.64f)
             quadTo(W * 0.3f, H * 0.5f, W * 0.62f, H * 0.62f)
             quadTo(W * 0.85f, H * 0.7f, W, H * 0.58f)
             lineTo(W, H); lineTo(0f, H); close()
         }, paint)
+        }
         // The meadow: flowers the earlier days of this week left on the back hill.
         meadowArt(c, paint, meadow, W, H, u)
 
-        paint.color = sky.hillFront
-        c.drawPath(Path().apply {
-            moveTo(0f, H * 0.72f)
-            quadTo(W * 0.5f, H * 0.62f, W, H * 0.72f)
-            lineTo(W, H); lineTo(0f, H); close()
-        }, paint)
+        if (backdrop) {
+            paint.color = grass[1]
+            c.drawPath(Path().apply {
+                moveTo(0f, H * 0.72f)
+                quadTo(W * 0.5f, H * 0.62f, W, H * 0.72f)
+                lineTo(W, H); lineTo(0f, H); close()
+            }, paint)
+            if (season == "winter") {
+                paint.color = 0xF2FFFFFF.toInt()
+                c.drawPath(Path().apply {
+                    moveTo(0f, H * 0.72f)
+                    quadTo(W * 0.5f, H * 0.62f, W, H * 0.72f)
+                    lineTo(W, H * 0.745f)
+                    quadTo(W * 0.5f, H * 0.655f, 0f, H * 0.745f)
+                    close()
+                }, paint)
+            }
+        }
+        seasonGround(c, paint, season, W, H, u)
 
         // The bears, leaning back to pull; whoever is ahead leans harder.
         val bh = H * 0.44f
@@ -1071,8 +1111,8 @@ object SceneArt {
         garden(c, paint, them, leftX, feet, bw, u)
         garden(c, paint, me, rightX, feet, bw, u)
 
-        bear(c, them, BearArt.THEIRS, leftX, feet, bw, bh, themLean, now, streak)
-        bear(c, me, BearArt.MINE, rightX, feet, bw, bh, meLean, now, streak)
+        bear(c, them, BearArt.THEIRS, leftX, feet, bw, bh, themLean, now, streak, season)
+        bear(c, me, BearArt.MINE, rightX, feet, bw, bh, meLean, now, streak, season)
 
         // The rope, sagging between their paws, with the flag where the pull is.
         val ropeY = feet - bh * 0.42f
@@ -1146,15 +1186,191 @@ object SceneArt {
         return bmp
     }
 
-    private fun bear(c: Canvas, b: Bear, theme: BearArt.Theme, cx: Float, feet: Float, bw: Float, bh: Float, lean: Float, now: Long, streak: Int) {
+    private fun bear(c: Canvas, b: Bear, theme: BearArt.Theme, cx: Float, feet: Float, bw: Float, bh: Float, lean: Float, now: Long, streak: Int, season: String) {
         c.save()
         c.rotate(lean, cx, feet)
         c.translate(cx - bw / 2f, feet - bh)
         c.scale(bw / 100f, bw / 100f)
         if (streak >= 30) wings(c)
         BearArt.drawInto(c, b.pct, b.layers, b.met, theme, now)
+        if (season == "winter") scarf(c)
         outfit(c, streak)
         c.restore()
+    }
+
+    /** A cosy red scarf for the winter, in the bear's own box. */
+    private fun scarf(c: Canvas) {
+        val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        p.color = 0xFFDC2626.toInt()
+        c.drawRoundRect(RectF(28f, 62f, 72f, 70f), 4f, 4f, p)
+        c.drawRoundRect(RectF(56f, 66f, 64f, 86f), 3f, 3f, p)
+        p.color = 0xFFFCA5A5.toInt()
+        for (k in 0 until 4) c.drawRect(32f + k * 10f, 62f, 35f + k * 10f, 70f, p)
+    }
+
+    /** Grass colours for the season, back then front; night dims them. */
+    private fun seasonGrass(season: String, night: Boolean): IntArray {
+        val g = when (season) {
+            "spring" -> intArrayOf(0xFFBBF7D0.toInt(), 0xFF4ADE80.toInt())
+            "autumn" -> intArrayOf(0xFFD9DB82.toInt(), 0xFF9CA84A.toInt())
+            "winter" -> intArrayOf(0xFFE2E8F0.toInt(), 0xFFA7C4A0.toInt())
+            else -> intArrayOf(0xFF86EFAC.toInt(), 0xFF22C55E.toInt())
+        }
+        return if (night) intArrayOf(mixColor(g[0], 0xFF0F172A.toInt(), 0.45f), mixColor(g[1], 0xFF0F172A.toInt(), 0.45f)) else g
+    }
+
+    /**
+     * The floating island the bears stand on when there is no sky card: a
+     * grassy top in the season's colours over an earthy underside with a few
+     * hanging roots, and snow on it in winter.
+     */
+    private fun island(c: Canvas, paint: Paint, grass: IntArray, W: Float, H: Float, u: Float) {
+        val l = W * 0.06f
+        val r = W * 0.94f
+        val top = H * 0.7f
+        // A soft shadow beneath, so it floats rather than sits.
+        paint.shader = android.graphics.RadialGradient(W / 2f, H * 0.985f, W * 0.3f, 0x40000000, 0x00000000, Shader.TileMode.CLAMP)
+        c.drawOval(RectF(W * 0.2f, H * 0.955f, W * 0.8f, H * 1.01f), paint)
+        paint.shader = null
+        // Rocky underside tapering to a point, with a lighter band of topsoil.
+        val earth = Path().apply {
+            moveTo(l, top)
+            quadTo(W * 0.1f, H * 0.8f, W * 0.24f, H * 0.83f)
+            quadTo(W * 0.3f, H * 0.9f, W * 0.4f, H * 0.9f)
+            quadTo(W * 0.46f, H * 0.97f, W * 0.52f, H * 0.95f)
+            quadTo(W * 0.6f, H * 0.9f, W * 0.68f, H * 0.88f)
+            quadTo(W * 0.8f, H * 0.84f, W * 0.86f, H * 0.79f)
+            quadTo(W * 0.92f, H * 0.76f, r, top)
+            close()
+        }
+        paint.shader = LinearGradient(0f, top, 0f, H * 0.97f, 0xFF92400E.toInt(), 0xFF3F1D0B.toInt(), Shader.TileMode.CLAMP)
+        c.drawPath(earth, paint)
+        paint.shader = null
+        c.save()
+        c.clipPath(earth)
+        paint.color = 0xFFB45309.toInt()
+        c.drawOval(RectF(l, top - H * 0.02f, r, top + H * 0.07f), paint)
+        paint.color = 0x2E000000
+        c.drawOval(RectF(W * 0.16f, H * 0.8f, W * 0.84f, H * 0.845f), paint)
+        c.drawOval(RectF(W * 0.28f, H * 0.87f, W * 0.72f, H * 0.9f), paint)
+        c.restore()
+        // A couple of hanging roots and vines.
+        paint.style = Paint.Style.STROKE
+        paint.strokeCap = Paint.Cap.ROUND
+        paint.strokeWidth = 1.1f * u
+        paint.color = 0xFF6B3F1D.toInt()
+        c.drawPath(Path().apply { moveTo(W * 0.33f, H * 0.89f); quadTo(W * 0.32f, H * 0.95f, W * 0.34f, H * 0.985f) }, paint)
+        paint.color = 0xFF4D7C0F.toInt()
+        c.drawPath(Path().apply { moveTo(W * 0.72f, H * 0.87f); quadTo(W * 0.74f, H * 0.93f, W * 0.72f, H * 0.96f) }, paint)
+        c.drawPath(Path().apply { moveTo(W * 0.16f, H * 0.79f); quadTo(W * 0.15f, H * 0.84f, W * 0.17f, H * 0.87f) }, paint)
+        paint.style = Paint.Style.FILL
+        // The grassy top: a lighter far rim, the near surface, and tufts along the front edge.
+        paint.color = grass[0]
+        c.drawOval(RectF(l, H * 0.615f, r, H * 0.745f), paint)
+        paint.color = grass[1]
+        c.drawOval(RectF(l, H * 0.635f, r, H * 0.765f), paint)
+        paint.color = grass[1]
+        var x = l + 6f * u
+        while (x < r - 6f * u) {
+            val t = (x - W / 2f) / ((r - l) / 2f)
+            val y = H * 0.7f + H * 0.065f * kotlin.math.sqrt(max(0f, 1f - t * t))
+            c.drawPath(Path().apply { moveTo(x - 2.2f * u, y); lineTo(x, y + 3.2f * u); lineTo(x + 2.2f * u, y); close() }, paint)
+            x += 5f * u
+        }
+    }
+
+    /** Petals in spring, leaves in autumn, flakes in winter, drifting in the air. */
+    private fun seasonAir(c: Canvas, paint: Paint, season: String, W: Float, H: Float, u: Float) {
+        val rnd = java.util.Random(31L)
+        when (season) {
+            "spring" -> repeat(12) {
+                paint.color = if (it % 2 == 0) 0xFFF9A8D4.toInt() else 0xFFFBCFE8.toInt()
+                val x = rnd.nextFloat() * W
+                val y = rnd.nextFloat() * H * 0.55f
+                c.save(); c.rotate(rnd.nextFloat() * 180f, x, y)
+                c.drawOval(RectF(x - 2.4f * u, y - 1.3f * u, x + 2.4f * u, y + 1.3f * u), paint)
+                c.restore()
+            }
+            "autumn" -> repeat(12) {
+                paint.color = intArrayOf(0xFFF97316.toInt(), 0xFFDC2626.toInt(), 0xFFF59E0B.toInt())[it % 3]
+                val x = rnd.nextFloat() * W
+                val y = rnd.nextFloat() * H * 0.55f
+                c.save(); c.rotate(rnd.nextFloat() * 360f, x, y)
+                c.drawPath(Path().apply {
+                    moveTo(x, y - 3f * u); quadTo(x + 3f * u, y, x, y + 3f * u); quadTo(x - 3f * u, y, x, y - 3f * u); close()
+                }, paint)
+                c.restore()
+            }
+            "winter" -> {
+                paint.color = Color.WHITE
+                repeat(18) { c.drawCircle(rnd.nextFloat() * W, rnd.nextFloat() * H * 0.55f, (0.8f + rnd.nextFloat() * 0.8f) * u, paint) }
+            }
+        }
+    }
+
+    /** Blossoms in spring grass, sunflowers in summer, fallen leaves in autumn. */
+    private fun seasonGround(c: Canvas, paint: Paint, season: String, W: Float, H: Float, u: Float) {
+        when (season) {
+            "autumn" -> {
+                val rnd = java.util.Random(47L)
+                repeat(16) {
+                    paint.color = intArrayOf(0xFFEA580C.toInt(), 0xFFDC2626.toInt(), 0xFFF59E0B.toInt())[it % 3]
+                    val lx = W * (0.1f + rnd.nextFloat() * 0.8f)
+                    val ly = H * (0.655f + rnd.nextFloat() * 0.08f)
+                    c.save(); c.rotate(rnd.nextFloat() * 360f, lx, ly)
+                    c.drawOval(RectF(lx - 2f * u, ly - 1f * u, lx + 2f * u, ly + 1f * u), paint)
+                    c.restore()
+                }
+            }
+            "spring" -> {
+                val rnd = java.util.Random(41L)
+                repeat(14) {
+                    paint.color = if (it % 3 == 0) Color.WHITE else 0xFFF9A8D4.toInt()
+                    c.drawCircle(W * (0.08f + rnd.nextFloat() * 0.84f), H * (0.66f + rnd.nextFloat() * 0.07f), 1.1f * u, paint)
+                }
+            }
+            "summer" -> for (x in floatArrayOf(W * 0.04f, W * 0.95f)) {
+                val y = H * 0.66f
+                paint.color = 0xFF15803D.toInt()
+                c.drawRect(x - 0.6f * u, y - 12f * u, x + 0.6f * u, y + 2f * u, paint)
+                paint.color = 0xFFFACC15.toInt()
+                for (k in 0 until 8) {
+                    val a = k * 45f * (PI.toFloat() / 180f)
+                    c.drawCircle(x + cos(a) * 3.4f * u, y - 13f * u + sin(a) * 3.4f * u, 1.9f * u, paint)
+                }
+                paint.color = 0xFF78350F.toInt()
+                c.drawCircle(x, y - 13f * u, 2.2f * u, paint)
+            }
+        }
+    }
+
+    /** New Year's fireworks, Valentine's hearts, or our bond's hearts. */
+    private fun occasionArt(c: Canvas, paint: Paint, occasion: String, W: Float, H: Float, u: Float) {
+        when (occasion) {
+            "newyear" -> {
+                val bursts = arrayOf(floatArrayOf(0.3f, 0.2f), floatArrayOf(0.62f, 0.12f), floatArrayOf(0.82f, 0.3f))
+                val colors = intArrayOf(0xFFF472B6.toInt(), 0xFFFDE047.toInt(), 0xFF60A5FA.toInt())
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = 1.3f * u
+                paint.strokeCap = Paint.Cap.ROUND
+                bursts.forEachIndexed { i, b ->
+                    paint.color = colors[i]
+                    for (k in 0 until 10) {
+                        val a = k * 36f * (PI.toFloat() / 180f)
+                        val x = W * b[0]
+                        val y = H * b[1]
+                        c.drawLine(x + cos(a) * 3f * u, y + sin(a) * 3f * u, x + cos(a) * 9f * u, y + sin(a) * 9f * u, paint)
+                    }
+                }
+                paint.style = Paint.Style.FILL
+            }
+            "valentine", "bond" -> {
+                val rnd = java.util.Random(53L)
+                repeat(9) {
+                    heart(c, paint, W * (0.15f + rnd.nextFloat() * 0.7f), H * (0.08f + rnd.nextFloat() * 0.35f), (2.2f + rnd.nextFloat() * 2f) * u)
+                }
+            }
+        }
     }
 
     /**

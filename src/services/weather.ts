@@ -50,7 +50,7 @@ export async function refreshWeather(force = false): Promise<void> {
     const temp = body.current?.temperature_2m;
     const code = body.current?.weather_code;
     if (typeof temp !== 'number' || typeof code !== 'number') return;
-    useWeatherStore.getState().set({ kind: weatherKind(code), tempC: Math.round(temp), at: Date.now() });
+    useWeatherStore.getState().set({ kind: weatherKind(code), tempC: Math.round(temp), south: lat < 0, at: Date.now() });
   } catch {
     // Keep the last reading; it ages out on its own.
   } finally {

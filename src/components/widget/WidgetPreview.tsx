@@ -170,8 +170,16 @@ export function WidgetPreview({
 
   const parts = { snap, style, look, live, sweep, tilt, phase };
   return (
-    <View style={[styles.card, { width, borderColor: look.border }]}>
-      <Backdrop colors={look.bg} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+    <View
+      style={[
+        styles.card,
+        { width, borderColor: look.border },
+        style.layout === 'scene' && !style.backdrop && styles.floating,
+      ]}
+    >
+      {style.layout === 'scene' && !style.backdrop ? null : (
+        <Backdrop colors={look.bg} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+      )}
       {style.layout === 'scene' ? (
         <Scene {...parts} width={width} />
       ) : style.layout === 'duo' ? (
@@ -236,6 +244,102 @@ function mixHex(a: string, b: string, t: number): string {
   return `#${m(ar!, br!)}${m(ag!, bg!)}${m(ab!, bb!)}`;
 }
 
+/** Grass for the season, back then front; night dims it — as the painter does. */
+function seasonGrass(season: string, night: boolean): [string, string] {
+  const g: [string, string] =
+    season === 'spring'
+      ? ['#BBF7D0', '#4ADE80']
+      : season === 'autumn'
+        ? ['#D9DB82', '#9CA84A']
+        : season === 'winter'
+          ? ['#E2E8F0', '#A7C4A0']
+          : ['#86EFAC', '#22C55E'];
+  return night ? [mixHex(g[0], '#0F172A', 0.45), mixHex(g[1], '#0F172A', 0.45)] : g;
+}
+
+/** The floating island: a grassy top over an earthy underside. */
+function Island({ grass, W, H }: { grass: [string, string]; W: number; H: number }) {
+  return (
+    <>
+      <Defs>
+        <LinearGradient id="island-earth" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor="#92400E" />
+          <Stop offset="1" stopColor="#3F1D0B" />
+        </LinearGradient>
+      </Defs>
+      <Path d={ellipsePath(W * 0.5, H * 0.985, W * 0.3, H * 0.025)} fill="#000000" opacity={0.18} />
+      <Path
+        d={`M${W * 0.06} ${H * 0.7} Q${W * 0.1} ${H * 0.8} ${W * 0.24} ${H * 0.83} Q${W * 0.3} ${H * 0.9} ${W * 0.4} ${H * 0.9} Q${W * 0.46} ${H * 0.97} ${W * 0.52} ${H * 0.95} Q${W * 0.6} ${H * 0.9} ${W * 0.68} ${H * 0.88} Q${W * 0.8} ${H * 0.84} ${W * 0.86} ${H * 0.79} Q${W * 0.92} ${H * 0.76} ${W * 0.94} ${H * 0.7} Z`}
+        fill="url(#island-earth)"
+      />
+      <Path d={`M${W * 0.33} ${H * 0.89} Q${W * 0.32} ${H * 0.95} ${W * 0.34} ${H * 0.985}`} stroke="#6B3F1D" strokeWidth={1.1} fill="none" />
+      <Path d={`M${W * 0.72} ${H * 0.87} Q${W * 0.74} ${H * 0.93} ${W * 0.72} ${H * 0.96}`} stroke="#4D7C0F" strokeWidth={1.1} fill="none" />
+      <Path d={ellipsePath(W * 0.5, H * 0.68, W * 0.44, H * 0.065)} fill={grass[0]} />
+      <Path d={ellipsePath(W * 0.5, H * 0.7, W * 0.44, H * 0.065)} fill={grass[1]} />
+    </>
+  );
+}
+
+function ellipsePath(cx: number, cy: number, rx: number, ry: number): string {
+  return `M${cx - rx} ${cy} A${rx} ${ry} 0 1 0 ${cx + rx} ${cy} A${rx} ${ry} 0 1 0 ${cx - rx} ${cy} Z`;
+}
+
+/** Petals, leaves or flakes drifting, by season. */
+function SeasonAir({ season, W, H }: { season: string; W: number; H: number }) {
+  if (season === 'summer') return null;
+  return (
+    <>
+      {Array.from({ length: 12 }, (_, i) => {
+        const x = ((i * 41) % 100) / 100 * W;
+        const y = ((i * 23) % 55) / 100 * H;
+        const color =
+          season === 'spring' ? (i % 2 ? '#FBCFE8' : '#F9A8D4') : season === 'autumn' ? ['#F97316', '#DC2626', '#F59E0B'][i % 3]! : '#FFFFFF';
+        return <Circle key={`air${i}`} cx={x} cy={y} r={season === 'winter' ? 1.3 : 2} fill={color} />;
+      })}
+    </>
+  );
+}
+
+/** New Year fireworks, or hearts for Valentine's and our bond day. */
+function OccasionArt({ occasion, W, H }: { occasion: string; W: number; H: number }) {
+  if (occasion === 'newyear') {
+    return (
+      <>
+        {[
+          [0.3, 0.2, '#F472B6'],
+          [0.62, 0.12, '#FDE047'],
+          [0.82, 0.3, '#60A5FA'],
+        ].map(([bx, by, color], i) =>
+          Array.from({ length: 10 }, (_, k) => {
+            const a = (k * 36 * Math.PI) / 180;
+            const x = (bx as number) * W;
+            const y = (by as number) * H;
+            return (
+              <Path
+                key={`fw${i}-${k}`}
+                d={`M${x + Math.cos(a) * 3} ${y + Math.sin(a) * 3} L${x + Math.cos(a) * 9} ${y + Math.sin(a) * 9}`}
+                stroke={color as string}
+                strokeWidth={1.3}
+                strokeLinecap="round"
+              />
+            );
+          }),
+        )}
+      </>
+    );
+  }
+  if (occasion === 'valentine' || occasion === 'bond') {
+    return (
+      <>
+        {Array.from({ length: 8 }, (_, i) => (
+          <Circle key={`vh${i}`} cx={W * (0.15 + ((i * 37) % 70) / 100)} cy={H * (0.08 + ((i * 29) % 35) / 100)} r={2.4} fill="#F43F5E" />
+        ))}
+      </>
+    );
+  }
+  return null;
+}
+
 /* Stars, fixed so they do not jump between renders. */
 const STARS = Array.from({ length: 26 }, (_, i) => ({
   x: (i * 37) % 100,
@@ -255,6 +359,7 @@ function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: n
   const H = Math.max(180, width * 0.54);
   const hour = new Date(snap.updatedAt).getHours() + new Date(snap.updatedAt).getMinutes() / 60;
   const sky = weathered(skyFor(hour), snap.sky);
+  const grass = seasonGrass(snap.season, sky.night);
   const overcast = ['rain', 'storm', 'snow', 'fog'].includes(snap.sky);
   const reactFresh = snap.reactAt > 0 && snap.updatedAt - snap.reactAt <= WATER_WIDGET_LIVE_MS;
   const share = style.showMine && snap.waterMl + snap.meWaterMl > 0 ? snap.waterMl / (snap.waterMl + snap.meWaterMl) : 0.5;
@@ -291,14 +396,17 @@ function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: n
             <Stop offset="1" stopColor={sky.bottom} />
           </LinearGradient>
         </Defs>
-        <Rect width={W} height={H} fill="url(#scene-sky)" />
-        {sky.night
+        {style.backdrop ? <Rect width={W} height={H} fill="url(#scene-sky)" /> : null}
+        <SeasonAir season={snap.season} W={W} H={H} />
+        <OccasionArt occasion={snap.occasion} W={W} H={H} />
+        {!style.backdrop ? <Island grass={grass} W={W} H={H} /> : null}
+        {style.backdrop && sky.night
           ? STARS.map((st, i) => <Circle key={i} cx={(st.x / 100) * W} cy={(st.y / 100) * H * 0.55 * 2} r={st.r} fill="#FFFFFF" opacity={st.o} />)
           : null}
         {overcast ? null : sky.night ? (
           <>
             <Circle cx={bx} cy={by} r={11} fill="#FEF3C7" />
-            <Circle cx={bx + 5} cy={by - 3} r={9.5} fill={sky.top} />
+            {style.backdrop ? <Circle cx={bx + 5} cy={by - 3} r={9.5} fill={sky.top} /> : null}
           </>
         ) : (
           <>
@@ -323,10 +431,12 @@ function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: n
               );
             })
           : null}
-        <Path
-          d={`M0 ${H * 0.64} Q${W * 0.3} ${H * 0.5} ${W * 0.62} ${H * 0.62} Q${W * 0.85} ${H * 0.7} ${W} ${H * 0.58} L${W} ${H} L0 ${H} Z`}
-          fill={sky.hillBack}
-        />
+        {style.backdrop ? (
+          <Path
+            d={`M0 ${H * 0.64} Q${W * 0.3} ${H * 0.5} ${W * 0.62} ${H * 0.62} Q${W * 0.85} ${H * 0.7} ${W} ${H * 0.58} L${W} ${H} L0 ${H} Z`}
+            fill={grass[0]}
+          />
+        ) : null}
         {snap.meadow.map((n, day) =>
           Array.from({ length: n }, (_, k) => {
             const x = W * (0.08 + day * 0.14) + (((k * 37) % 11) - 5) * 1.6;
@@ -334,7 +444,9 @@ function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: n
             return <Circle key={`m${day}-${k}`} cx={x} cy={y} r={1.5} fill={['#F9A8D4', '#FDE68A', '#C4B5FD', '#93C5FD', '#FDBA74'][(day + k) % 5]} />;
           }),
         )}
-        <Path d={`M0 ${H * 0.72} Q${W * 0.5} ${H * 0.62} ${W} ${H * 0.72} L${W} ${H} L0 ${H} Z`} fill={sky.hillFront} />
+        {style.backdrop ? (
+          <Path d={`M0 ${H * 0.72} Q${W * 0.5} ${H * 0.62} ${W} ${H * 0.72} L${W} ${H} L0 ${H} Z`} fill={grass[1]} />
+        ) : null}
         {snap.sky === 'snow'
           ? Array.from({ length: 24 }, (_, i) => <Circle key={`s${i}`} cx={((i * 43) % 100) / 100 * W} cy={((i * 29) % 60) / 100 * H} r={1.2} fill="#FFFFFF" />)
           : null}
@@ -385,12 +497,12 @@ function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: n
       <SceneBear left={leftX - bw / 2} top={feet - bh} bw={bw} bh={bh} lean={themLean}>
         {snap.streak >= 30 ? <Wings bw={bw} bh={bh} /> : null}
         <BearJar id="scene-them" percent={snap.pct * 100} width={bw} theme={THEIR_BEAR} layers={bearLayers(snap.layers)} tilt={tilt} phase={phase} pourKey={0} met={snap.met} />
-        <Outfit streak={snap.streak} bw={bw} bh={bh} />
+        <Outfit streak={snap.streak} bw={bw} bh={bh} winter={snap.season === 'winter'} />
       </SceneBear>
       <SceneBear left={rightX - bw / 2} top={feet - bh} bw={bw} bh={bh} lean={meLean}>
         {snap.streak >= 30 ? <Wings bw={bw} bh={bh} /> : null}
         <BearJar id="scene-me" percent={snap.mePct * 100} width={bw} theme={MY_BEAR} layers={bearLayers(snap.meLayers)} tilt={tilt} phase={phase} pourKey={0} met={snap.meMet} />
-        <Outfit streak={snap.streak} bw={bw} bh={bh} />
+        <Outfit streak={snap.streak} bw={bw} bh={bh} winter={snap.season === 'winter'} />
       </SceneBear>
 
       <Svg width={W} height={H} style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -502,10 +614,18 @@ function Wings({ bw, bh }: { bw: number; bh: number }) {
  * The streak's rewards, in BearJar's 100 x 120 box: sunglasses at 3, a crown
  * at 7, a party hat from 14 (the newest headwear shows).
  */
-function Outfit({ streak, bw, bh }: { streak: number; bw: number; bh: number }) {
-  if (streak < 3) return null;
+function Outfit({ streak, bw, bh, winter }: { streak: number; bw: number; bh: number; winter: boolean }) {
+  if (streak < 3 && !winter) return null;
   return (
     <Svg width={bw} height={bh} viewBox="0 0 100 120" style={StyleSheet.absoluteFill}>
+      {winter ? (
+        <>
+          <Rect x={28} y={60} width={44} height={8} rx={4} fill="#DC2626" />
+          <Rect x={56} y={64} width={8} height={20} rx={3} fill="#DC2626" />
+        </>
+      ) : null}
+      {streak < 3 ? null : (
+      <>
       <Rect x={32} y={34} width={15} height={11} rx={4} fill="#111827" opacity={0.94} />
       <Rect x={53} y={34} width={15} height={11} rx={4} fill="#111827" opacity={0.94} />
       <Path d="M47 38 L53 38" stroke="#111827" strokeWidth={2.2} />
@@ -523,6 +643,8 @@ function Outfit({ streak, bw, bh }: { streak: number; bw: number; bh: number }) 
           <Circle cx={50} cy={6} r={2.2} fill="#EF4444" />
         </>
       ) : null}
+      </>
+      )}
     </Svg>
   );
 }
@@ -958,6 +1080,7 @@ function LivePill() {
 }
 
 const styles = StyleSheet.create({
+  floating: { backgroundColor: 'transparent', borderWidth: 0, shadowOpacity: 0, elevation: 0 },
   card: {
     minHeight: 158,
     borderRadius: 26,

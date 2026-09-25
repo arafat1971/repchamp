@@ -174,7 +174,10 @@ export default function WidgetStudioScreen() {
 
       <SectionLabel>LOOK</SectionLabel>
       {style.layout === 'scene' ? (
-        <Text style={styles.lookNote}>The scene paints the real sky — dawn, day, golden hour, stars at night. Themes dress Duo and Rings.</Text>
+        <Text style={styles.lookNote}>
+          The scene follows the real sky and calendar — dawn to starlight, spring blossom to winter snow, and your
+          bond’s monthly anniversary. Themes dress Duo and Rings.
+        </Text>
       ) : null}
       <View style={styles.themes}>
         {WIDGET_THEMES.map((theme) => (
@@ -220,6 +223,14 @@ export default function WidgetStudioScreen() {
           subtitle="Your number beside theirs on every row"
           value={style.showMine}
           onChange={(v) => set({ showMine: v })}
+        />
+        <Divider />
+        <SwitchRow
+          emoji="🖼️"
+          title="Sky card"
+          subtitle="Off: the scene floats on your wallpaper"
+          value={style.backdrop}
+          onChange={(v) => set({ backdrop: v })}
         />
         <Divider />
         <SwitchRow

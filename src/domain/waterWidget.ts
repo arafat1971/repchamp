@@ -21,6 +21,7 @@ import { DRINK_META, parseDrinkKind } from '@/domain/drinkKinds';
 import { DEFAULT_DAILY_GOAL_ML, MAX_DAILY_GOAL_ML, MIN_DAILY_GOAL_ML, formatMl } from '@/domain/hydration';
 import { DEFAULT_STEP_GOAL, formatSteps } from '@/domain/steps';
 import { HOT_C, WEATHER_FRESH_MS, weatherEmoji, type WeatherKind } from '@/domain/weather';
+import { occasionLine, seasonFor, type Occasion, type Season } from '@/domain/season';
 
 /** The reps ring closes here — a solid day's work across any movements. */
 export const REPS_RING_GOAL = 100;
@@ -52,6 +53,11 @@ export interface WidgetStyle {
   motion: boolean;
   /** Paint the real local weather (opt-in; asks for approximate location). */
   weather: boolean;
+  /**
+   * The scene on a sky card (true), or floating on the wallpaper — a little
+   * island with the sky's things around it (false, the default).
+   */
+  backdrop: boolean;
 }
 
 export const DEFAULT_WIDGET_STYLE: WidgetStyle = {
@@ -62,6 +68,7 @@ export const DEFAULT_WIDGET_STYLE: WidgetStyle = {
   showMine: true,
   motion: true,
   weather: false,
+  backdrop: false,
 };
 
 /** How long after activity the widget keeps its micro-animations going. */
@@ -170,6 +177,12 @@ export interface WaterWidgetSnapshot {
   showMine: boolean;
   motion: boolean;
   weather: boolean;
+  backdrop: boolean;
+
+  /** The season, for the island's colours and accents. */
+  season: Season;
+  /** Today's occasion: 'newyear', 'valentine', 'bond' (our monthly anniversary), or ''. */
+  occasion: Occasion;
 
   /* The sky's weather, when "Real weather" is on and a reading is fresh:
      '' for the plain sky. */
@@ -233,6 +246,8 @@ export interface WaterWidgetInput {
   react?: { at: number; emoji: string } | null;
   /** This week, as this phone saw it: the meadow, and Sunday's wrap line. */
   week?: { meadow: number[]; wrap: string | null } | null;
+  /** The season and today's occasion, when this copy is built on my phone. */
+  calendar?: { season: Season; occasion: Occasion; bond: number } | null;
   /** The local weather, when on; ignored once older than three hours. */
   weather?: { kind: string; tempC: number; at: number } | null;
   /** My chosen look, when this copy is built on my phone. */
@@ -301,6 +316,7 @@ export function buildWaterWidgetSnapshot(input: WaterWidgetInput, now = Date.now
     together: sippedTogether(lastAt, meLastAt, now),
     reacted: react && now - react.at >= -60_000 && now - react.at <= WATER_WIDGET_LIVE_MS ? react.emoji : null,
     wrap: input.week?.wrap ?? null,
+    occasion: input.calendar ? occasionLine(input.calendar.occasion, input.calendar.bond) : null,
     hot: weather && weather.tempC >= HOT_C ? Math.round(weather.tempC) : null,
     fresh: fresh && lastMeta ? `${lastMeta.label.toLowerCase()} ${lastMeta.emoji}` : null,
     me: me ? { ml: meMl, met: meMl >= meGoal, reps: count(me.reps) } : null,
@@ -346,6 +362,8 @@ export function buildWaterWidgetSnapshot(input: WaterWidgetInput, now = Date.now
     streak: count(input.streak),
     cheerAt,
     meLastAt,
+    season: input.calendar?.season ?? seasonFor(new Date(now)),
+    occasion: input.calendar?.occasion ?? '',
     sky: weather?.kind ?? '',
     temp: weather ? `${weatherEmoji(weather.kind as WeatherKind)} ${Math.round(weather.tempC)}°` : '',
     meadow: input.week?.meadow ?? [0, 0, 0, 0, 0, 0, 0],
@@ -449,6 +467,8 @@ export function duelLine(input: {
   reacted?: string | null;
   /** Sunday's wrap line, when there is one. */
   wrap?: string | null;
+  /** Today's occasion line ("3-month bond today 💞"), when there is one. */
+  occasion?: string | null;
   /** The temperature, when it is hot enough to say so. */
   hot?: number | null;
   me: { ml: number; met: boolean; reps: number } | null;
@@ -463,6 +483,7 @@ export function duelLine(input: {
     if (met) return `${name} filled their bear 🎉 — can you?`;
     return ml > 0 ? `${name} is at ${formatMl(ml)} today 💧` : `${name} hasn’t had a sip yet ☀️`;
   }
+  if (input.occasion) return input.occasion;
   if (input.wrap) return input.wrap;
   if (ml <= 0 && me.ml <= 0 && reps <= 0 && me.reps <= 0) return 'First sip wins the day ☀️';
   const gap = ml - me.ml;

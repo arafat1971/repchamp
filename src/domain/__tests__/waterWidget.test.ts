@@ -141,7 +141,7 @@ describe('widget style', () => {
   });
 
   it('carries the look chosen on this phone', () => {
-    const style = { layout: 'rings' as const, theme: 'ocean' as const, weather: false, showSteps: false, showReps: true, showMine: false, motion: false };
+    const style = { layout: 'rings' as const, theme: 'ocean' as const, weather: false, backdrop: true, showSteps: false, showReps: true, showMine: false, motion: false };
     expect(buildWaterWidgetSnapshot({ ...base, style })).toMatchObject({ styled: true, ...style });
   });
 });
@@ -258,6 +258,18 @@ describe('weather and reactions in the payload', () => {
   it('carries a reaction and the meadow', () => {
     const s = buildWaterWidgetSnapshot({ ...base, react: { at: now - 1000, emoji: '🔥' }, week: { meadow: [2, 0, 0, 0, 0, 0, 0], wrap: null } }, now);
     expect(s).toMatchObject({ reactAt: now - 1000, reactEmoji: '🔥', meadow: [2, 0, 0, 0, 0, 0, 0], duel: 'Nkll sent you 🔥' });
+  });
+});
+
+describe('the calendar in the payload', () => {
+  it('carries the season and occasion, and leads the line with a bond day', () => {
+    const s = buildWaterWidgetSnapshot({
+      ...base,
+      ml: 500,
+      me: { ml: 1500, steps: null, reps: 0 },
+      calendar: { season: 'winter', occasion: 'bond', bond: 3 },
+    });
+    expect(s).toMatchObject({ season: 'winter', occasion: 'bond', duel: '3-month bond today 💞' });
   });
 });
 

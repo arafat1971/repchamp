@@ -38,6 +38,9 @@ export const HABITS: readonly Habit[] = [
 
 const IDS = new Set<string>(HABITS.map((h) => h.id));
 
+/** Most ticks a day may carry — mirrored as a list size bound in firestore.rules. */
+export const MAX_TICKS = 12;
+
 /** The walk goal, in steps. */
 export const WALK_GOAL = 8000;
 
@@ -46,7 +49,7 @@ export function cleanTicks(raw: unknown): HabitId[] {
   if (!Array.isArray(raw)) return [];
   const out: HabitId[] = [];
   for (const v of raw) if (typeof v === 'string' && IDS.has(v) && !out.includes(v as HabitId)) out.push(v as HabitId);
-  return out;
+  return out.slice(0, MAX_TICKS);
 }
 
 /** Add or remove one hand tick. */

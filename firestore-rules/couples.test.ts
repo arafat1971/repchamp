@@ -296,6 +296,58 @@ describe('reading a couple that does not exist yet', () => {
   });
 });
 
+describe('today, together fields', () => {
+  const TODAY = '2026-09-25';
+  const write = (daily: Record<string, unknown>) =>
+    updateDoc(doc(asUser(ALICE), 'couples', CODE), {
+      members: [member(ALICE, { daily: { day: TODAY, ...daily } }), member(BOB)],
+    });
+
+  it('accepts ticks, a heartbeat and a poke on my own slice', async () => {
+    await seedPaired();
+    await assertSucceeds(write({ habits: ['stretch', 'rest'], hereAt: 1_790_000_000_000, poke: { e: '❤️', at: 1_790_000_000_000 } }));
+  });
+
+  it('refuses a tick list longer than MAX_TICKS', async () => {
+    await seedPaired();
+    await assertFails(write({ habits: Array.from({ length: 13 }, (_, i) => `h${i}`) }));
+  });
+
+  it('refuses ticks that are not a list', async () => {
+    await seedPaired();
+    await assertFails(write({ habits: 'stretch' }));
+  });
+
+  it('refuses a heartbeat that is not a number', async () => {
+    await seedPaired();
+    await assertFails(write({ hereAt: 'now' }));
+  });
+
+  it('refuses a poke with extra keys, a long text or no time', async () => {
+    await seedPaired();
+    await assertFails(write({ poke: { e: '❤️', at: 1, extra: true } }));
+    await assertFails(write({ poke: { e: 'a very long message', at: 1 } }));
+    await assertFails(write({ poke: { e: '❤️' } }));
+  });
+
+  it("refuses ticks on the partner's slice", async () => {
+    await seedPaired();
+    await assertFails(
+      updateDoc(doc(asUser(ALICE), 'couples', CODE), {
+        members: [member(ALICE), member(BOB, { daily: { day: TODAY, habits: ['stretch'] } })],
+      }),
+    );
+  });
+
+  it('shares MAX_TICKS with the rules', () => {
+    const rules = readFileSync(join(__dirname, '..', 'firestore.rules'), 'utf8');
+    const ritual = readFileSync(join(__dirname, '..', 'src', 'domain', 'ritual.ts'), 'utf8');
+    const max = Number(/export const MAX_TICKS = (\d+)/.exec(ritual)?.[1]);
+    expect(max).toBeGreaterThan(0);
+    expect(rules).toContain(`m.daily.habits.size() <= ${max}`);
+  });
+});
+
 describe('daily metrics', () => {
   const TODAY = '2026-09-23';
 

@@ -433,7 +433,20 @@ service cloud.firestore {
               && (!('steps' in m.daily)
                   || (m.daily.steps is number
                       && m.daily.steps >= 0
-                      && m.daily.steps <= 200000)));
+                      && m.daily.steps <= 200000))
+              // Today, together: the ritual ticks, the "here" heartbeat and a
+              // live poke. Bounded so a modified client cannot park a huge
+              // list or a paragraph on the partner's screen. 12 leaves room
+              // for chosen habits (MAX_TICKS in src/domain/ritual.ts).
+              && (!('habits' in m.daily)
+                  || (m.daily.habits is list && m.daily.habits.size() <= 12))
+              && (!('hereAt' in m.daily) || m.daily.hereAt is number)
+              && (!('poke' in m.daily)
+                  || (m.daily.poke is map
+                      && m.daily.poke.keys().hasOnly(['e', 'at'])
+                      && m.daily.poke.e is string
+                      && m.daily.poke.e.size() <= 8
+                      && m.daily.poke.at is number)));
       }
 
       function dailyInSaneRange() {

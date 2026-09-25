@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
@@ -15,7 +15,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { track } from '@/lib/analytics';
-import { HomeAmbient, skyFor } from '@/components/home/HomeAmbient';
+import { ArrowIcon, BellIcon, DuelIcon, FlameIcon, LockIcon } from '@/components/home/Icons';
 import { HeroCard } from '@/components/home/HeroCard';
 import { ActiveNowRail } from '@/components/home/ActiveNowRail';
 import { HomeSectionHeader, homeSectionLink } from '@/components/home/HomeSectionHeader';
@@ -86,7 +86,7 @@ import { useIncomingDuelCount } from '@/state/useIncomingDuelCount';
 import { useLiveActivityCount } from '@/state/useLiveActivityCount';
 import { useSelfPlayer } from '@/state/useSelfPlayer';
 import { font, scaleForRole } from '@/theme/typography';
-import { gradients, palette, radius, surfaceShadow } from '@/theme/tokens';
+import { palette, radius, surfaceShadow } from '@/theme/tokens';
 
 /** Push-ups is the featured daily challenge; mirrors `app/modal/daily.tsx`. */
 /* The challenge itself lives in `domain/dailyChallenge`, which Home, the tab
@@ -464,12 +464,7 @@ export default function HomeScreen() {
     track('water_goal_set', { goalMl: next });
   }, [coupleId, myUid]);
 
-  /* The masthead follows the sky; re-read on focus so an app left open over
-     sunset does not keep its afternoon colours. */
   const insets = useSafeAreaInsets();
-  const [hour, setHour] = useState(() => new Date().getHours());
-  useFocusEffect(useCallback(() => setHour(new Date().getHours()), []));
-  const sky = skyFor(hour);
 
   const greetingCopy = useMemo(
     () => selectHomeGreeting({ streak, trainedToday, firstName }),
@@ -617,13 +612,12 @@ export default function HomeScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: palette.canvas }}>
       <Screen style={{ backgroundColor: 'transparent' }}>
-      <HomeAmbient hour={hour} />
       {/* Masthead: the date as an eyebrow, then the greeting in display type
           with the name on its own line — a long name wraps instead of being the
           word that gets cut. Profile and alerts sit square in the corner. */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.dateEyebrow, { color: sky.accent }]} {...scaleForRole('control')}>
+          <Text style={styles.dateEyebrow} {...scaleForRole('control')}>
             {dateEyebrow(today)}
           </Text>
           <Text style={styles.greetingLine} {...scaleForRole('heading')}>
@@ -644,7 +638,7 @@ export default function HomeScreen() {
             accessibilityRole="button"
             accessibilityLabel="Your profile"
           >
-            <LinearGradient colors={gradients.brand} style={styles.avatarRing}>
+            <View style={styles.avatarRing}>
               <View style={styles.avatar}>
                 {profile.avatarUri ? (
                   <Image
@@ -657,7 +651,7 @@ export default function HomeScreen() {
                   <Text style={font('bold', 17, { color: palette.green600 })}>{initial}</Text>
                 )}
               </View>
-            </LinearGradient>
+            </View>
             <View style={styles.levelBadge} accessibilityLabel={`Level ${level.level}`}>
               <Text style={font('extrabold', 9.5, { color: palette.white })}>{level.level}</Text>
             </View>
@@ -669,7 +663,7 @@ export default function HomeScreen() {
           the one line of coaching. */}
       <View style={styles.statusRow}>
         <PopOnChange trigger={streak} style={[styles.chip, streak > 0 ? styles.chipStreak : null]}>
-          <StreakFlame />
+          <FlameIcon size={14} color={streak > 0 ? palette.amber800 : palette.grey500} />
           <Text
             style={font('bold', 12, { color: streak > 0 ? palette.amber800 : palette.grey600 })}
             {...scaleForRole('control')}
@@ -733,7 +727,6 @@ export default function HomeScreen() {
           locked={soloWalled}
           image={IC_PUSHUP}
           accent={palette.green600}
-          tint={[palette.tintGreenTop, palette.tintGreenBottom]}
           stats={pushStats}
           onPress={() => startSolo('push')}
         />
@@ -742,7 +735,6 @@ export default function HomeScreen() {
           locked={soloWalled}
           image={IC_SQUAT}
           accent={palette.purple600}
-          tint={[palette.tintPurpleTop, palette.tintPurpleBottom]}
           stats={squatStats}
           onPress={() => startSolo('squat')}
         />
@@ -849,7 +841,7 @@ export default function HomeScreen() {
                         cell.isFuture && styles.weekDotFuture,
                       ]}
                     >
-                      {cell.trained ? <Text style={styles.weekFlame}>🔥</Text> : null}
+                      {cell.trained ? <View style={styles.weekTick} /> : null}
                     </View>
                     <Text style={[styles.weekLetter, cell.isToday && styles.weekLetterToday]}>
                       {cell.letter}
@@ -873,11 +865,6 @@ export default function HomeScreen() {
           style={{ flex: 1 }}
         >
           <View style={[styles.statCard, styles.leagueCard]}>
-            <LinearGradient
-              colors={['#FFF7E8', 'rgba(255,255,255,0)']}
-              style={styles.leagueWash}
-              pointerEvents="none"
-            />
             <View style={styles.statCardInner}>
               <View style={styles.miniHeader}>
                 <Text style={styles.miniTitle}>League</Text>
@@ -920,11 +907,11 @@ export default function HomeScreen() {
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-/** "THURSDAY · 25 SEP" from a day key — built by hand so it never depends on Intl. */
+/** "Thursday, 25 Sep" from a day key — built by hand so it never depends on Intl. */
 function dateEyebrow(day: string): string {
   const [y, m, d] = day.split('-').map(Number);
   const date = new Date(y as number, (m as number) - 1, d as number, 12);
-  return `${WEEKDAYS[date.getDay()]} · ${date.getDate()} ${MONTHS[date.getMonth()]}`.toUpperCase();
+  return `${WEEKDAYS[date.getDay()]}, ${date.getDate()} ${MONTHS[date.getMonth()]}`;
 }
 
 /** Notification bell — wiggles when rivals are waiting. */
@@ -965,9 +952,13 @@ function BellButton({ pendingDuels, onPress }: { pendingDuels: number; onPress: 
       }
       style={[styles.iconButton, pendingDuels > 0 && styles.iconButtonAlert]}
     >
-      <Animated.Text style={[{ fontSize: pendingDuels > 0 ? 16 : 17 }, wiggleStyle]}>
-        {pendingDuels > 0 ? '⚔️' : '🔔'}
-      </Animated.Text>
+      <Animated.View style={wiggleStyle}>
+        {pendingDuels > 0 ? (
+          <DuelIcon size={19} color={palette.green700} />
+        ) : (
+          <BellIcon size={19} color={palette.ink} />
+        )}
+      </Animated.View>
       {pendingDuels > 0 ? (
         <PopOnChange trigger={pendingDuels} style={styles.bellDot}>
           <Text style={font('bold', 9.5, { color: palette.white })}>
@@ -979,24 +970,6 @@ function BellButton({ pendingDuels, onPress }: { pendingDuels: number; onPress: 
   );
 }
 
-/** Soft gold shimmer that sweeps across the league trophy every few seconds. */
-function StreakFlame() {
-  const flicker = useSharedValue(1);
-  useEffect(() => {
-    flicker.value = withRepeat(
-      withSequence(
-        withTiming(1.12, { duration: 280 }),
-        withTiming(0.92, { duration: 220 }),
-        withTiming(1.05, { duration: 260 }),
-        withTiming(1, { duration: 300 }),
-      ),
-      -1,
-      false,
-    );
-  }, [flicker]);
-  const style = useAnimatedStyle(() => ({ transform: [{ scale: flicker.value }] }));
-  return <Animated.Text style={[{ fontSize: 13 }, style]}>🔥</Animated.Text>;
-}
 
 function LeagueXpBar({ fill }: { fill: number }) {
   const width = useSharedValue(0);
@@ -1020,7 +993,6 @@ function QuickTile({
   image,
   emoji,
   accent,
-  tint,
   stats,
   onPress,
   locked = false,
@@ -1029,7 +1001,6 @@ function QuickTile({
   image?: number;
   emoji?: string;
   accent: string;
-  tint: readonly [string, string];
   stats: { todayBest: number; lastBest: number; delta: number };
   onPress: () => void;
   /** Free reps are spent. The tile still taps — straight to the paywall. */
@@ -1089,13 +1060,6 @@ function QuickTile({
       style={styles.quickTileWrap}
     >
       <View style={styles.quickTile}>
-        {/* A wash of the movement's colour across the top third only — enough
-            to tell the two apart at a glance without two pastel slabs. */}
-        <LinearGradient
-          colors={[tint[1], 'rgba(255,255,255,0)']}
-          style={styles.quickTileWash}
-          pointerEvents="none"
-        />
         <View style={styles.quickTileTop}>
           <View style={[styles.quickIconBubble, { borderColor: `${accent}26` }]}>
             {image ? (
@@ -1146,7 +1110,7 @@ function QuickTile({
                 : 'Set your first best'}
           </Text>
           <View style={[styles.quickGo, { backgroundColor: locked ? palette.grey500 : accent }]}>
-            <Text style={font('bold', 13, { color: palette.white })}>{locked ? '🔒' : '→'}</Text>
+            {locked ? <LockIcon size={14} color={palette.white} /> : <ArrowIcon size={14} color={palette.white} strokeWidth={2.4} />}
           </View>
         </View>
       </View>
@@ -1167,7 +1131,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     gap: 12,
   },
-  dateEyebrow: { ...font('bold', 11, { color: palette.green700 }), letterSpacing: 1.4 },
+  dateEyebrow: { ...font('semibold', 13, { color: palette.grey600 }) },
   greetingLine: {
     ...font('medium', 22, { color: palette.grey600, marginTop: 8 }),
     letterSpacing: -0.4,
@@ -1179,7 +1143,7 @@ const styles = StyleSheet.create({
     lineHeight: 35,
   },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2 },
-  avatarRing: { width: 46, height: 46, borderRadius: 23, padding: 2.5 },
+  avatarRing: { width: 46, height: 46, borderRadius: 23, padding: 2, backgroundColor: palette.borderStrong },
   avatar: {
     flex: 1,
     borderRadius: 21,
@@ -1279,10 +1243,9 @@ const styles = StyleSheet.create({
   },
   weekCard: {},
   leagueCard: {},
-  leagueWash: { position: 'absolute', top: 0, left: 0, right: 0, height: 90 },
   statCardInner: { flex: 1, padding: 16 },
   miniHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  miniTitle: { ...font('bold', 11, { color: palette.grey600 }), letterSpacing: 1, textTransform: 'uppercase' },
+  miniTitle: font('semibold', 13, { color: palette.grey600 }),
   weekStrip: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },
   weekCell: { alignItems: 'center', gap: 4 },
   weekDot: {
@@ -1293,10 +1256,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  weekDotTrained: { backgroundColor: '#ffedd5' },
+  weekDotTrained: { backgroundColor: palette.green600 },
   weekDotToday: { borderWidth: 2, borderColor: palette.green500, backgroundColor: palette.white },
   weekDotFuture: { opacity: 0.45 },
-  weekFlame: { fontSize: 10 },
+  weekTick: { width: 6, height: 6, borderRadius: 3, backgroundColor: palette.white },
   weekLetter: font('semibold', 9.5, { color: palette.grey500 }),
   weekLetterToday: font('extrabold', 9.5, { color: palette.green700 }),
   leagueRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
@@ -1323,7 +1286,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     ...surfaceShadow,
   },
-  quickTileWash: { position: 'absolute', top: 0, left: 0, right: 0, height: 80 },
   quickTileTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   quickIconBubble: {
     width: 52,

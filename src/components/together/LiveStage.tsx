@@ -14,6 +14,7 @@ import Animated, {
   withSequence,
   withSpring,
   withTiming,
+  withDelay,
 } from 'react-native-reanimated';
 import Svg, { Circle, Path } from 'react-native-svg';
 
@@ -64,6 +65,9 @@ export function LiveStage({
   onPoke,
   width,
   hour,
+  perfect = false,
+  party = 0,
+  onReplay,
 }: {
   them: StageSide;
   me: StageSide;
@@ -78,6 +82,11 @@ export function LiveStage({
   onPoke: (e: Poke) => boolean;
   width: number;
   hour: number;
+  /** Both of us finished today's ritual: the ribbon stays up all day. */
+  perfect?: boolean;
+  /** Bumped to play the celebration (once when it happens, or on replay). */
+  party?: number;
+  onReplay?: () => void;
 }) {
   const reduced = useReducedMotion();
   const H = Math.round(width * 1.0);
@@ -103,6 +112,21 @@ export function LiveStage({
     v.set(withSequence(withTiming(-14, { duration: 140 }), withSpring(0, { damping: 5, stiffness: 220 })));
   };
   const wiggle = useSharedValue(0);
+
+  /* The celebration: both bears jump three times while the confetti falls. */
+  useEffect(() => {
+    if (!party) return;
+    const jump = withSequence(
+      withTiming(-22, { duration: 180 }),
+      withSpring(0, { damping: 6, stiffness: 240 }),
+      withTiming(-18, { duration: 170 }),
+      withSpring(0, { damping: 6, stiffness: 240 }),
+      withTiming(-14, { duration: 160 }),
+      withSpring(0, { damping: 7, stiffness: 240 }),
+    );
+    themHop.set(jump);
+    meHop.set(withDelay(90, jump));
+  }, [party, themHop, meHop]);
 
   useEffect(() => {
     if (!incoming) return;
@@ -220,6 +244,15 @@ export function LiveStage({
         <FlyingEmoji key={f.id} e={f.e} fromX={f.from === 'me' ? meX : themX} toX={f.from === 'me' ? themX : meX} y={feet - bh * 0.75} />
       ))}
 
+      {party > 0 ? <Confetti key={party} width={width} height={H} /> : null}
+      {perfect ? (
+        <Animated.View entering={ZoomIn.springify().damping(12)} style={styles.ribbonWrap}>
+          <PressableScale onPress={onReplay} accessibilityRole="button" accessibilityLabel="A perfect day together. Replay the celebration" style={styles.ribbon}>
+            <Text style={styles.ribbonText}>A perfect day, together</Text>
+          </PressableScale>
+        </Animated.View>
+      ) : null}
+
       {/* Tray: throw anything across. */}
       <Animated.View entering={FadeIn.delay(300)} style={styles.tray}>
         {POKES.map((e) => (
@@ -270,6 +303,46 @@ function FlyingEmoji({ e, fromX, toX, y }: { e: string; fromX: number; toX: numb
   );
 }
 
+const CONFETTI_COLORS = ['#F472B6', '#A78BFA', '#FBBF24', '#34D399', '#60A5FA', '#FFFFFF'];
+
+/** Thirty-odd pieces falling and turning over the stage, once. */
+function Confetti({ width, height }: { width: number; height: number }) {
+  const pieces = Array.from({ length: 34 }, (_, i) => ({
+    x: ((i * 37) % 100) / 100,
+    delay: (i * 53) % 500,
+    drift: (((i * 29) % 21) - 10) * 3,
+    spin: 180 + ((i * 71) % 360),
+    color: CONFETTI_COLORS[i % CONFETTI_COLORS.length]!,
+    w: 5 + (i % 3) * 2,
+  }));
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {pieces.map((p, i) => (
+        <Piece key={i} {...p} width={width} height={height} />
+      ))}
+    </View>
+  );
+}
+
+function Piece({ x, delay, drift, spin, color, w, width, height }: { x: number; delay: number; drift: number; spin: number; color: string; w: number; width: number; height: number }) {
+  const t = useSharedValue(0);
+  useEffect(() => {
+    t.set(withDelay(delay, withTiming(1, { duration: 1900, easing: Easing.in(Easing.quad) })));
+  }, [t, delay]);
+  const style = useAnimatedStyle(() => {
+    const p = t.get();
+    return {
+      opacity: p === 0 ? 0 : p > 0.85 ? (1 - p) / 0.15 : 1,
+      transform: [
+        { translateX: x * width + drift * p },
+        { translateY: -20 + p * (height + 30) },
+        { rotate: `${spin * p}deg` },
+      ],
+    };
+  });
+  return <Animated.View style={[styles.piece, { width: w, height: w * 1.6, backgroundColor: color }, style]} />;
+}
+
 function ellipse(cx: number, cy: number, rx: number, ry: number): string {
   return `M${cx - rx} ${cy} A${rx} ${ry} 0 1 0 ${cx + rx} ${cy} A${rx} ${ry} 0 1 0 ${cx - rx} ${cy} Z`;
 }
@@ -313,6 +386,10 @@ const styles = StyleSheet.create({
   plateName: { ...font('extrabold', 14, { color: '#FFFFFF' }), textShadowColor: 'rgba(0,0,0,0.45)', textShadowRadius: 4 },
   plateSub: { ...font('bold', 11, { color: 'rgba(255,255,255,0.92)' }), textShadowColor: 'rgba(0,0,0,0.45)', textShadowRadius: 3 },
   fly: { position: 'absolute', left: 0, top: 0, fontSize: 30 },
+  piece: { position: 'absolute', left: 0, top: 0, borderRadius: 1.5 },
+  ribbonWrap: { position: 'absolute', top: 44, alignSelf: 'center' },
+  ribbon: { backgroundColor: '#FBBF24', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 6 },
+  ribbonText: font('bold', 13, { color: '#422006' }),
   tray: {
     position: 'absolute',
     bottom: 12,

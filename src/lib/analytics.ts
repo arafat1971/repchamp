@@ -57,6 +57,7 @@ export interface AnalyticsEvents {
   couple_sharing_changed: { metric: 'steps' | 'water'; on: boolean };
   ritual_tick: { habit: string; on: boolean };
   couple_poke: { emoji: string; here: boolean };
+  ritual_perfect_day: Record<string, never>;
   qr_scanned: { kind: 'couple' | 'duel' | 'friend' };
 
   /** Mirrors `couple_paired` so both invite surfaces are measured the same way. */

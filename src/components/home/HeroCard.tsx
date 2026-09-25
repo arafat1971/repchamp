@@ -173,7 +173,7 @@ export function HeroCard({
   const pct = showProgress && progress ? Math.min(1, progress.value / Math.max(1, progress.target)) : 0;
   return (
     <PressableScale onPress={onPress} accessibilityRole="button" accessibilityLabel={c.cta}>
-      <View style={[styles.shadowWrap, { shadowColor: shadow[c.glow].shadowColor }]}>
+      <View style={styles.shadowWrap}>
       <LinearGradient
         /* Flat: one deep colour, not a wash. The photo cards keep their ramp,
            which blends the photograph into the card. */
@@ -258,13 +258,14 @@ function ProgressFill({ fraction }: { fraction: number }) {
 
 
 const styles = StyleSheet.create({
-  /* A tinted, long shadow in the card's own hue — lift, not a neon halo. */
+  /* A plain shadow. A coloured one reads as a glow, which reads as generated. */
   shadowWrap: {
     borderRadius: radius['4xl'],
-    shadowOpacity: 0.32,
-    shadowRadius: 22,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
   },
   card: {
     borderRadius: radius['4xl'],

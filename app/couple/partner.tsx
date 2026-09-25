@@ -205,16 +205,23 @@ export default function PartnerDashboardScreen() {
     say(done.size === HABITS.length ? `${partnerName} finished all ${HABITS.length}` : `${partnerName} ticked ${fresh.label.toLowerCase()}`);
   }, [theirRitual, partnerName, say]);
 
-  /* Both perfect: once, with everything. */
+  /* Both perfect: once, with everything — confetti, jumping bears, a sound —
+     and a ribbon that stays on the stage for the rest of the day. */
+  const perfect = myScore === HABITS.length && theirScore === HABITS.length;
+  const [party, setParty] = useState(0);
   const celebrated = useRef(false);
+  const celebrate = useCallback(() => {
+    setParty((n) => n + 1);
+    playSparkleSound();
+    successHaptic();
+  }, []);
   useEffect(() => {
-    if (myScore === HABITS.length && theirScore === HABITS.length && !celebrated.current) {
+    if (perfect && !celebrated.current) {
       celebrated.current = true;
-      playSparkleSound();
-      successHaptic();
-      say('A perfect day, together');
+      celebrate();
+      track('ritual_perfect_day');
     }
-  }, [myScore, theirScore, say]);
+  }, [perfect, celebrate]);
   const prevMine = useRef(myScore);
   useEffect(() => {
     if (myScore === HABITS.length && prevMine.current < HABITS.length && theirScore < HABITS.length) {
@@ -405,6 +412,9 @@ export default function PartnerDashboardScreen() {
           hereLine={hereLine}
           incoming={incoming}
           onPoke={onPoke}
+          perfect={perfect}
+          party={party}
+          onReplay={celebrate}
           them={{
             name: partnerName,
             pct: snap.pct,

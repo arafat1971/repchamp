@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Generates the short UI sounds used during a set.
+ * Generates the short UI sounds used during a set and on Today, together.
  *
  * These are synthesised rather than sourced so the repo stays free of binary
  * audio assets with unclear licensing, and so the tones can be re-tuned by
@@ -15,7 +15,8 @@ const SAMPLE_RATE = 44_100;
 
 /**
  * Renders a mono 16-bit PCM WAV from a list of tone segments.
- * Each segment is `{ frequency, durationMs, gain }`.
+ * Each segment is `{ frequency, durationMs, gain, decay }`, with an optional
+ * `to` frequency to glide towards.
  */
 function renderWav(segments) {
   const totalSamples = segments.reduce(
@@ -27,13 +28,16 @@ function renderWav(segments) {
   let offset = 0;
   for (const segment of segments) {
     const sampleCount = Math.round((segment.durationMs / 1000) * SAMPLE_RATE);
+    // Phase is accumulated so a segment can glide (`to`) without clicks.
+    let phase = 0;
     for (let i = 0; i < sampleCount; i++) {
       const t = i / SAMPLE_RATE;
+      const f = segment.to ? segment.frequency + (segment.to - segment.frequency) * (i / sampleCount) : segment.frequency;
+      phase += (2 * Math.PI * f) / SAMPLE_RATE;
       // Exponential decay envelope, plus a 3ms fade-in to avoid a click.
       const attack = Math.min(1, i / (0.003 * SAMPLE_RATE));
       const decay = Math.exp(-t * segment.decay);
-      const value =
-        Math.sin(2 * Math.PI * segment.frequency * t) * segment.gain * attack * decay;
+      const value = Math.sin(phase) * segment.gain * attack * decay;
       data.writeInt16LE(Math.max(-32768, Math.min(32767, Math.round(value * 32767))), offset);
       offset += 2;
     }
@@ -72,6 +76,28 @@ const SOUNDS = {
   'lose.wav': [
     { frequency: 494, durationMs: 160, gain: 0.3, decay: 10 },
     { frequency: 392, durationMs: 340, gain: 0.3, decay: 7 },
+  ],
+  /* Together sounds — softer than the set sounds, and never louder. */
+  // Something thrown to the partner: a quick upward bubble.
+  'pop.wav': [{ frequency: 520, to: 980, durationMs: 90, gain: 0.3, decay: 30 }],
+  // A tick taken back: a small downward bubble.
+  'boop.wav': [{ frequency: 420, to: 300, durationMs: 120, gain: 0.28, decay: 22 }],
+  // A habit done: two bell notes, a fifth apart.
+  'chime.wav': [
+    { frequency: 1319, durationMs: 110, gain: 0.3, decay: 7 },
+    { frequency: 1976, durationMs: 450, gain: 0.3, decay: 6 },
+  ],
+  // Something arriving from the partner: a gentle rising fourth.
+  'receive.wav': [
+    { frequency: 880, durationMs: 120, gain: 0.3, decay: 9 },
+    { frequency: 1175, durationMs: 380, gain: 0.3, decay: 8 },
+  ],
+  // A whole ritual done: a bright arpeggio up to the octave.
+  'sparkle.wav': [
+    { frequency: 1047, durationMs: 70, gain: 0.28, decay: 6 },
+    { frequency: 1319, durationMs: 70, gain: 0.28, decay: 6 },
+    { frequency: 1568, durationMs: 70, gain: 0.28, decay: 6 },
+    { frequency: 2093, durationMs: 480, gain: 0.3, decay: 6 },
   ],
 };
 

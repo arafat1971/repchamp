@@ -301,7 +301,7 @@ export default function HomeScreen() {
   const showMine = useWidgetStyleStore((st) => st.showMine);
   const motion = useWidgetStyleStore((st) => st.motion);
   const realWeather = useWidgetStyleStore((st) => st.weather);
-  const backdrop = useWidgetStyleStore((st) => st.backdrop);
+  const surface = useWidgetStyleStore((st) => st.surface);
   const weatherNow = useWeatherStore((st) => st.now);
   /* Real weather, when switched on: refreshed on focus, at most half-hourly. */
   useFocusEffect(
@@ -337,7 +337,7 @@ export default function HomeScreen() {
           lastAt: myLastAt,
         },
         rev: partnerWaterRevToday(couple.partner, today),
-        style: { layout, theme, showSteps, showReps, showMine, motion, weather: realWeather, backdrop },
+        style: { layout, theme, showSteps, showReps, showMine, motion, weather: realWeather, surface },
         calendar,
         streak: duoDays,
         cheerAt: splashAt,
@@ -365,7 +365,7 @@ export default function HomeScreen() {
     weekInfo,
     realWeather,
     weatherNow,
-    backdrop,
+    surface,
     calendar,
     layout,
     theme,

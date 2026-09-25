@@ -25,6 +25,8 @@ import { enableRealWeather, refreshWeather } from '@/services/weather';
 import {
   WARDROBE,
   WIDGET_LAYOUTS,
+  WIDGET_SURFACES,
+  type WidgetSurface,
   nextOutfit,
   WIDGET_THEMES,
   buildWaterWidgetSnapshot,
@@ -172,11 +174,22 @@ export default function WidgetStudioScreen() {
         ))}
       </View>
 
+      {style.layout === 'scene' ? (
+        <>
+          <SectionLabel>SURFACE</SectionLabel>
+          <View style={styles.themes}>
+            {WIDGET_SURFACES.map((surface) => (
+              <SurfaceTile key={surface} surface={surface} selected={style.surface === surface} onPress={() => set({ surface })} />
+            ))}
+          </View>
+        </>
+      ) : null}
+
       <SectionLabel>LOOK</SectionLabel>
       {style.layout === 'scene' ? (
         <Text style={styles.lookNote}>
           The scene follows the real sky and calendar — dawn to starlight, spring blossom to winter snow, and your
-          bond’s monthly anniversary. Themes dress Duo and Rings.
+          bond’s monthly anniversary. Themes dress Duo and Rings; Glass makes them liquid glass too.
         </Text>
       ) : null}
       <View style={styles.themes}>
@@ -223,14 +236,6 @@ export default function WidgetStudioScreen() {
           subtitle="Your number beside theirs on every row"
           value={style.showMine}
           onChange={(v) => set({ showMine: v })}
-        />
-        <Divider />
-        <SwitchRow
-          emoji="🖼️"
-          title="Sky card"
-          subtitle="Off: the scene floats on your wallpaper"
-          value={style.backdrop}
-          onChange={(v) => set({ backdrop: v })}
         />
         <Divider />
         <SwitchRow
@@ -435,6 +440,40 @@ function Wardrobe() {
   );
 }
 
+const SURFACE_LABEL: Record<WidgetSurface, { title: string; sub: string }> = {
+  glass: { title: 'Glass', sub: 'Liquid glass pane' },
+  float: { title: 'Float', sub: 'Just the island' },
+  sky: { title: 'Sky', sub: 'Its own sky' },
+};
+
+/** A small picture of each surface, on a wallpaper-like swatch. */
+function SurfaceTile({ surface, selected, onPress }: { surface: WidgetSurface; selected: boolean; onPress: () => void }) {
+  const label = SURFACE_LABEL[surface];
+  return (
+    <PressableScale
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
+      accessibilityLabel={`${label.title} surface`}
+      style={[styles.tile, styles.layoutTile, selected && styles.tileOn]}
+    >
+      <Backdrop colors={['#1E1B4B', '#7C3AED', '#F472B6']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.sketch}>
+        <View
+          style={[
+            styles.surfacePane,
+            surface === 'glass' && styles.surfaceGlass,
+            surface === 'sky' && styles.surfaceSky,
+          ]}
+        >
+          <View style={styles.surfaceIsland} />
+        </View>
+      </Backdrop>
+      <Text style={[styles.tileLabel, selected && styles.tileLabelOn]}>{label.title}</Text>
+      <Text style={styles.tileSub}>{label.sub}</Text>
+    </PressableScale>
+  );
+}
+
 const LAYOUT_LABEL: Record<WidgetLayout, { title: string; sub: string }> = {
   scene: { title: 'Scene', sub: 'Under the real sky' },
   duo: { title: 'Duo', sub: 'You vs them' },
@@ -502,6 +541,7 @@ function LayoutTile({ layout, selected, onPress }: { layout: WidgetLayout; selec
 }
 
 const THEME_LABEL: Record<WidgetTheme, string> = {
+  glass: 'Glass',
   sunset: 'Sunset',
   auto: 'Auto',
   light: 'Light',
@@ -522,7 +562,11 @@ function ThemeTile({ theme, selected, onPress }: { theme: WidgetTheme; selected:
       style={[styles.tile, selected && styles.tileOn]}
     >
       <View style={styles.swatch}>
-        {theme === 'auto' ? (
+        {theme === 'glass' ? (
+          <Backdrop colors={['#1E1B4B', '#7C3AED', '#F472B6']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1 }}>
+            <View style={[styles.surfacePane, styles.surfaceGlass, { margin: 5 }]} />
+          </Backdrop>
+        ) : theme === 'auto' ? (
           <View style={styles.split}>
             <View style={{ flex: 1, backgroundColor: a }} />
             <View style={{ flex: 1, backgroundColor: b }} />
@@ -666,6 +710,10 @@ const styles = StyleSheet.create({
   outfitDays: font('semibold', 9.5, { color: palette.grey600 }),
   meter: { height: 6, borderRadius: 3, backgroundColor: '#F1F5F9', marginTop: 12, overflow: 'hidden' },
   meterFill: { height: '100%', borderRadius: 3, backgroundColor: '#F59E0B' },
+  surfacePane: { flex: 1, margin: 6, borderRadius: 10, justifyContent: 'flex-end', alignItems: 'center' },
+  surfaceGlass: { backgroundColor: 'rgba(255,255,255,0.22)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.75)' },
+  surfaceSky: { backgroundColor: '#38BDF8' },
+  surfaceIsland: { width: 38, height: 8, borderRadius: 6, backgroundColor: '#84CC16', marginBottom: 8 },
   lookNote: { ...font('semibold', 11.5, { color: palette.grey600 }), marginTop: -6, marginBottom: 10 },
   swatch: {
     width: '100%',

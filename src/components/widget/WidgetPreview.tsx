@@ -96,6 +96,18 @@ const LIGHT: Look = {
 };
 
 export const LOOKS: Record<WidgetTheme, Look> = {
+  /* Liquid glass: see-through, lit at the edge — drawn by GlassPane. */
+  glass: {
+    bg: ['rgba(255,255,255,0.24)', 'rgba(255,255,255,0.10)'],
+    text: '#FFFFFF',
+    secondary: 'rgba(255,255,255,0.78)',
+    chip: 'rgba(255,255,255,0.2)',
+    water: '#BAE6FD',
+    steps: '#BBF7D0',
+    reps: '#FBCFE8',
+    border: 'rgba(255,255,255,0.65)',
+    track: 'rgba(255,255,255,0.22)',
+  },
   sunset: {
     bg: ['#4C1D95', '#7E22CE', '#BE185D'],
     text: '#FFFFFF',
@@ -169,15 +181,21 @@ export function WidgetPreview({
   }, [reduced, phase]);
 
   const parts = { snap, style, look, live, sweep, tilt, phase };
+  /* The scene sits on its surface; the other layouts become glass through
+     the Glass theme. */
+  const scene = style.layout === 'scene';
+  const glass = scene ? style.surface === 'glass' : style.theme === 'glass';
+  const float = scene && style.surface === 'float';
   return (
     <View
       style={[
         styles.card,
         { width, borderColor: look.border },
-        style.layout === 'scene' && !style.backdrop && styles.floating,
+        (glass || float) && styles.floating,
+        glass && styles.glassCard,
       ]}
     >
-      {style.layout === 'scene' && !style.backdrop ? null : (
+      {glass ? <GlassPane /> : float ? null : (
         <Backdrop colors={look.bg} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
       )}
       {style.layout === 'scene' ? (
@@ -242,6 +260,32 @@ function mixHex(a: string, b: string, t: number): string {
   const [br, bg, bb] = p(b);
   const m = (x: number, y: number) => Math.round(x + (y - x) * t).toString(16).padStart(2, '0');
   return `#${m(ar!, br!)}${m(ag!, bg!)}${m(ab!, bb!)}`;
+}
+
+/**
+ * Liquid glass, as the native painter draws it: a see-through pane, brighter
+ * at the top, a sheen across the upper part, a soft glow at the bottom and a
+ * couple of caustic lights — the edge itself is the card's border.
+ */
+function GlassPane() {
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Backdrop
+        colors={['rgba(255,255,255,0.30)', 'rgba(255,255,255,0.10)', 'rgba(255,255,255,0.16)']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+      <Backdrop
+        colors={['rgba(255,255,255,0.38)', 'rgba(255,255,255,0)']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0.2, y: 1 }}
+        style={styles.sheen}
+      />
+      <View style={[styles.caustic, { top: '18%', left: '8%' }]} />
+      <View style={[styles.caustic, { bottom: '14%', right: '10%', width: 34, height: 34 }]} />
+    </View>
+  );
 }
 
 /** Grass for the season, back then front; night dims it — as the painter does. */
@@ -359,6 +403,7 @@ function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: n
   const H = Math.max(180, width * 0.54);
   const hour = new Date(snap.updatedAt).getHours() + new Date(snap.updatedAt).getMinutes() / 60;
   const sky = weathered(skyFor(hour), snap.sky);
+  const backdrop = style.surface === 'sky';
   const grass = seasonGrass(snap.season, sky.night);
   const overcast = ['rain', 'storm', 'snow', 'fog'].includes(snap.sky);
   const reactFresh = snap.reactAt > 0 && snap.updatedAt - snap.reactAt <= WATER_WIDGET_LIVE_MS;
@@ -396,17 +441,17 @@ function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: n
             <Stop offset="1" stopColor={sky.bottom} />
           </LinearGradient>
         </Defs>
-        {style.backdrop ? <Rect width={W} height={H} fill="url(#scene-sky)" /> : null}
+        {backdrop ? <Rect width={W} height={H} fill="url(#scene-sky)" /> : null}
         <SeasonAir season={snap.season} W={W} H={H} />
         <OccasionArt occasion={snap.occasion} W={W} H={H} />
-        {!style.backdrop ? <Island grass={grass} W={W} H={H} /> : null}
-        {style.backdrop && sky.night
+        {!backdrop ? <Island grass={grass} W={W} H={H} /> : null}
+        {backdrop && sky.night
           ? STARS.map((st, i) => <Circle key={i} cx={(st.x / 100) * W} cy={(st.y / 100) * H * 0.55 * 2} r={st.r} fill="#FFFFFF" opacity={st.o} />)
           : null}
         {overcast ? null : sky.night ? (
           <>
             <Circle cx={bx} cy={by} r={11} fill="#FEF3C7" />
-            {style.backdrop ? <Circle cx={bx + 5} cy={by - 3} r={9.5} fill={sky.top} /> : null}
+            {backdrop ? <Circle cx={bx + 5} cy={by - 3} r={9.5} fill={sky.top} /> : null}
           </>
         ) : (
           <>
@@ -431,7 +476,7 @@ function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: n
               );
             })
           : null}
-        {style.backdrop ? (
+        {backdrop ? (
           <Path
             d={`M0 ${H * 0.64} Q${W * 0.3} ${H * 0.5} ${W * 0.62} ${H * 0.62} Q${W * 0.85} ${H * 0.7} ${W} ${H * 0.58} L${W} ${H} L0 ${H} Z`}
             fill={grass[0]}
@@ -444,7 +489,7 @@ function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: n
             return <Circle key={`m${day}-${k}`} cx={x} cy={y} r={1.5} fill={['#F9A8D4', '#FDE68A', '#C4B5FD', '#93C5FD', '#FDBA74'][(day + k) % 5]} />;
           }),
         )}
-        {style.backdrop ? (
+        {backdrop ? (
           <Path d={`M0 ${H * 0.72} Q${W * 0.5} ${H * 0.62} ${W} ${H * 0.72} L${W} ${H} L0 ${H} Z`} fill={grass[1]} />
         ) : null}
         {snap.sky === 'snow'
@@ -1081,6 +1126,9 @@ function LivePill() {
 
 const styles = StyleSheet.create({
   floating: { backgroundColor: 'transparent', borderWidth: 0, shadowOpacity: 0, elevation: 0 },
+  glassCard: { borderWidth: 1.2, borderColor: 'rgba(255,255,255,0.7)', shadowOpacity: 0.12, elevation: 2 },
+  sheen: { position: 'absolute', top: 0, left: 0, right: 0, height: '46%', borderTopLeftRadius: 26, borderTopRightRadius: 26 },
+  caustic: { position: 'absolute', width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.14)' },
   card: {
     minHeight: 158,
     borderRadius: 26,

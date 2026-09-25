@@ -141,7 +141,7 @@ describe('widget style', () => {
   });
 
   it('carries the look chosen on this phone', () => {
-    const style = { layout: 'rings' as const, theme: 'ocean' as const, weather: false, backdrop: true, showSteps: false, showReps: true, showMine: false, motion: false };
+    const style = { layout: 'rings' as const, theme: 'ocean' as const, weather: false, surface: 'sky' as const, showSteps: false, showReps: true, showMine: false, motion: false };
     expect(buildWaterWidgetSnapshot({ ...base, style })).toMatchObject({ styled: true, ...style });
   });
 });

@@ -279,7 +279,7 @@ class WaterWidgetProvider : AppWidgetProvider() {
             "mePct", "meMet", "meLayers", "streak", "meLastAt", "meadow", "sky", "temp", "season", "occasion"
         )
         private val STYLE_KEYS = arrayOf(
-            "styled", "layout", "theme", "showSteps", "showReps", "showMine", "motion", "weather", "backdrop"
+            "styled", "layout", "theme", "showSteps", "showReps", "showMine", "motion", "weather", "surface"
         )
 
         /**
@@ -709,7 +709,7 @@ class WaterWidgetProvider : AppWidgetProvider() {
                     SceneArt.Bear(if (hasMe) fraction(snap, "mePct") else 0f, if (hasMe) layersOf(snap, "meLayers") else emptyList(), meMet, context.getString(R.string.pd_you), if (hasMe) snap?.optString("meWater") ?: "—" else "—", waterB),
                     share, drankFresh, streak, snap?.optInt("visitor", 0) ?: 0, cheered, together,
                     skyKind, meadow, reactEmoji,
-                    stored?.optBoolean("backdrop", false) ?: false,
+                    stored?.optString("surface", "glass") ?: "glass",
                     stored?.optString("season", "summer") ?: "summer",
                     snap?.optString("occasion", "") ?: ""
                 )
@@ -957,7 +957,7 @@ object SceneArt {
         weather: String,
         meadow: IntArray,
         reaction: String,
-        backdrop: Boolean,
+        surface: String,
         season: String,
         occasion: String
     ): Bitmap {
@@ -978,6 +978,8 @@ object SceneArt {
 
         val night = isNight(hour)
         val grass = seasonGrass(season, night)
+        val backdrop = surface == "sky"
+        val glass = surface == "glass"
 
         /* On a sky card, the card itself, rounded like every widget on the
            launcher. Without one the picture is transparent: the scene floats
@@ -990,6 +992,7 @@ object SceneArt {
             c.drawRect(0f, 0f, W, H, paint)
             paint.shader = null
         }
+        if (glass) glassPane(c, paint, sky, W, H, u)
 
         // Stars, placed the same way every night so they do not jump about.
         if (backdrop && night) {
@@ -1015,11 +1018,12 @@ object SceneArt {
             paint.setShadowLayer(10f * u, 0f, 0f, 0x88FEF3C7.toInt())
             c.drawCircle(bx, by, 11f * u, paint)
             paint.clearShadowLayer()
-            // The crescent's bite: sky on a card, cut clean on the wallpaper.
+            // The crescent's bite: sky on a card, cut clean on the wallpaper;
+            // on glass it stays a full moon, so the pane is never holed.
             if (backdrop) {
                 paint.color = sky.top
                 c.drawCircle(bx + 5f * u, by - 3f * u, 9.5f * u, paint)
-            } else {
+            } else if (!glass) {
                 paint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
                 c.drawCircle(bx + 5f * u, by - 3f * u, 9.5f * u, paint)
                 paint.xfermode = null
@@ -1572,6 +1576,67 @@ object SceneArt {
         paint.style = Paint.Style.FILL
     }
 
+    /**
+     * Liquid glass: a see-through pane tinted faintly to the hour's sky,
+     * brighter at the top, with a sheen across its upper part, a couple of
+     * caustic lights, a soft glow at the bottom and a light-catching rim —
+     * then everything after is clipped to it. No blur: a widget cannot blur
+     * the wallpaper behind it, so the glass is made of light instead.
+     */
+    private fun glassPane(c: Canvas, paint: Paint, sky: Sky, W: Float, H: Float, u: Float) {
+        val radius = 24f * u
+        val rect = RectF(0.75f * u, 0.75f * u, W - 0.75f * u, H - 0.75f * u)
+        val pane = Path().apply { addRoundRect(rect, radius, radius, Path.Direction.CW) }
+
+        // The body: a whisper of the sky's colour, then light, top to bottom.
+        paint.color = Color.argb(46, Color.red(sky.bottom), Color.green(sky.bottom), Color.blue(sky.bottom))
+        c.drawPath(pane, paint)
+        paint.shader = LinearGradient(
+            0f, 0f, 0f, H,
+            intArrayOf(0x52FFFFFF, 0x1AFFFFFF, 0x26FFFFFF),
+            floatArrayOf(0f, 0.55f, 1f),
+            Shader.TileMode.CLAMP
+        )
+        c.drawPath(pane, paint)
+        paint.shader = null
+
+        c.save()
+        c.clipPath(pane)
+        // A sheen curving across the top, as light lies on a lens.
+        paint.shader = LinearGradient(0f, 0f, W * 0.2f, H * 0.5f, 0x61FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP)
+        c.drawOval(RectF(-W * 0.15f, -H * 0.55f, W * 1.1f, H * 0.42f), paint)
+        // Caustics: soft pools of light the glass throws.
+        paint.shader = android.graphics.RadialGradient(W * 0.12f, H * 0.34f, 34f * u, 0x33FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP)
+        c.drawCircle(W * 0.12f, H * 0.34f, 34f * u, paint)
+        paint.shader = android.graphics.RadialGradient(W * 0.88f, H * 0.82f, 26f * u, 0x2EFFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP)
+        c.drawCircle(W * 0.88f, H * 0.82f, 26f * u, paint)
+        // A soft glow pooling at the bottom edge.
+        paint.shader = LinearGradient(0f, H * 0.72f, 0f, H, 0x00FFFFFF, 0x24FFFFFF, Shader.TileMode.CLAMP)
+        c.drawRect(0f, H * 0.72f, W, H, paint)
+        paint.shader = null
+        c.restore()
+
+        // The rim: bright where the light comes from, fading round the edge.
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 1.4f * u
+        paint.shader = LinearGradient(
+            0f, 0f, W, H,
+            intArrayOf(0xF2FFFFFF.toInt(), 0x55FFFFFF, 0x2EFFFFFF, 0xB3FFFFFF.toInt()),
+            floatArrayOf(0f, 0.35f, 0.7f, 1f),
+            Shader.TileMode.CLAMP
+        )
+        c.drawRoundRect(rect, radius, radius, paint)
+        paint.shader = null
+        paint.strokeWidth = 0.8f * u
+        paint.color = 0x24FFFFFF
+        val inner = RectF(rect.left + 2.2f * u, rect.top + 2.2f * u, rect.right - 2.2f * u, rect.bottom - 2.2f * u)
+        c.drawRoundRect(inner, radius - 2f * u, radius - 2f * u, paint)
+        paint.style = Paint.Style.FILL
+
+        // Everything after lives inside the glass.
+        c.clipPath(pane)
+    }
+
     private fun mixColor(a: Int, b: Int, t: Float): Int = Color.argb(
         Color.alpha(a),
         (Color.red(a) + (Color.red(b) - Color.red(a)) * t).roundToInt(),
@@ -1693,6 +1758,11 @@ object Palette {
         val reps: Int
     )
 
+    private val GLASS = Look(
+        R.drawable.pt_bg_glass, R.drawable.pt_chip_glass,
+        0xFFFFFFFF.toInt(), 0xC7FFFFFF.toInt(),
+        0xFFBAE6FD.toInt(), 0xFFBBF7D0.toInt(), 0xFFFBCFE8.toInt()
+    )
     private val SUNSET = Look(
         R.drawable.pt_bg_sunset, R.drawable.pt_chip_ocean,
         0xFFFFFFFF.toInt(), 0xFFF5D0FE.toInt(),
@@ -1716,6 +1786,7 @@ object Palette {
 
     fun resolve(context: Context, theme: String): Look = when (theme) {
         "sunset" -> SUNSET
+        "glass" -> GLASS
         "light" -> LIGHT
         "dark" -> DARK
         "ocean" -> OCEAN
@@ -3031,6 +3102,31 @@ const THEME_DRAWABLES = {
   'drawable/pt_chip_light.xml': pill('#F2F2F7'),
   'drawable/pt_chip_dark.xml': pill('#2C2C2E'),
   'drawable/pt_chip_ocean.xml': pill('#26FFFFFF'),
+  'drawable/pt_chip_glass.xml': pill('#33FFFFFF'),
+  /* Liquid glass for the Duo and Rings layouts: a see-through pane, lighter
+     at the top, with a bright rim — the scene paints its own, richer one. */
+  'drawable/pt_bg_glass.xml': `<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient android:startColor="#52FFFFFF" android:centerColor="#1AFFFFFF" android:endColor="#29FFFFFF" android:angle="270" />
+            <corners android:radius="@dimen/widget_radius" />
+        </shape>
+    </item>
+    <item android:bottom="60dp">
+        <shape android:shape="rectangle">
+            <gradient android:startColor="#40FFFFFF" android:endColor="#00FFFFFF" android:angle="270" />
+            <corners android:topLeftRadius="@dimen/widget_radius" android:topRightRadius="@dimen/widget_radius" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <stroke android:width="1.4dp" android:color="#B3FFFFFF" />
+            <corners android:radius="@dimen/widget_radius" />
+        </shape>
+    </item>
+</layer-list>
+`,
 };
 
 const CHIP_XML = `<?xml version="1.0" encoding="utf-8"?>

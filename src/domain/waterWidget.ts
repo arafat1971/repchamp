@@ -27,7 +27,15 @@ import { occasionLine, seasonFor, type Occasion, type Season } from '@/domain/se
 export const REPS_RING_GOAL = 100;
 
 /** The widget's looks, chosen on this phone. */
-export const WIDGET_THEMES = ['sunset', 'ocean', 'dark', 'light', 'auto'] as const;
+export const WIDGET_THEMES = ['glass', 'sunset', 'ocean', 'dark', 'light', 'auto'] as const;
+
+/**
+ * What the scene sits on: a pane of liquid glass (translucent, tinted to the
+ * hour, lit at the edge), nothing at all (the island floats on the
+ * wallpaper), or its own sky.
+ */
+export const WIDGET_SURFACES = ['glass', 'float', 'sky'] as const;
+export type WidgetSurface = (typeof WIDGET_SURFACES)[number];
 export type WidgetTheme = (typeof WIDGET_THEMES)[number];
 
 /**
@@ -53,11 +61,8 @@ export interface WidgetStyle {
   motion: boolean;
   /** Paint the real local weather (opt-in; asks for approximate location). */
   weather: boolean;
-  /**
-   * The scene on a sky card (true), or floating on the wallpaper — a little
-   * island with the sky's things around it (false, the default).
-   */
-  backdrop: boolean;
+  /** What the scene sits on — see `WIDGET_SURFACES`. */
+  surface: WidgetSurface;
 }
 
 export const DEFAULT_WIDGET_STYLE: WidgetStyle = {
@@ -68,7 +73,7 @@ export const DEFAULT_WIDGET_STYLE: WidgetStyle = {
   showMine: true,
   motion: true,
   weather: false,
-  backdrop: false,
+  surface: 'glass',
 };
 
 /** How long after activity the widget keeps its micro-animations going. */
@@ -177,7 +182,7 @@ export interface WaterWidgetSnapshot {
   showMine: boolean;
   motion: boolean;
   weather: boolean;
-  backdrop: boolean;
+  surface: WidgetSurface;
 
   /** The season, for the island's colours and accents. */
   season: Season;

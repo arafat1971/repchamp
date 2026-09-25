@@ -45,6 +45,9 @@ import { buildWidgetSnapshot } from '@/domain/widgetSnapshot';
 import { buildWaterWidgetSnapshot, repsOnDay } from '@/domain/waterWidget';
 import { drinkLayers } from '@/domain/drinkKinds';
 import { useWidgetStyleStore } from '@/state/widgetStyleStore';
+import { useDuoStreakStore } from '@/state/duoStreakStore';
+import { duoStreak } from '@/domain/duoStreak';
+import { DEFAULT_DAILY_GOAL_ML } from '@/domain/hydration';
 import { getExercise } from '@/vision/exercises';
 import { clearWidgetSnapshot, publishWidgetSnapshot } from '@/services/partnerWidget';
 import { trackerHistory } from '@/domain/coupleTracker';
@@ -232,6 +235,16 @@ export default function HomeScreen() {
   );
   const layout = useWidgetStyleStore((st) => st.layout);
   const theme = useWidgetStyleStore((st) => st.theme);
+  /* The duo streak: a day counts once both bears are full, as seen here. */
+  const streakDays = useDuoStreakStore((st) => st.days);
+  const partnerFull =
+    !!partnerGlass &&
+    (partnerGlass.ml ?? 0) >= (partnerGlass.goalMl ?? DEFAULT_DAILY_GOAL_ML);
+  const bothFull = partnerFull && todayMl >= myGoalMl;
+  useEffect(() => {
+    if (bothFull) useDuoStreakStore.getState().record(today);
+  }, [bothFull, today]);
+  const duoDays = duoStreak(streakDays, today);
   const showSteps = useWidgetStyleStore((st) => st.showSteps);
   const showReps = useWidgetStyleStore((st) => st.showReps);
   const showMine = useWidgetStyleStore((st) => st.showMine);
@@ -258,6 +271,7 @@ export default function HomeScreen() {
         me: { ml: todayMl, steps: myStepsCount, reps: myReps.reps, goalMl: myGoalMl, layers: myLayers },
         rev: partnerWaterRevToday(couple.partner, today),
         style: { layout, theme, showSteps, showReps, showMine, motion },
+        streak: duoDays,
       }),
       'water',
     );
@@ -271,6 +285,7 @@ export default function HomeScreen() {
     myReps.reps,
     myGoalMl,
     myLayers,
+    duoDays,
     layout,
     theme,
     showSteps,

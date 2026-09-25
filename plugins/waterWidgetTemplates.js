@@ -276,7 +276,7 @@ class WaterWidgetProvider : AppWidgetProvider() {
         private const val LIVE_MS = 15L * 60L * 1000L
         private val ME_KEYS = arrayOf(
             "hasMe", "meWater", "meSteps", "meReps", "meWaterMl", "meStepsN", "meRepsN",
-            "mePct", "meMet", "meLayers"
+            "mePct", "meMet", "meLayers", "streak"
         )
         private val STYLE_KEYS = arrayOf("styled", "layout", "theme", "showSteps", "showReps", "showMine", "motion")
 
@@ -675,13 +675,16 @@ class WaterWidgetProvider : AppWidgetProvider() {
             val wDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0).takeIf { it > 0 } ?: 330
             val hDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0).takeIf { it > 0 } ?: 170
 
+            val streak = if (hasMe) snap?.optInt("streak", 0) ?: 0 else 0
+            views.setViewVisibility(R.id.s_streak, if (streak > 0) View.VISIBLE else View.GONE)
+            views.setTextViewText(R.id.s_streak, "🔥 " + streak)
             views.setImageViewBitmap(
                 R.id.s_scene,
                 SceneArt.draw(
                     context.resources.displayMetrics.density, wDp, hDp, hour, now,
-                    SceneArt.Bear(fraction(snap, "pct"), layersOf(snap, "layers"), met, name ?: context.getString(R.string.pd_partner), snap?.optString("amount") ?: "0 ml"),
-                    SceneArt.Bear(if (hasMe) fraction(snap, "mePct") else 0f, if (hasMe) layersOf(snap, "meLayers") else emptyList(), meMet, context.getString(R.string.pd_you), if (hasMe) snap?.optString("meWater") ?: "—" else "—"),
-                    share, drankFresh
+                    SceneArt.Bear(fraction(snap, "pct"), layersOf(snap, "layers"), met, name ?: context.getString(R.string.pd_partner), snap?.optString("amount") ?: "0 ml", waterA),
+                    SceneArt.Bear(if (hasMe) fraction(snap, "mePct") else 0f, if (hasMe) layersOf(snap, "meLayers") else emptyList(), meMet, context.getString(R.string.pd_you), if (hasMe) snap?.optString("meWater") ?: "—" else "—", waterB),
+                    share, drankFresh, streak, snap?.optInt("visitor", 0) ?: 0
                 )
             )
 
@@ -860,7 +863,8 @@ object SceneArt {
         val layers: List<Pair<Int, Float>>,
         val met: Boolean,
         val label: String,
-        val amount: String
+        val amount: String,
+        val ml: Long
     )
 
     private class Sky(val top: Int, val bottom: Int, val hillBack: Int, val hillFront: Int, val cloud: Int)
@@ -888,7 +892,9 @@ object SceneArt {
         them: Bear,
         me: Bear,
         share: Float,
-        raining: Boolean
+        raining: Boolean,
+        streak: Int,
+        visitor: Int
     ): Bitmap {
         /* 1.5x, not the screen's density: the picture rides in the update's
            binder transaction, and a full-density one can be too big. The
@@ -953,6 +959,24 @@ object SceneArt {
         cloud(c, paint, sky.cloud, W * (0.4f + 0.45f * drift), H * 0.15f, 1.0f * u)
         cloud(c, paint, sky.cloud, W * (0.4f + 0.45f * ((drift + 0.5f) % 1f)), H * 0.08f, 0.8f * u)
 
+        // A rainbow over the hill on a day both bears are full.
+        if (them.met && me.met) {
+            val bands = intArrayOf(
+                0xFFEF4444.toInt(), 0xFFF97316.toInt(), 0xFFFACC15.toInt(),
+                0xFF22C55E.toInt(), 0xFF3B82F6.toInt(), 0xFF8B5CF6.toInt()
+            )
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 3.2f * u
+            bands.forEachIndexed { i, color ->
+                paint.color = color
+                paint.alpha = 150
+                val r = W * 0.36f - i * 3.2f * u
+                c.drawArc(RectF(W / 2f - r, H * 0.66f - r, W / 2f + r, H * 0.66f + r), 180f, 180f, false, paint)
+            }
+            paint.alpha = 255
+            paint.style = Paint.Style.FILL
+        }
+
         // Two soft hills.
         paint.color = sky.hillBack
         c.drawPath(Path().apply {
@@ -976,8 +1000,15 @@ object SceneArt {
         val rightX = W * 0.83f
         val themLean = -(5f + 16f * max(0f, share - 0.5f))
         val meLean = 5f + 16f * max(0f, 0.5f - share)
-        bear(c, them, BearArt.THEIRS, leftX, feet, bw, bh, themLean, now)
-        bear(c, me, BearArt.MINE, rightX, feet, bw, bh, meLean, now)
+        // Today's visitor: a butterfly in the sky, the others on the grass.
+        visitorArt(c, paint, visitor, W, H, u)
+
+        // Each 250 ml plants a flower by its bear, in the colour of that drink.
+        garden(c, paint, them, leftX, feet, bw, u)
+        garden(c, paint, me, rightX, feet, bw, u)
+
+        bear(c, them, BearArt.THEIRS, leftX, feet, bw, bh, themLean, now, streak)
+        bear(c, me, BearArt.MINE, rightX, feet, bw, bh, meLean, now, streak)
 
         // The rope, sagging between their paws, with the flag where the pull is.
         val ropeY = feet - bh * 0.42f
@@ -1039,13 +1070,134 @@ object SceneArt {
         return bmp
     }
 
-    private fun bear(c: Canvas, b: Bear, theme: BearArt.Theme, cx: Float, feet: Float, bw: Float, bh: Float, lean: Float, now: Long) {
+    private fun bear(c: Canvas, b: Bear, theme: BearArt.Theme, cx: Float, feet: Float, bw: Float, bh: Float, lean: Float, now: Long, streak: Int) {
         c.save()
         c.rotate(lean, cx, feet)
         c.translate(cx - bw / 2f, feet - bh)
         c.scale(bw / 100f, bw / 100f)
         BearArt.drawInto(c, b.pct, b.layers, b.met, theme, now)
+        outfit(c, streak)
         c.restore()
+    }
+
+    /**
+     * What a streak earns: sunglasses from three days, a crown from seven.
+     * Drawn in the bear's own 100 x 124 box, so it leans with the bear.
+     */
+    private fun outfit(c: Canvas, streak: Int) {
+        val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        if (streak >= 3) {
+            p.color = 0xF0111827.toInt()
+            c.drawRoundRect(RectF(32f, 36f, 47f, 47f), 4f, 4f, p)
+            c.drawRoundRect(RectF(53f, 36f, 68f, 47f), 4f, 4f, p)
+            p.style = Paint.Style.STROKE
+            p.strokeWidth = 2.2f
+            c.drawLine(47f, 40f, 53f, 40f, p)
+            p.style = Paint.Style.FILL
+            p.color = 0x99FFFFFF.toInt()
+            c.drawRoundRect(RectF(34f, 38f, 39f, 41f), 1.5f, 1.5f, p)
+            c.drawRoundRect(RectF(55f, 38f, 60f, 41f), 1.5f, 1.5f, p)
+        }
+        if (streak >= 7) {
+            p.color = 0xFFFACC15.toInt()
+            c.drawPath(Path().apply {
+                moveTo(36f, 13f); lineTo(38f, 1f); lineTo(44f, 8f); lineTo(50f, -2f)
+                lineTo(56f, 8f); lineTo(62f, 1f); lineTo(64f, 13f); close()
+            }, p)
+            p.color = 0xFFEF4444.toInt()
+            c.drawCircle(50f, 8f, 2.2f, p)
+        }
+    }
+
+    /**
+     * Flowers by a bear, one per 250 ml, up to six — three each side, the
+     * nearest first — each in the colour of the drink at its place in the
+     * bear, so a juice afternoon grows orange flowers.
+     */
+    private fun garden(c: Canvas, paint: Paint, b: Bear, cx: Float, feet: Float, bw: Float, u: Float) {
+        val n = min(6L, b.ml / 250L).toInt()
+        if (n <= 0) return
+        for (i in 0 until n) {
+            val side = if (i % 2 == 0) -1f else 1f
+            val step = i / 2
+            val x = cx + side * (bw * 0.52f + step * 7.5f * u)
+            val ground = feet + 1.5f * u
+            val stem = (8f + (i % 3) * 1.5f) * u
+            val color = colorAt(b, (i + 0.5f) / n)
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 1.2f * u
+            paint.color = 0xFF15803D.toInt()
+            c.drawLine(x, ground, x, ground - stem, paint)
+            paint.style = Paint.Style.FILL
+            c.drawOval(RectF(x, ground - stem * 0.55f, x + 3.2f * u, ground - stem * 0.35f), paint)
+            paint.color = color
+            val top = ground - stem
+            for (k in 0 until 5) {
+                val a = k * 72f * (PI.toFloat() / 180f)
+                c.drawCircle(x + cos(a) * 2.2f * u, top + sin(a) * 2.2f * u, 1.7f * u, paint)
+            }
+            paint.color = 0xFFFDE68A.toInt()
+            c.drawCircle(x, top, 1.3f * u, paint)
+        }
+    }
+
+    /** The drink colour at a fraction of a bear's fill, bottom to top. */
+    private fun colorAt(b: Bear, f: Float): Int {
+        if (b.layers.isEmpty()) return 0xFF38BDF8.toInt()
+        val at = f * b.pct
+        for ((color, top) in b.layers) if (at <= top) return color
+        return b.layers.last().first
+    }
+
+    /** Today's visitor: 0 butterfly, 1 ladybug, 2 mushroom, 3 snail. */
+    private fun visitorArt(c: Canvas, paint: Paint, kind: Int, W: Float, H: Float, u: Float) {
+        when (kind) {
+            0 -> {
+                val x = W * 0.63f
+                val y = H * 0.38f
+                paint.color = 0xFFF472B6.toInt()
+                c.drawOval(RectF(x - 7f * u, y - 5f * u, x - 0.5f * u, y + 1f * u), paint)
+                c.drawOval(RectF(x + 0.5f * u, y - 5f * u, x + 7f * u, y + 1f * u), paint)
+                paint.color = 0xFFFB923C.toInt()
+                c.drawOval(RectF(x - 5f * u, y, x - 0.5f * u, y + 4f * u), paint)
+                c.drawOval(RectF(x + 0.5f * u, y, x + 5f * u, y + 4f * u), paint)
+                paint.color = 0xFF3F3F46.toInt()
+                c.drawRoundRect(RectF(x - 0.7f * u, y - 4f * u, x + 0.7f * u, y + 4f * u), u, u, paint)
+            }
+            1 -> {
+                val x = W * 0.5f
+                val y = H * 0.73f
+                paint.color = 0xFFEF4444.toInt()
+                c.drawArc(RectF(x - 5f * u, y - 5f * u, x + 5f * u, y + 5f * u), 180f, 180f, true, paint)
+                paint.color = 0xFF111827.toInt()
+                c.drawCircle(x - 5.5f * u, y - 1.2f * u, 2f * u, paint)
+                c.drawCircle(x - 1.8f * u, y - 2.6f * u, 0.9f * u, paint)
+                c.drawCircle(x + 2f * u, y - 3f * u, 0.9f * u, paint)
+                c.drawCircle(x + 1f * u, y - 0.9f * u, 0.8f * u, paint)
+            }
+            2 -> {
+                val x = W * 0.5f
+                val y = H * 0.74f
+                paint.color = 0xFFFEF3C7.toInt()
+                c.drawRoundRect(RectF(x - 2f * u, y - 6f * u, x + 2f * u, y), u, u, paint)
+                paint.color = 0xFFDC2626.toInt()
+                c.drawArc(RectF(x - 7f * u, y - 12f * u, x + 7f * u, y - 2f * u), 180f, 180f, true, paint)
+                paint.color = Color.WHITE
+                c.drawCircle(x - 3f * u, y - 8.5f * u, 1.1f * u, paint)
+                c.drawCircle(x + 2.5f * u, y - 9.5f * u, 1f * u, paint)
+            }
+            else -> {
+                val x = W * 0.5f
+                val y = H * 0.74f
+                paint.color = 0xFFFDE68A.toInt()
+                c.drawRoundRect(RectF(x - 7f * u, y - 2.5f * u, x + 5f * u, y), 1.5f * u, 1.5f * u, paint)
+                c.drawCircle(x + 5f * u, y - 3.5f * u, 1.8f * u, paint)
+                paint.color = 0xFFB45309.toInt()
+                c.drawCircle(x - 2f * u, y - 5f * u, 4.2f * u, paint)
+                paint.color = 0xFFF59E0B.toInt()
+                c.drawCircle(x - 2f * u, y - 5f * u, 2.2f * u, paint)
+            }
+        }
     }
 
     private fun cloud(c: Canvas, paint: Paint, color: Int, x: Float, y: Float, s: Float) {
@@ -2072,6 +2224,21 @@ const SCENE_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
                 android:shadowColor="#80000000"
                 android:shadowRadius="4"
                 android:shadowDy="1" />
+
+            <TextView
+                android:id="@+id/s_streak"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingTop="2dp"
+                android:paddingBottom="2dp"
+                android:background="@drawable/ps_glass"
+                android:text="🔥 3"
+                android:textColor="#FDE68A"
+                android:textSize="11sp"
+                android:textStyle="bold" />
 
             <LinearLayout
                 android:id="@+id/pt_live"

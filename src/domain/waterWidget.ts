@@ -140,6 +140,13 @@ export interface WaterWidgetSnapshot {
   meLayers: { c: string; t: number }[];
   /** The rivalry line under the bears — who leads, and a reason to act. */
   duel: string;
+  /**
+   * Days in a row both bears were filled, as this phone has seen it; 0 for
+   * none. Unlocks the bears' outfits: sunglasses at 3, crowns at 7.
+   */
+  streak: number;
+  /** Today's visitor in the scene, the same all day: 0 butterfly, 1 ladybug, 2 mushroom, 3 snail. */
+  visitor: number;
 
   /* The look, flat so the native side reads it without nesting. A copy
      built on the partner's phone has `styled: false`, and the native side
@@ -187,6 +194,8 @@ export interface WaterWidgetInput {
   } | null;
   /** The state's version; see `WaterWidgetSnapshot.rev`. */
   rev?: number;
+  /** The shared streak, when this copy is built on my phone. */
+  streak?: number;
   /** My chosen look, when this copy is built on my phone. */
   style?: WidgetStyle | null;
 }
@@ -286,6 +295,8 @@ export function buildWaterWidgetSnapshot(input: WaterWidgetInput, now = Date.now
     meMet: !!me && meMl >= meGoal,
     meLayers: me ? bands(me.layers, meMl, mePct) : [],
     duel,
+    streak: count(input.streak),
+    visitor: dailyVisitor(input.day),
     styled: !!input.style,
     ...(input.style ?? DEFAULT_WIDGET_STYLE),
     rev: time(input.rev),
@@ -315,6 +326,19 @@ function bands(
     const t = i === list.length - 1 ? pct : (acc / sum) * pct;
     return { c: DRINK_META[parseDrinkKind(l.k)].color, t: round3(t) };
   });
+}
+
+/** The scene's visitors, one per day. */
+export const VISITORS = ['butterfly', 'ladybug', 'mushroom', 'snail'] as const;
+
+/**
+ * Today's visitor: the same all day, different from day to day, the same on
+ * both phones — so "what's on the hill today" is a small shared surprise.
+ */
+export function dailyVisitor(day: string): number {
+  let h = 0;
+  for (let i = 0; i < day.length; i++) h = (h * 31 + day.charCodeAt(i)) >>> 0;
+  return h % VISITORS.length;
 }
 
 /**

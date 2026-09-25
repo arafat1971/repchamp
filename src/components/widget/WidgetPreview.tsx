@@ -1,5 +1,5 @@
 import { LinearGradient as Backdrop } from 'expo-linear-gradient';
-import { useEffect, type ReactNode } from 'react';
+import { Fragment, useEffect, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
@@ -54,6 +54,7 @@ export const SAMPLE_SNAPSHOT: WaterWidgetSnapshot = buildWaterWidgetSnapshot(
     reps: 112,
     topExercise: 'Squat',
     trainedAt: SAMPLE_NOW - 30 * 60_000,
+    streak: 4,
     me: {
       ml: 1000,
       steps: 4100,
@@ -282,11 +283,29 @@ function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: n
         )}
         <Cloud x={W * 0.45} y={H * 0.15} s={1} color={sky.cloud} />
         <Cloud x={W * 0.68} y={H * 0.08} s={0.8} color={sky.cloud} />
+        {snap.met && snap.meMet
+          ? ['#EF4444', '#F97316', '#FACC15', '#22C55E', '#3B82F6', '#8B5CF6'].map((c, i) => {
+              const r = W * 0.36 - i * 3.2;
+              return (
+                <Path
+                  key={c}
+                  d={`M${W / 2 - r} ${H * 0.66} A${r} ${r} 0 0 1 ${W / 2 + r} ${H * 0.66}`}
+                  stroke={c}
+                  strokeOpacity={0.6}
+                  strokeWidth={3.2}
+                  fill="none"
+                />
+              );
+            })
+          : null}
         <Path
           d={`M0 ${H * 0.64} Q${W * 0.3} ${H * 0.5} ${W * 0.62} ${H * 0.62} Q${W * 0.85} ${H * 0.7} ${W} ${H * 0.58} L${W} ${H} L0 ${H} Z`}
           fill={sky.hillBack}
         />
         <Path d={`M0 ${H * 0.72} Q${W * 0.5} ${H * 0.62} ${W} ${H * 0.72} L${W} ${H} L0 ${H} Z`} fill={sky.hillFront} />
+        <Visitor kind={snap.visitor} W={W} H={H} />
+        <Garden ml={snap.waterMl} pct={snap.pct} layers={snap.layers} cx={leftX} feet={feet} bw={bw} />
+        <Garden ml={snap.meWaterMl} pct={snap.mePct} layers={snap.meLayers} cx={rightX} feet={feet} bw={bw} />
         {met
           ? Array.from({ length: 22 }, (_, i) => (
               <Rect
@@ -304,9 +323,11 @@ function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: n
 
       <SceneBear left={leftX - bw / 2} top={feet - bh} bw={bw} bh={bh} lean={themLean}>
         <BearJar id="scene-them" percent={snap.pct * 100} width={bw} theme={THEIR_BEAR} layers={bearLayers(snap.layers)} tilt={tilt} phase={phase} pourKey={0} met={snap.met} />
+        <Outfit streak={snap.streak} bw={bw} bh={bh} />
       </SceneBear>
       <SceneBear left={rightX - bw / 2} top={feet - bh} bw={bw} bh={bh} lean={meLean}>
         <BearJar id="scene-me" percent={snap.mePct * 100} width={bw} theme={MY_BEAR} layers={bearLayers(snap.meLayers)} tilt={tilt} phase={phase} pourKey={0} met={snap.meMet} />
+        <Outfit streak={snap.streak} bw={bw} bh={bh} />
       </SceneBear>
 
       <Svg width={W} height={H} style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -329,6 +350,11 @@ function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: n
           <Text style={[styles.title, styles.shadowed, { color: '#FFFFFF' }]} numberOfLines={1}>
             {snap.vs}
           </Text>
+          {snap.streak > 0 ? (
+            <View style={[styles.glass, { marginRight: 6 }]}>
+              <Text style={styles.streakText}>🔥 {snap.streak}</Text>
+            </View>
+          ) : null}
           {live ? <LivePill /> : null}
         </View>
         <View style={styles.chips}>
@@ -350,6 +376,125 @@ function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: n
         </View>
       </View>
     </View>
+  );
+}
+
+/** The streak's rewards, in BearJar's 100 x 120 box: sunglasses at 3, a crown at 7. */
+function Outfit({ streak, bw, bh }: { streak: number; bw: number; bh: number }) {
+  if (streak < 3) return null;
+  return (
+    <Svg width={bw} height={bh} viewBox="0 0 100 120" style={StyleSheet.absoluteFill}>
+      <Rect x={32} y={34} width={15} height={11} rx={4} fill="#111827" opacity={0.94} />
+      <Rect x={53} y={34} width={15} height={11} rx={4} fill="#111827" opacity={0.94} />
+      <Path d="M47 38 L53 38" stroke="#111827" strokeWidth={2.2} />
+      <Rect x={34} y={36} width={5} height={3} rx={1.5} fill="#FFFFFF" opacity={0.6} />
+      <Rect x={55} y={36} width={5} height={3} rx={1.5} fill="#FFFFFF" opacity={0.6} />
+      {streak >= 7 ? (
+        <>
+          <Path d="M36 11 L38 -1 L44 6 L50 -4 L56 6 L62 -1 L64 11 Z" fill="#FACC15" />
+          <Circle cx={50} cy={6} r={2.2} fill="#EF4444" />
+        </>
+      ) : null}
+    </Svg>
+  );
+}
+
+/** One flower per 250 ml, up to six, beside the bear, in its drinks' colours. */
+function Garden({
+  ml,
+  pct,
+  layers,
+  cx,
+  feet,
+  bw,
+}: {
+  ml: number;
+  pct: number;
+  layers: readonly { c: string; t: number }[];
+  cx: number;
+  feet: number;
+  bw: number;
+}) {
+  const n = Math.min(6, Math.floor(ml / 250));
+  if (n <= 0) return null;
+  const colorAt = (f: number) => {
+    if (layers.length === 0) return '#38BDF8';
+    const at = f * pct;
+    return (layers.find((l) => at <= l.t) ?? layers[layers.length - 1]!).c;
+  };
+  return (
+    <>
+      {Array.from({ length: n }, (_, i) => {
+        const side = i % 2 === 0 ? -1 : 1;
+        const x = cx + side * (bw * 0.52 + Math.floor(i / 2) * 7.5);
+        const ground = feet + 1.5;
+        const stem = 8 + (i % 3) * 1.5;
+        const top = ground - stem;
+        const color = colorAt((i + 0.5) / n);
+        return (
+          <Fragment key={i}>
+            <Path d={`M${x} ${ground} L${x} ${top}`} stroke="#15803D" strokeWidth={1.2} />
+            {[0, 1, 2, 3, 4].map((k) => (
+              <Circle
+                key={k}
+                cx={x + Math.cos((k * 72 * Math.PI) / 180) * 2.2}
+                cy={top + Math.sin((k * 72 * Math.PI) / 180) * 2.2}
+                r={1.7}
+                fill={color}
+              />
+            ))}
+            <Circle cx={x} cy={top} r={1.3} fill="#FDE68A" />
+          </Fragment>
+        );
+      })}
+    </>
+  );
+}
+
+/** Today's visitor, matching the painter: butterfly, ladybug, mushroom, snail. */
+function Visitor({ kind, W, H }: { kind: number; W: number; H: number }) {
+  if (kind === 0) {
+    const x = W * 0.63;
+    const y = H * 0.38;
+    return (
+      <>
+        <Circle cx={x - 3.7} cy={y - 2} r={3.4} fill="#F472B6" />
+        <Circle cx={x + 3.7} cy={y - 2} r={3.4} fill="#F472B6" />
+        <Circle cx={x - 2.7} cy={y + 2} r={2.3} fill="#FB923C" />
+        <Circle cx={x + 2.7} cy={y + 2} r={2.3} fill="#FB923C" />
+        <Rect x={x - 0.7} y={y - 4} width={1.4} height={8} rx={0.7} fill="#3F3F46" />
+      </>
+    );
+  }
+  const x = W * 0.5;
+  const y = H * (kind === 1 ? 0.73 : 0.74);
+  if (kind === 1) {
+    return (
+      <>
+        <Path d={`M${x - 5} ${y} A5 5 0 0 1 ${x + 5} ${y} Z`} fill="#EF4444" />
+        <Circle cx={x - 5.5} cy={y - 1.2} r={2} fill="#111827" />
+        <Circle cx={x - 1.8} cy={y - 2.6} r={0.9} fill="#111827" />
+        <Circle cx={x + 2} cy={y - 3} r={0.9} fill="#111827" />
+      </>
+    );
+  }
+  if (kind === 2) {
+    return (
+      <>
+        <Rect x={x - 2} y={y - 6} width={4} height={6} rx={1} fill="#FEF3C7" />
+        <Path d={`M${x - 7} ${y - 7} A7 5 0 0 1 ${x + 7} ${y - 7} Z`} fill="#DC2626" />
+        <Circle cx={x - 3} cy={y - 8.5} r={1.1} fill="#FFFFFF" />
+        <Circle cx={x + 2.5} cy={y - 9.5} r={1} fill="#FFFFFF" />
+      </>
+    );
+  }
+  return (
+    <>
+      <Rect x={x - 7} y={y - 2.5} width={12} height={2.5} rx={1.5} fill="#FDE68A" />
+      <Circle cx={x + 5} cy={y - 3.5} r={1.8} fill="#FDE68A" />
+      <Circle cx={x - 2} cy={y - 5} r={4.2} fill="#B45309" />
+      <Circle cx={x - 2} cy={y - 5} r={2.2} fill="#F59E0B" />
+    </>
   );
 }
 
@@ -760,6 +905,7 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 3 },
   glass: { backgroundColor: 'rgba(0,0,0,0.28)', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 },
   chipScene: font('extrabold', 10.5, { color: '#FFFFFF' }),
+  streakText: font('extrabold', 11, { color: '#FDE68A' }),
   ringsBody: { flex: 1, marginLeft: 12 },
   metric: { flexDirection: 'row', alignItems: 'center', marginTop: 3 },
   metricVal: font('extrabold', 16),

@@ -109,14 +109,14 @@ export function ritualScore(states: readonly HabitState[]): number {
  * always something you can do rather than something to feel bad about.
  */
 export function ritualLine(mine: number, theirs: number, name: string, total = HABITS.length): string {
-  if (mine >= total && theirs >= total) return 'A perfect day, together 🏆';
-  if (mine >= total) return `You're done — ${total - theirs} left for ${name}. Cheer them on 💦`;
-  if (theirs >= total) return `${name} is done — ${total - mine} to go and it's a perfect day ✨`;
-  if (mine === 0 && theirs === 0) return 'A fresh day. First tick wins the morning ☀️';
+  if (mine >= total && theirs >= total) return 'A perfect day, together.';
+  if (mine >= total) return `You're done. ${total - theirs} left for ${name}.`;
+  if (theirs >= total) return `${name} is done. ${total - mine} to go for a perfect day.`;
+  if (mine === 0 && theirs === 0) return 'Nothing ticked yet today.';
   const left = total - mine;
-  if (mine > theirs) return `You lead ${mine}–${theirs}. ${left} more for your perfect day`;
-  if (theirs > mine) return `${name} leads ${theirs}–${mine}. ${left} more and you're level`;
-  return `Level at ${mine} each — who takes the next one?`;
+  if (mine > theirs) return `You're ahead, ${mine} to ${theirs}. ${left} to go.`;
+  if (theirs > mine) return `${name} is ahead, ${theirs} to ${mine}. ${left} to go.`;
+  return `Level at ${mine} each. ${left} to go.`;
 }
 
 /* ------------------------------------------------------------------ *
@@ -281,9 +281,9 @@ export function ritualWeek(history: Readonly<Record<string, RitualDay>>, today: 
 
 /** The trend in words: up is celebrated, flat is steady, down is tomorrow. */
 export function trendLine(trend: RitualWeek['trend']): string {
-  if (!trend) return 'Your trend appears after a few days together 🌱';
+  if (!trend) return 'Your trend shows after a few days.';
   const diff = Math.round((trend.now - trend.before) * 10) / 10;
-  if (diff >= 0.3) return `+${diff} habits a day vs last week 📈`;
-  if (diff <= -0.3) return `${Math.abs(diff)} fewer a day than last week — tomorrow's a fresh start`;
-  return `Steady at ${Math.round(trend.now * 10) / 10} a day — consistency is the win`;
+  if (diff >= 0.3) return `Up ${diff} habits a day on last week.`;
+  if (diff <= -0.3) return `Down ${Math.abs(diff)} a day on last week.`;
+  return `Steady at ${Math.round(trend.now * 10) / 10} a day.`;
 }

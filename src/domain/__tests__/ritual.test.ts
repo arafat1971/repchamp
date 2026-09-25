@@ -77,16 +77,16 @@ describe('ticks', () => {
 describe('ritualLine', () => {
   const total = HABITS.length;
   it('celebrates a perfect day', () => {
-    expect(ritualLine(total, total, 'Sam')).toBe('A perfect day, together 🏆');
+    expect(ritualLine(total, total, 'Sam')).toBe('A perfect day, together.');
   });
-  it('turns a lead into the next step', () => {
-    expect(ritualLine(3, 1, 'Sam')).toBe('You lead 3–1. 3 more for your perfect day');
-    expect(ritualLine(1, 3, 'Sam')).toBe("Sam leads 3–1. 5 more and you're level");
-    expect(ritualLine(2, 2, 'Sam')).toBe('Level at 2 each — who takes the next one?');
-    expect(ritualLine(0, 0, 'Sam')).toBe('A fresh day. First tick wins the morning ☀️');
+  it('says where the two of you stand, plainly', () => {
+    expect(ritualLine(3, 1, 'Sam')).toBe("You're ahead, 3 to 1. 3 to go.");
+    expect(ritualLine(1, 3, 'Sam')).toBe('Sam is ahead, 3 to 1. 5 to go.');
+    expect(ritualLine(2, 2, 'Sam')).toBe('Level at 2 each. 4 to go.');
+    expect(ritualLine(0, 0, 'Sam')).toBe('Nothing ticked yet today.');
   });
   it('points the finished side at the other', () => {
-    expect(ritualLine(total, 4, 'Sam')).toBe("You're done — 2 left for Sam. Cheer them on 💦");
+    expect(ritualLine(total, 4, 'Sam')).toBe("You're done. 2 left for Sam.");
   });
 });
 
@@ -164,10 +164,10 @@ describe('better, week on week', () => {
     expect(ritualWeek(h, '2026-09-25').trend).toEqual({ now: 4, before: 2 });
   });
 
-  it('words the trend kindly', () => {
-    expect(trendLine({ now: 4, before: 2.5 })).toBe('+1.5 habits a day vs last week 📈');
-    expect(trendLine({ now: 3, before: 3.1 })).toBe('Steady at 3 a day — consistency is the win');
-    expect(trendLine({ now: 2, before: 3 })).toBe("1 fewer a day than last week — tomorrow's a fresh start");
-    expect(trendLine(null)).toBe('Your trend appears after a few days together 🌱');
+  it('words the trend plainly', () => {
+    expect(trendLine({ now: 4, before: 2.5 })).toBe('Up 1.5 habits a day on last week.');
+    expect(trendLine({ now: 3, before: 3.1 })).toBe('Steady at 3 a day.');
+    expect(trendLine({ now: 2, before: 3 })).toBe('Down 1 a day on last week.');
+    expect(trendLine(null)).toBe('Your trend shows after a few days.');
   });
 });

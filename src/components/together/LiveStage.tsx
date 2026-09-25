@@ -213,8 +213,8 @@ export function LiveStage({
       </Animated.View>
 
       {/* Name plates */}
-      <Plate x={themX} y={feet + 14} name={them.name} amount={them.amount} score={them.score} total={total} tint="#A78BFA" />
-      <Plate x={meX} y={feet + 14} name="You" amount={me.amount} score={me.score} total={total} tint="#F472B6" />
+      <Plate x={themX} y={feet + 14} name={them.name} amount={them.amount} score={them.score} total={total} />
+      <Plate x={meX} y={feet + 14} name="You" amount={me.amount} score={me.score} total={total} />
 
       {flights.map((f) => (
         <FlyingEmoji key={f.id} e={f.e} fromX={f.from === 'me' ? meX : themX} toX={f.from === 'me' ? themX : meX} y={feet - bh * 0.75} />
@@ -232,14 +232,14 @@ export function LiveStage({
   );
 }
 
-function Plate({ x, y, name, amount, score, total, tint }: { x: number; y: number; name: string; amount: string; score: number; total: number; tint: string }) {
+function Plate({ x, y, name, amount, score, total }: { x: number; y: number; name: string; amount: string; score: number; total: number }) {
   return (
     <View style={[styles.plate, { left: x - 62, top: y }]} pointerEvents="none">
       <Text style={styles.plateName} numberOfLines={1}>
         {name}
       </Text>
       <Text style={styles.plateSub} numberOfLines={1}>
-        {amount} · <Text style={{ color: tint }}>{score}/{total} ✦</Text>
+        {amount} · {score} of {total}
       </Text>
     </View>
   );
@@ -290,9 +290,9 @@ const styles = StyleSheet.create({
   stage: { borderRadius: 28, overflow: 'hidden' },
   presence: {
     position: 'absolute',
-    top: 12,
-    left: 12,
-    right: 12,
+    top: 16,
+    left: 18,
+    right: 18,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -303,12 +303,10 @@ const styles = StyleSheet.create({
   dotRing: { position: 'absolute', width: 10, height: 10, borderRadius: 5, backgroundColor: '#22C55E' },
   presenceText: {
     flexShrink: 1,
-    ...font('bold', 13, { color: '#FFFFFF' }),
-    backgroundColor: 'rgba(0,0,0,0.25)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    overflow: 'hidden',
+    ...font('semibold', 13, { color: '#FFFFFF' }),
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowRadius: 4,
+    textShadowOffset: { width: 0, height: 1 },
   },
   bear: { position: 'absolute' },
   plate: { position: 'absolute', width: 124, alignItems: 'center' },

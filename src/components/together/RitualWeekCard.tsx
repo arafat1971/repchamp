@@ -2,76 +2,99 @@ import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { Card } from '@/components/ui';
+import { ME, THEM } from '@/components/together/RitualCard';
 import { trendLine, type RitualWeek } from '@/domain/ritual';
+import { nextOutfit } from '@/domain/waterWidget';
 import { weekdayIndex } from '@/domain/week';
-import { font, text } from '@/theme/typography';
+import { font } from '@/theme/typography';
 import { palette } from '@/theme/tokens';
 
-const ME = palette.purple500;
-const THEM = palette.amber500;
 const LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-const BAR_H = 64;
+const BAR_H = 56;
 
 /**
- * The last seven days of the ritual as pairs of bars — mine and theirs, a
- * star over a day we both finished — with how many perfect days that made
- * and whether I am doing better than the week before. The point of a daily
- * routine is the direction it takes you, so this is where the direction shows.
+ * The last seven days: a pair of bars per day (mine, theirs), a mark over a
+ * day we both finished, and the direction I am heading against the week
+ * before — then the water streak and what it unlocks next, which used to be
+ * its own loud card and is simply a row of the same story.
  */
-export function RitualWeekCard({ week, total, name }: { week: RitualWeek; total: number; name: string }) {
-  const up = week.trend && week.trend.now - week.trend.before >= 0.3;
+export function RitualWeekCard({
+  week,
+  total,
+  name,
+  streak,
+}: {
+  week: RitualWeek;
+  total: number;
+  name: string;
+  /** Days in a row both water goals were met. */
+  streak: number;
+}) {
+  const up = !!week.trend && week.trend.now - week.trend.before >= 0.3;
+  const next = nextOutfit(streak);
   return (
     <Card style={styles.card}>
-      <View style={styles.head}>
-        <View style={styles.headCopy}>
-          <Text style={styles.big}>
-            {week.perfectDays}
-            <Text style={styles.bigUnit}> perfect {week.perfectDays === 1 ? 'day' : 'days'}</Text>
-          </Text>
-          <Text style={[text.caption, styles.sub]}>in the last 7, both of you, all {total}</Text>
-        </View>
-        {week.perfectDays > 0 ? <Text style={styles.trophy}>🏆</Text> : null}
-      </View>
-
       <View style={styles.chart}>
         {week.days.map((d, i) => {
           const today = i === week.days.length - 1;
           return (
             <View key={d.day} style={styles.col}>
-              <Text style={[styles.star, !d.perfect && styles.hidden]}>⭐</Text>
+              <View style={[styles.mark, d.perfect && styles.markOn]} />
               <View style={styles.bars}>
-                <Bar value={d.me} total={total} color={ME} delay={i * 50} />
-                <Bar value={d.them} total={total} color={THEM} delay={i * 50 + 25} />
+                <Bar value={d.me} total={total} color={ME} delay={i * 40} />
+                <Bar value={d.them} total={total} color={THEM} delay={i * 40 + 20} />
               </View>
-              <Text style={[styles.letter, today && styles.letterToday]}>{today ? 'Today' : LETTERS[weekdayIndex(d.day)]}</Text>
+              <Text style={[styles.letter, today && styles.letterToday]}>{LETTERS[weekdayIndex(d.day)]}</Text>
             </View>
           );
         })}
       </View>
-
       <View style={styles.legend}>
-        <Dot color={ME} label="You" />
-        <Dot color={THEM} label={name} />
+        <Key color={ME} label="You" />
+        <Key color={THEM} label={name} />
+        <View style={styles.keyItem}>
+          <View style={[styles.mark, styles.markOn, styles.markKey]} />
+          <Text style={styles.keyLabel}>Perfect day</Text>
+        </View>
       </View>
       <Text style={[styles.trend, up && styles.trendUp]}>{trendLine(week.trend)}</Text>
+
+      <View style={styles.rule} />
+      <View style={styles.streakRow}>
+        <View style={styles.streakCopy}>
+          <Text style={styles.streakTitle}>Water streak</Text>
+          <Text style={styles.streakHint}>
+            {next ? `${next.label} for both bears at ${next.days} days` : 'Every outfit earned'}
+          </Text>
+        </View>
+        <Text style={styles.streakValue}>
+          {streak}
+          <Text style={styles.streakUnit}> {streak === 1 ? 'day' : 'days'}</Text>
+        </Text>
+      </View>
+      {next ? (
+        <View style={styles.unlockTrack}>
+          <View style={[styles.unlockFill, { width: `${Math.max(3, Math.round((streak / next.days) * 100))}%` }]} />
+        </View>
+      ) : null}
     </Card>
   );
 }
 
 function Bar({ value, total, color, delay }: { value: number; total: number; color: string; delay: number }) {
-  const h = Math.max(3, Math.round((value / total) * BAR_H));
+  const h = value > 0 ? Math.max(4, Math.round((value / total) * BAR_H)) : 0;
   return (
     <View style={styles.track}>
-      <Animated.View entering={FadeIn.delay(delay).duration(400)} style={[styles.fill, { height: h, backgroundColor: value > 0 ? color : palette.track }]} />
+      {h > 0 ? <Animated.View entering={FadeIn.delay(delay).duration(360)} style={[styles.fill, { height: h, backgroundColor: color }]} /> : null}
     </View>
   );
 }
 
-function Dot({ color, label }: { color: string; label: string }) {
+function Key({ color, label }: { color: string; label: string }) {
   return (
-    <View style={styles.dotItem}>
-      <View style={[styles.dot, { backgroundColor: color }]} />
-      <Text style={[text.caption, styles.dotLabel]} numberOfLines={1}>
+    <View style={styles.keyItem}>
+      <View style={[styles.keyDot, { backgroundColor: color }]} />
+      <Text style={styles.keyLabel} numberOfLines={1}>
         {label}
       </Text>
     </View>
@@ -79,26 +102,30 @@ function Dot({ color, label }: { color: string; label: string }) {
 }
 
 const styles = StyleSheet.create({
-  card: { padding: 16 },
-  head: { flexDirection: 'row', alignItems: 'center' },
-  headCopy: { flex: 1 },
-  big: { ...font('extrabold', 26, { color: palette.ink }) },
-  bigUnit: { ...font('bold', 15, { color: palette.slate500 }) },
-  sub: { color: palette.slate500, marginTop: 2 },
-  trophy: { fontSize: 32 },
-  chart: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 14 },
+  card: { padding: 18 },
+  chart: { flexDirection: 'row', justifyContent: 'space-between' },
   col: { flex: 1, alignItems: 'center' },
-  star: { fontSize: 12, height: 16 },
-  hidden: { opacity: 0 },
+  mark: { width: 6, height: 6, borderRadius: 3, marginBottom: 6, backgroundColor: 'transparent' },
+  markOn: { backgroundColor: palette.green500 },
+  markKey: { marginBottom: 0 },
   bars: { flexDirection: 'row', gap: 3, height: BAR_H, alignItems: 'flex-end' },
-  track: { width: 9, height: BAR_H, justifyContent: 'flex-end', borderRadius: 5, backgroundColor: palette.divider, overflow: 'hidden' },
-  fill: { width: 9, borderRadius: 5 },
-  letter: { marginTop: 6, ...font('bold', 11, { color: palette.slate500 }) },
+  track: { width: 8, height: BAR_H, justifyContent: 'flex-end', borderRadius: 4, backgroundColor: palette.track, overflow: 'hidden' },
+  fill: { width: 8, borderRadius: 4 },
+  letter: { marginTop: 6, ...font('semibold', 11, { color: palette.grey500 }) },
   letterToday: { color: palette.ink },
-  legend: { flexDirection: 'row', gap: 16, marginTop: 12 },
-  dotItem: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
-  dot: { width: 10, height: 10, borderRadius: 5 },
-  dotLabel: { color: palette.slate500 },
-  trend: { marginTop: 10, ...font('bold', 14, { color: palette.slate500 }) },
+  legend: { flexDirection: 'row', gap: 14, marginTop: 12, flexWrap: 'wrap' },
+  keyItem: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
+  keyDot: { width: 8, height: 8, borderRadius: 4 },
+  keyLabel: font('medium', 12, { color: palette.slate500 }),
+  trend: { marginTop: 10, ...font('semibold', 14, { color: palette.slate500 }) },
   trendUp: { color: palette.green700 },
+  rule: { height: StyleSheet.hairlineWidth, backgroundColor: palette.divider, marginVertical: 14 },
+  streakRow: { flexDirection: 'row', alignItems: 'center' },
+  streakCopy: { flex: 1 },
+  streakTitle: font('semibold', 15, { color: palette.ink }),
+  streakHint: { ...font('regular', 12, { color: palette.slate500 }), marginTop: 1 },
+  streakValue: font('extrabold', 22, { color: palette.ink }),
+  streakUnit: font('semibold', 13, { color: palette.slate500 }),
+  unlockTrack: { marginTop: 10, height: 4, borderRadius: 2, backgroundColor: palette.track, overflow: 'hidden' },
+  unlockFill: { height: 4, borderRadius: 2, backgroundColor: palette.ink },
 });

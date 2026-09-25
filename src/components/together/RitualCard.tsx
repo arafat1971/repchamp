@@ -3,18 +3,18 @@ import Animated, { ZoomIn } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
 
 import { Card, PressableScale } from '@/components/ui';
+import { HabitIcon } from '@/components/together/HabitIcon';
 import { ritualLine, type HabitId, type HabitState } from '@/domain/ritual';
-import { font, text } from '@/theme/typography';
+import { font } from '@/theme/typography';
 import { palette } from '@/theme/tokens';
 
-const ME = palette.purple500;
-const THEM = palette.amber500;
+export const ME = palette.purple500;
+export const THEM = palette.amber500;
 
 /**
- * Our daily ritual, side by side: each healthy habit with my state on the
- * left (tap to tick the ones only I can vouch for) and theirs on the right.
- * The counted habits fill as a ring before they tick, so the next glass or
- * the next thousand steps is visibly *almost*.
+ * Today's ritual as a small table: the habit, then a column for me (tap the
+ * ones only I can vouch for) and one for them. Counted habits show a ring
+ * filling toward the tick. Quiet on purpose — the ticks are the colour.
  */
 export function RitualCard({
   mine,
@@ -30,142 +30,140 @@ export function RitualCard({
   const total = mine.length;
   const myScore = mine.filter((s) => s.done).length;
   const theirScore = theirs.filter((s) => s.done).length;
-  const perfect = myScore === total && theirScore === total;
 
   return (
-    <Card style={[styles.card, perfect && styles.perfect]}>
-      <View style={styles.head}>
-        <Score label="You" value={myScore} total={total} color={ME} />
-        <View style={styles.headMid}>
-          <Text style={styles.title}>{perfect ? '🏆' : '✦'}</Text>
-        </View>
-        <Score label={name} value={theirScore} total={total} color={THEM} right />
-      </View>
-      <View style={styles.bars}>
-        <View style={styles.barTrack}>
-          <View style={[styles.barFill, { width: `${(myScore / total) * 100}%`, backgroundColor: ME }]} />
-        </View>
-        <View style={[styles.barTrack, styles.barRight]}>
-          <View style={[styles.barFill, { width: `${(theirScore / total) * 100}%`, backgroundColor: THEM }]} />
-        </View>
-      </View>
+    <Card style={styles.card}>
       <Text style={styles.line}>{ritualLine(myScore, theirScore, name, total)}</Text>
+      <Progress label="You" value={myScore} total={total} color={ME} />
+      <Progress label={name} value={theirScore} total={total} color={THEM} />
 
-      <View style={styles.rows}>
-        {mine.map((m, i) => {
-          const t = theirs[i]!;
-          return (
-            <View key={m.habit.id} style={styles.row}>
-              <PressableScale
-                onPress={() => m.tickable && onToggle(m.habit.id)}
-                disabled={!m.tickable}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: m.done, disabled: !m.tickable }}
-                accessibilityLabel={`${m.habit.label}: ${m.habit.hint}`}
-              >
-                <Check state={m} color={ME} />
-              </PressableScale>
-              <View style={styles.rowCopy}>
-                <Text style={[styles.rowLabel, m.done && t.done && styles.rowBoth]}>
-                  {m.habit.emoji} {m.habit.label}
-                  {m.done && t.done ? '  ✨' : ''}
-                </Text>
-                <Text style={[text.caption, styles.rowHint]} numberOfLines={1}>
-                  {m.tickable && !m.done ? `Tap when done · ${m.habit.hint}` : m.habit.hint}
-                </Text>
-              </View>
-              <Check state={t} color={THEM} small />
-            </View>
-          );
-        })}
+      <View style={styles.tableHead}>
+        <Text style={styles.colHead}>You</Text>
+        <Text style={styles.colHead} numberOfLines={1}>
+          {name}
+        </Text>
       </View>
+      {mine.map((m, i) => {
+        const t = theirs[i]!;
+        const both = m.done && t.done;
+        return (
+          <View key={m.habit.id} style={[styles.row, i > 0 && styles.rowRule]}>
+            <View style={[styles.icon, both && styles.iconBoth]}>
+              <HabitIcon id={m.habit.id} color={both ? palette.green700 : palette.ink} />
+            </View>
+            <View style={styles.copy}>
+              <Text style={styles.label}>{m.habit.label}</Text>
+              <Text style={styles.hint} numberOfLines={1}>
+                {m.habit.hint}
+              </Text>
+            </View>
+            <PressableScale
+              onPress={() => m.tickable && onToggle(m.habit.id)}
+              disabled={!m.tickable}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: m.done, disabled: !m.tickable }}
+              accessibilityLabel={`${m.habit.label}, ${m.habit.hint}`}
+              style={styles.cell}
+            >
+              <Check state={m} color={ME} tickable={m.tickable} />
+            </PressableScale>
+            <View style={styles.cell}>
+              <Check state={t} color={THEM} />
+            </View>
+          </View>
+        );
+      })}
     </Card>
   );
 }
 
-function Score({ label, value, total, color, right }: { label: string; value: number; total: number; color: string; right?: boolean }) {
+function Progress({ label, value, total, color }: { label: string; value: number; total: number; color: string }) {
   return (
-    <View style={[styles.score, right && styles.scoreRight]}>
-      <Text style={styles.scoreLabel} numberOfLines={1}>
+    <View style={styles.progress}>
+      <Text style={styles.progressLabel} numberOfLines={1}>
         {label}
       </Text>
-      <Text style={[styles.scoreValue, { color }]}>
-        {value}
-        <Text style={styles.scoreTotal}>/{total}</Text>
+      <View style={styles.segments}>
+        {Array.from({ length: total }, (_, i) => (
+          <View key={i} style={[styles.segment, { backgroundColor: i < value ? color : palette.track }]} />
+        ))}
+      </View>
+      <Text style={styles.progressValue}>
+        {value}/{total}
       </Text>
     </View>
   );
 }
 
-/** A tick, or a ring filling toward one; a question mark when not shared. */
-function Check({ state, color, small }: { state: HabitState; color: string; small?: boolean }) {
-  const size = small ? 28 : 36;
-  const r = size / 2 - 3;
+/** A tick, a ring filling toward one, a dashed circle to tap, or a dash when unknown. */
+function Check({ state, color, tickable }: { state: HabitState; color: string; tickable?: boolean }) {
+  const size = 26;
+  const r = size / 2 - 2;
   const c = 2 * Math.PI * r;
-  if (state.unknown) {
-    return (
-      <View style={[styles.check, { width: size, height: size, borderRadius: size / 2 }, styles.checkUnknown]}>
-        <Text style={styles.unknown}>?</Text>
-      </View>
-    );
-  }
+  if (state.unknown) return <Text style={styles.unknown}>–</Text>;
   if (state.done) {
     return (
-      <Animated.View entering={ZoomIn.springify().damping(12)} style={[styles.check, { width: size, height: size, borderRadius: size / 2, backgroundColor: color }]}>
-        <Text style={[styles.tick, small && { fontSize: 13 }]}>✓</Text>
+      <Animated.View entering={ZoomIn.springify().damping(14)} style={[styles.done, { backgroundColor: color }]}>
+        <Text style={styles.tick}>✓</Text>
       </Animated.View>
     );
   }
   return (
-    <View style={{ width: size, height: size }}>
-      <Svg width={size} height={size}>
-        <Circle cx={size / 2} cy={size / 2} r={r} stroke={palette.track} strokeWidth={3} fill="none" />
-        {state.progress > 0 ? (
-          <Circle
-            cx={size / 2}
-            cy={size / 2}
-            r={r}
-            stroke={color}
-            strokeWidth={3}
-            fill="none"
-            strokeDasharray={`${c * state.progress} ${c}`}
-            strokeLinecap="round"
-            transform={`rotate(-90 ${size / 2} ${size / 2})`}
-          />
-        ) : null}
-      </Svg>
-      {state.progress > 0 && !small ? (
-        <Text style={[styles.pct, { color }]}>{Math.round(state.progress * 100)}</Text>
+    <Svg width={size} height={size}>
+      <Circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        stroke={tickable ? color : palette.track}
+        strokeOpacity={tickable ? 0.45 : 1}
+        strokeWidth={2}
+        strokeDasharray={tickable && state.progress === 0 ? '3 3' : undefined}
+        fill="none"
+      />
+      {state.progress > 0 ? (
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          stroke={color}
+          strokeWidth={2.5}
+          fill="none"
+          strokeDasharray={`${c * state.progress} ${c}`}
+          strokeLinecap="round"
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
       ) : null}
-    </View>
+    </Svg>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { padding: 16 },
-  perfect: { borderWidth: 2, borderColor: palette.amber400 },
-  head: { flexDirection: 'row', alignItems: 'center' },
-  headMid: { paddingHorizontal: 8 },
-  title: { fontSize: 22, color: palette.amber500 },
-  score: { flex: 1 },
-  scoreRight: { alignItems: 'flex-end' },
-  scoreLabel: { ...font('bold', 12, { color: palette.slate500 }), maxWidth: 140 },
-  scoreValue: { ...font('extrabold', 30), lineHeight: 34 },
-  scoreTotal: { ...font('bold', 16, { color: palette.grey500 }) },
-  bars: { flexDirection: 'row', gap: 8, marginTop: 8 },
-  barTrack: { flex: 1, height: 8, borderRadius: 4, backgroundColor: palette.track, overflow: 'hidden' },
-  barRight: { transform: [{ scaleX: -1 }] },
-  barFill: { height: 8, borderRadius: 4 },
-  line: { marginTop: 10, textAlign: 'center', ...font('bold', 14, { color: palette.ink }) },
-  rows: { marginTop: 16, gap: 16 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  rowCopy: { flex: 1 },
-  rowLabel: { ...font('bold', 15, { color: palette.ink }) },
-  rowBoth: { color: palette.green700 },
-  rowHint: { color: palette.slate500, marginTop: 1 },
-  check: { alignItems: 'center', justifyContent: 'center' },
-  checkUnknown: { backgroundColor: palette.track },
-  unknown: { ...font('bold', 13, { color: palette.grey500 }) },
-  tick: { ...font('extrabold', 17, { color: palette.white }) },
-  pct: { position: 'absolute', width: 36, top: 11, textAlign: 'center', ...font('bold', 10) },
+  card: { padding: 18 },
+  line: { ...font('semibold', 15, { color: palette.ink }), marginBottom: 12 },
+  progress: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 },
+  progressLabel: { width: 64, ...font('semibold', 12, { color: palette.slate500 }) },
+  segments: { flex: 1, flexDirection: 'row', gap: 3 },
+  segment: { flex: 1, height: 6, borderRadius: 3 },
+  progressValue: { width: 28, textAlign: 'right', ...font('semibold', 12, { color: palette.slate500 }) },
+  tableHead: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 14, marginBottom: 2 },
+  colHead: { width: 52, textAlign: 'center', ...font('semibold', 11, { color: palette.grey500 }) },
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11 },
+  rowRule: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.divider },
+  icon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: palette.track,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  iconBoth: { backgroundColor: palette.green50 },
+  copy: { flex: 1 },
+  label: font('semibold', 15, { color: palette.ink }),
+  hint: { ...font('regular', 12, { color: palette.slate500 }), marginTop: 1 },
+  cell: { width: 52, alignItems: 'center', justifyContent: 'center' },
+  done: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  tick: font('bold', 14, { color: palette.white }),
+  unknown: font('semibold', 16, { color: palette.grey500 }),
 });

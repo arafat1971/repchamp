@@ -15,7 +15,8 @@ import { partnerGoalToday, partnerHabitsToday, partnerRepsToday, partnerStepsTod
 import { buildRitualReminder, cleanTicks, ritualFor, ritualScore, ritualWeek } from '@/domain/ritual';
 import { repsOnDay } from '@/domain/waterWidget';
 import { useRitualStore } from '@/state/ritualStore';
-import { useStepsToday } from '@/state/useStepsToday';
+import { DEFAULT_STEP_GOAL } from '@/domain/steps';
+import { readStepsToday } from '@/services/pedometer';
 import { syncHydrationReminders, syncLocalReminders, syncRitualReminder } from '@/lib/notifications';
 import { selectTodayMl, useHydrationStore } from '@/state/hydrationStore';
 import { useCouple } from '@/state/useCouple';
@@ -130,8 +131,6 @@ export function useNotificationSync(): void {
   const ritualReminder = useSettingsStore((s) => s.ritualReminder);
   const ritualDay = useRitualStore((s) => s.day);
   const ritualTicks = useRitualStore((s) => s.ticks);
-  const { steps: stepsState } = useStepsToday();
-  const mySteps = stepsState.status === 'ready' ? stepsState.steps : null;
   const myReps = repsOnDay(sessions, today).reps;
   const partner = couple.paired ? couple.partner : null;
   const partnerName = partner?.displayName?.trim() || null;
@@ -146,22 +145,36 @@ export function useNotificationSync(): void {
     : null;
 
   useEffect(() => {
-    const ticks = ritualDay === today ? ritualTicks : [];
-    const mine = ritualFor({ ml: todayMl, goalMl: hydrationGoalMl, steps: mySteps, reps: myReps, ticks });
-    let theirs: { name: string; score: number } | null = null;
-    if (partnerKey && partnerName) {
-      const [ml, goal, steps, reps, habits] = JSON.parse(partnerKey) as [number | null, number | null, number | null, number, unknown];
-      theirs = {
-        name: partnerName,
-        score: ritualScore(ritualFor({ ml, goalMl: goal ?? hydrationGoalMl, steps, reps, ticks: cleanTicks(habits) })),
-      };
-    }
-    void syncRitualReminder({
-      enabled: ritualReminder && !!partnerKey,
-      copy: buildRitualReminder({ mine, theirs }),
-    });
+    /* Steps are read here, once per sync, rather than through `useStepsToday`:
+       this hook mounts before anything else, and that hook's state update
+       landed before mount ("can't perform a React state update…"). A read
+       with no component state has nothing to update too early. */
+    let alive = true;
+    void readStepsToday(DEFAULT_STEP_GOAL)
+      .catch(() => null)
+      .then((read) => {
+        if (!alive) return;
+        const mySteps = read && read.status === 'ready' ? read.steps : null;
+        const ticks = ritualDay === today ? ritualTicks : [];
+        const mine = ritualFor({ ml: todayMl, goalMl: hydrationGoalMl, steps: mySteps, reps: myReps, ticks });
+        let theirs: { name: string; score: number } | null = null;
+        if (partnerKey && partnerName) {
+          const [ml, goal, steps, reps, habits] = JSON.parse(partnerKey) as [number | null, number | null, number | null, number, unknown];
+          theirs = {
+            name: partnerName,
+            score: ritualScore(ritualFor({ ml, goalMl: goal ?? hydrationGoalMl, steps, reps, ticks: cleanTicks(habits) })),
+          };
+        }
+        void syncRitualReminder({
+          enabled: ritualReminder && !!partnerKey,
+          copy: buildRitualReminder({ mine, theirs }),
+        });
+      });
+    return () => {
+      alive = false;
+    };
     // `partnerKey` stands in for the partner's day.
-  }, [ritualReminder, ritualDay, ritualTicks, today, todayMl, hydrationGoalMl, mySteps, myReps, partnerKey, partnerName, foregroundTick]);
+  }, [ritualReminder, ritualDay, ritualTicks, today, todayMl, hydrationGoalMl, myReps, partnerKey, partnerName, foregroundTick]);
 
   /* The ritual week for the Monday recap, reduced to a key so the effect
      re-runs when perfect days or the trend move, not on every history write. */

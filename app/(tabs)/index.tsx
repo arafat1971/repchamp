@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
@@ -14,15 +14,16 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { track } from '@/lib/analytics';
-import { HomeAmbient } from '@/components/home/HomeAmbient';
+import { HomeAmbient, skyFor } from '@/components/home/HomeAmbient';
 import { HeroCard } from '@/components/home/HeroCard';
 import { ActiveNowRail } from '@/components/home/ActiveNowRail';
 import { HomeSectionHeader, homeSectionLink } from '@/components/home/HomeSectionHeader';
 import { DuoCard } from '@/components/home/DuoCard';
 import { HydrationCard } from '@/components/home/HydrationCard';
 import { StepsCard } from '@/components/home/StepsCard';
+import { TodayRings } from '@/components/home/TodayRings';
 import { CountUp, PopOnChange, StaggerIn } from '@/components/motion';
-import { Card, PressableScale, Screen } from '@/components/ui';
+import { PressableScale, Screen } from '@/components/ui';
 import { exerciseHomeStats } from '@/domain/exerciseHomeStats';
 import { firstNameOf, selectHomeGreeting } from '@/domain/homeGreeting';
 import { dailyChallengeProgress } from '@/domain/dailyChallenge';
@@ -80,7 +81,7 @@ import { useIncomingDuelCount } from '@/state/useIncomingDuelCount';
 import { useLiveActivityCount } from '@/state/useLiveActivityCount';
 import { useSelfPlayer } from '@/state/useSelfPlayer';
 import { font, scaleForRole } from '@/theme/typography';
-import { gradients, palette, shadow, radius } from '@/theme/tokens';
+import { gradients, palette, radius, surfaceShadow } from '@/theme/tokens';
 
 /** Push-ups is the featured daily challenge; mirrors `app/modal/daily.tsx`. */
 /* The challenge itself lives in `domain/dailyChallenge`, which Home, the tab
@@ -433,6 +434,12 @@ export default function HomeScreen() {
     track('water_goal_set', { goalMl: next });
   }, [coupleId, myUid]);
 
+  /* The masthead follows the sky; re-read on focus so an app left open over
+     sunset does not keep its afternoon colours. */
+  const [hour, setHour] = useState(() => new Date().getHours());
+  useFocusEffect(useCallback(() => setHour(new Date().getHours()), []));
+  const sky = skyFor(hour);
+
   const greetingCopy = useMemo(
     () => selectHomeGreeting({ streak, trainedToday, firstName }),
     [streak, trainedToday, firstName],
@@ -577,84 +584,79 @@ export default function HomeScreen() {
   const daysToGoal = Math.max(0, goal - daysTrained);
 
   return (
-    <View style={{ flex: 1 }}>
-      <HomeAmbient />
+    <View style={{ flex: 1, backgroundColor: palette.canvas }}>
       <Screen style={{ backgroundColor: 'transparent' }}>
+      <HomeAmbient hour={hour} />
+      {/* Masthead: the date as an eyebrow, then the greeting in display type
+          with the name on its own line — a long name wraps instead of being the
+          word that gets cut. Profile and alerts sit square in the corner. */}
       <View style={styles.header}>
-        <PressableScale
-          onPress={() => router.push('/(tabs)/profile')}
-          accessibilityRole="button"
-          accessibilityLabel="Your profile"
-          style={styles.identity}
-        >
-          <LinearGradient colors={gradients.brand} style={styles.avatarRing}>
-            <View style={styles.avatar}>
-              {profile.avatarUri ? (
-                <Image
-                  source={{ uri: profile.avatarUri }}
-                  style={styles.avatarImage}
-                  contentFit="cover"
-                  accessibilityLabel={profile.displayName}
-                />
-              ) : (
-                <Text style={font('bold', 18, { color: palette.green600 })}>{initial}</Text>
-              )}
-            </View>
-          </LinearGradient>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.greetingHook}>{greetingCopy.hook}</Text>
-            <View style={styles.nameRow}>
-              {/* Two lines, not one. At large text sizes a single line cannot
-                  hold the greeting and it truncated the athlete's own name —
-                  "Good evening, n…" — which is the one word here that should
-                  never be the thing that gets cut. */}
-              <Text
-                style={font('semibold', 18, { color: palette.ink })}
-                numberOfLines={2}
-                {...scaleForRole('heading')}
-              >
-                {greetingCopy.timeOfDay}, {firstName}
-              </Text>
-              <View style={styles.lvlChip}>
-                <Text
-                  style={font('bold', 11, { color: palette.green600 })}
-                  {...scaleForRole('control')}
-                >
-                  Lv.{level.level}
-                </Text>
-              </View>
-              {streak > 0 ? (
-                <PopOnChange trigger={streak} style={styles.streakChip}>
-                  <StreakFlame />
-                  <Text
-                    style={font('bold', 11, { color: palette.amber800 })}
-                    {...scaleForRole('control')}
-                  >
-                    {streak}
-                  </Text>
-                </PopOnChange>
-              ) : null}
-            </View>
-            {greetingCopy.bonus ? (
-              <Text style={styles.greetingBonus}>{greetingCopy.bonus}</Text>
-            ) : (
-              <View style={styles.liveCountInline}>
-                <View style={styles.liveDotSmall} />
-                <Text style={font('regular', 10.5, { color: palette.grey600 })} numberOfLines={1}>
-                  {activity.count} {activity.label}
-                </Text>
-              </View>
-            )}
-          </View>
-        </PressableScale>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.dateEyebrow, { color: sky.accent }]} {...scaleForRole('control')}>
+            {dateEyebrow(today)}
+          </Text>
+          <Text style={styles.greetingLine} {...scaleForRole('heading')}>
+            {greetingCopy.timeOfDay},
+          </Text>
+          <Text style={styles.greetingName} numberOfLines={2} {...scaleForRole('heading')}>
+            {firstName}
+          </Text>
+        </View>
 
         <View style={styles.headerActions}>
           <BellButton
             pendingDuels={pendingDuels}
             onPress={() => router.push('/modal/notifications')}
           />
+          <PressableScale
+            onPress={() => router.push('/(tabs)/profile')}
+            accessibilityRole="button"
+            accessibilityLabel="Your profile"
+          >
+            <LinearGradient colors={gradients.brand} style={styles.avatarRing}>
+              <View style={styles.avatar}>
+                {profile.avatarUri ? (
+                  <Image
+                    source={{ uri: profile.avatarUri }}
+                    style={styles.avatarImage}
+                    contentFit="cover"
+                    accessibilityLabel={profile.displayName}
+                  />
+                ) : (
+                  <Text style={font('bold', 17, { color: palette.green600 })}>{initial}</Text>
+                )}
+              </View>
+            </LinearGradient>
+            <View style={styles.levelBadge} accessibilityLabel={`Level ${level.level}`}>
+              <Text style={font('extrabold', 9.5, { color: palette.white })}>{level.level}</Text>
+            </View>
+          </PressableScale>
         </View>
       </View>
+
+      {/* Status: streak and who's live (the level rides on the avatar), then
+          the one line of coaching. */}
+      <View style={styles.statusRow}>
+        <PopOnChange trigger={streak} style={[styles.chip, streak > 0 ? styles.chipStreak : null]}>
+          <StreakFlame />
+          <Text
+            style={font('bold', 12, { color: streak > 0 ? palette.amber800 : palette.grey600 })}
+            {...scaleForRole('control')}
+          >
+            {streak > 0 ? `${streak} day streak` : 'No streak yet'}
+          </Text>
+        </PopOnChange>
+        <View style={styles.chip}>
+          <View style={styles.liveDotSmall} />
+          <Text style={font('semibold', 12, { color: palette.grey600 })} numberOfLines={1}>
+            {activity.count} {activity.label}
+          </Text>
+        </View>
+      </View>
+      <Text style={styles.coachLine} numberOfLines={2}>
+        {greetingCopy.hook}
+        {greetingCopy.bonus ? <Text style={styles.coachBonus}>{`  ·  ${greetingCopy.bonus}`}</Text> : null}
+      </Text>
 
       <StaggerIn index={0}>
         {/* One card, always, chosen by `selectHomeFocus`. It used to appear
@@ -662,7 +664,22 @@ export default function HomeScreen() {
             five-slide carousel filling the slot the rest of the time — so five
             of HeroCard's seven states were written, styled and unreachable, and
             Home showed the same rotating menu to everyone. */}
-        <HeroCard focus={focus} onPress={onHeroPress} />
+        <HeroCard
+          focus={focus}
+          onPress={onHeroPress}
+          progress={{ value: daily.best, target: daily.target }}
+        />
+      </StaggerIn>
+
+      {/* The day's three loops, one glance under the hero. */}
+      <StaggerIn index={1}>
+        <TodayRings
+          challenge={daily}
+          water={water}
+          steps={stepsToday}
+          onChallenge={() => router.push('/modal/daily')}
+          onSteps={openStepSettings}
+        />
       </StaggerIn>
 
       {/* The action people open the app for, straight under the hero rather
@@ -772,13 +789,15 @@ export default function HomeScreen() {
           accessibilityLabel="Weekly streak progress"
           style={{ flex: 1 }}
         >
-          <Card style={[styles.statCard, styles.weekCard, { padding: 0 }]}>
+          <View style={[styles.statCard, styles.weekCard]}>
             <View style={styles.statCardInner}>
               <View style={styles.miniHeader}>
-                <Text style={font('bold', 12, { color: palette.grey600 })}>This Week</Text>
-                <StreakFlame />
+                <Text style={styles.miniTitle}>This week</Text>
+                <Text style={font('bold', 12, { color: palette.green700 })}>
+                  {daysTrained}/{goal}
+                </Text>
               </View>
-              <Text style={font('bold', 20, { color: palette.ink, marginTop: 8 })}>
+              <Text style={font('extrabold', 17, { color: palette.ink, marginTop: 10, letterSpacing: -0.3 })}>
                 {streak > 0 ? `${streak} day streak` : 'Start a streak'}
               </Text>
               {/* This calendar week, Monday to Sunday: a flame for every day
@@ -802,13 +821,13 @@ export default function HomeScreen() {
                   </View>
                 ))}
               </View>
-              <Text style={font('regular', 11, { color: palette.green700, marginTop: 8 })}>
+              <Text style={font('medium', 11, { color: palette.grey600, marginTop: 10 })} numberOfLines={1}>
                 {daysToGoal === 0
                   ? `Weekly goal met — ${daysTrained} of ${goal} days`
                   : `${daysToGoal} day${daysToGoal === 1 ? '' : 's'} to your weekly goal`}
               </Text>
             </View>
-          </Card>
+          </View>
         </PressableScale>
 
         <PressableScale
@@ -817,52 +836,50 @@ export default function HomeScreen() {
           accessibilityLabel="League standings"
           style={{ flex: 1 }}
         >
-          <LinearGradient
-            /* Softened from a full amber ramp. At #fde68a the card was the
-               most saturated thing on the screen after the hero, which put a
-               secondary stat above the primary action in the visual order. */
-            colors={['#fffbf5', '#fff7ed', '#fdefd3']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[styles.statCard, styles.leagueCard]}
-          >
+          <View style={[styles.statCard, styles.leagueCard]}>
+            <LinearGradient
+              colors={['#FFF7E8', 'rgba(255,255,255,0)']}
+              style={styles.leagueWash}
+              pointerEvents="none"
+            />
             <View style={styles.statCardInner}>
-              {/* One league mark, not three. This card carried the tier emoji,
-                  a medal image and a trophy at once — plus a gradient and a
-                  shine — which read as clutter beside the plain white card
-                  next to it. The medal is the clearest of the three and the
-                  only one that sits with the tier name it labels. */}
               <View style={styles.miniHeader}>
-                <Text style={font('bold', 12, { color: palette.amber900 })}>League</Text>
+                <Text style={styles.miniTitle}>League</Text>
+                <Image source={TROPHY_BRONZE} style={styles.trophyMini} contentFit="contain" />
               </View>
               <View style={styles.leagueRow}>
                 <Image source={MEDAL_BRONZE} style={styles.medalIconSmall} contentFit="contain" />
-                <Text style={font('bold', 16, { color: palette.ink })}>{leagueProgress.title}</Text>
+                <Text style={font('extrabold', 17, { color: palette.ink, letterSpacing: -0.3 })}>
+                  {leagueProgress.title}
+                </Text>
               </View>
-              <Text style={font('bold', 14, { color: palette.amber800, marginTop: 4 })}>
-                <CountUp value={weeklyXp} style={font('bold', 14, { color: palette.amber800 })} /> XP
+              <Text style={[font('bold', 13, { color: palette.amber800, marginTop: 6 }), styles.tabular]}>
+                <CountUp value={weeklyXp} style={[font('bold', 13, { color: palette.amber800 }), styles.tabular]} /> XP this week
               </Text>
               <LeagueXpBar fill={leagueProgress.fill} />
-              <Text style={font('regular', 10.5, { color: palette.amber100Text, marginTop: 4 })} numberOfLines={1}>
+              <Text style={font('medium', 11, { color: palette.grey600, marginTop: 8 })} numberOfLines={1}>
                 {leagueProgress.nextLeague
-                  ? `${leagueProgress.xpToNext.toLocaleString()} XP until ${leagueProgress.nextLeague.name}`
+                  ? `${leagueProgress.xpToNext.toLocaleString()} XP to ${leagueProgress.nextLeague.name}`
                   : 'Top league — hold the crown'}
               </Text>
-              {/* The trophy stays as a quiet corner mark; the sweeping shine
-                  that ran across it did not. An animated highlight on a card
-                  whose job is "here is your rank" competes with the number
-                  it is meant to decorate. */}
-              <View style={styles.trophyWrapper} pointerEvents="none">
-                <Image source={TROPHY_BRONZE} style={styles.trophyCorner} contentFit="contain" />
-              </View>
             </View>
-          </LinearGradient>
+          </View>
         </PressableScale>
       </StaggerIn>
 
       </Screen>
     </View>
   );
+}
+
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** "THURSDAY · 25 SEP" from a day key — built by hand so it never depends on Intl. */
+function dateEyebrow(day: string): string {
+  const [y, m, d] = day.split('-').map(Number);
+  const date = new Date(y as number, (m as number) - 1, d as number, 12);
+  return `${WEEKDAYS[date.getDay()]} · ${date.getDate()} ${MONTHS[date.getMonth()]}`.toUpperCase();
 }
 
 /** Notification bell — wiggles when rivals are waiting. */
@@ -1026,9 +1043,16 @@ function QuickTile({
       accessibilityLabel={locked ? `${label} — free reps used, see Pro` : `Practice ${label}`}
       style={styles.quickTileWrap}
     >
-      <LinearGradient colors={tint} start={{ x: 0.2, y: 0 }} end={{ x: 0.8, y: 1 }} style={styles.quickTileNew}>
+      <View style={styles.quickTile}>
+        {/* A wash of the movement's colour across the top third only — enough
+            to tell the two apart at a glance without two pastel slabs. */}
+        <LinearGradient
+          colors={[tint[1], 'rgba(255,255,255,0)']}
+          style={styles.quickTileWash}
+          pointerEvents="none"
+        />
         <View style={styles.quickTileTop}>
-          <View style={[styles.quickIconBubble, { borderColor: `${accent}33` }]}>
+          <View style={[styles.quickIconBubble, { borderColor: `${accent}26` }]}>
             {image ? (
               <Image source={image} style={styles.quickIconImg} contentFit="contain" />
             ) : (
@@ -1040,135 +1064,123 @@ function QuickTile({
               styles.deltaPill,
               {
                 backgroundColor: locked
-                  ? palette.border
+                  ? palette.divider
                   : deltaPositive
-                    ? palette.tintGreenBottom
+                    ? `${accent}14`
                     : palette.tintDangerBg,
               },
             ]}
           >
             <Text
               style={font('bold', 11, {
-                color: locked ? palette.grey600 : deltaPositive ? '#15803d' : '#b91c1c',
+                color: locked ? palette.grey600 : deltaPositive ? accent : '#b91c1c',
               })}
             >
               {pillLabel}
             </Text>
           </View>
         </View>
-        <Text style={font('semibold', 15, { color: palette.ink, marginTop: 8 })} numberOfLines={1}>
+        <Text style={font('bold', 15, { color: palette.ink, marginTop: 14 })} numberOfLines={1}>
           {label}
         </Text>
-        <Text style={font('regular', 11, { color: palette.grey600, marginTop: 4 })}>Today&apos;s Best</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
-          <CountUp value={stats.todayBest} duration={800} style={font('bold', 22, { color: accent })} />
-          <Text style={font('regular', 12, { color: palette.grey500 })}>reps</Text>
+        <View style={styles.quickBestRow}>
+          <CountUp
+            value={stats.todayBest}
+            duration={800}
+            style={[font('extrabold', 30, { color: palette.ink }), styles.tabular]}
+          />
+          <Text style={font('semibold', 12, { color: palette.grey500 })}>reps today</Text>
         </View>
-        {/* "Last 0 reps" said nothing — there was no last session to beat. */}
-        <Text style={font('regular', 11, { color: palette.grey500, marginTop: 4 })}>
-          {stats.lastBest > 0
-            ? `Last time ${stats.lastBest} ${stats.lastBest === 1 ? 'rep' : 'reps'}`
-            : stats.todayBest > 0
-              ? 'Beat it next time'
-              : 'Set your first best'}
-        </Text>
-      </LinearGradient>
+        <View style={styles.quickFooter}>
+          {/* "Last 0 reps" said nothing — there was no last session to beat. */}
+          <Text style={font('medium', 11.5, { color: palette.grey600, flex: 1 })} numberOfLines={1}>
+            {stats.lastBest > 0
+              ? `Last best ${stats.lastBest}`
+              : stats.todayBest > 0
+                ? 'Beat it next time'
+                : 'Set your first best'}
+          </Text>
+          <View style={[styles.quickGo, { backgroundColor: locked ? palette.grey500 : accent }]}>
+            <Text style={font('bold', 13, { color: palette.white })}>{locked ? '🔒' : '→'}</Text>
+          </View>
+        </View>
+      </View>
     </PressableScale>
   );
 }
 
-
 const styles = StyleSheet.create({
-  weekStrip: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },
-  weekCell: { alignItems: 'center', gap: 4 },
-  weekDot: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: palette.divider,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  weekDotTrained: { backgroundColor: '#ffedd5' },
-  weekDotToday: { borderWidth: 2, borderColor: palette.green500, backgroundColor: palette.white },
-  weekDotFuture: { opacity: 0.45 },
-  weekFlame: { fontSize: 11 },
-  weekLetter: font('semibold', 9.5, { color: palette.grey500 }),
-  weekLetterToday: font('extrabold', 9.5, { color: palette.green700 }),
+  tabular: { fontVariant: ['tabular-nums'] },
+
+  // Masthead
   header: {
     flexDirection: 'row',
-    // Top-aligned: the identity block runs to three lines, so centring pushed
-    // the control down beside the name instead of sitting square in the corner.
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    marginTop: 8,
-    marginBottom: 20,
+    marginTop: 12,
+    gap: 12,
   },
-  identity: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatarRing: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    padding: 4,
-    ...shadow.brand,
+  dateEyebrow: { ...font('bold', 11, { color: palette.green700 }), letterSpacing: 1.4 },
+  greetingLine: {
+    ...font('medium', 22, { color: palette.grey600, marginTop: 8 }),
+    letterSpacing: -0.4,
+    lineHeight: 27,
   },
+  greetingName: {
+    ...font('extrabold', 30, { color: palette.ink }),
+    letterSpacing: -0.9,
+    lineHeight: 35,
+  },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2 },
+  avatarRing: { width: 46, height: 46, borderRadius: 23, padding: 2.5 },
   avatar: {
     flex: 1,
-    borderRadius: radius['2xl'],
+    borderRadius: 21,
     backgroundColor: palette.white,
+    borderWidth: 2,
+    borderColor: palette.white,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   avatarImage: { width: '100%', height: '100%' },
-  greeting: { ...font('semibold', 12, { color: palette.grey600 }) },
-  /* Wraps rather than truncating. Name, level and streak is three items in a
-     row that often fits two, and every fixed answer traded one problem for
-     another: shrinking clipped "Champion" while space remained, and not
-     shrinking pushed the chips under the bell. Wrapping lets a short name keep
-     everything on one line and a long one drop the chips below, which is the
-     outcome both fixed rules were trying to approximate. */
-  nameRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, rowGap: 6 },
-  lvlChip: {
-    backgroundColor: palette.green50,
-    borderWidth: 1,
-    borderColor: '#bfeccb',
-    borderRadius: radius.sm,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+  /* The level rides on the avatar like a badge on an app icon: always there,
+     never a third chip competing with the name. */
+  levelBadge: {
+    position: 'absolute',
+    bottom: -3,
+    right: -3,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 4,
+    borderRadius: 10,
+    backgroundColor: palette.ink,
+    borderWidth: 2,
+    borderColor: palette.white,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  streakChip: {
+  statusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
+  chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: palette.amber50,
+    gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.85)',
     borderWidth: 1,
-    borderColor: palette.amber200,
-    borderRadius: radius.sm,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    borderColor: 'rgba(15,31,23,0.07)',
+    borderRadius: radius.pill,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
   },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 8,
-    // Nudged down so the icon optically centres against the name row rather
-    // than the smaller greeting above it.
-    marginTop: 4,
-    /* Reserve the corner. Without a width the identity block's `flex: 1` took
-       the whole row and the bell was drawn over the level chip — the chips
-       looked tucked under it rather than beside the name. */
-    width: 52,
-    flexShrink: 0,
+  chipStreak: { backgroundColor: '#FFF6E5', borderColor: 'rgba(180,83,9,0.18)' },
+  coachLine: {
+    ...font('medium', 12.5, { color: palette.grey600, marginTop: 12, marginBottom: 18 }),
+    lineHeight: 18,
   },
-  /** Single-purpose circular control — one icon, one action. */
+  coachBonus: font('bold', 12.5, { color: palette.green700 }),
   /**
-   * Single-purpose circular control — one icon, one action.
-   *
-   * The border is deliberately stronger than `palette.border`: at #e6eae4 on
-   * the #F6F7F5 canvas the edge was invisible and the control read as a bare
-   * floating emoji rather than a button.
+   * Single-purpose circular control — one icon, one action. The border is
+   * deliberately stronger than `palette.border`, which vanished on the canvas.
    */
   iconButton: {
     position: 'relative',
@@ -1177,14 +1189,10 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     backgroundColor: palette.white,
     borderWidth: 1,
-    borderColor: '#d8e3d8',
+    borderColor: 'rgba(15,31,23,0.08)',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#1e3c28',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.16,
-    shadowRadius: 10,
-    elevation: 3,
+    ...surfaceShadow,
   },
   /** Raised state — rivals are waiting, so the control itself signals it. */
   iconButtonAlert: {
@@ -1196,130 +1204,107 @@ const styles = StyleSheet.create({
   },
   bellDot: {
     position: 'absolute',
-    top: -6,
-    right: -8,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
+    top: -4,
+    right: -4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
     paddingHorizontal: 4,
     backgroundColor: palette.red500,
+    borderWidth: 2,
+    borderColor: palette.white,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  liveCountInline: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-  liveDotSmall: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: palette.green500 },
+  liveDotSmall: { width: 6, height: 6, borderRadius: 3, backgroundColor: palette.green500 },
 
-  // Stat cards
+  // Progress pair — one surface language with every other card on Home.
   row: { flexDirection: 'row', gap: 12, alignItems: 'stretch' },
-  /* The pair reads as a pair now. Both carried a 1.5pt border in their own
-     accent — hard green against hard amber — which made two cards of the same
-     size and role look like they belonged to different screens. A hairline in
-     a tint of each accent keeps them distinguishable without shouting. */
-  weekCard: {
-    backgroundColor: palette.white,
-    borderColor: 'rgba(21,128,61,0.28)',
-    borderWidth: 1,
-  },
-  leagueCard: {
-    borderWidth: 1,
-    borderColor: 'rgba(180,83,9,0.28)',
-    overflow: 'hidden',
-  },
   statCard: {
     flex: 1,
-    height: 168,
+    minHeight: 164,
     backgroundColor: palette.white,
     borderWidth: 1,
-    borderColor: '#eef2ee',
-    borderRadius: 18,
+    borderColor: 'rgba(15,31,23,0.06)',
+    borderRadius: radius['2xl'],
     overflow: 'hidden',
-    shadowColor: '#1e3c28',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 4,
+    ...surfaceShadow,
   },
-  statCardInner: { flex: 1, padding: 16, borderRadius: radius.lg },
-  miniHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  weekBar: { flex: 1, height: 6, borderRadius: radius.xs },
-  leagueRow: { flexDirection: 'row', alignItems: 'center', gap: 0, marginTop: 4, marginBottom: 0 },
-  medalIcon: { width: 66, height: 44, marginRight: -8, marginLeft: -6, marginTop: -4 },
-  trophyWrapper: {
-    position: 'absolute',
-    right: -14,
-    bottom: -22,
-    width: 118,
-    height: 118,
-    shadowColor: '#78350f',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 8,
+  weekCard: {},
+  leagueCard: {},
+  leagueWash: { position: 'absolute', top: 0, left: 0, right: 0, height: 90 },
+  statCardInner: { flex: 1, padding: 16 },
+  miniHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  miniTitle: { ...font('bold', 11, { color: palette.grey600 }), letterSpacing: 1, textTransform: 'uppercase' },
+  weekStrip: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },
+  weekCell: { alignItems: 'center', gap: 4 },
+  weekDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: palette.divider,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  weekDotTrained: { backgroundColor: '#ffedd5' },
+  weekDotToday: { borderWidth: 2, borderColor: palette.green500, backgroundColor: palette.white },
+  weekDotFuture: { opacity: 0.45 },
+  weekFlame: { fontSize: 10 },
+  weekLetter: font('semibold', 9.5, { color: palette.grey500 }),
+  weekLetterToday: font('extrabold', 9.5, { color: palette.green700 }),
+  leagueRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
+  medalIconSmall: { width: 30, height: 26, marginLeft: -4, marginRight: 2 },
+  trophyMini: { width: 26, height: 26 },
+  leagueXpTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(146,64,14,0.10)',
     overflow: 'hidden',
+    marginTop: 10,
   },
-  trophyCorner: {
-    width: '100%',
-    height: '100%',
-  },
+  leagueXpFill: { height: '100%', borderRadius: 3, backgroundColor: '#d97706' },
 
   // Quick tiles
   quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   quickTileWrap: { width: '47%', flexGrow: 1 },
   quickTile: {
-    height: 130,
     borderRadius: radius['2xl'],
-    padding: 16,
-    justifyContent: 'space-between',
-    overflow: 'hidden',
-  },
-  quickTileNew: {
-    minHeight: 168,
-    borderRadius: 20,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
+    padding: 14,
+    backgroundColor: palette.white,
     borderWidth: 1,
-    borderColor: 'rgba(15,23,42,0.06)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: 'rgba(15,31,23,0.06)',
     overflow: 'hidden',
-    shadowColor: palette.slate900,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 2,
+    ...surfaceShadow,
   },
+  quickTileWash: { position: 'absolute', top: 0, left: 0, right: 0, height: 80 },
+  quickTileTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   quickIconBubble: {
-    width: 58,
-    height: 58,
-    borderRadius: radius.lg,
+    width: 52,
+    height: 52,
+    borderRadius: radius.md,
     borderWidth: 1,
-    backgroundColor: 'rgba(255,255,255,0.95)',
+    backgroundColor: palette.white,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  quickIconImg: { width: 52, height: 52 },
-
-
-  /** Matches the Arena leaderboard's AI badge so labelling is consistent. */
-
-
-  greetingHook: { ...font('regular', 12, { color: palette.grey600 }) },
-  greetingBonus: { ...font('regular', 11, { color: palette.green700, marginTop: 4 }) },
-  medalIconSmall: { width: 42, height: 32, marginRight: -4, marginLeft: -4 },
-  leagueXpTrack: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(146,64,14,0.12)',
-    overflow: 'hidden',
-    marginTop: 8,
+  quickIconImg: { width: 46, height: 46 },
+  deltaPill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: radius.pill },
+  quickBestRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 2 },
+  quickFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: palette.dividerSoft,
   },
-  leagueXpFill: {
-    height: '100%',
-    borderRadius: radius.xs,
-    backgroundColor: '#d97706',
+  quickGo: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  quickTileTop: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  deltaPill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 },
 });
-

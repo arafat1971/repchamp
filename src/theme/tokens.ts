@@ -145,6 +145,20 @@ export const gradients = {
   ink: [palette.ink, palette.inkSoft] as const,
   promotion: [palette.amber500, palette.amber800] as const,
   gold: [palette.amber200, palette.amber500] as const,
+  /** Deep emerald for Home's hero — the brand green, dimmed to a jewel tone. */
+  heroEmerald: ['#15803D', '#0B5132', '#06331F'] as const,
+  heroAmber: ['#D97706', '#9A3412', '#6B210A'] as const,
+  heroIndigo: ['#1D4ED8', '#1E3A8A', '#141F4D'] as const,
+  heroViolet: ['#7C3AED', '#4C1D95', '#2A1057'] as const,
+} as const;
+
+/** The quiet elevation Home's surfaces share: a long, faint shadow, not a halo. */
+export const surfaceShadow = {
+  shadowColor: '#0f1f17',
+  shadowOpacity: 0.07,
+  shadowRadius: 18,
+  shadowOffset: { width: 0, height: 8 },
+  elevation: 3,
 } as const;
 
 /**

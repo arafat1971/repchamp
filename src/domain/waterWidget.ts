@@ -531,3 +531,22 @@ export function repsOnDay<E extends string>(
   }
   return { reps, top, trainedAt };
 }
+
+/**
+ * The Bear glance's one line: who leads and by how much, or what to do next.
+ * The native glance says the same (`glanceLine` in the widget templates).
+ */
+export function glanceLine(snap: Pick<WaterWidgetSnapshot, 'name' | 'waterMl' | 'meWaterMl' | 'hasMe' | 'met' | 'meMet'>): string {
+  const who = snap.name;
+  const a = snap.waterMl;
+  const b = snap.hasMe ? snap.meWaterMl : 0;
+  const meMet = snap.hasMe && snap.meMet;
+  if (snap.met && meMet) return 'Both full today 🥂';
+  if (!snap.hasMe) return a > 0 ? `${who} is sipping 💧` : `Waiting for ${who}'s first sip`;
+  if (a === 0 && b === 0) return 'Sip to wake your bear ☀️';
+  if (meMet) return `You're full — cheer ${who} on 💦`;
+  if (snap.met) return `${who} is full — catch up 💧`;
+  if (b > a) return `You lead by ${formatMl(b - a)} 👑`;
+  if (a > b) return `${who} leads by ${formatMl(a - b)}`;
+  return 'Neck and neck 🤝';
+}

@@ -1,109 +1,81 @@
-import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
-
-import { palette } from '@/theme/tokens';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withRepeat,
-  withTiming,
-} from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 
+import { SCREEN_GUTTER } from '@/theme/tokens';
+
 /**
- * Soft live canvas behind Home — vertical green wash + a handful of
- * drifting circles at ~5% opacity so the screen never feels flat.
+ * The canvas behind Home — a still wash under the masthead that follows the
+ * time of day, and settles into the page colour.
+ *
+ * This used to carry five drifting green circles. They read as bubbles over
+ * the cards rather than depth behind them, and motion that means nothing
+ * cheapens the motion that does (rings closing, counts landing). The sky
+ * changing with the hour is the one ambient cue worth having: the screen at
+ * 7am and at 10pm should not feel like the same screen.
+ *
+ * Render it as the first child of the scroll content: it scrolls away with
+ * the masthead. Pinned to the screen, it tinted whatever card scrolled under.
  */
-export function HomeAmbient() {
+export function HomeAmbient({ hour = new Date().getHours() }: { hour?: number }) {
+  const sky = skyFor(hour);
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      <LinearGradient
-        // Tokens rather than literals, so a future theme change reaches this
-        // gradient too. It used to hardcode '#ffffff'/'#FAFFFB'/'#F4FFF6',
-        // which meant the screen stayed light no matter what the canvas did.
-        colors={[palette.white, palette.canvas, palette.canvas]}
-        locations={[0, 0.45, 1]}
-        style={StyleSheet.absoluteFill}
-      />
-      <View style={styles.radialHint} />
-      <Particle left="8%" top="12%" size={90} delay={0} />
-      <Particle left="72%" top="8%" size={64} delay={400} />
-      <Particle left="18%" top="48%" size={110} delay={900} />
-      <Particle left="78%" top="58%" size={72} delay={1200} />
-      <Particle left="42%" top="78%" size={96} delay={600} />
+    <View pointerEvents="none" style={styles.root}>
+      <LinearGradient colors={sky.wash} locations={[0, 0.55, 1]} style={styles.wash} />
+      <View style={[styles.glow, { backgroundColor: sky.glow }]} />
+      <View style={[styles.glowSmall, { backgroundColor: sky.glowSoft }]} />
     </View>
   );
 }
 
-function Particle({
-  left,
-  top,
-  size,
-  delay,
-}: {
-  left: `${number}%` | string;
-  top: `${number}%` | string;
-  size: number;
-  delay: number;
-}) {
-  const drift = useSharedValue(0);
-  const pulse = useSharedValue(0.04);
+type Sky = {
+  wash: readonly [string, string, string];
+  glow: string;
+  glowSoft: string;
+  /** Text accent for the masthead eyebrow, so the date wears the sky's colour. */
+  accent: string;
+};
 
-  useEffect(() => {
-    drift.value = withDelay(
-      delay,
-      withRepeat(
-        withTiming(1, { duration: 9000 + delay, easing: Easing.inOut(Easing.sin) }),
-        -1,
-        true,
-      ),
-    );
-    pulse.value = withDelay(
-      delay,
-      withRepeat(
-        withTiming(0.07, { duration: 4200, easing: Easing.inOut(Easing.ease) }),
-        -1,
-        true,
-      ),
-    );
-  }, [delay, drift, pulse]);
+const FADE = 'rgba(246,247,245,0)';
 
-  const style = useAnimatedStyle(() => ({
-    opacity: pulse.value,
-    transform: [{ translateY: drift.value * 14 - 7 }, { translateX: drift.value * 8 - 4 }],
-  }));
-
-  return (
-    <Animated.View
-      style={[
-        styles.particle,
-        {
-          left: left as number | `${number}%`,
-          top: top as number | `${number}%`,
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-        },
-        style,
-      ]}
-    />
-  );
+/** Dawn gold, daytime green, sunset rose, night indigo. */
+export function skyFor(hour: number): Sky {
+  if (hour >= 5 && hour < 11) {
+    return { wash: ['#FCE9CF', '#FBF2E4', FADE], glow: 'rgba(245,158,11,0.14)', glowSoft: 'rgba(251,191,36,0.10)', accent: '#B45309' };
+  }
+  if (hour >= 11 && hour < 17) {
+    return { wash: ['#D9F0E1', '#EDF6F0', FADE], glow: 'rgba(34,197,94,0.10)', glowSoft: 'rgba(56,189,248,0.07)', accent: '#15803D' };
+  }
+  if (hour >= 17 && hour < 21) {
+    return { wash: ['#F8DCD0', '#F3E6EE', FADE], glow: 'rgba(244,114,182,0.12)', glowSoft: 'rgba(249,115,22,0.10)', accent: '#BE185D' };
+  }
+  return { wash: ['#DCE2F6', '#EAEDF7', FADE], glow: 'rgba(99,102,241,0.12)', glowSoft: 'rgba(56,189,248,0.08)', accent: '#4338CA' };
 }
 
 const styles = StyleSheet.create({
-  radialHint: {
+  /* Reaches past the gutter and up under the status bar. */
+  root: {
     position: 'absolute',
-    top: -80,
-    alignSelf: 'center',
-    width: 420,
-    height: 420,
-    borderRadius: 210,
-    backgroundColor: 'rgba(34, 197, 94, 0.05)',
+    top: -200,
+    left: -SCREEN_GUTTER,
+    right: -SCREEN_GUTTER,
+    height: 720,
+    overflow: 'hidden',
   },
-  particle: {
+  wash: { position: 'absolute', top: 0, left: 0, right: 0, height: 620 },
+  glow: {
     position: 'absolute',
-    backgroundColor: palette.green500,
+    top: 60,
+    right: -120,
+    width: 360,
+    height: 360,
+    borderRadius: 180,
+  },
+  glowSmall: {
+    position: 'absolute',
+    top: 240,
+    left: -90,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
   },
 });

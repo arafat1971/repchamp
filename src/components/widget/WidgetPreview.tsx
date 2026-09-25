@@ -21,6 +21,7 @@ import { BearJar, type BearTheme } from '@/components/home/BearJar';
 import {
   WATER_WIDGET_LIVE_MS,
   buildWaterWidgetSnapshot,
+  glanceLine,
   sippedTogether,
   type WaterWidgetSnapshot,
   type WidgetStyle,
@@ -205,6 +206,113 @@ export function WidgetPreview({
       ) : (
         <Rings {...parts} width={width} />
       )}
+    </View>
+  );
+}
+
+/**
+ * The 2 x 2 Bear glance, as the native painter draws it: both bears on the
+ * island under a sun or moon that keeps the hour, the pair's names, one line
+ * about the day, both amounts and the drink button — on the scene's surface.
+ */
+export function GlancePreview({ style, snap = SAMPLE_SNAPSHOT, size }: { style: WidgetStyle; snap?: WaterWidgetSnapshot; size: number }) {
+  const reduced = useReducedMotion();
+  const tilt = useSharedValue(0);
+  const phase = useSharedValue(0);
+  useEffect(() => {
+    if (reduced || !style.motion) return;
+    phase.set(withRepeat(withTiming(2 * Math.PI, { duration: 3000, easing: Easing.linear }), -1));
+    return () => cancelAnimation(phase);
+  }, [reduced, style.motion, phase]);
+
+  const W = size;
+  const H = size;
+  const at = new Date(snap.updatedAt);
+  const hour = at.getHours() + at.getMinutes() / 60;
+  const sky = skyFor(hour);
+  const glass = style.surface === 'glass';
+  const backdrop = style.surface === 'sky';
+  const meMl = snap.hasMe ? snap.meWaterMl : 0;
+  const share = snap.waterMl + meMl > 0 ? snap.waterMl / (snap.waterMl + meMl) : 0.5;
+  const bh = H * 0.39;
+  const bw = bh / 1.24;
+  const feet = H * 0.71;
+  const arc = Math.min(1, Math.max(0, sky.night ? (hour >= 20 ? hour - 20 : hour + 4) / 9 : (hour - 5) / 15));
+  const sx = W * (0.34 + 0.32 * arc);
+  const sy = H * (0.3 - 0.07 * Math.sin(Math.PI * arc));
+  const sun = hour >= 17 ? '#FDBA74' : '#FDE047';
+  const both = snap.met && snap.hasMe && snap.meMet;
+  const fx = W * (0.5 - (share - 0.5) * 0.3);
+  const fy = feet - bh * 0.18;
+  const dir = share > 0.5 ? -1 : 1;
+  const streak = snap.hasMe ? snap.streak : 0;
+
+  return (
+    <View style={[styles.glance, { width: W, height: H }, glass ? styles.glassCard : styles.floating]}>
+      {glass ? <GlassPane /> : null}
+      <Svg width={W} height={H} style={StyleSheet.absoluteFill}>
+        <Defs>
+          <LinearGradient id="glance-sky" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={sky.top} />
+            <Stop offset="1" stopColor={sky.bottom} />
+          </LinearGradient>
+        </Defs>
+        {backdrop ? <Rect width={W} height={H} rx={22} fill="url(#glance-sky)" /> : null}
+        {sky.night ? (
+          <Circle cx={sx} cy={sy} r={7} fill="#FEF3C7" />
+        ) : (
+          <>
+            <Circle cx={sx} cy={sy} r={13} fill={sun} opacity={0.3} />
+            <Circle cx={sx} cy={sy} r={8} fill={sun} />
+          </>
+        )}
+        <Cloud x={W * (0.25 + 0.5 * ((at.getMinutes() % 60) / 60))} y={H * 0.36} s={0.6} color={sky.cloud} />
+        {both
+          ? ['#EF4444', '#F59E0B', '#22C55E', '#3B82F6'].map((c, i) => {
+              const r = W * 0.36 - i * 3;
+              return <Path key={c} d={`M${W / 2 - r} ${H * 0.62} A${r} ${r} 0 0 1 ${W / 2 + r} ${H * 0.62}`} stroke={c} strokeOpacity={0.8} strokeWidth={3} fill="none" />;
+            })
+          : null}
+        <Island grass={seasonGrass(snap.season, sky.night)} W={W} H={H} />
+      </Svg>
+
+      <SceneBear left={W * 0.27 - bw / 2} top={feet - bh} bw={bw} bh={bh} lean={-(3 + 10 * Math.max(0, share - 0.5))}>
+        <BearJar id="glance-them" percent={snap.pct * 100} width={bw} theme={THEIR_BEAR} layers={bearLayers(snap.layers)} tilt={tilt} phase={phase} pourKey={0} met={snap.met} />
+        <Outfit streak={streak} bw={bw} bh={bh} winter={snap.season === 'winter'} />
+      </SceneBear>
+      <SceneBear left={W * 0.73 - bw / 2} top={feet - bh} bw={bw} bh={bh} lean={3 + 10 * Math.max(0, 0.5 - share)}>
+        <BearJar id="glance-me" percent={snap.hasMe ? snap.mePct * 100 : 0} width={bw} theme={MY_BEAR} layers={snap.hasMe ? bearLayers(snap.meLayers) : []} tilt={tilt} phase={phase} pourKey={0} met={snap.hasMe && snap.meMet} />
+        <Outfit streak={streak} bw={bw} bh={bh} winter={snap.season === 'winter'} />
+      </SceneBear>
+
+      <Svg width={W} height={H} style={StyleSheet.absoluteFill} pointerEvents="none">
+        <Path d={`M${fx} ${fy} L${fx} ${fy - 16}`} stroke="#7C2D12" strokeWidth={1.6} />
+        <Path d={`M${fx} ${fy - 16} L${fx + dir * 10} ${fy - 12.5} L${fx} ${fy - 9} Z`} fill="#EF4444" />
+      </Svg>
+
+      <View style={styles.glanceBody} pointerEvents="none">
+        <View style={styles.glanceTop}>
+          <Text style={styles.glanceTitle} numberOfLines={1}>
+            {snap.name} & you
+          </Text>
+          {streak > 0 ? <Text style={[styles.glass, styles.glanceStreak]}>🔥 {streak}</Text> : null}
+        </View>
+        <Text style={[styles.glanceLine, size < 150 && { fontSize: 8.5 }]} numberOfLines={1}>
+          {glanceLine(snap)}
+        </Text>
+        <View style={{ flex: 1 }} />
+        <View style={styles.glanceBottom}>
+          <Text style={styles.glanceAmount} numberOfLines={1}>
+            {snap.amount}
+          </Text>
+          <View style={styles.glanceDrink}>
+            <Text style={styles.glanceDrop}>💧</Text>
+          </View>
+          <Text style={styles.glanceAmount} numberOfLines={1}>
+            {snap.hasMe ? snap.meWater : '—'}
+          </Text>
+        </View>
+      </View>
     </View>
   );
 }
@@ -1125,6 +1233,16 @@ function LivePill() {
 }
 
 const styles = StyleSheet.create({
+  glance: { borderRadius: 22, overflow: 'hidden' },
+  glanceBody: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, padding: 10 },
+  glanceTop: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  glanceTitle: { flex: 1, ...font('bold', 12, { color: '#FFFFFF' }), textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 4, textShadowOffset: { width: 0, height: 1 } },
+  glanceStreak: { ...font('bold', 10, { color: '#FDE68A' }), paddingHorizontal: 6, paddingVertical: 1 },
+  glanceLine: { marginTop: 1, ...font('medium', 10, { color: 'rgba(255,255,255,0.9)' }), textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 3, textShadowOffset: { width: 0, height: 1 } },
+  glanceBottom: { flexDirection: 'row', alignItems: 'center' },
+  glanceAmount: { flex: 1, textAlign: 'center', ...font('bold', 12, { color: '#FFFFFF' }), textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 3, textShadowOffset: { width: 0, height: 1 } },
+  glanceDrink: { width: 36, height: 24, borderRadius: 12, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  glanceDrop: { fontSize: 12 },
   floating: { backgroundColor: 'transparent', borderWidth: 0, shadowOpacity: 0, elevation: 0 },
   glassCard: { borderWidth: 1.2, borderColor: 'rgba(255,255,255,0.7)', shadowOpacity: 0.12, elevation: 2 },
   sheen: { position: 'absolute', top: 0, left: 0, right: 0, height: '46%', borderTopLeftRadius: 26, borderTopRightRadius: 26 },

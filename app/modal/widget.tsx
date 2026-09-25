@@ -8,7 +8,7 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { ModalHeader } from '@/components/ModalHeader';
 import { WidgetPublishDebug } from '@/components/debug/WidgetPublishDebug';
 import { Card, Divider, PressableScale, PrimaryButton, Screen, SectionLabel, Toggle } from '@/components/ui';
-import { LOOKS, MINE, THEIRS, WidgetPreview } from '@/components/widget/WidgetPreview';
+import { GlancePreview, LOOKS, MINE, THEIRS, WidgetPreview } from '@/components/widget/WidgetPreview';
 import { dayKey } from '@/domain/progression';
 import { duoStreak } from '@/domain/duoStreak';
 import { weekWrap } from '@/domain/week';
@@ -264,19 +264,30 @@ export default function WidgetStudioScreen() {
       {supported ? (
         <>
           <SectionLabel>ALSO FOR YOUR HOME SCREEN</SectionLabel>
-          <Card style={styles.card}>
-            <Text style={styles.cardTitle}>Bear glance · 2×2</Text>
-            <Text style={[text.caption, styles.cardBody]}>
-              Both bears side by side in a small square — the same glass, live the same way, with a drink button.
-            </Text>
-            <PressableScale
-              onPress={() => void requestPinWidget('glance').then((ok) => setPinFailed(!ok))}
-              accessibilityRole="button"
-              accessibilityLabel="Add the bear glance widget"
-              style={styles.inlineAdd}
-            >
-              <Text style={styles.inlineAddText}>＋ Add</Text>
-            </PressableScale>
+          <Card style={[styles.card, styles.glanceCard]}>
+            <View style={styles.glanceStage}>
+              <Backdrop
+                colors={['#312E81', '#BE185D', '#F59E0B']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
+              <GlancePreview style={style} snap={preview} size={128} />
+            </View>
+            <View style={styles.glanceCopy}>
+              <Text style={styles.cardTitle}>Bear glance · 2×2</Text>
+              <Text style={[text.caption, styles.cardBody]}>
+                Both bears in a small square. The sun keeps the hour, and one line says who leads.
+              </Text>
+              <PressableScale
+                onPress={() => void requestPinWidget('glance').then((ok) => setPinFailed(!ok))}
+                accessibilityRole="button"
+                accessibilityLabel="Add the bear glance widget"
+                style={styles.glanceAdd}
+              >
+                <Text style={styles.inlineAddText}>＋ Add to home screen</Text>
+              </PressableScale>
+            </View>
           </Card>
           <Card style={styles.card}>
             <Text style={styles.cardTitle}>Partner’s week</Text>
@@ -695,6 +706,24 @@ const styles = StyleSheet.create({
   rowSub: { ...font('semibold', 10.5, { color: palette.grey600 }), marginTop: 1 },
   lock: font('bold', 11, { color: palette.grey600 }),
   card: { padding: 16, marginBottom: 12 },
+  glanceCard: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 12 },
+  glanceStage: {
+    width: 148,
+    height: 148,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  glanceCopy: { flex: 1 },
+  glanceAdd: {
+    alignSelf: 'flex-start',
+    marginTop: 10,
+    backgroundColor: palette.green500,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
   cardTitle: { ...font('extrabold', 15, { color: palette.ink }), marginBottom: 6 },
   cardBody: { color: palette.grey600, lineHeight: 18 },
   inlineAdd: {

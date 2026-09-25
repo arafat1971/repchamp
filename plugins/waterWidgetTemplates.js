@@ -1264,11 +1264,11 @@ object SceneArt {
         }
         island(c, paint, seasonGrass(season, night), W, H, u)
 
-        val bh = H * 0.42f
+        val bh = H * 0.39f
         val bw = bh / 1.24f
         val feet = H * 0.71f
-        bear(c, them, BearArt.THEIRS, W * 0.3f, feet, bw, bh, -(3f + 10f * max(0f, share - 0.5f)), now, streak, season)
-        bear(c, me, BearArt.MINE, W * 0.7f, feet, bw, bh, 3f + 10f * max(0f, 0.5f - share), now, streak, season)
+        bear(c, them, BearArt.THEIRS, W * 0.27f, feet, bw, bh, -(3f + 10f * max(0f, share - 0.5f)), now, streak, season)
+        bear(c, me, BearArt.MINE, W * 0.73f, feet, bw, bh, 3f + 10f * max(0f, 0.5f - share), now, streak, season)
 
         // The flag between them, leaning toward whoever is ahead.
         val fx = W * (0.5f - (share - 0.5f) * 0.3f)
@@ -3383,7 +3383,7 @@ class GlanceWidgetProvider : AppWidgetProvider() {
         }
 
         private fun ml(v: Long): String =
-            if (v >= 1000L) String.format(Locale.US, "%.1f L", v / 1000.0).replace(".0 L", " L") else "$v ml"
+            if (v >= 1000L) String.format(Locale.US, "%.2f", v / 1000.0).trimEnd('0').trimEnd('.') + " L" else "$v ml"
 
         /** One short line that makes the square worth a glance: who leads, by how much, or what to do next. */
         private fun glanceLine(who: String, a: Long, b: Long, hasMe: Boolean, themMet: Boolean, meMet: Boolean): String = when {

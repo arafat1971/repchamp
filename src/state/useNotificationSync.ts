@@ -12,7 +12,7 @@ import { daysSinceLastSession } from '@/domain/dormantReminder';
 import { dayKey } from '@/domain/progression';
 import { reminderHourFor } from '@/domain/reminderSchedule';
 import { partnerGoalToday, partnerHabitsToday, partnerRepsToday, partnerStepsToday, partnerWaterToday } from '@/domain/couple';
-import { buildRitualReminder, cleanTicks, ritualFor, ritualScore } from '@/domain/ritual';
+import { buildRitualReminder, cleanTicks, ritualFor, ritualScore, ritualWeek } from '@/domain/ritual';
 import { repsOnDay } from '@/domain/waterWidget';
 import { useRitualStore } from '@/state/ritualStore';
 import { useStepsToday } from '@/state/useStepsToday';
@@ -163,6 +163,13 @@ export function useNotificationSync(): void {
     // `partnerKey` stands in for the partner's day.
   }, [ritualReminder, ritualDay, ritualTicks, today, todayMl, hydrationGoalMl, mySteps, myReps, partnerKey, partnerName, foregroundTick]);
 
+  /* The ritual week for the Monday recap, reduced to a key so the effect
+     re-runs when perfect days or the trend move, not on every history write. */
+  const ritualHistory = useRitualStore((s) => s.history);
+  const week = ritualWeek(ritualHistory, today);
+  const togetherWeek = couple.paired && partnerName ? { name: partnerName, perfectDays: week.perfectDays, trend: week.trend } : null;
+  const togetherKey = JSON.stringify(togetherWeek);
+
   useEffect(() => {
     void syncLocalReminders({
       dailyReminderEnabled: dailyReminder,
@@ -172,6 +179,7 @@ export function useNotificationSync(): void {
       streak,
       sessions,
       daysSinceLastSession: daysAway,
+      together: togetherWeek,
     });
     /* `sessions` itself is intentionally not a dependency: it is a new array on
        every profile write, which would re-sync the schedules on each finished
@@ -201,6 +209,7 @@ export function useNotificationSync(): void {
     reminderHour,
     daysAway,
     foregroundTick,
+    togetherKey,
     couple.paired,
     couple.atRisk,
     couple.partner?.displayName,

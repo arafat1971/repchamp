@@ -358,6 +358,8 @@ export interface ReminderContext {
    * — the recap claims nothing `progressProof` will not stand behind.
    */
   sessions?: readonly SessionSummary[];
+  /** The ritual week, when paired — see `buildWeeklyRecap`. */
+  together?: { name: string; perfectDays: number; trend: { now: number; before: number } | null } | null;
   /**
    * Whole days since the last recorded session, or null with no history.
    * Past `DORMANT_AFTER_DAYS` the dormant slot replaces the evening nag.
@@ -389,6 +391,7 @@ export async function syncLocalReminders(ctx: ReminderContext): Promise<void> {
     await scheduleWeeklyRecap(WEEKLY_RECAP_WEEKDAY, WEEKLY_RECAP_HOUR, {
       sessions: ctx.sessions ?? [],
       streak: ctx.streak ?? 0,
+      together: ctx.together ?? null,
     });
 
     if (ctx.trainedToday) {
@@ -685,7 +688,11 @@ export async function cancelHydrationReminders(): Promise<void> {
 export async function scheduleWeeklyRecap(
   weekday = WEEKLY_RECAP_WEEKDAY,
   hour = WEEKLY_RECAP_HOUR,
-  proof?: { sessions: readonly SessionSummary[]; streak: number },
+  proof?: {
+    sessions: readonly SessionSummary[];
+    streak: number;
+    together?: { name: string; perfectDays: number; trend: { now: number; before: number } | null } | null;
+  },
 ): Promise<void> {
   if (!(await ensureNotificationPermission())) return;
   try {
@@ -693,6 +700,7 @@ export async function scheduleWeeklyRecap(
     const copy = buildWeeklyRecap({
       sessions: proof?.sessions ?? [],
       streak: proof?.streak ?? 0,
+      together: proof?.together ?? null,
     });
     await Notifications.scheduleNotificationAsync({
       identifier: WEEKLY_RECAP_ID,

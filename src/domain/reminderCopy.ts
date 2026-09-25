@@ -113,8 +113,30 @@ export function buildDailyReminder(input: {
 export function buildWeeklyRecap(input: {
   sessions: readonly SessionSummary[];
   streak: number;
+  /**
+   * The week of our daily ritual, when paired: perfect days together and my
+   * habits-a-day against the week before. Only good news reaches a push — a
+   * dip is shown in the app, where it sits beside what to do about it.
+   */
+  together?: { name: string; perfectDays: number; trend: { now: number; before: number } | null } | null;
 }): ReminderCopy {
   const proof = headlineProof(input.sessions, input.streak);
+
+  const parts: string[] = [];
+  const t = input.together;
+  if (t) {
+    if (t.perfectDays > 0) parts.push(`${t.perfectDays} perfect ${t.perfectDays === 1 ? 'day' : 'days'} with ${t.name} 🏆`);
+    if (t.trend) {
+      const diff = Math.round((t.trend.now - t.trend.before) * 10) / 10;
+      if (diff >= 0.3) parts.push(`+${diff} habits a day 📈`);
+    }
+  }
+  if (parts.length > 0) {
+    return {
+      title: 'Your week together',
+      body: [proof, ...parts].filter(Boolean).join(' · '),
+    };
+  }
 
   return {
     title: 'Your week in reps',

@@ -1109,7 +1109,7 @@ function Duo({ snap, style, look, live, sweep, tilt, phase }: PartProps) {
 }
 
 /** Snapshot bands (cumulative tops) as BearJar layers (shares). */
-function bearLayers(layers: readonly { c: string; t: number }[]) {
+export function bearLayers(layers: readonly { c: string; t: number }[]) {
   let prev = 0;
   return layers.map((l) => {
     const share = Math.max(0, l.t - prev);

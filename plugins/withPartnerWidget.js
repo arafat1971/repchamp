@@ -366,7 +366,7 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
         android:layout_height="match_parent"
         android:scaleType="fitXY"
         android:contentDescription="@null"
-        android:src="@drawable/widget_bg" />
+        android:src="@drawable/week_pane_preview" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -447,6 +447,7 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
                 android:layout_weight="1"
                 android:layout_marginTop="4dp"
                 android:scaleType="fitCenter"
+                android:src="@drawable/week_strip_preview"
                 android:contentDescription="@string/widget_week_strip" />
 
             <TextView
@@ -519,6 +520,51 @@ const INFO_XML = `<?xml version="1.0" encoding="utf-8"?>
    on a launcher reads as a system widget belonging to nobody; this one is
    recognisably RepChamp from across the room, which is the whole job of
    something that lives on a home screen. */
+const STRIP_PREVIEW_XML = `<?xml version="1.0" encoding="utf-8"?>
+<!-- The week strip as the picker shows it: the picker renders the layout raw
+     and never runs the painter, so a sample week is drawn here as a vector. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="280dp"
+    android:height="58dp"
+    android:viewportWidth="280"
+    android:viewportHeight="58">
+    <path android:fillColor="#FFA78BFA" android:pathData="M10.7,13.9a9.3,9.3 0 1,0 18.6,0a9.3,9.3 0 1,0 -18.6,0Z" />
+    <path android:fillColor="#33FFFFFF" android:pathData="M10.7,34.8a9.3,9.3 0 1,0 18.6,0a9.3,9.3 0 1,0 -18.6,0Z" />
+    <path android:fillColor="#FFFBBF24" android:pathData="M55.8,13.9h8.4v20.9h-8.4Z" />
+    <path android:fillColor="#FFA78BFA" android:pathData="M50.7,13.9a9.3,9.3 0 1,0 18.6,0a9.3,9.3 0 1,0 -18.6,0Z" />
+    <path android:fillColor="#FFF472B6" android:pathData="M50.7,34.8a9.3,9.3 0 1,0 18.6,0a9.3,9.3 0 1,0 -18.6,0Z" />
+    <path android:fillColor="#FFFDE68A" android:pathData="M60.0,30.7C48.5,22.6 55.4,15.7 60.0,21.8C64.6,15.7 71.5,22.6 60.0,30.7Z" />
+    <path android:fillColor="#33FFFFFF" android:pathData="M90.7,13.9a9.3,9.3 0 1,0 18.6,0a9.3,9.3 0 1,0 -18.6,0Z" />
+    <path android:fillColor="#FFF472B6" android:pathData="M90.7,34.8a9.3,9.3 0 1,0 18.6,0a9.3,9.3 0 1,0 -18.6,0Z" />
+    <path android:fillColor="#33FFFFFF" android:pathData="M130.7,13.9a9.3,9.3 0 1,0 18.6,0a9.3,9.3 0 1,0 -18.6,0Z" />
+    <path android:fillColor="#33FFFFFF" android:pathData="M130.7,34.8a9.3,9.3 0 1,0 18.6,0a9.3,9.3 0 1,0 -18.6,0Z" />
+    <path android:fillColor="#FFFBBF24" android:pathData="M175.8,13.9h8.4v20.9h-8.4Z" />
+    <path android:fillColor="#FFA78BFA" android:pathData="M170.7,13.9a9.3,9.3 0 1,0 18.6,0a9.3,9.3 0 1,0 -18.6,0Z" />
+    <path android:fillColor="#FFF472B6" android:pathData="M170.7,34.8a9.3,9.3 0 1,0 18.6,0a9.3,9.3 0 1,0 -18.6,0Z" />
+    <path android:fillColor="#FFFDE68A" android:pathData="M180.0,30.7C168.5,22.6 175.4,15.7 180.0,21.8C184.6,15.7 191.5,22.6 180.0,30.7Z" />
+    <path android:fillColor="#33FFFFFF" android:pathData="M210.7,13.9a9.3,9.3 0 1,0 18.6,0a9.3,9.3 0 1,0 -18.6,0Z" />
+    <path android:fillColor="#FFF472B6" android:pathData="M210.7,34.8a9.3,9.3 0 1,0 18.6,0a9.3,9.3 0 1,0 -18.6,0Z" />
+    <path android:fillColor="#26FFFFFF" android:pathData="M243.2,1h33.6v56.0h-33.6Z" />
+    <path android:fillColor="#FFFBBF24" android:pathData="M255.8,13.9h8.4v20.9h-8.4Z" />
+    <path android:fillColor="#FFA78BFA" android:pathData="M250.7,13.9a9.3,9.3 0 1,0 18.6,0a9.3,9.3 0 1,0 -18.6,0Z" />
+    <path android:fillColor="#FFF472B6" android:pathData="M250.7,34.8a9.3,9.3 0 1,0 18.6,0a9.3,9.3 0 1,0 -18.6,0Z" />
+    <path android:fillColor="#FFFDE68A" android:pathData="M260.0,30.7C248.5,22.6 255.4,15.7 260.0,21.8C264.6,15.7 271.5,22.6 260.0,30.7Z" />
+</vector>
+`;
+
+/* The glass as the picker shows it — a smoky, rimmed pane; on the home screen
+   the painter's liquid glass replaces it. */
+const PANE_PREVIEW_XML = `<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient
+        android:startColor="#B3475569"
+        android:endColor="#99334155"
+        android:angle="270" />
+    <stroke android:width="1dp" android:color="#80FFFFFF" />
+    <corners android:radius="@dimen/widget_radius" />
+</shape>
+`;
+
 const BG_XML = `<?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
     <gradient
@@ -608,12 +654,12 @@ const STRINGS = {
   widget_together: 'Together',
   widget_empty: 'Pair with someone to see their week here.',
   widget_stale: 'Open RepChamp to refresh',
-  widget_description: "Your partner's training week, live.",
+  widget_description: 'Seven days together, live — a gold heart for every day you both trained.',
   widget_preview_headline: 'You both trained today',
   widget_partner_short: 'Partner',
   widget_today: 'TODAY',
-  widget_preview_nudge: 'Your turn — train to make it a shared day',
-  widget_label_week: 'Partner’s week',
+  widget_preview_nudge: '3 shared days this week',
+  widget_label_week: 'Your week together',
 };
 
 function write(file, contents) {
@@ -654,6 +700,8 @@ const withWidgetSources = (config) =>
          checking — which is why every widget lives in this one plugin and
          draws from this one palette rather than shipping its own. */
       write(path.join(res, 'drawable/widget_bg.xml'), BG_XML);
+      write(path.join(res, 'drawable/week_pane_preview.xml'), PANE_PREVIEW_XML);
+      write(path.join(res, 'drawable/week_strip_preview.xml'), STRIP_PREVIEW_XML);
       write(path.join(res, 'drawable/widget_stat_bg.xml'), STAT_BG_XML);
       write(path.join(res, 'drawable/widget_dot.xml'), DOT_XML);
       write(path.join(res, 'values/widget_colors.xml'), COLORS_XML);

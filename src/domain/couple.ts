@@ -104,6 +104,12 @@ export interface CoupleDailyMetrics {
   topEx?: string;
   /** When the latest set today finished, epoch ms. */
   trainedAt?: number;
+  /** Today's hand-ticked ritual habits (see `domain/ritual`). */
+  habits?: string[];
+  /** Heartbeat while "Today, together" is open, epoch ms — "here with you". */
+  hereAt?: number;
+  /** The latest live poke thrown across the stage: an emoji and when. */
+  poke?: { e: string; at: number };
 }
 
 /** One drink, as a partner sees it. */
@@ -868,4 +874,23 @@ export function partnerLayersToday(
   return daily.layers.filter(
     (l) => l && typeof l.k === 'string' && typeof l.ml === 'number' && Number.isFinite(l.ml) && l.ml > 0,
   );
+}
+
+/** The partner's hand-ticked ritual habits today, raw — see `ritual.cleanTicks`. */
+export function partnerHabitsToday(member: CoupleMember | null | undefined, today: string): unknown {
+  const daily = member?.daily;
+  return daily && daily.day === today ? daily.habits : undefined;
+}
+
+/** When the partner last said they were on "Today, together" (today only). */
+export function partnerHereAt(member: CoupleMember | null | undefined, today: string): number | null {
+  const daily = member?.daily;
+  const at = daily && daily.day === today ? daily.hereAt : undefined;
+  return typeof at === 'number' && Number.isFinite(at) ? at : null;
+}
+
+/** The partner's latest live poke today, raw — see `ritual.cleanPoke`. */
+export function partnerPokeToday(member: CoupleMember | null | undefined, today: string): unknown {
+  const daily = member?.daily;
+  return daily && daily.day === today ? daily.poke : undefined;
 }

@@ -1,15 +1,37 @@
-import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import Animated, { FadeInDown, FadeInRight, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeInRight, FadeInUp, FadeOutUp, ZoomIn } from 'react-native-reanimated';
 
 import { ModalHeader } from '@/components/ModalHeader';
 import { Avatar, Card, GradientCard, PressableScale, Screen, SectionLabel, Toggle } from '@/components/ui';
-import { WidgetPreview } from '@/components/widget/WidgetPreview';
+import { LiveStage } from '@/components/together/LiveStage';
+import { RitualCard } from '@/components/together/RitualCard';
+import { bearLayers } from '@/components/widget/WidgetPreview';
 import { track } from '@/lib/analytics';
 import { captureError } from '@/lib/crash';
-import { nudgeAt, partnerLastDrinkToday, partnerRepsToday } from '@/domain/couple';
-import { formatMl } from '@/domain/hydration';
+import {
+  nudgeAt,
+  partnerGoalToday,
+  partnerHabitsToday,
+  partnerHereAt,
+  partnerLastDrinkToday,
+  partnerPokeToday,
+  partnerRepsToday,
+} from '@/domain/couple';
+import {
+  HABITS,
+  HERE_BEAT_MS,
+  cleanPoke,
+  cleanTicks,
+  isHere,
+  isNewPoke,
+  ritualFor,
+  ritualScore,
+  type HabitId,
+  type Poke,
+} from '@/domain/ritual';
+import { DEFAULT_DAILY_GOAL_ML, formatMl } from '@/domain/hydration';
 import { clockTime, tallyScore, todayMoments, type Moment } from '@/domain/moments';
 import {
   partnerToday,
@@ -28,7 +50,18 @@ import {
   reminderSentLine,
   type ReminderKind,
 } from '@/domain/partnerReminder';
-import { lightImpactHaptic, successHaptic } from '@/lib/feedback';
+import {
+  lightImpactHaptic,
+  playBoopSound,
+  playChimeSound,
+  playPopSound,
+  playReceiveSound,
+  playSparkleSound,
+  selectionHaptic,
+  successHaptic,
+} from '@/lib/feedback';
+import { beatHere, sendPoke, syncRitualNow } from '@/services/ritualSync';
+import { useRitualStore } from '@/state/ritualStore';
 import { setMetricSharing, syncHydrationNow } from '@/services/hydrationSync';
 import { useAuthStore } from '@/state/authStore';
 import { useDuoStreakStore } from '@/state/duoStreakStore';
@@ -39,7 +72,6 @@ import { useCouple } from '@/state/useCouple';
 import { showDialog } from '@/state/useDialog';
 import { usePartnerTodaySnapshot } from '@/state/usePartnerTodaySnapshot';
 import { useStepsToday } from '@/state/useStepsToday';
-import { useWidgetStyleStore } from '@/state/widgetStyleStore';
 import { getExercise } from '@/vision/exercises';
 import { font, text } from '@/theme/typography';
 import { gradients, palette, radius, type Gradient } from '@/theme/tokens';
@@ -76,7 +108,6 @@ export default function PartnerDashboardScreen() {
   const drinkUpdates = useSharingStore((s) => s.drinkUpdates);
   const setDrinkUpdates = useSharingStore((s) => s.setDrinkUpdates);
   const duoDays = useDuoStreakStore((s) => s.days);
-  const style = useWidgetStyleStore();
   const snap = usePartnerTodaySnapshot();
   const { steps: myStepsState } = useStepsToday();
   const { width } = useWindowDimensions();
@@ -93,13 +124,166 @@ export default function PartnerDashboardScreen() {
 
   const partnerName = partner?.displayName?.trim() || 'Partner';
   const myName = displayName?.trim() || 'You';
+  const myGoal = useHydrationStore((s) => s.goalMl);
+
+  /* A clock for everything that ages on screen — "here", pokes, the sky —
+     ticking every 15 s rather than reading the time mid-render. */
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 15_000);
+    return () => clearInterval(id);
+  }, []);
+
+  /* ── Our daily ritual ── */
+  const ritualDay = useRitualStore((s) => s.day);
+  const storedTicks = useRitualStore((s) => s.ticks);
+  const toggleStored = useRitualStore((s) => s.toggle);
+  const myTicks = useMemo(() => (ritualDay === today ? storedTicks : []), [ritualDay, storedTicks, today]);
+  const theirWaterShown = theirs.water.kind === 'shown' ? theirs.water.value : null;
+  const theirStepsShown = theirs.steps.kind === 'shown' ? theirs.steps.value : null;
+  const mineRitual = useMemo(
+    () => ritualFor({ ml: myWater, goalMl: myGoal, steps: mySteps, reps: myReps, ticks: myTicks }),
+    [myWater, myGoal, mySteps, myReps, myTicks],
+  );
+  const theirTicksKey = JSON.stringify(partnerHabitsToday(partner, today) ?? []);
+  const theirRitual = useMemo(
+    () =>
+      ritualFor({
+        ml: theirWaterShown,
+        goalMl: partnerGoalToday(partner, today) ?? DEFAULT_DAILY_GOAL_ML,
+        steps: theirStepsShown,
+        reps: theirReps.reps,
+        ticks: cleanTicks(JSON.parse(theirTicksKey)),
+      }),
+    // theirTicksKey stands in for the partner's tick list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [theirWaterShown, theirStepsShown, theirReps.reps, theirTicksKey, today],
+  );
+  const myScore = ritualScore(mineRitual);
+  const theirScore = ritualScore(theirRitual);
+
+  /* Publish my ticks on arrival, so a tick made offline reaches them. */
+  useEffect(() => {
+    void syncRitualNow(couple?.id, uid, myTicks);
+  }, [couple?.id, uid, myTicks]);
+
+  const onToggle = (id: HabitId) => {
+    const ticks = toggleStored(today, id);
+    const on = ticks.includes(id);
+    if (on) {
+      playChimeSound();
+      successHaptic();
+    } else {
+      playBoopSound();
+      selectionHaptic();
+    }
+    track('ritual_tick', { habit: id, on });
+    void syncRitualNow(couple?.id, uid, ticks);
+  };
+
+  /* A toast for what happens on their side while you watch. */
+  const [toast, setToast] = useState<{ key: number; text: string } | null>(null);
+  const toastSeq = useRef(0);
+  const say = useCallback((text: string) => {
+    const key = ++toastSeq.current;
+    setToast({ key, text });
+    setTimeout(() => setToast((t) => (t?.key === key ? null : t)), 3600);
+  }, []);
+
+  /* Their habits, live: a new tick arrives with a sound and a line. */
+  const prevTheirs = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const done = new Set(theirRitual.filter((h) => h.done).map((h) => h.habit.id));
+    const before = prevTheirs.current;
+    prevTheirs.current = done;
+    if (!before) return;
+    const fresh = HABITS.find((h) => done.has(h.id) && !before.has(h.id));
+    if (!fresh) return;
+    playReceiveSound();
+    lightImpactHaptic();
+    say(done.size === HABITS.length ? `${partnerName} finished the whole ritual 🏆` : `${partnerName} just did ${fresh.label.toLowerCase()} ${fresh.emoji}`);
+  }, [theirRitual, partnerName, say]);
+
+  /* Both perfect: once, with everything. */
+  const celebrated = useRef(false);
+  useEffect(() => {
+    if (myScore === HABITS.length && theirScore === HABITS.length && !celebrated.current) {
+      celebrated.current = true;
+      playSparkleSound();
+      successHaptic();
+      say('A perfect day, together 🏆');
+    }
+  }, [myScore, theirScore, say]);
+  const prevMine = useRef(myScore);
+  useEffect(() => {
+    if (myScore === HABITS.length && prevMine.current < HABITS.length && theirScore < HABITS.length) {
+      playSparkleSound();
+      say(`Your ritual is done ✨ ${HABITS.length - theirScore} to go for ${partnerName}`);
+    }
+    prevMine.current = myScore;
+  }, [myScore, theirScore, partnerName, say]);
+
+  /* ── Live together ── a heartbeat while this screen is in front. */
+  useFocusEffect(
+    useCallback(() => {
+      void beatHere(couple?.id, uid);
+      const id = setInterval(() => void beatHere(couple?.id, uid), HERE_BEAT_MS);
+      return () => clearInterval(id);
+    }, [couple?.id, uid]),
+  );
+  const hereAt = partnerHereAt(partner, today);
+  const here = isHere(hereAt, now);
+  const wasHere = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (wasHere.current === false && here) {
+      playReceiveSound();
+      successHaptic();
+      say(`${partnerName} just joined you ✨`);
+    }
+    wasHere.current = here;
+  }, [here, partnerName, say]);
+  const hereLine = here
+    ? `${partnerName} is here with you`
+    : hereAt && now - hereAt < 60 * 60_000
+      ? `${partnerName} was here ${Math.max(1, Math.round((now - hereAt) / 60_000))} min ago`
+      : `Tap ${partnerName}'s bear to send love`;
+
+  /* Their pokes: shown once each, only while fresh, never replayed. */
+  const poke = cleanPoke(partnerPokeToday(partner, today));
+  const lastPoke = useRef<number | null>(null);
+  const [incoming, setIncoming] = useState<{ e: string; at: number } | null>(null);
+  useEffect(() => {
+    if (lastPoke.current === null) {
+      // First look: whatever is there is history, not a live moment.
+      lastPoke.current = poke?.at ?? 0;
+      return;
+    }
+    if (!isNewPoke(poke, lastPoke.current, Date.now())) return;
+    lastPoke.current = poke!.at;
+    setIncoming(poke);
+    setTimeout(() => {
+      playReceiveSound();
+      lightImpactHaptic();
+    }, 850);
+    // Keyed by the poke's time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [poke?.at]);
+  const onPoke = (e: Poke) => {
+    const ok = sendPoke(couple?.id, uid, e);
+    if (ok) {
+      playPopSound();
+      lightImpactHaptic();
+      track('couple_poke', { emoji: e, here });
+    }
+    return ok;
+  };
 
   const moments = useMemo(() => {
     if (!partner) return [];
     const nudge = couple?.nudge;
     const at = nudge && nudge.fromUid !== uid ? (nudgeAt(couple ?? null) ?? 0) : 0;
     const fromThemToday = at > 0 && dayKey(new Date(at)) === today && (nudge?.emoji || nudge?.kind === 'water');
-    return todayMoments({
+    const list = todayMoments({
       name: partnerName,
       theirDrink: partnerLastDrinkToday(partner, today),
       theirSet: theirReps.trainedAt > 0 ? { at: theirReps.trainedAt, reps: theirReps.reps, top: theirReps.topEx } : null,
@@ -111,6 +295,11 @@ export default function PartnerDashboardScreen() {
         .map((s) => ({ reps: s.reps, at: Date.parse(s.completedAt), label: getExercise(s.exercise).label.toLowerCase() })),
       fromThem: fromThemToday ? { at, emoji: nudge?.emoji ?? null } : null,
     });
+    const live = cleanPoke(partnerPokeToday(partner, today));
+    if (!live) return list;
+    return [{ at: live.at, emoji: live.e, text: `${partnerName} sent you ${live.e} live`, who: 'them' as const }, ...list]
+      .sort((x, y) => y.at - x.at)
+      .slice(0, 8);
   }, [partner, couple, uid, today, partnerName, theirReps, drinks, sessions]);
 
   useEffect(() => {
@@ -249,23 +438,50 @@ export default function PartnerDashboardScreen() {
     <Screen>
       <ModalHeader title="Today, together" subtitle={`You & ${partnerName}`} />
 
-      {/* ── Live stage ── the widget's own scene, and the three things you can
-          do to it without leaving the app. */}
+      {/* ── Live stage ── both bears, and the two of you, right now. */}
       <Animated.View entering={FadeInDown.duration(380).springify()} style={styles.block}>
-        <GradientCard colors={gradients.ink} glow="brand" style={styles.stage}>
-          <View style={styles.liveRow}>
-            <View style={styles.liveDot} />
-            <Text style={styles.liveText}>LIVE · RIGHT NOW</Text>
-          </View>
-          <View style={styles.stageArt}>
-            <WidgetPreview style={style} snap={snap} width={stageWidth - 24} />
-          </View>
-          <View style={styles.stageActions}>
-            <StageButton emoji="💦" label="Splash" hint={`Nudge ${partnerName}`} onPress={() => go('/splash')} delay={120} />
-            <StageButton emoji="❤️" label="React" hint="Pop an emoji" onPress={() => go('/react')} delay={180} />
-            <StageButton emoji="💧" label="+250" hint="Log a glass" onPress={() => go('/drink')} delay={240} primary />
-          </View>
-        </GradientCard>
+        <LiveStage
+          width={stageWidth}
+          hour={new Date(now).getHours() + new Date(now).getMinutes() / 60}
+          total={HABITS.length}
+          here={here}
+          hereLine={hereLine}
+          incoming={incoming}
+          onPoke={onPoke}
+          them={{
+            name: partnerName,
+            pct: snap.pct,
+            met: snap.met,
+            layers: bearLayers(snap.layers),
+            amount: theirWaterShown == null ? '—' : formatMl(theirWaterShown),
+            score: theirScore,
+          }}
+          me={{
+            name: myName,
+            pct: snap.hasMe ? snap.mePct : 0,
+            met: snap.hasMe && snap.meMet,
+            layers: snap.hasMe ? bearLayers(snap.meLayers) : [],
+            amount: formatMl(myWater),
+            score: myScore,
+          }}
+        />
+        <View style={styles.stageActions}>
+          <StageButton emoji="💦" label="Splash" hint="To their phone" onPress={() => go('/splash')} delay={120} />
+          <StageButton emoji="🫶" label="React" hint="Push an emoji" onPress={() => go('/react')} delay={180} />
+          <StageButton emoji="💧" label="+250" hint="Log a glass" onPress={() => go('/drink')} delay={240} primary />
+        </View>
+      </Animated.View>
+
+      {toast ? (
+        <Animated.View key={toast.key} entering={FadeInUp.springify()} exiting={FadeOutUp} style={styles.toast}>
+          <Text style={styles.toastText}>{toast.text}</Text>
+        </Animated.View>
+      ) : null}
+
+      {/* ── Our daily ritual ── */}
+      <SectionLabel>OUR DAILY RITUAL</SectionLabel>
+      <Animated.View entering={FadeInDown.delay(60).duration(320)} style={styles.block}>
+        <RitualCard mine={mineRitual} theirs={theirRitual} name={partnerName} onToggle={onToggle} />
       </Animated.View>
 
       {/* ── Today's tally ── */}
@@ -679,29 +895,34 @@ function ShareRow({
 const styles = StyleSheet.create({
   pad: { padding: 16 },
   block: { marginBottom: 14 },
+  toast: {
+    alignSelf: 'center',
+    marginTop: -4,
+    marginBottom: 10,
+    backgroundColor: palette.ink,
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+  },
+  toastText: font('bold', 14, { color: palette.white }),
   muted: { color: palette.grey500 },
 
-  stage: { padding: 12, paddingBottom: 14, alignItems: 'center', borderRadius: radius.lg },
-  liveRow: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginLeft: 4, marginBottom: 10 },
-  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: palette.green500 },
-  liveText: { ...font('extrabold', 11, { color: 'rgba(255,255,255,0.7)' }), letterSpacing: 1.2 },
-  stageArt: { borderRadius: 22, overflow: 'hidden' },
   stageActions: { flexDirection: 'row', gap: 8, marginTop: 14, alignSelf: 'stretch' },
   stageBtnWrap: { flex: 1 },
   stageBtn: {
     alignItems: 'center',
     paddingVertical: 10,
     borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: palette.white,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
+    borderColor: palette.divider,
   },
-  stageBtnPrimary: { backgroundColor: palette.white, borderColor: palette.white },
+  stageBtnPrimary: { backgroundColor: palette.green500, borderColor: palette.green500 },
   stageEmoji: { fontSize: 22 },
-  stageLabel: { marginTop: 2, ...font('extrabold', 14, { color: palette.white }) },
-  stageLabelPrimary: { color: palette.ink },
-  stageHint: { ...font('medium', 11, { color: 'rgba(255,255,255,0.6)' }), paddingHorizontal: 4 },
-  stageHintPrimary: { color: palette.slate500 },
+  stageLabel: { marginTop: 2, ...font('extrabold', 14, { color: palette.ink }) },
+  stageLabelPrimary: { color: palette.white },
+  stageHint: { ...font('medium', 11, { color: palette.slate500 }), paddingHorizontal: 4 },
+  stageHintPrimary: { color: 'rgba(255,255,255,0.9)' },
 
   scoreRow: { flexDirection: 'row', alignItems: 'flex-end' },
   side: { flex: 1, alignItems: 'center' },

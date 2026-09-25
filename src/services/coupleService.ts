@@ -27,6 +27,7 @@ import {
 } from '@/domain/couple';
 import { MAX_DAILY_GOAL_ML, MAX_DAILY_ML, MIN_DAILY_GOAL_ML } from '@/domain/hydration';
 import { reminderNotification, type ReminderKind } from '@/domain/partnerReminder';
+import { cleanPoke, cleanTicks } from '@/domain/ritual';
 import { MAX_DAILY_STEPS } from '@/domain/steps';
 import {
   assertClientRateLimit,
@@ -424,6 +425,28 @@ export interface RepsPatch {
   trainedAt?: number;
 }
 
+export interface RitualPatch {
+  habits?: string[];
+  hereAt?: number;
+  poke?: { e: string; at: number };
+}
+
+/**
+ * Today's ritual ticks, heartbeat and live poke, into this member's slice —
+ * the same own-slice transaction as water and reps, so the rules that pin the
+ * partner's slice cover these too. Inputs are cleaned here; the reader cleans
+ * again, because a document is only as tidy as its oldest writer.
+ */
+export async function recordCoupleRitual(coupleId: string, uid: string, day: string, patch: RitualPatch): Promise<void> {
+  const clean: RitualPatch = {};
+  if (patch.habits) clean.habits = cleanTicks(patch.habits);
+  if (typeof patch.hereAt === 'number' && Number.isFinite(patch.hereAt) && patch.hereAt > 0) clean.hereAt = Math.round(patch.hereAt);
+  const poke = cleanPoke(patch.poke);
+  if (poke) clean.poke = poke;
+  if (Object.keys(clean).length === 0) return;
+  await recordCoupleDaily(coupleId, uid, day, clean);
+}
+
 /** Most reps a day can plausibly hold; anything above is a bug, not a workout. */
 const MAX_DAILY_REPS = 20000;
 
@@ -466,7 +489,7 @@ async function recordCoupleDaily(
   coupleId: string,
   uid: string,
   day: string,
-  patch: { waterMl?: number; steps?: number } & HydrationExtras & RepsPatch,
+  patch: { waterMl?: number; steps?: number } & HydrationExtras & RepsPatch & RitualPatch,
 ): Promise<void> {
   if (!isFirebaseConfigured()) return;
 
@@ -505,6 +528,11 @@ async function recordCoupleDaily(
       }
       if (patch.topEx !== undefined) merged.topEx = patch.topEx;
       if (patch.trainedAt !== undefined) merged.trainedAt = patch.trainedAt;
+      /* Ticks can be taken back, so the newest list wins; the heartbeat only
+         moves forward; a poke is simply the latest. */
+      if (patch.habits !== undefined) merged.habits = patch.habits;
+      if (patch.hereAt !== undefined) merged.hereAt = Math.max(sameDay ? (prev?.hereAt ?? 0) : 0, patch.hereAt);
+      if (patch.poke !== undefined) merged.poke = patch.poke;
 
       return { ...m, daily: merged };
     });

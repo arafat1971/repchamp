@@ -18,6 +18,12 @@ const SOURCES = {
   go: require('../../assets/sounds/go.wav'),
   win: require('../../assets/sounds/win.wav'),
   lose: require('../../assets/sounds/lose.wav'),
+  /* Together sounds — soft, short, and never louder than a rep beep. */
+  pop: require('../../assets/sounds/pop.wav'),
+  boop: require('../../assets/sounds/boop.wav'),
+  chime: require('../../assets/sounds/chime.wav'),
+  receive: require('../../assets/sounds/receive.wav'),
+  sparkle: require('../../assets/sounds/sparkle.wav'),
 } as const;
  
 
@@ -78,6 +84,16 @@ export const playCountSound = () => play('count');
 export const playGoSound = () => play('go');
 export const playWinSound = () => play('win');
 export const playLoseSound = () => play('lose');
+/** Something thrown to the partner. */
+export const playPopSound = () => play('pop');
+/** A tick taken back. */
+export const playBoopSound = () => play('boop');
+/** A habit done. */
+export const playChimeSound = () => play('chime');
+/** Something arriving from the partner. */
+export const playReceiveSound = () => play('receive');
+/** A whole ritual done — or both of you. */
+export const playSparkleSound = () => play('sparkle');
 
 export function repHaptic(): void {
   if (!useSettingsStore.getState().haptics) return;

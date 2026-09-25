@@ -1230,7 +1230,39 @@ object SceneArt {
                 paint.shader = null
             }
         }
-        island(c, paint, seasonGrass(season, isNight(hour)), W, H, u)
+        // Sun or moon between the bears' heads, crossing with the hour, and a
+        // cloud drifting with the minutes — the small square still keeps time.
+        val night = isNight(hour)
+        val arc = (if (night) ((if (hour >= 20f) hour - 20f else hour + 4f) / 9f) else ((hour - 5f) / 15f)).coerceIn(0f, 1f)
+        val sx = W * (0.34f + 0.32f * arc)
+        val sy = H * (0.3f - 0.07f * sin(PI.toFloat() * arc))
+        if (night) {
+            paint.color = 0xFFFEF3C7.toInt()
+            paint.setShadowLayer(8f * u, 0f, 0f, 0x88FEF3C7.toInt())
+            c.drawCircle(sx, sy, 7f * u, paint)
+            paint.clearShadowLayer()
+        } else {
+            paint.color = if (hour >= 17f) 0xFFFDBA74.toInt() else 0xFFFDE047.toInt()
+            paint.alpha = 70
+            c.drawCircle(sx, sy, 13f * u, paint)
+            paint.alpha = 255
+            c.drawCircle(sx, sy, 8f * u, paint)
+        }
+        val drift = ((now / 60_000L) % 60L) / 60f
+        cloud(c, paint, sky.cloud, W * (0.25f + 0.5f * drift), H * 0.36f, 0.6f * u)
+        if (them.met && me.met) {
+            // Both full: a small rainbow over the hill.
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 3f * u
+            val bands = intArrayOf(0xCCEF4444.toInt(), 0xCCF59E0B.toInt(), 0xCC22C55E.toInt(), 0xCC3B82F6.toInt())
+            for ((k, col) in bands.withIndex()) {
+                paint.color = col
+                val r = W * 0.36f - k * 3f * u
+                c.drawArc(RectF(W / 2f - r, H * 0.62f - r, W / 2f + r, H * 0.62f + r), 180f, 180f, false, paint)
+            }
+            paint.style = Paint.Style.FILL
+        }
+        island(c, paint, seasonGrass(season, night), W, H, u)
 
         val bh = H * 0.42f
         val bw = bh / 1.24f
@@ -3350,6 +3382,21 @@ class GlanceWidgetProvider : AppWidgetProvider() {
             ids.forEach { render(context, manager, it) }
         }
 
+        private fun ml(v: Long): String =
+            if (v >= 1000L) String.format(Locale.US, "%.1f L", v / 1000.0).replace(".0 L", " L") else "$v ml"
+
+        /** One short line that makes the square worth a glance: who leads, by how much, or what to do next. */
+        private fun glanceLine(who: String, a: Long, b: Long, hasMe: Boolean, themMet: Boolean, meMet: Boolean): String = when {
+            themMet && meMet -> "Both full today 🥂"
+            !hasMe -> if (a > 0L) "$who is sipping 💧" else "Waiting for $who's first sip"
+            a == 0L && b == 0L -> "Sip to wake your bear ☀️"
+            meMet -> "You're full — cheer $who on 💦"
+            themMet -> "$who is full — catch up 💧"
+            b > a -> "You lead by " + ml(b - a) + " 👑"
+            a > b -> "$who leads by " + ml(a - b)
+            else -> "Neck and neck 🤝"
+        }
+
         private fun layersOf(snap: JSONObject?, key: String): List<Pair<Int, Float>> {
             val out = ArrayList<Pair<Int, Float>>()
             val arr = snap?.optJSONArray(key) ?: return out
@@ -3382,6 +3429,10 @@ class GlanceWidgetProvider : AppWidgetProvider() {
             val a = snap?.optLong("waterMl", 0L) ?: 0L
             val b = if (hasMe) snap?.optLong("meWaterMl", 0L) ?: 0L else 0L
             val share = if (a + b > 0L) a.toFloat() / (a + b).toFloat() else 0.5f
+            val themMet = snap?.optBoolean("met", false) ?: false
+            val meMet = hasMe && (snap?.optBoolean("meMet", false) ?: false)
+            val who = name ?: context.getString(R.string.pd_partner)
+            views.setTextViewText(R.id.g_line, glanceLine(who, a, b, hasMe, themMet, meMet))
             val cal = java.util.Calendar.getInstance()
             val hour = cal.get(java.util.Calendar.HOUR_OF_DAY) + cal.get(java.util.Calendar.MINUTE) / 60f
             val options = manager.getAppWidgetOptions(id)
@@ -3474,6 +3525,20 @@ const GLANCE_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
                 android:textSize="10sp"
                 android:textStyle="bold" />
         </LinearLayout>
+
+        <TextView
+            android:id="@+id/g_line"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="1dp"
+            android:text="Sip to wake your bear ☀️"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#E6FFFFFF"
+            android:textSize="10sp"
+            android:shadowColor="#80000000"
+            android:shadowRadius="3"
+            android:shadowDy="1" />
 
         <FrameLayout
             android:layout_width="match_parent"

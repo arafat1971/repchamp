@@ -47,6 +47,7 @@ function blockedBenefit(source: string | null | undefined): BenefitId | null {
   switch (source) {
     case 'exercise-library':
     case 'duel-exercise':
+    case 'mind-body':
       return 'library';
     case 'programme':
       return 'programmes';

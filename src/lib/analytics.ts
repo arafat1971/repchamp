@@ -60,6 +60,11 @@ export interface AnalyticsEvents {
   ritual_perfect_day: Record<string, never>;
   ritual_plan_saved: { picks: string; walkGoal: number };
   ritual_guide_done: { habit: string };
+  /** Mind & body: a yoga flow or meditation started / finished. */
+  mind_session_started: { kind: 'yoga' | 'meditation'; id: string };
+  mind_session_finished: { kind: 'yoga' | 'meditation'; id: string; minutes: number; score: number; completed: boolean };
+  /** A hands-free gesture was acted on in a yoga session. */
+  yoga_gesture: { action: 'pause' | 'resume' | 'skip' };
   qr_scanned: { kind: 'couple' | 'duel' | 'friend' };
 
   /** Mirrors `couple_paired` so both invite surfaces are measured the same way. */

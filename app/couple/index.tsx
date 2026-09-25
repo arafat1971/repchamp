@@ -5,16 +5,8 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { ModalHeader } from '@/components/ModalHeader';
-import {
-  Card,
-  GradientCard,
-  PressableScale,
-  PrimaryButton,
-  ProgressBar,
-  Screen,
-  SectionLabel,
-  StatTile,
-} from '@/components/ui';
+import { Avatar, Card, GradientCard, PressableScale, PrimaryButton, Screen } from '@/components/ui';
+import { ME, THEM } from '@/components/together/RitualCard';
 import { track } from '@/lib/analytics';
 import {
   contributionSplit,
@@ -27,7 +19,6 @@ import {
   coupleDailyDetail,
   coupleExerciseInsight,
   myExerciseBreakdown,
-  sideTotals,
 } from '@/domain/coupleExercises';
 import { dayKey, lastNDayKeys, weekdayLetter } from '@/domain/progression';
 import { getExercise } from '@/vision/exercises';
@@ -58,6 +49,7 @@ export default function CoupleTrackerScreen() {
   const uid = useAuthStore((s) => s.user?.uid ?? null);
   const weeklyGoal = useProfileStore((s) => s.weeklyGoal);
   const displayName = useProfileStore((s) => s.displayName);
+  const avatarUri = useProfileStore((s) => s.avatarUri);
   const sessions = useProfileStore((s) => s.sessions);
 
   const today = dayKey();
@@ -81,7 +73,6 @@ export default function CoupleTrackerScreen() {
      movements, my partner's carry only whether they trained — that is the
      whole of what `couples/{id}` knows about them. */
   const dailyLog = useMemo(() => coupleDailyDetail(history, sessions, 10), [history, sessions]);
-  const totals = useMemo(() => sideTotals(dailyLog), [dailyLog]);
 
   const summary = useMemo(
     () => trackerSummary(couple, viewerUid, today, WINDOW_DAYS),
@@ -203,253 +194,47 @@ export default function CoupleTrackerScreen() {
   }
 
   const partnerName = partner.displayName?.trim() || 'Partner';
+  const myName = displayName?.trim() || 'You';
   const consistencyPct = Math.round(summary.consistency * 100);
+  const bondDay = new Map(history.map((h) => [h.day, h.status]));
+  const noBondReps = !split || (split.mine.reps === 0 && split.theirs.reps === 0);
 
   return (
     <Screen>
-      <ModalHeader title="Your bond" subtitle={`You & ${partnerName}`} />
+      <ModalHeader title="Your bond" subtitle={`You and ${partnerName}`} />
 
-      {/* Two tiles per row, matching recap.tsx and friend.tsx. Three across
-          leaves ~68dp of text width on a 360dp phone, and `combined` is a
-          cumulative all-time count — at 26px extrabold a five-digit total needs
-          nearer 78dp, so the third tile would clip as soon as a couple got
-          good. Two rows cost nothing and never truncate. */}
-      <Animated.View entering={FadeInDown.duration(340).springify()}>
-        <View style={styles.statRow}>
-          <StatTile label="STREAK" value={streak} />
-          <StatTile label="BEST RUN" value={summary.bestRun} />
-        </View>
-        <View style={[styles.statRow, styles.statRowGap]}>
-          <StatTile label="REPS TOGETHER" value={combined.toLocaleString()} />
-          <StatTile label="SHARED DAYS" value={summary.bothDays} />
-        </View>
-      </Animated.View>
-
-      {/* Today lives on its own screen: this one is the bond's history. */}
-      <PressableScale
-        onPress={() => router.push('/couple/partner')}
-        accessibilityRole="button"
-        accessibilityLabel={`See today with ${partnerName}`}
-        style={styles.todayLink}
-      >
-        <Text style={styles.todayLinkText}>👀 Today with {partnerName} — steps, water, who trained ›</Text>
-      </PressableScale>
-
-      {/* ── Weekly pace ── */}
-      <SectionLabel>THIS WEEK</SectionLabel>
-      <Animated.View entering={FadeInDown.delay(60).duration(320)}>
-        <Card style={styles.paddedCard}>
-          <View style={styles.paceHead}>
-            <Text style={styles.paceCount}>
-              {pace.bothDays}
-              <Text style={styles.paceGoal}> / {pace.goal} days together</Text>
-            </Text>
-            {pace.met ? <Text style={styles.paceMet}>GOAL MET</Text> : null}
-          </View>
-          <ProgressBar percent={pace.progress} />
-          <Text style={[text.caption, styles.paceHint]}>{paceHint(pace, partnerName)}</Text>
-        </Card>
-      </Animated.View>
-
-      {/* ── Shared calendar ── */}
-      <SectionLabel>LAST 4 WEEKS</SectionLabel>
-      <Animated.View entering={FadeInDown.delay(110).duration(320)}>
-        <Card style={styles.paddedCard}>
-          <Calendar days={history} />
-          <View style={styles.legend}>
-            <LegendDot color={palette.green500} label="Both" />
-            <LegendDot color={palette.purple500} label="You" />
-            <LegendDot color={palette.amber800} label={partnerName} />
-            <LegendDot color={palette.grey400} label="Rest" />
-          </View>
-          <Text style={[text.caption, styles.legendNote]}>
-            {summary.bothDays} shared {summary.bothDays === 1 ? 'day' : 'days'} · {consistencyPct}%
-            of the last {WINDOW_DAYS} days
-          </Text>
-        </Card>
-      </Animated.View>
-
-      {/* ── Contribution ── */}
-      {split ? (
-        <>
-          <SectionLabel>WHO PUT IN WHAT</SectionLabel>
-          <Animated.View entering={FadeInDown.delay(160).duration(320)}>
-            <Card style={styles.paddedCard}>
-              <View style={styles.splitBar}>
-                <View
-                  style={[
-                    styles.splitFill,
-                    { flex: Math.max(split.mine.share, 0.02), backgroundColor: palette.purple500 },
-                  ]}
-                />
-                <View
-                  style={[
-                    styles.splitFill,
-                    { flex: Math.max(split.theirs.share, 0.02), backgroundColor: palette.amber800 },
-                  ]}
-                />
+      {/* The bond at a glance: who, how long in a row, and what it adds up to. */}
+      <Animated.View entering={FadeInDown.duration(340)}>
+        <Card style={styles.hero}>
+          <View style={styles.heroTop}>
+            <View style={styles.pair}>
+              <View style={styles.pairRing}>
+                <Avatar initial={myName.charAt(0).toUpperCase()} uri={avatarUri} size={44} background={ME} color={palette.white} />
               </View>
-
-              <ContributionRow
-                color={palette.purple500}
-                name="You"
-                reps={split.mine.reps}
-                days={split.mine.activeDays}
-              />
-              <ContributionRow
-                color={palette.amber800}
-                name={partnerName}
-                reps={split.theirs.reps}
-                days={split.theirs.activeDays}
-              />
-
-              {/* Never name a "winner" between two people training together —
-                  the balanced case gets its own line for exactly that reason. */}
-              <Text style={[text.caption, styles.splitNote]}>
-                {split.balanced
-                  ? 'Evenly matched — you are carrying this together.'
-                  : `${split.mine.share >= 0.5 ? 'You have' : `${partnerName} has`} logged more reps, but every shared day counts the same.`}
-              </Text>
-            </Card>
-          </Animated.View>
-        </>
-      ) : null}
-
-      {/* ── Movements ──
-          Mine only, and labelled as such. A partner's per-exercise history
-          never reaches this device — the couple document stores `trainedDays`
-          and `totalReps` and nothing else — so the honest thing is to show my
-          half and say whose half it is, rather than estimate theirs. */}
-      {breakdown.total > 0 ? (
-        <>
-          <SectionLabel>YOU</SectionLabel>
-          <Animated.View entering={FadeInDown.delay(185).duration(320)}>
-            <Card style={styles.paddedCard}>
-              {breakdown.mine.map((habit) => (
-                <View key={habit.exercise} style={styles.habitRow}>
-                  <View style={styles.habitHead}>
-                    <Text style={styles.habitName}>{getExercise(habit.exercise).label}</Text>
-                    <Text style={styles.habitReps}>
-                      {habit.reps} {habit.reps === 1 ? 'rep' : 'reps'} ·{' '}
-                      {habit.days} {habit.days === 1 ? 'day' : 'days'}
-                    </Text>
-                  </View>
-                  <View style={styles.habitTrack}>
-                    <View
-                      style={[
-                        styles.habitFill,
-                        { flex: Math.max(habit.share, 0.02), backgroundColor: palette.purple500 },
-                      ]}
-                    />
-                    <View style={{ flex: Math.max(1 - habit.share, 0.02) }} />
-                  </View>
-                </View>
-              ))}
-
-              <Text style={[text.caption, styles.splitNote]}>
-                {insight.kind === 'mine-only'
-                  ? `Mostly ${getExercise(insight.signature).label.toLowerCase()} — ${Math.round(insight.share * 100)}% of your reps this month.`
-                  : 'A good spread across every movement this month.'}
-                {` ${partnerName}'s breakdown stays on their phone.`}
-              </Text>
-            </Card>
-          </Animated.View>
-        </>
-      ) : null}
-
-      {/* ── Partner ──
-          Deliberately a different shape from YOU above, because the available
-          data is a different shape. `couples/{id}` carries a partner's
-          `trainedDays` and an all-time `totalReps` — no per-day reps, no
-          movements. Rendering this panel like the other one would mean
-          inventing numbers to fill the columns, so it shows what is actually
-          known and says what is not. */}
-      {split ? (
-        <>
-          <SectionLabel>{partnerName.toUpperCase()}</SectionLabel>
-          <Animated.View entering={FadeInDown.delay(195).duration(320)}>
-            <Card style={styles.paddedCard}>
-              <View style={styles.partnerStats}>
-                <View style={styles.partnerCell}>
-                  <Text style={styles.partnerNum}>{totals.theirDays}</Text>
-                  <Text style={styles.partnerLabel}>
-                    {totals.theirDays === 1 ? 'day trained' : 'days trained'}
-                  </Text>
-                </View>
-                <View style={styles.partnerCell}>
-                  <Text style={styles.partnerNum}>{split.theirs.reps}</Text>
-                  <Text style={styles.partnerLabel}>reps all-time</Text>
-                </View>
-                <View style={styles.partnerCell}>
-                  <Text style={styles.partnerNum}>{totals.sharedDays}</Text>
-                  <Text style={styles.partnerLabel}>
-                    {totals.sharedDays === 1 ? 'day with you' : 'days with you'}
-                  </Text>
-                </View>
+              <View style={[styles.pairRing, styles.pairSecond]}>
+                <Avatar initial={partnerName.charAt(0).toUpperCase()} uri={partner.avatarUrl} size={44} background={THEM} color={palette.white} />
               </View>
-              <Text style={[text.caption, styles.splitNote]}>
-                Which days {partnerName} trained syncs to the bond. Their reps
-                per day and their movements stay on their own phone.
+            </View>
+            <View style={styles.heroCopy}>
+              <Text style={styles.heroStreak}>
+                {streak}
+                <Text style={styles.heroUnit}> {streak === 1 ? 'day' : 'days'} in a row</Text>
               </Text>
-            </Card>
-          </Animated.View>
-        </>
-      ) : null}
-
-      {/* ── Daily log ── */}
-      {dailyLog.length > 0 ? (
-        <>
-          <SectionLabel>DAY BY DAY</SectionLabel>
-          <Animated.View entering={FadeInDown.delay(205).duration(320)}>
-            <Card style={styles.paddedCard}>
-              {dailyLog.map((d) => (
-                <View key={d.day} style={styles.logRow}>
-                  <View style={styles.logDate}>
-                    <Text style={styles.logDay}>{weekdayLetter(d.day)}</Text>
-                    <Text style={styles.logNum}>{Number(d.day.slice(8, 10))}</Text>
-                  </View>
-
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.logMine}>
-                      {d.myReps > 0
-                        ? `You · ${d.myReps} ${d.myReps === 1 ? 'rep' : 'reps'}`
-                        : 'You · rest day'}
-                    </Text>
-                    {d.myExercises.length > 0 ? (
-                      <Text style={styles.logExercises}>
-                        {d.myExercises
-                          .map((e) => `${getExercise(e.exercise).label} ${e.reps}`)
-                          .join(' · ')}
-                      </Text>
-                    ) : null}
-                    <Text style={styles.logTheirs}>
-                      {d.theyTrained ? `${partnerName} trained` : `${partnerName} rested`}
-                    </Text>
-                  </View>
-
-                  {/* `both` is the only status that advances the shared streak,
-                      so it is the one the eye should find first. */}
-                  {d.both ? (
-                    <View style={styles.logBoth}>
-                      <Text style={styles.logBothText}>BOTH</Text>
-                    </View>
-                  ) : null}
-                </View>
-              ))}
-            </Card>
-          </Animated.View>
-        </>
-      ) : null}
-
-      {/* ── Level ── */}
-      <SectionLabel>BOND LEVEL</SectionLabel>
-      <Animated.View entering={FadeInDown.delay(210).duration(320)}>
-        <Card style={styles.paddedCard}>
-          <View style={styles.levelRow}>
-            <Text style={styles.levelName}>{level.name}</Text>
-            <Text style={styles.levelNum}>LVL {level.level}</Text>
+              <Text style={styles.heroSub}>
+                Best run {summary.bestRun} · Level {level.level}, {level.name}
+              </Text>
+            </View>
           </View>
-          <ProgressBar percent={level.progress} />
+          <View style={styles.levelTrack}>
+            <View style={[styles.levelFill, { width: `${Math.max(2, Math.round(level.progress))}%` }]} />
+          </View>
+          <View style={styles.figures}>
+            <Figure value={combined.toLocaleString()} label="reps together" />
+            <View style={styles.figureRule} />
+            <Figure value={String(summary.bothDays)} label="shared days" />
+            <View style={styles.figureRule} />
+            <Figure value={`${consistencyPct}%`} label={`of ${WINDOW_DAYS} days`} />
+          </View>
           <PressableScale
             onPress={() => {
               track('share_opened', { kind: 'couple-card' });
@@ -457,12 +242,139 @@ export default function CoupleTrackerScreen() {
             }}
             accessibilityRole="button"
             accessibilityLabel="Share your bond card"
-            style={styles.shareRow}
+            style={styles.heroShare}
           >
-            <Text style={styles.shareText}>Share your bond card</Text>
+            <Text style={styles.heroShareText}>Share your bond card</Text>
           </PressableScale>
         </Card>
       </Animated.View>
+
+      {/* Today lives on its own screen: this one is the bond's history. */}
+      <PressableScale
+        onPress={() => router.push('/couple/partner')}
+        accessibilityRole="button"
+        accessibilityLabel={`Open today with ${partnerName}`}
+        style={styles.todayRow}
+      >
+        <View style={styles.todayCopy}>
+          <Text style={styles.todayTitle}>Today, together</Text>
+          <Text style={styles.todaySub}>The live stage, your daily ritual, and what happened today</Text>
+        </View>
+        <Text style={styles.chevron}>›</Text>
+      </PressableScale>
+
+      <Heading title="This week" aside={`${pace.bothDays} of ${pace.goal} days`} />
+      <Card style={styles.pad}>
+        <View style={styles.segments}>
+          {Array.from({ length: Math.max(1, pace.goal) }, (_, i) => (
+            <View key={i} style={[styles.segment, { backgroundColor: i < pace.bothDays ? palette.green500 : palette.track }]} />
+          ))}
+        </View>
+        <Text style={styles.note}>{paceHint(pace, partnerName)}</Text>
+      </Card>
+
+      <Heading title="Last four weeks" aside={`${summary.bothDays} shared`} />
+      <Card style={styles.pad}>
+        <Calendar days={history} />
+        <View style={styles.legend}>
+          <LegendDot color={palette.green500} label="Both" />
+          <LegendDot color={ME} label="You" />
+          <LegendDot color={THEM} label={partnerName} />
+          <LegendDot color={palette.track} label="Rest" />
+        </View>
+      </Card>
+
+      <Heading title="Who put in what" />
+      <Card style={styles.pad}>
+        {noBondReps || !split ? (
+          <Text style={styles.quiet}>
+            No reps in the bond yet. Sets you do in Train together mode count here and keep your streak.
+          </Text>
+        ) : (
+          <>
+            <View style={styles.splitBar}>
+              <View style={[styles.splitFill, { flex: Math.max(split.mine.share, 0.02), backgroundColor: ME }]} />
+              <View style={[styles.splitFill, { flex: Math.max(split.theirs.share, 0.02), backgroundColor: THEM }]} />
+            </View>
+            <ContributionRow color={ME} name="You" reps={split.mine.reps} days={split.mine.activeDays} />
+            <ContributionRow color={THEM} name={partnerName} reps={split.theirs.reps} days={split.theirs.activeDays} />
+            <Text style={styles.note}>
+              {split.balanced
+                ? 'Evenly matched.'
+                : `${split.mine.share >= 0.5 ? 'You have' : `${partnerName} has`} logged more reps. Every shared day counts the same.`}
+            </Text>
+          </>
+        )}
+      </Card>
+
+      {/* Mine only, and labelled as such: a partner's per-exercise history
+          never reaches this device, so this shows my half and says so. */}
+      {breakdown.total > 0 ? (
+        <>
+          <Heading title="Your movements" aside="this month" />
+          <Card style={styles.pad}>
+            {breakdown.mine.map((habit, i) => (
+              <View key={habit.exercise} style={[styles.moveRow, i > 0 && styles.rule]}>
+                <View style={styles.moveHead}>
+                  <Text style={styles.moveName}>{getExercise(habit.exercise).label}</Text>
+                  <Text style={styles.moveStat}>
+                    {habit.reps} {habit.reps === 1 ? 'rep' : 'reps'} · {habit.days} {habit.days === 1 ? 'day' : 'days'}
+                  </Text>
+                </View>
+                <View style={styles.moveTrack}>
+                  <View style={[styles.moveFill, { width: `${Math.max(2, Math.round(habit.share * 100))}%` }]} />
+                </View>
+              </View>
+            ))}
+            <Text style={styles.note}>
+              {insight.kind === 'mine-only'
+                ? `Mostly ${getExercise(insight.signature).label.toLowerCase()}, ${Math.round(insight.share * 100)}% of your reps.`
+                : 'A good spread across your movements.'}{' '}
+              {partnerName}&rsquo;s breakdown stays on their phone.
+            </Text>
+          </Card>
+        </>
+      ) : null}
+
+      {dailyLog.length > 0 ? (
+        <>
+          <Heading title="Day by day" />
+          <Card style={styles.pad}>
+            {dailyLog.map((d, i) => {
+              const status = bondDay.get(d.day);
+              const credited = status === 'mine' || status === 'both';
+              return (
+                <View key={d.day} style={[styles.logRow, i > 0 && styles.rule]}>
+                  <View style={styles.logDate}>
+                    <Text style={styles.logDay}>{weekdayLetter(d.day)}</Text>
+                    <Text style={styles.logNum}>{Number(d.day.slice(8, 10))}</Text>
+                  </View>
+                  <View style={styles.logBody}>
+                    <Text style={styles.logMine}>
+                      {d.myReps > 0 ? `You, ${d.myReps} ${d.myReps === 1 ? 'rep' : 'reps'}` : 'You rested'}
+                      {d.myReps > 0 && !credited ? <Text style={styles.logSolo}>  solo</Text> : null}
+                    </Text>
+                    {d.myExercises.length > 0 ? (
+                      <Text style={styles.logSub}>
+                        {d.myExercises.map((e) => `${getExercise(e.exercise).label} ${e.reps}`).join(' · ')}
+                      </Text>
+                    ) : null}
+                    <Text style={styles.logSub}>{d.theyTrained ? `${partnerName} trained` : `${partnerName} rested`}</Text>
+                  </View>
+                  {d.both ? (
+                    <View style={styles.logBoth}>
+                      <Text style={styles.logBothText}>Together</Text>
+                    </View>
+                  ) : null}
+                </View>
+              );
+            })}
+            {dailyLog.some((d) => d.myReps > 0 && !(bondDay.get(d.day) === 'mine' || bondDay.get(d.day) === 'both')) ? (
+              <Text style={styles.note}>Solo sets are yours; only Train together sets count toward the bond.</Text>
+            ) : null}
+          </Card>
+        </>
+      ) : null}
     </Screen>
   );
 }
@@ -470,6 +382,29 @@ export default function CoupleTrackerScreen() {
 /* ------------------------------------------------------------------ *
  * Pieces
  * ------------------------------------------------------------------ */
+
+/** A section title in sentence case, with an optional quiet fact on the right. */
+function Heading({ title, aside }: { title: string; aside?: string }) {
+  return (
+    <View style={styles.heading}>
+      <Text style={styles.headingTitle}>{title}</Text>
+      {aside ? <Text style={styles.headingAside}>{aside}</Text> : null}
+    </View>
+  );
+}
+
+function Figure({ value, label }: { value: string; label: string }) {
+  return (
+    <View style={styles.figure}>
+      <Text style={styles.figureValue} numberOfLines={1}>
+        {value}
+      </Text>
+      <Text style={styles.figureLabel} numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
+  );
+}
 
 /** Four-week grid, one column per day, wrapping a week per row. */
 function Calendar({ days, muted }: { days: readonly TrackerDay[]; muted?: boolean }) {
@@ -493,7 +428,7 @@ function Calendar({ days, muted }: { days: readonly TrackerDay[]; muted?: boolea
               accessibilityLabel={`${d.day}: ${describeDay(d)}`}
               style={[
                 styles.day,
-                { backgroundColor: muted ? palette.border : dayColor(d) },
+                { backgroundColor: muted ? palette.track : dayColor(d) },
                 d.isToday && styles.dayToday,
                 d.isFuture && styles.dayFuture,
               ]}
@@ -545,16 +480,16 @@ function LegendDot({ color, label }: { color: string; label: string }) {
  * ------------------------------------------------------------------ */
 
 function dayColor(day: TrackerDay): string {
-  if (day.isFuture) return palette.border;
+  if (day.isFuture) return palette.divider;
   switch (day.status) {
     case 'both':
       return palette.green500;
     case 'mine':
-      return palette.purple500;
+      return ME;
     case 'theirs':
-      return palette.amber800;
+      return THEM;
     default:
-      return palette.grey400;
+      return palette.track;
   }
 }
 
@@ -671,95 +606,84 @@ const styles = StyleSheet.create({
   emptySkip: { marginTop: 14, alignSelf: 'center', paddingVertical: 10, paddingHorizontal: 16 },
   emptySkipText: font('bold', 13.5, { color: palette.grey600 }),
 
-  statRow: { flexDirection: 'row', gap: 10 },
-  statRowGap: { marginTop: 10 },
+  pad: { padding: 18 },
+  hero: { padding: 18 },
+  heroTop: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  pair: { flexDirection: 'row' },
+  pairRing: { borderRadius: 26, borderWidth: 3, borderColor: palette.white },
+  pairSecond: { marginLeft: -14 },
+  heroCopy: { flex: 1 },
+  heroStreak: font('extrabold', 30, { color: palette.ink }),
+  heroUnit: font('semibold', 15, { color: palette.slate500 }),
+  heroSub: { ...font('medium', 13, { color: palette.slate500 }), marginTop: 2 },
+  levelTrack: { height: 4, borderRadius: 2, backgroundColor: palette.track, overflow: 'hidden', marginTop: 16 },
+  levelFill: { height: 4, borderRadius: 2, backgroundColor: palette.ink },
+  figures: { flexDirection: 'row', alignItems: 'center', marginTop: 16 },
+  figure: { flex: 1 },
+  figureValue: font('extrabold', 20, { color: palette.ink }),
+  figureLabel: { ...font('medium', 12, { color: palette.slate500 }), marginTop: 1 },
+  figureRule: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', backgroundColor: palette.divider, marginHorizontal: 12 },
+  heroShare: { marginTop: 16, alignSelf: 'flex-start' },
+  heroShareText: font('semibold', 14, { color: palette.ink }),
 
-  paceHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  paceCount: font('extrabold', 20, { color: palette.ink }),
-  paceGoal: font('bold', 14, { color: palette.grey600 }),
-  paceMet: font('extrabold', 11, { color: palette.green600, letterSpacing: 0.6 }),
-  paceHint: { marginTop: 8 },
+  todayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderRadius: radius.lg,
+    backgroundColor: palette.white,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: palette.divider,
+  },
+  todayCopy: { flex: 1 },
+  todayTitle: font('semibold', 15, { color: palette.ink }),
+  todaySub: { ...font('regular', 12, { color: palette.slate500 }), marginTop: 1 },
+  chevron: font('semibold', 22, { color: palette.grey500 }),
+
+  heading: { flexDirection: 'row', alignItems: 'baseline', marginTop: 24, marginBottom: 10, paddingHorizontal: 2 },
+  headingTitle: { flex: 1, ...font('extrabold', 20, { color: palette.ink }) },
+  headingAside: font('medium', 13, { color: palette.slate500 }),
+
+  segments: { flexDirection: 'row', gap: 4 },
+  segment: { flex: 1, height: 8, borderRadius: 4 },
+  note: { marginTop: 12, ...font('regular', 12.5, { color: palette.slate500 }) },
+  quiet: font('regular', 14, { color: palette.slate500 }),
 
   weekRow: { flexDirection: 'row', gap: 6, marginBottom: 6 },
-  dayHeader: {
-    flex: 1,
-    textAlign: 'center',
-    ...font('bold', 10, { color: palette.grey450 }),
-  },
-  day: { flex: 1, aspectRatio: 1, borderRadius: radius.xs },
+  dayHeader: { flex: 1, textAlign: 'center', ...font('semibold', 10.5, { color: palette.grey500 }) },
+  day: { flex: 1, aspectRatio: 1, borderRadius: 8 },
   dayToday: { borderWidth: 2, borderColor: palette.ink },
   dayFuture: { opacity: 0.45 },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 10 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '46%' },
+  legendLabel: font('medium', 12, { color: palette.slate500 }),
 
-  legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 10 },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5, maxWidth: '46%' },
-  legendLabel: font('bold', 11, { color: palette.grey600 }),
-  legendNote: { marginTop: 8 },
-
-  splitBar: {
-    flexDirection: 'row',
-    height: 12,
-    borderRadius: radius.xs,
-    overflow: 'hidden',
-    marginBottom: 12,
-  },
+  splitBar: { flexDirection: 'row', height: 8, borderRadius: 4, overflow: 'hidden', gap: 2, marginBottom: 10 },
   splitFill: { height: '100%' },
-  contribRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 5 },
-  contribName: { flex: 1, ...font('extrabold', 14, { color: palette.ink }) },
-  contribStat: font('bold', 12.5, { color: palette.grey600 }),
-  habitRow: { marginBottom: 14 },
-  habitHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  habitName: { ...font('extrabold', 14, { color: palette.ink }) },
-  habitReps: { ...font('semibold', 11, { color: palette.grey600 }) },
-  habitTrack: {
-    flexDirection: 'row',
-    height: 8,
-    borderRadius: radius.xs,
-    backgroundColor: palette.track,
-    overflow: 'hidden',
-    marginTop: 6,
-  },
-  habitFill: { height: 8 },
-  partnerStats: { flexDirection: 'row', gap: 8 },
-  partnerCell: { flex: 1, alignItems: 'center' },
-  partnerNum: { ...font('extrabold', 22, { color: palette.ink }) },
-  partnerLabel: {
-    ...font('semibold', 10, { color: palette.grey600 }),
-    marginTop: 2,
-    textAlign: 'center',
-  },
-  logRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: palette.border,
-  },
-  logDate: { width: 34, alignItems: 'center' },
-  logDay: { ...font('bold', 10, { color: palette.grey600 }) },
-  logNum: { ...font('extrabold', 15, { color: palette.ink }) },
-  logMine: { ...font('extrabold', 13, { color: palette.ink }) },
-  logExercises: { ...font('semibold', 11, { color: palette.purple500 }), marginTop: 1 },
-  logTheirs: { ...font('semibold', 11, { color: palette.grey600 }), marginTop: 1 },
-  logBoth: {
-    backgroundColor: palette.green50,
-    borderRadius: radius.xs,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-  },
-  logBothText: { ...font('extrabold', 9, { color: palette.green700 }), letterSpacing: 0.6 },
-  splitNote: { marginTop: 8 },
+  contribRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
+  contribName: { flex: 1, ...font('semibold', 15, { color: palette.ink }) },
+  contribStat: font('medium', 13, { color: palette.slate500 }),
 
-  dot: { width: 10, height: 10, borderRadius: 5 },
+  rule: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.divider },
+  moveRow: { paddingVertical: 10 },
+  moveHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  moveName: font('semibold', 15, { color: palette.ink }),
+  moveStat: font('medium', 12, { color: palette.slate500 }),
+  moveTrack: { height: 4, borderRadius: 2, backgroundColor: palette.track, overflow: 'hidden', marginTop: 8 },
+  moveFill: { height: 4, borderRadius: 2, backgroundColor: ME },
 
-  levelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  levelName: font('extrabold', 17, { color: palette.ink }),
-  levelNum: font('extrabold', 12, { color: palette.grey600, letterSpacing: 0.6 }),
-  shareRow: { marginTop: 12, alignSelf: 'flex-start' },
-  shareText: font('extrabold', 13, { color: palette.green600 }),
+  logRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12 },
+  logDate: { width: 30, alignItems: 'center' },
+  logDay: font('semibold', 10.5, { color: palette.grey500 }),
+  logNum: font('extrabold', 17, { color: palette.ink }),
+  logBody: { flex: 1 },
+  logMine: font('semibold', 15, { color: palette.ink }),
+  logSolo: font('medium', 12, { color: palette.grey500 }),
+  logSub: { ...font('regular', 12.5, { color: palette.slate500 }), marginTop: 1 },
+  logBoth: { backgroundColor: palette.green50, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  logBothText: font('semibold', 12, { color: palette.green700 }),
+
+  dot: { width: 8, height: 8, borderRadius: 4 },
 });

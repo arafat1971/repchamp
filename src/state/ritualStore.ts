@@ -20,6 +20,9 @@ interface RitualState {
   /** Which pairing `history` belongs to — see `domain/bondScope`. Ticks are mine alone and stay. */
   coupleId: string;
   bind: (coupleId: string) => void;
+  /** The one-time "how it works" card on Today, together has been dismissed. */
+  introSeen: boolean;
+  dismissIntro: () => void;
 }
 
 export const useRitualStore = create<RitualState>()(
@@ -34,6 +37,8 @@ export const useRitualStore = create<RitualState>()(
         return ticks;
       },
       history: {},
+      introSeen: false,
+      dismissIntro: () => set({ introSeen: true }),
       coupleId: '',
       bind: (coupleId) => {
         const action = bindAction(get().coupleId, coupleId);
@@ -47,10 +52,10 @@ export const useRitualStore = create<RitualState>()(
     }),
     {
       name: 'repchamp.ritual',
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => zustandStorage),
       migrate: (p) =>
-        ({ day: '', history: {}, coupleId: '', ...(p as object), ticks: cleanTicks((p as { ticks?: unknown })?.ticks) }) as RitualState,
+        ({ day: '', history: {}, coupleId: '', introSeen: false, ...(p as object), ticks: cleanTicks((p as { ticks?: unknown })?.ticks) }) as RitualState,
     },
   ),
 );

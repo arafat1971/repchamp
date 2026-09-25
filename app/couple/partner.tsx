@@ -162,6 +162,8 @@ export default function PartnerDashboardScreen() {
   );
   const myScore = ritualScore(mineRitual);
   const theirScore = ritualScore(theirRitual);
+  const introSeen = useRitualStore((s) => s.introSeen);
+  const dismissIntro = useRitualStore((s) => s.dismissIntro);
   const recordRitual = useRitualStore((s) => s.record);
   const ritualHistory = useRitualStore((s) => s.history);
   useEffect(() => {
@@ -424,6 +426,27 @@ export default function PartnerDashboardScreen() {
     <Screen>
       <ModalHeader title="Today, together" subtitle={`You and ${partnerName}`} />
 
+      {!introSeen ? (
+        <Animated.View entering={FadeInDown.duration(300)} exiting={FadeOutUp} style={styles.introWrap}>
+          <Card style={styles.intro}>
+            <Text style={styles.introTitle}>How today works</Text>
+            {[
+              `Tap ${partnerName}'s bear to send a heart. It lands on their screen while you're both here.`,
+              'Tick your habits. Water, walking and exercise fill in by themselves.',
+              'Finish all six together and the island celebrates.',
+            ].map((line, i) => (
+              <View key={i} style={styles.introRow}>
+                <Text style={styles.introNum}>{i + 1}</Text>
+                <Text style={styles.introText}>{line}</Text>
+              </View>
+            ))}
+            <PressableScale onPress={dismissIntro} accessibilityRole="button" style={styles.introBtn}>
+              <Text style={styles.introBtnText}>Got it</Text>
+            </PressableScale>
+          </Card>
+        </Animated.View>
+      ) : null}
+
       {/* The stage: the one expressive thing on the screen. */}
       <Animated.View entering={FadeInDown.duration(360)} style={styles.block}>
         <LiveStage
@@ -633,6 +656,23 @@ function ShareRow({
 const styles = StyleSheet.create({
   pad: { padding: 18 },
   loading: { paddingVertical: 64, alignItems: 'center' },
+  introWrap: { marginBottom: 18 },
+  intro: { padding: 18 },
+  introTitle: { ...font('extrabold', 17, { color: palette.ink }), marginBottom: 10 },
+  introRow: { flexDirection: 'row', gap: 12, marginBottom: 10 },
+  introNum: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: palette.ink,
+    textAlign: 'center',
+    lineHeight: 22,
+    overflow: 'hidden',
+    ...font('bold', 12, { color: palette.white }),
+  },
+  introText: { flex: 1, ...font('regular', 14, { color: palette.ink }) },
+  introBtn: { alignSelf: 'flex-end', marginTop: 4, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 18, backgroundColor: palette.track },
+  introBtnText: font('semibold', 14, { color: palette.ink }),
   block: { marginBottom: 8 },
 
   pills: { flexDirection: 'row', gap: 10, marginTop: 12 },

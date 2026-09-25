@@ -430,3 +430,26 @@ export function windDownDue(mine: readonly HabitState[], hour: number): boolean 
   if (hour < 21) return false;
   return mine.some((s) => (s.habit.id === 'rest' || s.habit.id === 'sleep') && !s.done);
 }
+
+/* ------------------------------------------------------------------ *
+ * The morning start
+ * ------------------------------------------------------------------ */
+
+/**
+ * The morning card: shown from 05:00 to 11:59, once a day until dismissed,
+ * with yesterday's result together when this phone saw it.
+ */
+export function morningCard(
+  history: Readonly<Record<string, RitualDay>>,
+  today: string,
+  hour: number,
+  dismissedOn: string,
+  total = HABITS.length,
+): { show: boolean; yesterday: { me: number; them: number; perfect: boolean } | null } {
+  const show = hour >= 5 && hour < 12 && dismissedOn !== today;
+  const y = history[previousDay(today)];
+  return {
+    show,
+    yesterday: y ? { me: Math.max(0, y.me), them: Math.max(0, y.them), perfect: y.me >= total && y.them >= total } : null,
+  };
+}

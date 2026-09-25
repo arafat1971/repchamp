@@ -23,6 +23,9 @@ interface RitualState {
   /** The one-time "how it works" card on Today, together has been dismissed. */
   introSeen: boolean;
   dismissIntro: () => void;
+  /** The day the morning card was last dismissed, `YYYY-MM-DD`. */
+  morningDismissed: string;
+  dismissMorning: (day: string) => void;
 }
 
 export const useRitualStore = create<RitualState>()(
@@ -39,6 +42,8 @@ export const useRitualStore = create<RitualState>()(
       history: {},
       introSeen: false,
       dismissIntro: () => set({ introSeen: true }),
+      morningDismissed: '',
+      dismissMorning: (day) => set({ morningDismissed: day }),
       coupleId: '',
       bind: (coupleId) => {
         const action = bindAction(get().coupleId, coupleId);
@@ -52,10 +57,10 @@ export const useRitualStore = create<RitualState>()(
     }),
     {
       name: 'repchamp.ritual',
-      version: 4,
+      version: 5,
       storage: createJSONStorage(() => zustandStorage),
       migrate: (p) =>
-        ({ day: '', history: {}, coupleId: '', introSeen: false, ...(p as object), ticks: cleanTicks((p as { ticks?: unknown })?.ticks) }) as RitualState,
+        ({ day: '', history: {}, coupleId: '', introSeen: false, morningDismissed: '', ...(p as object), ticks: cleanTicks((p as { ticks?: unknown })?.ticks) }) as RitualState,
     },
   ),
 );

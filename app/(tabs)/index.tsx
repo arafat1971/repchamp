@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
@@ -51,13 +51,14 @@ import { drinkLayers } from '@/domain/drinkKinds';
 import { useWidgetStyleStore } from '@/state/widgetStyleStore';
 import { useDuoStreakStore } from '@/state/duoStreakStore';
 import { useRitualStore } from '@/state/ritualStore';
+import { MorningCard } from '@/components/together/MorningCard';
 import { useWeatherStore } from '@/state/weatherStore';
 import { refreshWeather } from '@/services/weather';
 import { meadow, weekWrap, wrapLine } from '@/domain/week';
 import { bondMonths, occasionFor, seasonFor } from '@/domain/season';
 import { duoStreak } from '@/domain/duoStreak';
 import { DEFAULT_DAILY_GOAL_ML } from '@/domain/hydration';
-import { HABITS, cleanTicks, effectivePlan, ritualFor, ritualScore } from '@/domain/ritual';
+import { HABITS, cleanTicks, effectivePlan, morningCard, planHabits, ritualFor, ritualScore } from '@/domain/ritual';
 import { getExercise } from '@/vision/exercises';
 import { clearWidgetSnapshot, publishWidgetSnapshot } from '@/services/partnerWidget';
 import { trackerHistory } from '@/domain/coupleTracker';
@@ -322,6 +323,19 @@ export default function HomeScreen() {
       void refreshWeather();
     }, []),
   );
+  /* The morning card: once a morning, paired, with yesterday as this phone saw it. */
+  const ritualHistory = useRitualStore((st) => st.history);
+  const morningDismissed = useRitualStore((st) => st.morningDismissed);
+  const [clockHour] = useState(() => new Date().getHours());
+  const morning = useMemo(
+    () => (partnerGlass ? morningCard(ritualHistory, today, clockHour, morningDismissed) : null),
+    [partnerGlass, ritualHistory, today, clockHour, morningDismissed],
+  );
+  const morningPicks = useMemo(
+    () => planHabits(effectivePlan(couple.me?.ritualPlan, couple.partner?.ritualPlan)).slice(3),
+    [couple.me?.ritualPlan, couple.partner?.ritualPlan],
+  );
+
   /* Our daily ritual, both sides, from the same data the widget shows — for
      the widget below and for the Duo card's ritual row. */
   const ritualScores = useMemo(() => {
@@ -688,6 +702,20 @@ export default function HomeScreen() {
         {greetingCopy.hook}
         {greetingCopy.bonus ? <Text style={styles.coachBonus}>{`  ·  ${greetingCopy.bonus}`}</Text> : null}
       </Text>
+
+      {morning && morning.show && partnerGlass ? (
+        <View style={styles.summaryGap}>
+          <MorningCard
+            name={partnerGlass.name}
+            yesterday={morning.yesterday}
+            total={HABITS.length}
+            picks={morningPicks}
+            onWater={() => logWater(250)}
+            onOpen={() => router.push('/couple/partner')}
+            onDismiss={() => useRitualStore.getState().dismissMorning(today)}
+          />
+        </View>
+      ) : null}
 
       <StaggerIn index={0}>
         {/* One card, always, chosen by `selectHomeFocus`. It used to appear

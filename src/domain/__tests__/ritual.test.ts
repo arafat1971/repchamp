@@ -16,6 +16,7 @@ import {
   isNewPoke,
   journey,
   lastDays,
+  morningCard,
   ritualFor,
   ritualLine,
   ritualScore,
@@ -249,5 +250,22 @@ describe('guided habits', () => {
     expect(windDownDue(open, 20)).toBe(false);
     expect(windDownDue(open, 21.5)).toBe(true);
     expect(windDownDue(done, 22)).toBe(false);
+  });
+});
+
+describe('morningCard', () => {
+  const today = '2026-09-26';
+  it('shows in the morning until dismissed today', () => {
+    expect(morningCard({}, today, 7, '').show).toBe(true);
+    expect(morningCard({}, today, 4, '').show).toBe(false);
+    expect(morningCard({}, today, 12, '').show).toBe(false);
+    expect(morningCard({}, today, 8, today).show).toBe(false);
+    expect(morningCard({}, today, 8, '2026-09-25').show).toBe(true);
+  });
+
+  it("carries yesterday's result when it was seen", () => {
+    expect(morningCard({}, today, 8, '').yesterday).toBeNull();
+    expect(morningCard({ '2026-09-25': { me: 6, them: 6 } }, today, 8, '').yesterday).toEqual({ me: 6, them: 6, perfect: true });
+    expect(morningCard({ '2026-09-25': { me: 5, them: -1 } }, today, 8, '').yesterday).toEqual({ me: 5, them: 0, perfect: false });
   });
 });

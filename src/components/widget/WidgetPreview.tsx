@@ -227,7 +227,8 @@ const STARS = Array.from({ length: 26 }, (_, i) => ({
  */
 function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: number }) {
   const W = width;
-  const H = Math.max(158, width * 0.5);
+  // The placed 4 x 2 widget runs about 0.54 as tall as it is wide.
+  const H = Math.max(180, width * 0.54);
   const hour = new Date(snap.updatedAt).getHours() + new Date(snap.updatedAt).getMinutes() / 60;
   const sky = skyFor(hour);
   const share = style.showMine && snap.waterMl + snap.meWaterMl > 0 ? snap.waterMl / (snap.waterMl + snap.meWaterMl) : 0.5;
@@ -251,6 +252,9 @@ function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: n
   const bx = W * (0.3 + 0.4 * arc);
   const by = H * (0.3 - 0.14 * Math.sin(Math.PI * arc));
   const met = snap.met || snap.meMet;
+  /* Names sit on the grass under the bears, but never under the footer row,
+     which keeps its height however small the card is. */
+  const labelTop = Math.min(feet + 2, H - 10 - 34 - 17);
 
   return (
     <View style={{ height: H, margin: -14 }}>
@@ -313,10 +317,10 @@ function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: n
         <Circle cx={fx} cy={fy} r={2.6} fill="#DC2626" />
       </Svg>
 
-      <Text style={[styles.sceneLabel, { left: leftX - 60, top: feet + 2 }]} numberOfLines={1}>
+      <Text style={[styles.sceneLabel, { left: leftX - 60, top: labelTop }]} numberOfLines={1}>
         {snap.name} · {snap.amount}
       </Text>
-      <Text style={[styles.sceneLabel, { left: rightX - 60, top: feet + 2 }]} numberOfLines={1}>
+      <Text style={[styles.sceneLabel, { left: rightX - 60, top: labelTop }]} numberOfLines={1}>
         You · {snap.meWater || '—'}
       </Text>
 

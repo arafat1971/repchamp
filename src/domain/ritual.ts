@@ -153,3 +153,54 @@ export function isNewPoke(poke: { at: number } | null, lastSeenAt: number, now: 
 
 /** Local throttle so a held finger cannot flood the document. */
 export const POKE_GAP_MS = 1200;
+
+/* ------------------------------------------------------------------ *
+ * The evening reminder
+ * ------------------------------------------------------------------ */
+
+/** 20:30 — after the training slot, early enough to still stretch and wind down. */
+export const RITUAL_REMINDER_HOUR = 20;
+export const RITUAL_REMINDER_MINUTE = 30;
+
+/** "stretch", "stretch and wind down", "walk, stretch and wind down". */
+function listOf(words: readonly string[]): string {
+  if (words.length <= 1) return words[0] ?? '';
+  return `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`;
+}
+
+/**
+ * One evening line about what is left of today's ritual — or null when it is
+ * all done and there is nothing to ask for. Names what is left by name, never
+ * a guilt line, and mentions the partner only as company: where they are, not
+ * what I owe.
+ */
+export function buildRitualReminder(input: {
+  mine: readonly HabitState[];
+  /** The partner's score, when paired and known. */
+  theirs: { name: string; score: number } | null;
+}): { title: string; body: string } | null {
+  const total = input.mine.length;
+  const left = input.mine.filter((s) => !s.done);
+  if (left.length === 0) return null;
+
+  const doable = left.map((s) => s.habit.label.toLowerCase());
+  const what = listOf(doable);
+  const them = input.theirs;
+
+  if (them && them.score >= total) {
+    return {
+      title: `${them.name} finished the ritual 🏆`,
+      body: `Just ${what} left for a perfect day together.`,
+    };
+  }
+  if (left.length === 1) {
+    return {
+      title: 'One more for a perfect day ✨',
+      body: them ? `Just ${what}. ${them.name} is at ${them.score}/${total}.` : `Just ${what}.`,
+    };
+  }
+  return {
+    title: `${total - left.length}/${total} today — ${left.length} to go`,
+    body: them ? `Still time for ${what}. ${them.name} is at ${them.score}/${total} 💞` : `Still time for ${what}.`,
+  };
+}

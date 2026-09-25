@@ -754,9 +754,11 @@ export default function HomeScreen() {
 
       {/* The couple as one face-off — replaces the bond strip and the partner
           card, which told the same story twice. */}
+      {/* The day's vitals as one set of Health-style cards under a single
+          heading: the duo, water, steps. */}
+      <HomeSectionHeader title="Summary" />
       {couple.paired && couple.partner ? (
-        <StaggerIn index={3}>
-          <HomeSectionHeader title="Your duo" />
+        <StaggerIn index={3} style={styles.summaryGap}>
           <DuoCard
             me={couple.me}
             partner={couple.partner}
@@ -779,7 +781,7 @@ export default function HomeScreen() {
 
       {/* Today's water as a filling glass and steps as a footprint trail, with
           drinks a tap away. */}
-      <StaggerIn index={4}>
+      <StaggerIn index={4} style={styles.summaryGap}>
         <HydrationCard
           water={water}
           drinks={todayDrinks}
@@ -798,7 +800,6 @@ export default function HomeScreen() {
         />
       </StaggerIn>
       <StaggerIn index={4}>
-        <HomeSectionHeader title="Steps" />
         <StepsCard
           steps={stepsToday}
           onFixSteps={openStepSettings}
@@ -1154,6 +1155,7 @@ function QuickTile({
 
 const styles = StyleSheet.create({
   tabular: { fontVariant: ['tabular-nums'] },
+  summaryGap: { marginBottom: 12 },
   statusFade: { position: 'absolute', top: 0, left: 0, right: 0 },
 
   // Masthead

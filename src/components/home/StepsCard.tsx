@@ -1,8 +1,6 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { StepsRace } from '@/components/home/StepsRace';
-import { StepsTrail } from '@/components/home/StepsTrail';
+import { Capsule, HealthCard, IOS, Metric, PersonRow } from '@/components/home/HealthCard';
 import { PressableScale } from '@/components/ui';
 import {
   type StepsState,
@@ -12,19 +10,20 @@ import {
   stepsUnavailableCopy,
 } from '@/domain/steps';
 import { font } from '@/theme/typography';
-import { palette, radius } from '@/theme/tokens';
+
+/* The partner wears the same hue, lighter — one metric, two people. */
+const PARTNER = 'rgba(255,107,44,0.45)';
 
 /**
- * Today's steps: the footprint trail beside the count.
+ * Today's steps, in the Health app's grammar: the count large, a capsule to
+ * the goal under it, and — when paired — the partner's line beneath.
  *
- * Split out of the old Today card so hydration can be a card of its own.
  * Each missing count says why in its own words, and the permission case
  * offers the fix.
  */
 export function StepsCard({
   steps,
   onFixSteps,
-  me,
   partner,
 }: {
   steps: StepsState;
@@ -42,81 +41,87 @@ export function StepsCard({
         ? 'Counting…'
         : '';
 
-  /* Paired and counting: the day becomes a race to the flag. */
-  if (read && partner && me) {
-    const gap = partner.steps == null ? null : read.steps - partner.steps;
-    return (
-      <LinearGradient colors={['#131a2e', '#0b1120']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.raceCard}>
-        <View style={styles.raceHead}>
-          <Text style={styles.eyebrow}>👟 TODAY’S RACE</Text>
-          <Text style={styles.goalText}>to {formatSteps(read.goal)}</Text>
-        </View>
-        <StepsRace
-          goal={read.goal}
-          me={{ ...me, steps: read.steps }}
-          partner={partner}
-        />
-        {gap != null ? (
-          <Text style={styles.raceLine}>
-            {gap === 0
-              ? `Neck and neck with ${partner.name}`
-              : gap > 0
-                ? `You're ${formatSteps(gap)} steps ahead of ${partner.name}`
-                : `${partner.name} is ${formatSteps(-gap)} ahead — go for a walk?`}
-          </Text>
-        ) : null}
-      </LinearGradient>
-    );
-  }
+  const gap = read && partner?.steps != null ? read.steps - partner.steps : null;
+  const status = !read
+    ? null
+    : gap != null && partner
+      ? gap === 0
+        ? `Level with ${partner.name}`
+        : gap > 0
+          ? `${formatSteps(gap)} ahead of ${partner.name}`
+          : `${formatSteps(-gap)} behind ${partner.name}`
+      : read.met
+        ? 'Goal reached'
+        : `${formatSteps(read.goal - read.steps)} to go`;
 
   return (
-    <LinearGradient colors={['#131a2e', '#0b1120']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.card}>
-      <StepsTrail percent={read?.percent ?? null} width={124} height={92} />
-      <View style={{ flex: 1 }}>
-        <Text style={styles.eyebrow}>👟 STEPS</Text>
-        <Text style={styles.count}>
-          {read ? formatSteps(read.steps) : '—'}
-          {read?.met ? ' ✓' : ''}
-        </Text>
-        {read ? (
-          <Text style={styles.sub}>
-            {read.met
-              ? `Goal of ${formatSteps(read.goal)} met`
-              : `${formatSteps(read.goal - read.steps)} to your ${formatSteps(read.goal)} goal`}
-          </Text>
-        ) : canFix ? (
-          <PressableScale
-            onPress={onFixSteps}
-            accessibilityRole="button"
-            accessibilityLabel="Turn on step counting"
-            style={styles.fix}
-          >
-            <Text style={styles.fixText}>Turn on step counting</Text>
-          </PressableScale>
-        ) : (
-          <Text style={styles.sub}>{note}</Text>
-        )}
-      </View>
-    </LinearGradient>
+    <HealthCard icon="👟" title="Steps" tint={IOS.steps} trailing={read ? `Goal ${formatSteps(read.goal)}` : undefined}>
+      {read ? (
+        <>
+          <View style={styles.metricRow}>
+            <Metric value={formatSteps(read.steps)} unit="steps" />
+            {status ? (
+              <Text style={[styles.status, read.met && !partner && { color: IOS.green }]} numberOfLines={1}>
+                {status}
+              </Text>
+            ) : null}
+          </View>
+          <Capsule fraction={read.percent / 100} color={IOS.steps} />
+          {partner ? (
+            <View style={styles.partner}>
+              <PersonRow
+                name={partner.name}
+                avatar={partner.avatar}
+                color={PARTNER}
+                fraction={partner.steps == null ? 0 : partner.steps / read.goal}
+                value={partner.steps == null ? 'Not shared yet' : formatSteps(partner.steps)}
+                muted={partner.steps == null}
+              />
+            </View>
+          ) : null}
+        </>
+      ) : (
+        <View style={styles.empty}>
+          <Text style={styles.note}>{note}</Text>
+          {canFix ? (
+            <PressableScale
+              onPress={onFixSteps}
+              accessibilityRole="button"
+              accessibilityLabel="Turn on step counting"
+              style={styles.fix}
+            >
+              <Text style={styles.fixText}>Turn On</Text>
+            </PressableScale>
+          ) : null}
+        </View>
+      )}
+    </HealthCard>
   );
 }
 
 const styles = StyleSheet.create({
-  raceCard: { borderRadius: radius['3xl'], padding: 16, gap: 12 },
-  raceHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  goalText: font('semibold', 12, { color: 'rgba(255,255,255,0.5)' }),
-  raceLine: { ...font('semibold', 13, { color: 'rgba(253,230,138,0.9)' }), textAlign: 'center' },
-  card: { borderRadius: radius['3xl'], padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  eyebrow: { ...font('extrabold', 11.5, { color: 'rgba(253,230,138,0.7)' }), letterSpacing: 1.3 },
-  count: { ...font('extrabold', 24, { color: palette.white }), marginTop: 2, letterSpacing: -0.4 },
-  sub: { ...font('medium', 12.5, { color: 'rgba(255,255,255,0.6)' }), marginTop: 2 },
-  fix: {
-    alignSelf: 'flex-start',
+  metricRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 12,
     marginTop: 8,
-    backgroundColor: '#f59e0b',
+    marginBottom: 10,
+  },
+  status: { ...font('medium', 13, { color: IOS.secondary }), flexShrink: 1 },
+  partner: {
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: IOS.separator,
+  },
+  empty: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 10 },
+  note: { ...font('medium', 14, { color: IOS.secondary }), flex: 1 },
+  fix: {
+    backgroundColor: 'rgba(255,107,44,0.12)',
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 7,
   },
-  fixText: font('extrabold', 12.5, { color: palette.ink }),
+  fixText: font('bold', 13.5, { color: IOS.steps }),
 });

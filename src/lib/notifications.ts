@@ -55,6 +55,7 @@ import {
   HYDRATION_SLOTS,
   buildHydrationReminder,
 } from '@/domain/hydrationReminder';
+import { RITUAL_REMINDER_HOUR, RITUAL_REMINDER_MINUTE } from '@/domain/ritual';
 import type { DrinkEntry } from '@/domain/hydration';
 import { buildInviteNotification } from '@/domain/inviteNotification';
 import { isDuplicateNudge } from '@/domain/nudgeDedupe';
@@ -629,6 +630,46 @@ export async function syncHydrationReminders(ctx: {
     } catch {
       // Best-effort, like every other slot here.
     }
+  }
+}
+
+const RITUAL_REMINDER_ID = 'ritual-reminder';
+
+/**
+ * Tonight's ritual reminder — one ping at 20:30 naming what is left, or none.
+ *
+ * A one-shot DATE trigger for *today*, not a DAILY one: the words are baked in
+ * at schedule time, and a daily repeat would read tomorrow evening with
+ * today's list. So it only ever fires on a day the app was opened, with the
+ * truth as of the last sync — every tick and drink re-syncs it, and a finished
+ * ritual cancels it outright. Past 20:30 there is nothing to schedule.
+ */
+export async function syncRitualReminder(ctx: {
+  enabled: boolean;
+  copy: { title: string; body: string } | null;
+  now?: Date;
+}): Promise<void> {
+  const now = ctx.now ?? new Date();
+  const at = new Date(now);
+  at.setHours(RITUAL_REMINDER_HOUR, RITUAL_REMINDER_MINUTE, 0, 0);
+  if (!ctx.enabled || !ctx.copy || at.getTime() <= now.getTime()) {
+    await cancelIds([RITUAL_REMINDER_ID]);
+    return;
+  }
+  if (!(await ensureNotificationPermission())) return;
+  try {
+    await Notifications.cancelScheduledNotificationAsync(RITUAL_REMINDER_ID).catch(() => {});
+    await Notifications.scheduleNotificationAsync({
+      identifier: RITUAL_REMINDER_ID,
+      content: { title: ctx.copy.title, body: ctx.copy.body, data: { type: 'ritual-reminder' } },
+      trigger: {
+        ...(Platform.OS === 'android' ? { channelId: channelIdFor('reminders') } : {}),
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: at,
+      },
+    });
+  } catch {
+    // Best-effort, like every other slot here.
   }
 }
 

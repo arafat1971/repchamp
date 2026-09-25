@@ -162,6 +162,9 @@ export default function RootLayout() {
            with no arm in this chain lands the athlete on whatever screen was
            already mounted. */
         router.push('/(tabs)');
+      } else if (type === 'ritual-reminder') {
+        /* Straight to the ritual: the ticks that are left are on that screen. */
+        router.push('/couple/partner');
       } else if (type === 'couple-nudge') {
         router.push('/modal/couple-invite');
       }

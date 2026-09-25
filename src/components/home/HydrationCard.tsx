@@ -17,14 +17,11 @@ import Animated, {
   withRepeat,
   withSequence,
   withTiming,
-  type SharedValue,
 } from 'react-native-reanimated';
 import Svg, { Circle, ClipPath, Defs, Path, Rect } from 'react-native-svg';
 
 import { BearJar, type BearTheme } from '@/components/home/BearJar';
-import { HomeSectionHeader } from '@/components/home/HomeSectionHeader';
-import { LemonAvatar } from '@/components/home/LemonAvatar';
-import { CountUp } from '@/components/motion';
+import { Capsule, HealthCard, IOS, Metric, PersonRow } from '@/components/home/HealthCard';
 import { DRINK_KINDS, DRINK_META, drinkLayers, parseDrinkKind, type DrinkKind } from '@/domain/drinkKinds';
 import {
   DEFAULT_DAILY_GOAL_ML,
@@ -39,8 +36,8 @@ import { lightImpactHaptic, selectionHaptic } from '@/lib/feedback';
 import { font } from '@/theme/typography';
 
 const INK = '#0f172a';
-const MUTED = '#64748b';
-const HAIR = '#e2e8f0';
+/* The partner wears the same hue, lighter — one metric, two people. */
+const PARTNER = 'rgba(50,173,230,0.45)';
 
 /** Mine rose, theirs lavender — two bears, two personalities. */
 const MY_BEAR: BearTheme = { body: '#ffe4ec', rim: '#f9a8c9', tint: '#fb7185' };
@@ -52,23 +49,19 @@ interface Person {
 }
 
 /**
- * Hydration, minimal: two bear jars on the page and one row of controls.
+ * Hydration, in the Health app's grammar: today's amount large, a capsule to
+ * the goal, and — when paired — the partner's line beneath, each with a small
+ * bear that fills as the day does.
  *
- * My bear shows what I drank as coloured layers in the order I drank it —
- * water, then a coffee, then juice — each with its own wavy top. My partner's
- * bear shows their shared total (kinds stay on their phone) in water blue.
- *
- * One liquid "+" does the logging: tap to add my last drink again (water
- * 250 ml to start), hold to open a picker of drinks and sizes. The goal steps
- * in a small capsule beside it, and Undo takes the last drink back.
- *
- * My partner's bear fills against my goal (theirs is not synced) so the two
- * compare honestly; it squishes live when they drink, with a banner and a tap.
+ * My bear shows what I drank as coloured layers in the order I drank it; my
+ * partner's shows their shared total. Pour repeats the last drink (water
+ * 250 ml to start) and a hold opens a picker of drinks and sizes. The goal
+ * steps in an iOS stepper, and Undo takes the last drink back. A pour from
+ * the partner arrives live as a line beside the number.
  */
 export function HydrationCard({
   water,
   drinks,
-  me,
   partner,
   partnerMl,
   partnerGoalMl,
@@ -167,177 +160,192 @@ export function HydrationCard({
   const atMin = water.goalMl <= MIN_DAILY_GOAL_ML;
   const atMax = water.goalMl >= MAX_DAILY_GOAL_ML;
 
-  const bearW = partner ? Math.min(118, (width - 40) / 2) : 130;
   const meta = DRINK_META[choice.kind];
+  const [amount, unit] = splitMl(water.ml);
+
+  /* One quiet line of news beside the number: a live pour from them wins,
+     then a shared goal, then who is ahead. */
+  const news =
+    live && partner
+      ? theirLatest === 'water'
+        ? `${partner.name} +${formatMl(live.ml)}`
+        : `${partner.name} ${DRINK_META[theirLatest].emoji} +${formatMl(live.ml)}`
+      : bothMet && partner
+        ? '🥂 Both goals met'
+        : null;
 
   return (
     <View onLayout={onLayout}>
-      <HomeSectionHeader
+      <HealthCard
+        icon="💧"
         title="Hydration"
-        right={
-          <Text style={[styles.headStat, water.met && styles.headStatMet]}>
-            {water.met ? 'Goal met ✓' : `${formatMl(water.remainingMl)} to go`}
-          </Text>
-        }
-      />
-
-      <View style={styles.status}>
-        {live && partner ? (
-          <Animated.Text
-            key={live.id}
-            entering={FadeInDown.springify().damping(14)}
-            exiting={FadeOutUp.duration(250)}
-            style={styles.live}
-          >
-            {theirLatest === 'water'
-              ? `${partner.name} just drank ${formatMl(live.ml)} 💧`
-              : `${partner.name} had ${DRINK_META[theirLatest].label.toLowerCase()} ${DRINK_META[theirLatest].emoji} · ${formatMl(live.ml)}`}
-          </Animated.Text>
-        ) : bothMet && partner ? (
-          <Text style={styles.cheers}>🥂 You both hit your goal</Text>
-        ) : partner && partnerMl != null ? (
-          <Text style={styles.race}>
-            {water.ml >= partnerMl
-              ? `${formatMl(water.ml - partnerMl)} ahead of ${partner.name}`
-              : `${partner.name} is ${formatMl(partnerMl - water.ml)} ahead`}
-          </Text>
-        ) : null}
-      </View>
-
-      {width > 0 ? (
-        <View style={styles.bears}>
-          <BearColumn
-            id="me"
-            person={me}
-            label="You"
-            ml={water.ml}
-            percent={water.percent}
-            width={bearW}
-            theme={MY_BEAR}
-            layers={layers}
-            goalMl={water.goalMl}
-            tilt={tilt}
-            phase={phase}
-            pourKey={myPour}
-            met={water.met}
-            countUp
-          />
-          {partner ? (
-            <BearColumn
-              id="partner"
-              person={partner}
-              label={partner.name}
-              ml={partnerMl}
-              percent={partnerPercent}
-              width={bearW}
-              theme={THEIR_BEAR}
-              layers={theirLayers}
-              goalMl={theirGoal}
+        tint={IOS.water}
+        trailing={water.met ? 'Goal met' : `${formatMl(water.remainingMl)} to go`}
+      >
+        <View style={styles.metricRow}>
+          <View style={{ flex: 1 }}>
+            <Metric value={amount} unit={`${unit} of ${formatMl(water.goalMl)}`} />
+            {news ? (
+              <Animated.Text
+                key={live?.id ?? 'news'}
+                entering={FadeInDown.springify().damping(14)}
+                exiting={FadeOutUp.duration(250)}
+                style={[styles.news, live ? { color: IOS.water } : null]}
+                numberOfLines={1}
+              >
+                {news}
+              </Animated.Text>
+            ) : null}
+          </View>
+          {/* The bear, small: the one piece of charm the card keeps. */}
+          {width > 0 ? (
+            <BearJar
+              id="me"
+              percent={water.percent}
+              width={46}
+              theme={MY_BEAR}
+              layers={layers}
               tilt={tilt}
               phase={phase}
-              pourKey={theirPour}
-              met={partnerMet}
+              pourKey={myPour}
+              met={water.met}
             />
           ) : null}
         </View>
-      ) : null}
+        <Capsule fraction={water.percent / 100} color={IOS.water} />
 
-      {/* Picker, on hold of the "+". */}
-      {picking ? (
-        <Animated.View entering={FadeIn.duration(160)} exiting={FadeOut.duration(140)} style={styles.picker}>
-          <View style={styles.sizes}>
-            {DRINK_SIZES_ML.map((ml) => (
-              <Pressable
-                key={ml}
-                onPress={() => {
-                  selectionHaptic();
-                  setSize(ml);
-                }}
-                accessibilityRole="button"
-                accessibilityState={{ selected: size === ml }}
-                style={[styles.size, size === ml && styles.sizeOn]}
-              >
-                <Text style={[styles.sizeText, size === ml && styles.sizeTextOn]}>{formatMl(ml)}</Text>
-              </Pressable>
-            ))}
+        {partner ? (
+          <View style={styles.partner}>
+            <PersonRow
+              name={partner.name}
+              avatar={partner.avatar}
+              color={PARTNER}
+              fraction={partnerPercent / 100}
+              value={partnerMl == null ? 'Not shared yet' : `${formatMl(partnerMl)} of ${formatMl(theirGoal)}`}
+              muted={partnerMl == null}
+              leading={
+                <BearJar
+                  id="partner"
+                  percent={partnerPercent}
+                  width={30}
+                  theme={THEIR_BEAR}
+                  layers={theirLayers}
+                  tilt={tilt}
+                  phase={phase}
+                  pourKey={theirPour}
+                  met={partnerMet}
+                />
+              }
+            />
           </View>
-          <View style={styles.kinds}>
-            {DRINK_KINDS.map((kind) => {
-              const m = DRINK_META[kind];
-              return (
-                <Pressable
-                  key={kind}
-                  onPress={() => add(kind, size)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Add ${formatMl(size)} of ${m.label.toLowerCase()}`}
-                  style={({ pressed }) => [styles.kind, pressed && { opacity: 0.6 }]}
-                >
-                  <View style={[styles.kindDot, { backgroundColor: m.color }]}>
-                    <Text style={styles.kindEmoji}>{m.emoji}</Text>
-                  </View>
-                  <Text style={styles.kindLabel}>{m.label}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </Animated.View>
-      ) : null}
-
-      {/* One row: goal capsule · undo · the liquid plus. */}
-      <View style={styles.controls}>
-        <View style={styles.goal}>
-          <Pressable
-            onPress={() => onStepWaterGoal(-1)}
-            disabled={atMin}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Lower the water goal"
-            style={[styles.goalBtn, atMin && styles.off]}
-          >
-            <Text style={styles.goalGlyph}>−</Text>
-          </Pressable>
-          <Text style={styles.goalText}>Goal {formatMl(water.goalMl)}</Text>
-          <Pressable
-            onPress={() => onStepWaterGoal(1)}
-            disabled={atMax}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Raise the water goal"
-            style={[styles.goalBtn, atMax && styles.off]}
-          >
-            <Text style={styles.goalGlyph}>+</Text>
-          </Pressable>
-        </View>
-
-        {onUndoWater ? (
-          <Pressable
-            onPress={() => {
-              selectionHaptic();
-              onUndoWater();
-            }}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Undo the last drink"
-            style={styles.undo}
-          >
-            <Text style={styles.undoText}>↺</Text>
-          </Pressable>
         ) : null}
 
-        <PourButton
-          color={meta.color}
-          label={`${meta.emoji} ${formatMl(choice.ml)}`}
-          open={picking}
-          onPress={() => (picking ? setPicking(false) : add(choice.kind, choice.ml))}
-          onLongPress={() => {
-            lightImpactHaptic();
-            setPicking(true);
-          }}
-        />
-      </View>
-      <Text style={styles.hint}>Tap Pour to add · hold it for coffee, juice, tea…</Text>
+        {/* Picker, on hold of Pour. */}
+        {picking ? (
+          <Animated.View entering={FadeIn.duration(160)} exiting={FadeOut.duration(140)} style={styles.picker}>
+            <View style={styles.sizes}>
+              {DRINK_SIZES_ML.map((ml) => (
+                <Pressable
+                  key={ml}
+                  onPress={() => {
+                    selectionHaptic();
+                    setSize(ml);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: size === ml }}
+                  style={[styles.size, size === ml && styles.sizeOn]}
+                >
+                  <Text style={[styles.sizeText, size === ml && styles.sizeTextOn]}>{formatMl(ml)}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <View style={styles.kinds}>
+              {DRINK_KINDS.map((kind) => {
+                const m = DRINK_META[kind];
+                return (
+                  <Pressable
+                    key={kind}
+                    onPress={() => add(kind, size)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Add ${formatMl(size)} of ${m.label.toLowerCase()}`}
+                    style={({ pressed }) => [styles.kind, pressed && { opacity: 0.6 }]}
+                  >
+                    <View style={[styles.kindDot, { backgroundColor: m.color }]}>
+                      <Text style={styles.kindEmoji}>{m.emoji}</Text>
+                    </View>
+                    <Text style={styles.kindLabel}>{m.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Animated.View>
+        ) : null}
+
+        {/* Controls: goal stepper · undo · pour (hold for more drinks). */}
+        <View style={styles.controls}>
+          <View style={styles.stepper}>
+            <Pressable
+              onPress={() => onStepWaterGoal(-1)}
+              disabled={atMin}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel="Lower the water goal"
+              style={[styles.stepBtn, atMin && styles.off]}
+            >
+              <Text style={styles.stepGlyph}>−</Text>
+            </Pressable>
+            <View style={styles.stepDivider} />
+            <Pressable
+              onPress={() => onStepWaterGoal(1)}
+              disabled={atMax}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel="Raise the water goal"
+              style={[styles.stepBtn, atMax && styles.off]}
+            >
+              <Text style={styles.stepGlyph}>+</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.goalCaption}>Goal</Text>
+
+          <View style={{ flex: 1 }} />
+
+          {onUndoWater ? (
+            <Pressable
+              onPress={() => {
+                selectionHaptic();
+                onUndoWater();
+              }}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Undo the last drink"
+              style={styles.undo}
+            >
+              <Text style={styles.undoText}>↺</Text>
+            </Pressable>
+          ) : null}
+
+          <PourButton
+            color={meta.color}
+            label={`${meta.emoji} ${formatMl(choice.ml)}`}
+            open={picking}
+            onPress={() => (picking ? setPicking(false) : add(choice.kind, choice.ml))}
+            onLongPress={() => {
+              lightImpactHaptic();
+              setPicking(true);
+            }}
+          />
+        </View>
+      </HealthCard>
     </View>
   );
+}
+
+/** "1.25 L" → ["1.25", "L"], so the number can be large and the unit small. */
+function splitMl(ml: number): [string, string] {
+  const text = formatMl(ml);
+  const at = text.lastIndexOf(' ');
+  return at < 0 ? [text, ''] : [text.slice(0, at), text.slice(at + 1)];
 }
 
 const AnimatedRect = Animated.createAnimatedComponent(Rect);
@@ -415,7 +423,7 @@ function PourButton({
       accessibilityRole="button"
       accessibilityLabel={open ? 'Close the drink picker' : `Pour ${label}. Hold for more drinks`}
     >
-      <Animated.View style={[styles.pour, { borderColor: `${rim}55`, backgroundColor: `${color}1f` }, pill]}>
+      <Animated.View style={[styles.pour, { backgroundColor: `${color}24` }, pill]}>
         {open ? (
           <Svg width={24} height={28} viewBox="0 0 24 28">
             <Path d="M7 8 L17 18 M17 8 L7 18" stroke={INK} strokeWidth={2.4} strokeLinecap="round" />
@@ -443,142 +451,64 @@ function PourButton({
   );
 }
 
-function BearColumn({
-  id,
-  person,
-  label,
-  ml,
-  percent,
-  width,
-  theme,
-  layers,
-  goalMl,
-  tilt,
-  phase,
-  pourKey,
-  met,
-  countUp,
-}: {
-  id: string;
-  person: Person;
-  label: string;
-  ml: number | null;
-  percent: number;
-  width: number;
-  theme: BearTheme;
-  layers?: readonly { color: string; share: number }[];
-  /** Whose goal this bear fills against, shown under the amount. */
-  goalMl: number;
-  tilt: SharedValue<number>;
-  phase: SharedValue<number>;
-  pourKey: number;
-  met: boolean;
-  countUp?: boolean;
-}) {
-  return (
-    <View style={styles.column}>
-      <View>
-        <BearJar
-          id={id}
-          percent={percent}
-          width={width}
-          theme={theme}
-          layers={layers}
-          tilt={tilt}
-          phase={phase}
-          pourKey={pourKey}
-          met={met}
-        />
-        <View style={styles.badge}>
-          <LemonAvatar uri={person.avatar} initial={(person.name.charAt(0) || '?').toUpperCase()} size={28} />
-        </View>
-      </View>
-      {ml == null ? (
-        <Text style={[styles.amount, styles.amountMuted]}>—</Text>
-      ) : countUp ? (
-        <CountUp value={ml} duration={600} delay={0} format={(n) => formatMl(n)} style={styles.amount} />
-      ) : (
-        <Text style={styles.amount}>{formatMl(ml)}</Text>
-      )}
-      <Text style={styles.ofGoal}>of {formatMl(goalMl)}</Text>
-      <Text style={styles.label} numberOfLines={1}>
-        {label}
-      </Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  headStat: font('semibold', 13, { color: MUTED }),
-  headStatMet: font('bold', 13, { color: '#16a34a' }),
-  status: { minHeight: 20, alignItems: 'center', marginBottom: 6 },
-  live: font('bold', 13, { color: '#0369a1' }),
-  cheers: font('bold', 13, { color: '#b45309' }),
-  race: font('medium', 12.5, { color: MUTED }),
-  bears: { flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'flex-end' },
-  column: { alignItems: 'center' },
-  badge: { position: 'absolute', right: -4, bottom: -2 },
-  amount: { ...font('extrabold', 19, { color: INK }), marginTop: 6, letterSpacing: -0.4 },
-  amountMuted: { color: '#94a3b8' },
-  ofGoal: font('medium', 11.5, { color: '#94a3b8' }),
-  label: { ...font('semibold', 12.5, { color: MUTED }), maxWidth: 120, marginTop: 1 },
+  metricRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 12, marginTop: 4, marginBottom: 10 },
+  news: font('semibold', 12.5, { color: IOS.secondary, marginTop: 2 }),
+  partner: {
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: IOS.separator,
+  },
   picker: {
     marginTop: 14,
     padding: 12,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: HAIR,
-    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    backgroundColor: IOS.fill,
     gap: 12,
   },
-  sizes: { flexDirection: 'row', backgroundColor: '#f1f5f9', borderRadius: 10, padding: 3 },
-  size: { flex: 1, alignItems: 'center', paddingVertical: 6, borderRadius: 8 },
-  sizeOn: { backgroundColor: '#ffffff', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 3, elevation: 1 },
-  sizeText: font('semibold', 13, { color: MUTED }),
-  sizeTextOn: font('bold', 13, { color: INK }),
+  sizes: { flexDirection: 'row', backgroundColor: 'rgba(118,118,128,0.12)', borderRadius: 9, padding: 2 },
+  size: { flex: 1, alignItems: 'center', paddingVertical: 6, borderRadius: 7 },
+  sizeOn: { backgroundColor: '#ffffff', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 3, elevation: 1 },
+  sizeText: font('medium', 13, { color: IOS.label }),
+  sizeTextOn: font('bold', 13, { color: IOS.label }),
   kinds: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 },
   kind: { width: '24%', alignItems: 'center' },
   kindDot: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   kindEmoji: { fontSize: 18 },
-  kindLabel: { ...font('medium', 11.5, { color: INK }), marginTop: 4 },
-  controls: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14 },
-  goal: {
-    flex: 1,
+  kindLabel: { ...font('medium', 11.5, { color: IOS.label }), marginTop: 4 },
+  controls: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 16 },
+  /* The iOS stepper: one grey capsule, split down the middle. */
+  stepper: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: HAIR,
-    paddingHorizontal: 2,
-    height: 44,
+    backgroundColor: 'rgba(118,118,128,0.12)',
+    borderRadius: 9,
+    height: 34,
   },
-  goalBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  goalGlyph: { ...font('bold', 20, { color: INK }), lineHeight: 23 },
-  goalText: font('semibold', 13.5, { color: INK }),
+  stepBtn: { width: 44, height: 34, alignItems: 'center', justifyContent: 'center' },
+  stepGlyph: { ...font('medium', 20, { color: IOS.label }), lineHeight: 23 },
+  stepDivider: { width: StyleSheet.hairlineWidth * 2, height: 18, backgroundColor: 'rgba(60,60,67,0.25)' },
+  goalCaption: font('medium', 12.5, { color: IOS.secondary }),
   off: { opacity: 0.3 },
   undo: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: HAIR,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: IOS.fill,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  undoText: font('bold', 17, { color: MUTED }),
+  undoText: font('bold', 16, { color: IOS.secondary }),
   pour: {
-    height: 48,
-    minWidth: 104,
+    height: 40,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingLeft: 10,
+    gap: 6,
+    paddingLeft: 8,
     paddingRight: 14,
-    borderRadius: 16,
-    borderWidth: 1.5,
+    borderRadius: 20,
   },
-  pourTitle: font('extrabold', 14, { color: INK }),
-  pourSub: { ...font('semibold', 10.5, { color: MUTED }), marginTop: -1 },
-  hint: { ...font('medium', 11, { color: '#94a3b8' }), textAlign: 'center', marginTop: 8 },
+  pourTitle: font('bold', 13.5, { color: IOS.label }),
+  pourSub: { ...font('medium', 10.5, { color: IOS.secondary }), marginTop: -2 },
 });

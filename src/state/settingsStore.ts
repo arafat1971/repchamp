@@ -20,6 +20,8 @@ export interface SettingsState {
    * questions and an athlete may well want one without the other.
    */
   hydrationReminder: boolean;
+  /** One 20:30 nudge naming what is left of today's ritual — never when it is done. */
+  ritualReminder: boolean;
   /**
    * Android only: keep a foreground service running so steps are counted while
    * the app is closed. Costs a persistent quiet notification, so it is the
@@ -43,6 +45,7 @@ export type SettingsToggle =
   | 'duelInvites'
   | 'dailyReminder'
   | 'hydrationReminder'
+  | 'ritualReminder'
   | 'stepCounting'
   | 'privateProfile';
 
@@ -55,6 +58,7 @@ export const useSettingsStore = create<SettingsState>()(
       duelInvites: true,
       dailyReminder: true,
       hydrationReminder: true,
+      ritualReminder: true,
       stepCounting: true,
       privateProfile: false,
       cameraTutorialSeen: false,

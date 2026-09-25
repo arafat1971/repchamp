@@ -11,7 +11,12 @@ import { AppState } from 'react-native';
 import { daysSinceLastSession } from '@/domain/dormantReminder';
 import { dayKey } from '@/domain/progression';
 import { reminderHourFor } from '@/domain/reminderSchedule';
-import { syncHydrationReminders, syncLocalReminders } from '@/lib/notifications';
+import { partnerGoalToday, partnerHabitsToday, partnerRepsToday, partnerStepsToday, partnerWaterToday } from '@/domain/couple';
+import { buildRitualReminder, cleanTicks, ritualFor, ritualScore } from '@/domain/ritual';
+import { repsOnDay } from '@/domain/waterWidget';
+import { useRitualStore } from '@/state/ritualStore';
+import { useStepsToday } from '@/state/useStepsToday';
+import { syncHydrationReminders, syncLocalReminders, syncRitualReminder } from '@/lib/notifications';
 import { selectTodayMl, useHydrationStore } from '@/state/hydrationStore';
 import { useCouple } from '@/state/useCouple';
 import { selectStreak, useProfileStore } from '@/state/profileStore';
@@ -118,6 +123,45 @@ export function useNotificationSync(): void {
        `foregroundTick` forces a re-sync on reopen, because the copy is baked
        in at schedule time like every other slot here. */
   }, [hydrationReminder, hydrationGoalMl, todayMl, today, foregroundTick]);
+
+  /* Tonight's ritual reminder: one-shot, rebuilt on every tick, drink, step
+     read and partner change, so what it names is what is actually left. Only
+     for a pair — the ritual lives on their shared screen. */
+  const ritualReminder = useSettingsStore((s) => s.ritualReminder);
+  const ritualDay = useRitualStore((s) => s.day);
+  const ritualTicks = useRitualStore((s) => s.ticks);
+  const { steps: stepsState } = useStepsToday();
+  const mySteps = stepsState.status === 'ready' ? stepsState.steps : null;
+  const myReps = repsOnDay(sessions, today).reps;
+  const partner = couple.paired ? couple.partner : null;
+  const partnerName = partner?.displayName?.trim() || null;
+  const partnerKey = partner
+    ? JSON.stringify([
+        partnerWaterToday(partner, today),
+        partnerGoalToday(partner, today),
+        partnerStepsToday(partner, today),
+        partnerRepsToday(partner, today).reps,
+        partnerHabitsToday(partner, today) ?? null,
+      ])
+    : null;
+
+  useEffect(() => {
+    const ticks = ritualDay === today ? ritualTicks : [];
+    const mine = ritualFor({ ml: todayMl, goalMl: hydrationGoalMl, steps: mySteps, reps: myReps, ticks });
+    let theirs: { name: string; score: number } | null = null;
+    if (partnerKey && partnerName) {
+      const [ml, goal, steps, reps, habits] = JSON.parse(partnerKey) as [number | null, number | null, number | null, number, unknown];
+      theirs = {
+        name: partnerName,
+        score: ritualScore(ritualFor({ ml, goalMl: goal ?? hydrationGoalMl, steps, reps, ticks: cleanTicks(habits) })),
+      };
+    }
+    void syncRitualReminder({
+      enabled: ritualReminder && !!partnerKey,
+      copy: buildRitualReminder({ mine, theirs }),
+    });
+    // `partnerKey` stands in for the partner's day.
+  }, [ritualReminder, ritualDay, ritualTicks, today, todayMl, hydrationGoalMl, mySteps, myReps, partnerKey, partnerName, foregroundTick]);
 
   useEffect(() => {
     void syncLocalReminders({

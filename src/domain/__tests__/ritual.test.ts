@@ -2,6 +2,7 @@ import {
   HABITS,
   POKE_FRESH_MS,
   WALK_GOAL,
+  buildRitualReminder,
   cleanPoke,
   cleanTicks,
   isHere,
@@ -103,5 +104,33 @@ describe('live together', () => {
     expect(isNewPoke({ at: now - 1000 }, 0, now)).toBe(true);
     expect(isNewPoke({ at: now - 1000 }, now - 1000, now)).toBe(false);
     expect(isNewPoke({ at: now - POKE_FRESH_MS - 1 }, 0, now)).toBe(false);
+  });
+});
+
+describe('buildRitualReminder', () => {
+  const states = (done: string[]) =>
+    ritualFor({ ml: 0, goalMl: 2000, steps: null, reps: 0, ticks: [] }).map((s) => ({ ...s, done: done.includes(s.habit.id) }));
+  const all = HABITS.map((h) => h.id);
+
+  it('stays quiet when the ritual is done', () => {
+    expect(buildRitualReminder({ mine: states(all), theirs: { name: 'Sam', score: 2 } })).toBeNull();
+  });
+
+  it('names what is left, with the partner as company', () => {
+    expect(buildRitualReminder({ mine: states(['water', 'walk', 'move', 'greens']), theirs: { name: 'Sam', score: 3 } })).toEqual({
+      title: '4/6 today — 2 to go',
+      body: 'Still time for stretch and wind down. Sam is at 3/6 💞',
+    });
+  });
+
+  it('makes the last one feel close', () => {
+    expect(buildRitualReminder({ mine: states(all.filter((h) => h !== 'rest')), theirs: null })).toEqual({
+      title: 'One more for a perfect day ✨',
+      body: 'Just wind down.',
+    });
+  });
+
+  it('leads with a partner who finished', () => {
+    expect(buildRitualReminder({ mine: states(['water']), theirs: { name: 'Sam', score: 6 } })?.title).toBe('Sam finished the ritual 🏆');
   });
 });

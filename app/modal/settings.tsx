@@ -77,6 +77,12 @@ const PRIVACY_TOGGLES: ToggleRow[] = [
     subtitle: 'Up to two a day, only when you’re behind',
   },
   {
+    key: 'ritualReminder',
+    emoji: '✦',
+    title: 'Ritual reminder',
+    subtitle: 'One evening nudge with what’s left of your routine',
+  },
+  {
     key: 'privateProfile',
     emoji: '🔒',
     title: 'Private profile',

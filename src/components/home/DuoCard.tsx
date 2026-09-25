@@ -38,6 +38,7 @@ export function DuoCard({
   onAction,
   onRace,
   onOpen,
+  ritual,
 }: {
   me: CoupleMember | null;
   partner: CoupleMember | null;
@@ -55,6 +56,8 @@ export function DuoCard({
   onAction: (action: 'train' | 'nudge' | 'open') => void;
   onRace: () => void;
   onOpen: () => void;
+  /** Today's ritual, both sides — a row that opens Today, together. */
+  ritual?: { me: number; them: number; total: number } | null;
 }) {
   const bond = coupleBondPresentation({ me, partner, streak, combined, atRisk, today, levelName });
   const partnerName = partner?.displayName?.trim() || 'Partner';
@@ -115,6 +118,27 @@ export function DuoCard({
         {bond.headline}
       </Text>
 
+      {ritual ? (
+        <PressableScale
+          onPress={onOpen}
+          accessibilityRole="button"
+          accessibilityLabel={`Today's ritual: you ${ritual.me} of ${ritual.total}, ${partnerFirst} ${ritual.them} of ${ritual.total}`}
+          style={styles.ritual}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={styles.ritualTitle}>Today&rsquo;s ritual</Text>
+            <View style={styles.ritualBars}>
+              <Bar value={ritual.me} total={ritual.total} color={ME} />
+              <Bar value={ritual.them} total={ritual.total} color={THEM} />
+            </View>
+          </View>
+          <Text style={styles.ritualScore}>
+            {ritual.me}/{ritual.total} · {ritual.them}/{ritual.total}
+          </Text>
+          <Text style={styles.chevron}>›</Text>
+        </PressableScale>
+      ) : null}
+
       <View style={styles.actions}>
         {bond.cta ? (
           <PressableScale
@@ -138,6 +162,16 @@ export function DuoCard({
         </PressableScale>
       </View>
     </HealthCard>
+  );
+}
+
+function Bar({ value, total, color }: { value: number; total: number; color: string }) {
+  return (
+    <View style={styles.bar}>
+      {Array.from({ length: total }, (_, i) => (
+        <View key={i} style={[styles.seg, i < value && { backgroundColor: color }]} />
+      ))}
+    </View>
   );
 }
 
@@ -194,6 +228,22 @@ const styles = StyleSheet.create({
   half: { flex: 1 },
 
   headline: { ...font('medium', 13.5, { color: IOS.secondary }), marginTop: 12, lineHeight: 18 },
+
+  ritual: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: IOS.separator,
+  },
+  ritualTitle: font('semibold', 13.5, { color: IOS.label }),
+  ritualBars: { gap: 4, marginTop: 6 },
+  bar: { flexDirection: 'row', gap: 3 },
+  seg: { flex: 1, height: 5, borderRadius: 3, backgroundColor: IOS.fill },
+  ritualScore: font('semibold', 13, { color: IOS.secondary }),
+  chevron: font('semibold', 20, { color: IOS.secondary }),
 
   actions: { flexDirection: 'row', gap: 10, marginTop: 14 },
   primary: {

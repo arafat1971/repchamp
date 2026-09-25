@@ -322,6 +322,26 @@ export default function HomeScreen() {
       void refreshWeather();
     }, []),
   );
+  /* Our daily ritual, both sides, from the same data the widget shows — for
+     the widget below and for the Duo card's ritual row. */
+  const ritualScores = useMemo(() => {
+    if (!partnerGlass) return null;
+    const plan = effectivePlan(couple.me?.ritualPlan, couple.partner?.ritualPlan);
+    return {
+      them: ritualScore(
+        ritualFor({
+          ml: partnerGlass.ml,
+          goalMl: partnerGlass.goalMl ?? DEFAULT_DAILY_GOAL_ML,
+          steps: partnerStepsToday(couple.partner, today),
+          reps: partnerRepsToday(couple.partner, today).reps,
+          ticks: cleanTicks(partnerHabitsToday(couple.partner, today)),
+        }, plan),
+      ),
+      me: ritualScore(ritualFor({ ml: todayMl, goalMl: myGoalMl, steps: myStepsCount, reps: myReps.reps, ticks: myRitualTicks }, plan)),
+      total: HABITS.length,
+    };
+  }, [partnerGlass, couple.me?.ritualPlan, couple.partner, today, todayMl, myGoalMl, myStepsCount, myReps.reps, myRitualTicks]);
+
   useEffect(() => {
     if (!partnerGlass) {
       // Unpaired: an old partner's day must not linger on the home screen.
@@ -329,22 +349,7 @@ export default function HomeScreen() {
       return;
     }
     const theirReps = partnerRepsToday(couple.partner, today);
-    const theirSteps = partnerStepsToday(couple.partner, today);
-    /* Our daily ritual, both sides, from the same data the widget shows. */
-    const plan = effectivePlan(couple.me?.ritualPlan, couple.partner?.ritualPlan);
-    const ritual = {
-      them: ritualScore(
-        ritualFor({
-          ml: partnerGlass.ml,
-          goalMl: partnerGlass.goalMl ?? DEFAULT_DAILY_GOAL_ML,
-          steps: theirSteps,
-          reps: theirReps.reps,
-          ticks: cleanTicks(partnerHabitsToday(couple.partner, today)),
-        }, plan),
-      ),
-      me: ritualScore(ritualFor({ ml: todayMl, goalMl: myGoalMl, steps: myStepsCount, reps: myReps.reps, ticks: myRitualTicks }, plan)),
-      total: HABITS.length,
-    };
+    const ritual = ritualScores ?? { them: 0, me: 0, total: HABITS.length };
     useRitualStore.getState().record(today, { me: ritual.me, them: ritual.them });
     publishWidgetSnapshot(
       buildWaterWidgetSnapshot({
@@ -404,7 +409,7 @@ export default function HomeScreen() {
     showReps,
     showMine,
     motion,
-    myRitualTicks,
+    ritualScores,
   ]);
 
   /* Mirror the same numbers into the daily dashboard widget. A no-op on any
@@ -769,6 +774,7 @@ export default function HomeScreen() {
             onAction={(action) => void onCoupleAction(action)}
             onRace={startCoupleRace}
             onOpen={() => router.push('/couple/partner')}
+            ritual={ritualScores}
           />
         </StaggerIn>
       ) : null}

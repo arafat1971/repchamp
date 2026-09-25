@@ -46,7 +46,7 @@ export default function ReactScreen() {
         setState({ kind: 'wait' });
       }
     }
-    setTimeout(() => router.replace('/(tabs)'), 1500);
+    setTimeout(() => (router.canGoBack() ? router.back() : router.replace('/(tabs)')), 1500);
   };
 
   return (
@@ -69,7 +69,7 @@ export default function ReactScreen() {
               </Animated.View>
             ))}
           </View>
-          <Pressable onPress={() => router.replace('/(tabs)')} accessibilityRole="button" style={styles.cancel}>
+          <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))} accessibilityRole="button" style={styles.cancel}>
             <Text style={styles.cancelText}>Not now</Text>
           </Pressable>
         </Animated.View>

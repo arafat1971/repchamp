@@ -40,7 +40,7 @@ export default function SplashScreen() {
     const coupleId = couple.couple?.id ?? null;
     const uid = couple.me?.uid ?? null;
     const name = couple.partner?.displayName?.trim() || 'your partner';
-    const back = () => setTimeout(() => router.replace('/(tabs)'), 1700);
+    const back = () => setTimeout(() => (router.canGoBack() ? router.back() : router.replace('/(tabs)')), 1700);
 
     void (async () => {
       let next: Outcome;

@@ -80,7 +80,7 @@ export default function QuickDrinkScreen() {
     const after = useHydrationStore.getState();
     setLogged({ ml, total: selectTodayMl(after, today), goal: after.goalMl });
 
-    const t = setTimeout(() => router.replace('/(tabs)'), 1500);
+    const t = setTimeout(() => (router.canGoBack() ? router.back() : router.replace('/(tabs)')), 1500);
     return () => clearTimeout(t);
   }, [couple.loading, couple.couple?.id, couple.me?.uid, params.ml, profile.displayName, profile.username, router]);
 

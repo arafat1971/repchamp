@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { LinearGradient as Backdrop } from 'expo-linear-gradient';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, LinearTransition } from 'react-native-reanimated';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
@@ -8,17 +8,8 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { ModalHeader } from '@/components/ModalHeader';
 import { WidgetPublishDebug } from '@/components/debug/WidgetPublishDebug';
 import { Card, Divider, PressableScale, PrimaryButton, Screen, SectionLabel, Toggle } from '@/components/ui';
-import { LOOKS, MINE, SAMPLE_SNAPSHOT, THEIRS, WidgetPreview } from '@/components/widget/WidgetPreview';
-import {
-  partnerGoalToday,
-  partnerLayersToday,
-  partnerLastDrinkToday,
-  partnerRepsToday,
-  partnerStepsToday,
-  partnerWaterToday,
-} from '@/domain/couple';
+import { LOOKS, MINE, THEIRS, WidgetPreview } from '@/components/widget/WidgetPreview';
 import { dayKey } from '@/domain/progression';
-import { drinkLayers } from '@/domain/drinkKinds';
 import { duoStreak } from '@/domain/duoStreak';
 import { weekWrap } from '@/domain/week';
 import { enableRealWeather, refreshWeather } from '@/services/weather';
@@ -29,19 +20,13 @@ import {
   type WidgetSurface,
   nextOutfit,
   WIDGET_THEMES,
-  buildWaterWidgetSnapshot,
-  repsOnDay,
-  type WaterWidgetSnapshot,
   type WidgetLayout,
   type WidgetStyle,
   type WidgetTheme,
 } from '@/domain/waterWidget';
 import { lightImpactHaptic, selectionHaptic } from '@/lib/feedback';
 import { isWidgetSupported, placedWidgetCount, requestPinWidget } from '@/services/partnerWidget';
-import { selectTodayMl, useHydrationStore } from '@/state/hydrationStore';
-import { useProfileStore } from '@/state/profileStore';
-import { useCouple } from '@/state/useCouple';
-import { useStepsToday } from '@/state/useStepsToday';
+import { usePartnerTodaySnapshot } from '@/state/usePartnerTodaySnapshot';
 import { useWidgetStyleStore } from '@/state/widgetStyleStore';
 import { useDuoStreakStore } from '@/state/duoStreakStore';
 import { font, text } from '@/theme/typography';
@@ -65,7 +50,7 @@ export default function WidgetStudioScreen() {
   const [stageWidth, setStageWidth] = useState(0);
   const supported = isWidgetSupported();
   const style = useWidgetStyleStore();
-  const preview = usePreviewData();
+  const preview = usePartnerTodaySnapshot();
 
   const [placed, setPlaced] = useState<number | null>(null);
   const [pinFailed, setPinFailed] = useState(false);
@@ -280,6 +265,20 @@ export default function WidgetStudioScreen() {
         <>
           <SectionLabel>ALSO FOR YOUR HOME SCREEN</SectionLabel>
           <Card style={styles.card}>
+            <Text style={styles.cardTitle}>Bear glance · 2×2</Text>
+            <Text style={[text.caption, styles.cardBody]}>
+              Both bears side by side in a small square — the same glass, live the same way, with a drink button.
+            </Text>
+            <PressableScale
+              onPress={() => void requestPinWidget('glance').then((ok) => setPinFailed(!ok))}
+              accessibilityRole="button"
+              accessibilityLabel="Add the bear glance widget"
+              style={styles.inlineAdd}
+            >
+              <Text style={styles.inlineAddText}>＋ Add</Text>
+            </PressableScale>
+          </Card>
+          <Card style={styles.card}>
             <Text style={styles.cardTitle}>Partner’s week</Text>
             <Text style={[text.caption, styles.cardBody]}>
               Who trained which days this week, and the days you shared.
@@ -311,47 +310,6 @@ export default function WidgetStudioScreen() {
       <PrimaryButton label="Done" onPress={() => router.back()} style={{ marginTop: 8 }} />
     </Screen>
   );
-}
-
-/**
- * The partner's real day, through the same builder the widget uses; the
- * sample when there is no partner yet.
- */
-function usePreviewData(): WaterWidgetSnapshot {
-  const couple = useCouple();
-  const today = dayKey();
-  const myMl = useHydrationStore((s) => selectTodayMl(s, today));
-  const myGoal = useHydrationStore((s) => s.goalMl);
-  const drinks = useHydrationStore((s) => s.drinks);
-  const sessions = useProfileStore((s) => s.sessions);
-  const { steps } = useStepsToday();
-  const mySteps = steps.status === 'ready' ? steps.steps : null;
-
-  return useMemo(() => {
-    const partner = couple.partner;
-    const name = partner?.displayName?.trim();
-    if (!couple.paired || !partner || !name) return SAMPLE_SNAPSHOT;
-    const reps = partnerRepsToday(partner, today);
-    return buildWaterWidgetSnapshot({
-      name,
-      day: today,
-      ml: partnerWaterToday(partner, today) ?? 0,
-      goalMl: partnerGoalToday(partner, today),
-      layers: partnerLayersToday(partner, today),
-      last: partnerLastDrinkToday(partner, today),
-      steps: partnerStepsToday(partner, today),
-      reps: reps.reps,
-      topExercise: reps.topEx,
-      trainedAt: reps.trainedAt,
-      me: {
-        ml: myMl,
-        steps: mySteps,
-        reps: repsOnDay(sessions, today).reps,
-        goalMl: myGoal,
-        layers: drinkLayers(drinks.filter((d) => d.day === today)).map((l) => ({ k: l.kind, ml: l.ml })),
-      },
-    });
-  }, [couple.paired, couple.partner, today, myMl, myGoal, drinks, sessions, mySteps]);
 }
 
 /**

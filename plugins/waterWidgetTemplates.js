@@ -351,6 +351,8 @@ class WaterWidgetProvider : AppWidgetProvider() {
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(ComponentName(context, WaterWidgetProvider::class.java))
             ids.forEach { render(context, manager, it) }
+            // The glance reads the same payload; keep it in step.
+            GlanceWidgetProvider.refresh(context)
         }
 
         private fun fraction(snap: JSONObject?, key: String): Float =
@@ -1187,6 +1189,68 @@ object SceneArt {
 
         // Their reaction, in a bubble over my bear.
         if (reaction.isNotBlank()) bubble(c, reaction, rightX - bw * 0.62f, feet - bh - 2f * u, u)
+        return bmp
+    }
+
+    /**
+     * The glance: the two bears side by side on a small island, on the same
+     * surface as the scene, with a little flag between them leaning toward
+     * whoever has drunk more. Sized to the 2 x 2 widget.
+     */
+    fun drawGlance(
+        density: Float,
+        wDp: Int,
+        hDp: Int,
+        hour: Float,
+        now: Long,
+        them: Bear,
+        me: Bear,
+        share: Float,
+        streak: Int,
+        surface: String,
+        season: String
+    ): Bitmap {
+        val scale = min(density, 1.5f)
+        val w = (wDp * scale).roundToInt().coerceIn(160, 480)
+        val h = (hDp * scale).roundToInt().coerceIn(160, 480)
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        val W = w.toFloat()
+        val H = h.toFloat()
+        val u = scale
+        val sky = skyFor(hour)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        when (surface) {
+            "glass" -> glassPane(c, paint, sky, W, H, u)
+            "sky" -> {
+                val radius = 22f * u
+                c.clipPath(Path().apply { addRoundRect(RectF(0f, 0f, W, H), radius, radius, Path.Direction.CW) })
+                paint.shader = LinearGradient(0f, 0f, 0f, H, sky.top, sky.bottom, Shader.TileMode.CLAMP)
+                c.drawRect(0f, 0f, W, H, paint)
+                paint.shader = null
+            }
+        }
+        island(c, paint, seasonGrass(season, isNight(hour)), W, H, u)
+
+        val bh = H * 0.42f
+        val bw = bh / 1.24f
+        val feet = H * 0.71f
+        bear(c, them, BearArt.THEIRS, W * 0.3f, feet, bw, bh, -(3f + 10f * max(0f, share - 0.5f)), now, streak, season)
+        bear(c, me, BearArt.MINE, W * 0.7f, feet, bw, bh, 3f + 10f * max(0f, 0.5f - share), now, streak, season)
+
+        // The flag between them, leaning toward whoever is ahead.
+        val fx = W * (0.5f - (share - 0.5f) * 0.3f)
+        val fy = feet - bh * 0.18f
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 1.6f * u
+        paint.color = 0xFF7C2D12.toInt()
+        c.drawLine(fx, fy, fx, fy - 16f * u, paint)
+        paint.style = Paint.Style.FILL
+        paint.color = 0xFFEF4444.toInt()
+        val dir = if (share > 0.5f) -1f else 1f
+        c.drawPath(Path().apply {
+            moveTo(fx, fy - 16f * u); lineTo(fx + dir * 10f * u, fy - 12.5f * u); lineTo(fx, fy - 9f * u); close()
+        }, paint)
         return bmp
     }
 
@@ -3185,6 +3249,10 @@ const WATER_STRINGS = {
   pd_partner: 'Partner',
   pd_drink: '💧 +250',
   pd_you: 'You',
+  glance_label: 'Bear glance',
+  glance_description: 'Your bear and theirs, side by side — a small window on today’s water.',
+  glance_scene: 'Your bear and your partner’s, side by side',
+  glance_drink: 'Log 250 ml',
   ps_splash: '💦',
   ps_splash_label: 'Splash your partner',
   ps_react_label: 'React to your partner',
@@ -3240,7 +3308,253 @@ const OBSOLETE_RESOURCES = [
   ...Array.from({ length: 10 }, (_, i) => `drawable/water_bubble_low_${i}.xml`),
 ];
 
+/* ---------- The glance: a 2 x 2 companion ---------- */
+
+const GLANCE_PROVIDER_KT = (pkg) => `package ${pkg}
+
+import android.app.PendingIntent
+import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProvider
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.graphics.Color
+import android.net.Uri
+import android.os.Bundle
+import android.view.View
+import android.widget.RemoteViews
+import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+/**
+ * Bear glance: the two bears side by side in a 2 x 2 — the same payload as
+ * the scene (it is refreshed with it), on the same surface, with both
+ * amounts, the streak and a button to drink.
+ */
+class GlanceWidgetProvider : AppWidgetProvider() {
+
+    override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
+        ids.forEach { render(context, manager, it) }
+    }
+
+    override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, id: Int, options: Bundle) {
+        render(context, manager, id)
+    }
+
+    companion object {
+        fun refresh(context: Context) {
+            val manager = AppWidgetManager.getInstance(context)
+            val ids = manager.getAppWidgetIds(ComponentName(context, GlanceWidgetProvider::class.java))
+            ids.forEach { render(context, manager, it) }
+        }
+
+        private fun layersOf(snap: JSONObject?, key: String): List<Pair<Int, Float>> {
+            val out = ArrayList<Pair<Int, Float>>()
+            val arr = snap?.optJSONArray(key) ?: return out
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                val color = try { Color.parseColor(o.optString("c")) } catch (e: Exception) { continue }
+                out.add(color to o.optDouble("t", 0.0).toFloat().coerceIn(0f, 1f))
+            }
+            return out
+        }
+
+        fun render(context: Context, manager: AppWidgetManager, id: Int) {
+            val views = RemoteViews(context.packageName, R.layout.glance_widget)
+            val raw = context.getSharedPreferences("repchamp.widget", Context.MODE_PRIVATE)
+                .getString(WaterWidgetProvider.KEY, null)
+            val stored = try { if (raw.isNullOrBlank()) null else JSONObject(raw) } catch (e: Exception) { null }
+            val now = System.currentTimeMillis()
+            val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(now))
+            val snap = if (stored != null && stored.optString("day") == today) stored else null
+            val hasMe = snap?.optBoolean("hasMe", false) ?: false
+
+            val name = stored?.optString("name")?.takeIf { it.isNotBlank() }
+            views.setTextViewText(R.id.g_title, (name ?: context.getString(R.string.pd_partner)) + " & you")
+            views.setTextViewText(R.id.g_them, snap?.optString("amount") ?: "0 ml")
+            views.setTextViewText(R.id.g_me, if (hasMe) snap?.optString("meWater") ?: "—" else "—")
+            val streak = if (hasMe) snap?.optInt("streak", 0) ?: 0 else 0
+            views.setViewVisibility(R.id.g_streak, if (streak > 0) View.VISIBLE else View.GONE)
+            views.setTextViewText(R.id.g_streak, "🔥 " + streak)
+
+            val a = snap?.optLong("waterMl", 0L) ?: 0L
+            val b = if (hasMe) snap?.optLong("meWaterMl", 0L) ?: 0L else 0L
+            val share = if (a + b > 0L) a.toFloat() / (a + b).toFloat() else 0.5f
+            val cal = java.util.Calendar.getInstance()
+            val hour = cal.get(java.util.Calendar.HOUR_OF_DAY) + cal.get(java.util.Calendar.MINUTE) / 60f
+            val options = manager.getAppWidgetOptions(id)
+            val wDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0).takeIf { it > 0 } ?: 170
+            val hDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0).takeIf { it > 0 } ?: 170
+            views.setImageViewBitmap(
+                R.id.g_scene,
+                SceneArt.drawGlance(
+                    context.resources.displayMetrics.density, wDp, hDp, hour, now,
+                    SceneArt.Bear(
+                        (snap?.optDouble("pct", 0.0) ?: 0.0).toFloat().coerceIn(0f, 1f),
+                        layersOf(snap, "layers"), snap?.optBoolean("met", false) ?: false, "", "", a
+                    ),
+                    SceneArt.Bear(
+                        if (hasMe) (snap?.optDouble("mePct", 0.0) ?: 0.0).toFloat().coerceIn(0f, 1f) else 0f,
+                        if (hasMe) layersOf(snap, "meLayers") else emptyList(),
+                        hasMe && (snap?.optBoolean("meMet", false) ?: false), "", "", b
+                    ),
+                    share, streak,
+                    stored?.optString("surface", "glass") ?: "glass",
+                    stored?.optString("season", "summer") ?: "summer"
+                )
+            )
+
+            fun link(uri: String, code: Int) = PendingIntent.getActivity(
+                context, code,
+                Intent(Intent.ACTION_VIEW, Uri.parse(uri)).setPackage(context.packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.g_root, link("repchamp://couple/partner", 7310))
+            views.setOnClickPendingIntent(R.id.g_drink, link("repchamp://drink?ml=250", 7311))
+            manager.updateAppWidget(id, views)
+        }
+    }
+}
+`;
+
+const GLANCE_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/g_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/g_scene"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:contentDescription="@string/glance_scene"
+        android:src="@drawable/ps_preview" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="10dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/g_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Alex &amp; you"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:shadowColor="#80000000"
+                android:shadowRadius="4"
+                android:shadowDy="1" />
+
+            <TextView
+                android:id="@+id/g_streak"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp"
+                android:paddingTop="1dp"
+                android:paddingBottom="1dp"
+                android:background="@drawable/ps_glass"
+                android:text="🔥 3"
+                android:textColor="#FDE68A"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/g_them"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:text="1.4 L"
+                android:maxLines="1"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:shadowColor="#99000000"
+                android:shadowRadius="3"
+                android:shadowDy="1" />
+
+            <TextView
+                android:id="@+id/g_drink"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="9dp"
+                android:paddingEnd="9dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:background="@drawable/pd_drink_pill"
+                android:text="💧"
+                android:contentDescription="@string/glance_drink"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/g_me"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:text="1 L"
+                android:maxLines="1"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:shadowColor="#99000000"
+                android:shadowRadius="3"
+                android:shadowDy="1" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>
+`;
+
+const GLANCE_INFO_XML = `<?xml version="1.0" encoding="utf-8"?>
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/glance_widget"
+    android:previewLayout="@layout/glance_widget"
+    android:description="@string/glance_description"
+    android:minWidth="110dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="110dp"
+    android:maxResizeWidth="260dp"
+    android:maxResizeHeight="260dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="2"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:updatePeriodMillis="1800000" />
+`;
+
 module.exports = {
+  GLANCE_PROVIDER_KT,
+  GLANCE_LAYOUT_XML,
+  GLANCE_INFO_XML,
   WATER_PROVIDER_KT,
   MESSAGING_KT,
   WATER_LAYOUT_XML,

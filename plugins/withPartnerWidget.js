@@ -67,6 +67,15 @@ const WIDGETS = [
     info: 'water_widget_info',
     label: 'water_widget_label',
   },
+  {
+    /* The 2 x 2 companion: reads the same payload as the scene. */
+    id: 'glance',
+    className: 'GlanceWidgetProvider',
+    prefsKey: 'repchamp.widget.water.v1',
+    layout: 'glance_widget',
+    info: 'glance_widget_info',
+    label: 'glance_label',
+  },
 ];
 
 /** The first widget, still referenced by the single-widget templates below. */
@@ -260,6 +269,8 @@ ${KEY_CASES}
             intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
             ctx.sendBroadcast(intent)
         }
+        // The glance shares the water payload.
+        if (widget == "water") GlanceWidgetProvider.refresh(ctx)
     }
 
     /**
@@ -736,6 +747,9 @@ WIDGETS[0].infoXml = INFO_XML;
 WIDGETS[1].provider = water.WATER_PROVIDER_KT;
 WIDGETS[1].layoutXml = water.WATER_LAYOUT_XML;
 WIDGETS[1].infoXml = water.WATER_INFO_XML;
+WIDGETS[2].provider = water.GLANCE_PROVIDER_KT;
+WIDGETS[2].layoutXml = water.GLANCE_LAYOUT_XML;
+WIDGETS[2].infoXml = water.GLANCE_INFO_XML;
 
 /** Registers the provider so the launcher offers it in the widget picker. */
 const withWidgetManifest = (config) =>

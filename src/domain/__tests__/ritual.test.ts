@@ -3,6 +3,9 @@ import {
   HABITS,
   cleanPlan,
   effectivePlan,
+  guideFor,
+  isGuided,
+  windDownDue,
   planHabits,
   POKE_FRESH_MS,
   WALK_GOAL,
@@ -229,5 +232,22 @@ describe('journey', () => {
     expect(journey(h, today).change).toBeNull();
     lastDays(today, 14).forEach((d, i) => (h[d] = { me: i < 7 ? 2 : 4, them: 3 }));
     expect(journey(h, today).change).toEqual({ from: 2, to: 4 });
+  });
+});
+
+describe('guided habits', () => {
+  it('guides breathe for five minutes and wind down for three', () => {
+    expect(guideFor('breathe').minutes).toBe(5);
+    expect(guideFor('rest').minutes).toBe(3);
+    expect(isGuided('rest')).toBe(true);
+    expect(isGuided('stretch')).toBe(false);
+  });
+
+  it('offers winding down only in the evening, and only while it is open', () => {
+    const open = ritualFor({ ml: 0, goalMl: 2000, steps: 0, reps: 0, ticks: [] });
+    const done = ritualFor({ ml: 0, goalMl: 2000, steps: 0, reps: 0, ticks: ['rest'] });
+    expect(windDownDue(open, 20)).toBe(false);
+    expect(windDownDue(open, 21.5)).toBe(true);
+    expect(windDownDue(done, 22)).toBe(false);
   });
 });

@@ -402,3 +402,31 @@ export function journey(history: Readonly<Record<string, RitualDay>>, today: str
     change: first != null && latest != null ? { from: Math.round(first * 10) / 10, to: Math.round(latest * 10) / 10 } : null,
   };
 }
+
+/* ------------------------------------------------------------------ *
+ * Guided habits
+ * ------------------------------------------------------------------ */
+
+/** Habits the app can walk you through, ticked when you finish. */
+export const GUIDED: readonly HabitId[] = ['breathe', 'rest'];
+
+export function isGuided(id: HabitId): boolean {
+  return GUIDED.includes(id);
+}
+
+export function guideFor(id: HabitId): { habit: HabitId; minutes: number; title: string; line: string } {
+  if (id === 'rest') {
+    return { habit: 'rest', minutes: 3, title: 'Wind down', line: 'Three slow minutes, then screens off for the night.' };
+  }
+  return { habit: 'breathe', minutes: 5, title: 'Breathe', line: 'Five quiet minutes. Follow the circle.' };
+}
+
+/**
+ * Evening: after 21:00, with wind-down or sleep in today's plan and not yet
+ * done, the screen offers to start winding down — never before, and never
+ * once it is ticked.
+ */
+export function windDownDue(mine: readonly HabitState[], hour: number): boolean {
+  if (hour < 21) return false;
+  return mine.some((s) => (s.habit.id === 'rest' || s.habit.id === 'sleep') && !s.done);
+}

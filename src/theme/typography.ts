@@ -48,11 +48,14 @@ export const text = StyleSheet.create({
     letterSpacing: 0.52,
     color: palette.ink,
   },
-  /** Small all-caps eyebrow — `font:800 11px`, +0.06em, muted. */
+  /**
+   * Small muted label above a group — sentence case, not tracked caps.
+   * Letter-spaced all-caps eyebrows on every group read as template; the
+   * label's job is to name the group quietly.
+   */
   eyebrow: {
-    fontFamily: fontFamily.extrabold,
-    fontSize: 11,
-    letterSpacing: 0.66,
+    fontFamily: fontFamily.semibold,
+    fontSize: 13,
     color: palette.grey600,
   },
   cardTitle: {

@@ -29,9 +29,9 @@ const RETICLE = 230;
 
 /** What a successful read says for a beat before routing on. */
 const FOUND_LABEL: Record<ScanTarget['kind'], string> = {
-  couple: '🫶 Partner invite',
-  duel: '⚔️ Duel invite',
-  friend: '👋 Friend code',
+  couple: 'Partner invite',
+  duel: 'Duel invite',
+  friend: 'Friend code',
 };
 
 /**

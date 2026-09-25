@@ -1,3 +1,5 @@
+import { Image } from 'expo-image';
+
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -15,6 +17,10 @@ import { useProfileStore } from '@/state/profileStore';
 import { showDialog } from '@/state/useDialog';
 import { font, text } from '@/theme/typography';
 import { gradients, palette, radius } from '@/theme/tokens';
+
+/* The drawn movement figures used on Home, instead of emoji. */
+const IC_PUSHUP = require('../../assets/ic-pushup.png');
+const IC_SQUAT = require('../../assets/ic-squat.png');
 
 const TINTS: Record<string, { background: string; color: string }> = {
   adrian: { background: palette.purple300, color: palette.purple900 },
@@ -213,14 +219,18 @@ export default function FriendProfileScreen() {
 
       {duels.length > 0 ? (
         <>
-          <Eyebrow style={{ marginBottom: 8 }}>RECENT DUELS</Eyebrow>
+          <Eyebrow style={{ marginBottom: 8 }}>Recent duels</Eyebrow>
           <Card style={{ padding: 8, marginBottom: 20 }}>
             {duels.slice(0, 5).map((duel, index) => (
               <View key={duel.id}>
                 {index > 0 ? <Divider style={{ marginHorizontal: 8 }} /> : null}
                 <View style={styles.duelRow}>
                   <View style={styles.duelIcon}>
-                    <Text style={{ fontSize: 16 }}>{duel.exercise === 'squat' ? '🦵' : '💪'}</Text>
+                    <Image
+                      source={duel.exercise === 'squat' ? IC_SQUAT : IC_PUSHUP}
+                      style={{ width: 28, height: 28 }}
+                      contentFit="contain"
+                    />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={font('extrabold', 13, { color: palette.ink })}>

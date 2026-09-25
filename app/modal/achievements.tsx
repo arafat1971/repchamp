@@ -41,7 +41,7 @@ export default function AchievementsScreen() {
 
       {earned.length > 0 ? (
         <>
-          <Eyebrow style={styles.eyebrow}>EARNED</Eyebrow>
+          <Eyebrow style={styles.eyebrow}>Earned</Eyebrow>
           <View style={{ gap: 8, marginBottom: 24 }}>
             {earned.map((a) => (
               <AchievementRow key={a.id} achievement={a} />
@@ -52,7 +52,7 @@ export default function AchievementsScreen() {
 
       {inProgress.length > 0 ? (
         <>
-          <Eyebrow style={styles.eyebrow}>IN PROGRESS</Eyebrow>
+          <Eyebrow style={styles.eyebrow}>In progress</Eyebrow>
           <View style={{ gap: 8 }}>
             {inProgress.map((a) => (
               <AchievementRow key={a.id} achievement={a} />

@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ModalHeader } from '@/components/ModalHeader';
+import { LockIcon } from '@/components/home/Icons';
 import { Avatar, Card, Divider, EmptyState, Screen } from '@/components/ui';
 import { buildLeaderboard, type LeaderboardRow } from '@/domain/leaderboard';
 import { usePhantomSeed } from '@/domain/seedPhantoms';
@@ -147,7 +148,6 @@ export default function LeaderboardScreen() {
         {rows.length === 0 ? (
           scope === 'friends' ? (
             <EmptyState
-              glyph="👥"
               title="No friends on the board yet"
               message="Add friends to see how you stack up against them each week."
               actionLabel="Add a friend"
@@ -155,7 +155,6 @@ export default function LeaderboardScreen() {
             />
           ) : (
             <EmptyState
-              glyph="🏁"
               title="No rankings yet"
               message="Finish a set to put yourself on the board."
             />
@@ -173,7 +172,7 @@ export default function LeaderboardScreen() {
       {hiddenFromGlobal ? (
         <Card style={styles.hiddenCard}>
           <View style={styles.lockIcon}>
-            <Text style={{ fontSize: 20 }}>🔒</Text>
+            <LockIcon size={20} color={palette.grey600} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={font('extrabold', 14, { color: palette.ink })}>

@@ -309,7 +309,7 @@ export default function AddFriendScreen() {
       {candidates ? (
         <>
           <Eyebrow style={{ marginTop: 24, marginBottom: 8 }}>
-            WHICH ONE?
+            Which one?
           </Eyebrow>
           <Text style={[text.caption, { marginBottom: 10 }]}>
             Several athletes use “{query}”. Their level and photo should tell
@@ -342,7 +342,7 @@ export default function AddFriendScreen() {
         </>
       ) : null}
 
-      <Eyebrow style={{ marginTop: 24, marginBottom: 8 }}>SUGGESTED FOR YOU</Eyebrow>
+      <Eyebrow style={{ marginTop: 24, marginBottom: 8 }}>Suggested for you</Eyebrow>
       <Card style={{ padding: 8 }}>
         {suggestionsList.length === 0 ? (
           <Text style={[text.caption, { padding: 16, textAlign: 'center' }]}>

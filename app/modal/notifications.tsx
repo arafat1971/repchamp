@@ -96,7 +96,7 @@ export default function NotificationsScreen() {
       ) : null}
 
       <StaggerIn index={1}>
-        <Eyebrow style={{ marginBottom: 8 }}>INVITES</Eyebrow>
+        <Eyebrow style={{ marginBottom: 8 }}>Invites</Eyebrow>
         {loading ? (
           <InviteSkeleton />
         ) : incoming.length > 0 ? (
@@ -183,7 +183,7 @@ export default function NotificationsScreen() {
       </StaggerIn>
 
       <StaggerIn index={2}>
-        <Eyebrow style={{ marginTop: 20, marginBottom: 8 }}>EARLIER</Eyebrow>
+        <Eyebrow style={{ marginTop: 20, marginBottom: 8 }}>Earlier</Eyebrow>
         <View style={{ gap: 8 }}>
           {lastSession ? (
           <NotificationRow

@@ -79,7 +79,7 @@ export default function HistoryScreen() {
       {days.map((entry) => (
         <View key={entry.day}>
           <View style={styles.dayHeader}>
-            <Eyebrow>{labelForDay(entry.day, today).toUpperCase()}</Eyebrow>
+            <Eyebrow>{labelForDay(entry.day, today)}</Eyebrow>
             <Text style={styles.dayTotal}>
               {entry.totalReps} {entry.totalReps === 1 ? 'rep' : 'reps'} · +{entry.totalXp} XP
             </Text>

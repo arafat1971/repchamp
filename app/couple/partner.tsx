@@ -29,6 +29,7 @@ import {
   effectivePlan,
   isHere,
   planHabits,
+  windDownDue,
   isNewPoke,
   ritualFor,
   ritualScore,
@@ -489,9 +490,30 @@ export default function PartnerDashboardScreen() {
         </Animated.View>
       ) : null}
 
+      {windDownDue(mineRitual, new Date(now).getHours() + new Date(now).getMinutes() / 60) ? (
+        <Animated.View entering={FadeInDown.duration(300)} style={styles.windWrap}>
+          <PressableScale
+            onPress={() => router.push({ pathname: '/modal/breathe', params: { habit: 'rest' } })}
+            accessibilityRole="button"
+            accessibilityLabel="Start winding down, three minutes"
+            style={styles.wind}
+          >
+            <View style={styles.windCopy}>
+              <Text style={styles.windTitle}>Wind down together</Text>
+              <Text style={styles.windSub}>
+                Three slow minutes, then screens off.{here ? ` ${partnerName} is here too.` : ''}
+              </Text>
+            </View>
+            <Text style={styles.windGo}>Start</Text>
+          </PressableScale>
+        </Animated.View>
+      ) : null}
+
       <Heading title="Today" aside={`${myScore + theirScore} of ${HABITS.length * 2} done`} />
       <View style={styles.block}>
-        <RitualCard mine={mineRitual} theirs={theirRitual} name={partnerName} onToggle={onToggle} onEdit={() => router.push('/modal/ritual-plan')} />
+        <RitualCard mine={mineRitual} theirs={theirRitual} name={partnerName} onToggle={onToggle} onEdit={() => router.push('/modal/ritual-plan')}
+          onGuide={(id) => router.push({ pathname: '/modal/breathe', params: { habit: id } })}
+        />
       </View>
 
       <Heading title="This week" aside={week7.perfectDays > 0 ? `${week7.perfectDays} perfect ${week7.perfectDays === 1 ? 'day' : 'days'}` : undefined} />
@@ -657,6 +679,12 @@ const styles = StyleSheet.create({
   pad: { padding: 18 },
   loading: { paddingVertical: 64, alignItems: 'center' },
   introWrap: { marginBottom: 18 },
+  windWrap: { marginTop: 14 },
+  wind: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 20, backgroundColor: '#1E1B4B' },
+  windCopy: { flex: 1 },
+  windTitle: font('bold', 16, { color: palette.white }),
+  windSub: { marginTop: 2, ...font('regular', 13, { color: 'rgba(255,255,255,0.75)' }) },
+  windGo: { ...font('semibold', 14, { color: '#1E1B4B' }), backgroundColor: palette.white, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16, overflow: 'hidden' },
   intro: { padding: 18 },
   introTitle: { ...font('extrabold', 17, { color: palette.ink }), marginBottom: 10 },
   introRow: { flexDirection: 'row', gap: 12, marginBottom: 10 },

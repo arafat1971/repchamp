@@ -39,17 +39,16 @@ import { palette, radius, shadow } from '@/theme/tokens';
 
 interface ToggleRow {
   key: SettingsToggle;
-  emoji: string;
   title: string;
   subtitle: string;
 }
 
 const WORKOUT_TOGGLES: ToggleRow[] = [
-  { key: 'sound', emoji: '🔊', title: 'Rep sounds', subtitle: 'Beep on every counted rep' },
-  { key: 'haptics', emoji: '📳', title: 'Haptics', subtitle: 'Vibrate on rep & duel events' },
+  { key: 'sound', title: 'Rep sounds', subtitle: 'Beep on every counted rep' },
+  { key: 'haptics', title: 'Haptics', subtitle: 'Vibrate on rep & duel events' },
   {
     key: 'voiceCoach',
-    emoji: '🗣️',
+   
     title: 'Voice coach',
     subtitle: 'Spoken form cues while you train',
   },
@@ -57,34 +56,34 @@ const WORKOUT_TOGGLES: ToggleRow[] = [
 
 const STEP_COUNTING_ROW: ToggleRow = {
   key: 'stepCounting',
-  emoji: '👟',
+ 
   title: 'Background step counting',
   subtitle: 'Keeps a quiet notification so your daily total is complete',
 };
 
 const PRIVACY_TOGGLES: ToggleRow[] = [
-  { key: 'duelInvites', emoji: '🔔', title: 'Duel invites', subtitle: 'Get notified when challenged' },
+  { key: 'duelInvites', title: 'Duel invites', subtitle: 'Get notified when challenged' },
   {
     key: 'dailyReminder',
-    emoji: '⏰',
+   
     title: 'Daily reminders',
     subtitle: 'One evening nudge if you haven’t trained',
   },
   {
     key: 'hydrationReminder',
-    emoji: '💧',
+   
     title: 'Water reminders',
     subtitle: 'Up to two a day, only when you’re behind',
   },
   {
     key: 'ritualReminder',
-    emoji: '✨',
+   
     title: 'Ritual reminder',
     subtitle: 'One evening nudge with what’s left of your routine',
   },
   {
     key: 'privateProfile',
-    emoji: '🔒',
+   
     title: 'Private profile',
     subtitle: 'Hide from the global leaderboard',
   },
@@ -322,10 +321,9 @@ export default function SettingsScreen() {
         <View key={row.key}>
           {index > 0 ? <Divider /> : null}
           <View style={styles.row}>
-            <Text style={{ fontSize: 18 }}>{row.emoji}</Text>
             <View style={{ flex: 1 }}>
-              <Text style={font('extrabold', 14, { color: palette.ink })}>{row.title}</Text>
-              <Text style={font('semibold', 10, { color: palette.grey600 })}>{row.subtitle}</Text>
+              <Text style={font('semibold', 15, { color: palette.ink })}>{row.title}</Text>
+              <Text style={font('regular', 12.5, { color: palette.grey600, marginTop: 1 })}>{row.subtitle}</Text>
             </View>
             <Toggle
               value={settings[row.key]}
@@ -392,10 +390,10 @@ export default function SettingsScreen() {
     <Screen>
       <ModalHeader title="Settings" />
 
-      <Eyebrow style={styles.eyebrow}>DURING WORKOUTS</Eyebrow>
+      <Eyebrow style={styles.eyebrow}>During workouts</Eyebrow>
       {renderGroup(WORKOUT_TOGGLES)}
 
-      <Eyebrow style={styles.eyebrow}>NOTIFICATIONS &amp; PRIVACY</Eyebrow>
+      <Eyebrow style={styles.eyebrow}>Notifications &amp; privacy</Eyebrow>
       {renderGroup(
         /* Android only: iOS counts steps without a background service, so the
            switch would control nothing there. */
@@ -404,13 +402,12 @@ export default function SettingsScreen() {
 
       {cloudConfigured ? (
         <>
-          <Eyebrow style={styles.eyebrow}>ACCOUNT</Eyebrow>
+          <Eyebrow style={styles.eyebrow}>Account</Eyebrow>
           <Card style={styles.group}>
             <View style={styles.row}>
-              <Text style={{ fontSize: 18 }}>☁️</Text>
               <View style={{ flex: 1 }}>
-                <Text style={font('extrabold', 14, { color: palette.ink })}>Cloud sync</Text>
-                <Text style={font('semibold', 10, { color: palette.grey600 })}>
+                <Text style={font('semibold', 15, { color: palette.ink })}>Cloud sync</Text>
+                <Text style={font('regular', 12.5, { color: palette.grey600, marginTop: 1 })}>
                   {SYNC_LABEL[syncStatus]}
                 </Text>
               </View>
@@ -430,10 +427,9 @@ export default function SettingsScreen() {
           than no entry point. */}
       {isWidgetSupported() ? (
         <>
-          <Eyebrow style={styles.eyebrow}>HOME SCREEN</Eyebrow>
+          <Eyebrow style={styles.eyebrow}>Home screen</Eyebrow>
           <Card style={styles.group}>
             <LinkRow
-              emoji="📲"
               label="Widget studio"
               onPress={() => router.push('/modal/widget')}
             />
@@ -441,16 +437,14 @@ export default function SettingsScreen() {
         </>
       ) : null}
 
-      <Eyebrow style={styles.eyebrow}>YOUR DATA</Eyebrow>
+      <Eyebrow style={styles.eyebrow}>Your data</Eyebrow>
       <Card style={styles.group}>
         <LinkRow
-          emoji="📄"
           label="Privacy Policy & Terms"
           onPress={() => router.push('/modal/legal')}
         />
         <Divider />
         <LinkRow
-          emoji="🚫"
           label="Blocked users"
           onPress={() => router.push('/modal/blocked')}
         />
@@ -458,7 +452,6 @@ export default function SettingsScreen() {
           <>
             <Divider />
             <LinkRow
-              emoji="♻️"
               label={busy === 'restore' ? 'Restoring…' : 'Restore purchases'}
               onPress={onRestore}
             />
@@ -468,13 +461,11 @@ export default function SettingsScreen() {
           <>
             <Divider />
             <LinkRow
-              emoji="📤"
               label={busy === 'export' ? 'Preparing your data…' : 'Export my data'}
               onPress={() => void exportData()}
             />
             <Divider />
             <LinkRow
-              emoji="🗑️"
               label={busy === 'delete' ? 'Deleting…' : 'Delete my account'}
               onPress={confirmDelete}
               destructive
@@ -485,7 +476,6 @@ export default function SettingsScreen() {
 
       <Card style={styles.group}>
         <LinkRow
-          emoji="🔁"
           label="Replay intro"
           onPress={() => router.replace('/onboarding')}
         />
@@ -502,18 +492,16 @@ export default function SettingsScreen() {
         </Text>
       </PressableScale>
 
-      <Text style={styles.version}>RepChamp v2.0 · Made for champions</Text>
+      <Text style={styles.version}>RepChamp v2.0</Text>
     </Screen>
   );
 }
 
 function LinkRow({
-  emoji,
   label,
   onPress,
   destructive = false,
 }: {
-  emoji: string;
   label: string;
   onPress: () => void;
   destructive?: boolean;
@@ -525,10 +513,9 @@ function LinkRow({
       accessibilityLabel={label}
       style={styles.row}
     >
-      <Text style={{ fontSize: 18 }}>{emoji}</Text>
       <Text
         style={[
-          font('extrabold', 14, { color: destructive ? palette.red500 : palette.ink }),
+          font('semibold', 15, { color: destructive ? palette.red500 : palette.ink }),
           { flex: 1 },
         ]}
       >

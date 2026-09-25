@@ -94,19 +94,16 @@ export default function MobilityScreen() {
 
       <View style={styles.modes}>
         <PressableScale onPress={() => go('versus')} accessibilityRole="button" accessibilityLabel="Duel mode" style={[styles.modeCard, styles.modeDuel]}>
-          <Text style={{ fontSize: 22 }}>⚔️</Text>
           <Text style={font('extrabold', 14, { color: palette.white })}>Duel</Text>
           <Text style={font('semibold', 11, { color: 'rgba(255,255,255,0.85)' })}>vs opponent</Text>
         </PressableScale>
 
         <PressableScale onPress={() => go('solo')} accessibilityRole="button" accessibilityLabel="Solo challenge" style={[styles.modeCard, styles.modeSolo]}>
-          <Text style={{ fontSize: 22 }}>🎯</Text>
           <Text style={font('extrabold', 14, { color: palette.white })}>Solo</Text>
           <Text style={font('semibold', 11, { color: 'rgba(255,255,255,0.85)' })}>beat {activity.target} reps</Text>
         </PressableScale>
 
         <PressableScale onPress={() => go('practice')} accessibilityRole="button" accessibilityLabel="Practice mode" style={[styles.modeCard, styles.modePractice]}>
-          <Text style={{ fontSize: 22 }}>💪</Text>
           <Text style={font('extrabold', 14, { color: palette.ink })}>Practice</Text>
           <Text style={font('semibold', 11, { color: palette.grey600 })}>no pressure</Text>
         </PressableScale>
@@ -146,8 +143,8 @@ function TimedFlow({ activity, onDone }: { activity: TimedActivity; onDone: () =
 
       <LinearGradient colors={gradients.info} style={[styles.timerHero, shadow.info]}>
         <Text style={styles.heroEmoji}>{activity.emoji}</Text>
-        <Text style={styles.timerValue}>{done ? 'Done! 🎉' : fmt(remaining)}</Text>
-        <Text style={styles.timerLabel}>{done ? 'Great work' : started ? 'remaining' : 'total time'}</Text>
+        <Text style={styles.timerValue}>{done ? 'Done' : fmt(remaining)}</Text>
+        <Text style={styles.timerLabel}>{done ? 'Nice and loose' : started ? 'remaining' : 'total time'}</Text>
         <View style={styles.track}>
           <View style={[styles.fill, { width: `${percent}%` as any }]} />
         </View>

@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { ModalHeader } from '@/components/ModalHeader';
+import { FlameIcon } from '@/components/home/Icons';
 import { Badge, Card, Chevron, Eyebrow, PressableScale, Screen } from '@/components/ui';
 import { selectStreak, useProfileStore } from '@/state/profileStore';
 import { reservedControlHeight } from '@/theme/fontScale';
@@ -25,23 +26,22 @@ export default function RestDayScreen() {
       <ModalHeader title="Rest Day" />
 
       <LinearGradient colors={gradients.info} style={[styles.hero, shadow.info]}>
-        <Text style={styles.heroWatermark}>🧘</Text>
         <View style={styles.heroChip}>
-          <Text style={font('extrabold', 10, { color: palette.white })}>
-            🔥 STREAK SAFE TODAY
+          <Text style={font('semibold', 12, { color: palette.white })}>
+            Streak safe today
           </Text>
         </View>
         <Text style={font('extrabold', 27, { color: palette.white, marginTop: 12 })}>
           Take the day to recover
         </Text>
         <Text style={styles.heroCopy}>
-          A light day now means bigger gains next session — and your streak stays alive.
+          Rest helps the next session, and a rest day doesn’t break your streak.
         </Text>
       </LinearGradient>
 
       <Card style={styles.streakCard}>
         <View style={styles.streakIcon}>
-          <Text style={{ fontSize: 22 }}>🔥</Text>
+          <FlameIcon size={20} color={palette.amber800} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={text.cardTitle}>
@@ -52,7 +52,7 @@ export default function RestDayScreen() {
         <Badge label="Active" />
       </Card>
 
-      <Eyebrow style={{ marginBottom: 8 }}>OPTIONAL LIGHT MOBILITY</Eyebrow>
+      <Eyebrow style={{ marginBottom: 8 }}>Optional light mobility</Eyebrow>
       <View style={{ gap: 8 }}>
         {MOBILITY.map((item) => (
           <PressableScale

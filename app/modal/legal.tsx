@@ -39,7 +39,7 @@ export default function LegalScreen() {
         </Text>
       </PressableScale>
 
-      <Eyebrow style={styles.eyebrow}>PRIVACY POLICY</Eyebrow>
+      <Eyebrow style={styles.eyebrow}>Privacy policy</Eyebrow>
       <Card style={styles.card}>
         <Para>
           Fitness Duel: RepChamp counts your reps and checks your form using
@@ -99,7 +99,7 @@ export default function LegalScreen() {
         </Section>
       </Card>
 
-      <Eyebrow style={styles.eyebrow}>TERMS OF USE</Eyebrow>
+      <Eyebrow style={styles.eyebrow}>Terms of use</Eyebrow>
       <Card style={styles.card}>
         <Section title="Fitness disclaimer">
           <Para>

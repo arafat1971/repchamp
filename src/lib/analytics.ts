@@ -59,6 +59,7 @@ export interface AnalyticsEvents {
   couple_poke: { emoji: string; here: boolean };
   ritual_perfect_day: Record<string, never>;
   ritual_plan_saved: { picks: string; walkGoal: number };
+  ritual_guide_done: { habit: string };
   qr_scanned: { kind: 'couple' | 'duel' | 'friend' };
 
   /** Mirrors `couple_paired` so both invite surfaces are measured the same way. */

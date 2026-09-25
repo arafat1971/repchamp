@@ -4,7 +4,7 @@ import Svg, { Circle } from 'react-native-svg';
 
 import { Card, PressableScale } from '@/components/ui';
 import { HabitIcon } from '@/components/together/HabitIcon';
-import { ritualLine, type HabitId, type HabitState } from '@/domain/ritual';
+import { guideFor, isGuided, ritualLine, type HabitId, type HabitState } from '@/domain/ritual';
 import { font } from '@/theme/typography';
 import { palette } from '@/theme/tokens';
 
@@ -22,6 +22,7 @@ export function RitualCard({
   name,
   onToggle,
   onEdit,
+  onGuide,
 }: {
   mine: readonly HabitState[];
   theirs: readonly HabitState[];
@@ -29,6 +30,8 @@ export function RitualCard({
   onToggle: (id: HabitId) => void;
   /** Open the plan: choose the three ticked habits and the walk goal. */
   onEdit?: () => void;
+  /** Start a guided habit (breathe, wind down); finishing it ticks it. */
+  onGuide?: (id: HabitId) => void;
 }) {
   const total = mine.length;
   const myScore = mine.filter((s) => s.done).length;
@@ -59,6 +62,16 @@ export function RitualCard({
               <Text style={styles.hint} numberOfLines={1}>
                 {m.habit.hint}
               </Text>
+              {onGuide && isGuided(m.habit.id) && !m.done ? (
+                <PressableScale
+                  onPress={() => onGuide(m.habit.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Start ${m.habit.label}, ${guideFor(m.habit.id).minutes} minutes`}
+                  style={styles.start}
+                >
+                  <Text style={styles.startText}>Start · {guideFor(m.habit.id).minutes} min</Text>
+                </PressableScale>
+              ) : null}
             </View>
             <PressableScale
               onPress={() => m.tickable && onToggle(m.habit.id)}
@@ -176,4 +189,6 @@ const styles = StyleSheet.create({
   unknown: font('semibold', 16, { color: palette.grey500 }),
   edit: { marginTop: 6, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.divider, alignItems: 'center' },
   editText: font('semibold', 14, { color: palette.slate500 }),
+  start: { alignSelf: 'flex-start', marginTop: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: palette.ink },
+  startText: font('semibold', 12, { color: palette.white }),
 });

@@ -162,7 +162,7 @@ export default function OpponentPickerScreen() {
         <Text style={{ color: palette.slate500, fontSize: 20 }}>›</Text>
       </PressableScale>
 
-      <Eyebrow style={{ marginTop: 20, marginBottom: 8 }}>CHALLENGE A FRIEND</Eyebrow>
+      <Eyebrow style={{ marginTop: 20, marginBottom: 8 }}>Challenge a friend</Eyebrow>
       <View style={{ gap: 8 }}>
         {allOpponents.map((opponent) => {
           const tint = TINTS[opponent.id] ?? {

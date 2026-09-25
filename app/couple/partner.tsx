@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeInDown, FadeInUp, FadeOutUp } from 'react-native-reanimated';
 
 import { ModalHeader } from '@/components/ModalHeader';
@@ -94,7 +94,7 @@ import { palette } from '@/theme/tokens';
  */
 export default function PartnerDashboardScreen() {
   const router = useRouter();
-  const { couple, paired, partner } = useCouple();
+  const { couple, paired, partner, loading } = useCouple();
   const uid = useAuthStore((s) => s.user?.uid ?? null);
   const displayName = useProfileStore((s) => s.displayName);
   const sessions = useProfileStore((s) => s.sessions);
@@ -322,6 +322,19 @@ export default function PartnerDashboardScreen() {
     void syncHydrationNow(couple?.id, uid);
   }, [couple?.id, uid]);
 
+  /* Still reading the pairing: a quiet placeholder, never a flash of the
+     "pair up" pitch at someone who is already paired. */
+  if (loading && !paired) {
+    return (
+      <Screen>
+        <ModalHeader title="Today, together" />
+        <View style={styles.loading}>
+          <ActivityIndicator color={palette.slate500} />
+        </View>
+      </Screen>
+    );
+  }
+
   if (!paired || !partner || !couple) {
     return (
       <Screen>
@@ -345,6 +358,9 @@ export default function PartnerDashboardScreen() {
   }
 
   const rivalry = rivalryWith(sessions, partner.uid);
+  /* The snapshot hook falls back to a sample pair until its own read of the
+     couple lands; only draw its jars once it is about this partner, today. */
+  const snapReal = snap.day === today && snap.name === partnerName;
   const stageWidth = Math.min(width - 40, 420);
 
   const toggle = (key: SharedMetricKey, on: boolean) => {
@@ -417,17 +433,17 @@ export default function PartnerDashboardScreen() {
           onReplay={celebrate}
           them={{
             name: partnerName,
-            pct: snap.pct,
-            met: snap.met,
-            layers: bearLayers(snap.layers),
+            pct: snapReal ? snap.pct : 0,
+            met: snapReal && snap.met,
+            layers: snapReal ? bearLayers(snap.layers) : [],
             amount: theirWaterShown == null ? '—' : formatMl(theirWaterShown),
             score: theirScore,
           }}
           me={{
             name: myName,
-            pct: snap.hasMe ? snap.mePct : 0,
-            met: snap.hasMe && snap.meMet,
-            layers: snap.hasMe ? bearLayers(snap.meLayers) : [],
+            pct: snapReal && snap.hasMe ? snap.mePct : 0,
+            met: snapReal && snap.hasMe && snap.meMet,
+            layers: snapReal && snap.hasMe ? bearLayers(snap.meLayers) : [],
             amount: formatMl(myWater),
             score: myScore,
           }}
@@ -451,7 +467,7 @@ export default function PartnerDashboardScreen() {
 
       <Heading title="This week" aside={week7.perfectDays > 0 ? `${week7.perfectDays} perfect ${week7.perfectDays === 1 ? 'day' : 'days'}` : undefined} />
       <View style={styles.block}>
-        <RitualWeekCard week={week7} total={HABITS.length} name={partnerName} streak={snap.streak} />
+        <RitualWeekCard week={week7} total={HABITS.length} name={partnerName} streak={snapReal ? snap.streak : 0} />
       </View>
 
       <Heading title="Moments" />
@@ -610,6 +626,7 @@ function ShareRow({
 
 const styles = StyleSheet.create({
   pad: { padding: 18 },
+  loading: { paddingVertical: 64, alignItems: 'center' },
   block: { marginBottom: 8 },
 
   pills: { flexDirection: 'row', gap: 10, marginTop: 12 },

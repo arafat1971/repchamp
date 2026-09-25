@@ -588,7 +588,9 @@ function ThemeTile({ theme, selected, onPress }: { theme: WidgetTheme; selected:
           <View style={[styles.dot, { backgroundColor: '#32ADE6' }]} />
         </View>
       </View>
-      <Text style={[styles.tileLabel, selected && styles.tileLabelOn]}>{THEME_LABEL[theme]}</Text>
+      <Text style={[styles.tileLabel, selected && styles.tileLabelOn]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+        {THEME_LABEL[theme]}
+      </Text>
     </PressableScale>
   );
 }

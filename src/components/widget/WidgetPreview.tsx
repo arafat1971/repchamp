@@ -269,9 +269,9 @@ function mixHex(a: string, b: string, t: number): string {
  */
 function GlassPane() {
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(20,27,45,0.38)' }]} pointerEvents="none">
       <Backdrop
-        colors={['rgba(255,255,255,0.30)', 'rgba(255,255,255,0.10)', 'rgba(255,255,255,0.16)']}
+        colors={['rgba(255,255,255,0.28)', 'rgba(255,255,255,0.07)', 'rgba(255,255,255,0.13)']}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
         style={StyleSheet.absoluteFill}

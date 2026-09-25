@@ -1588,12 +1588,16 @@ object SceneArt {
         val rect = RectF(0.75f * u, 0.75f * u, W - 0.75f * u, H - 0.75f * u)
         val pane = Path().apply { addRoundRect(rect, radius, radius, Path.Direction.CW) }
 
-        // The body: a whisper of the sky's colour, then light, top to bottom.
-        paint.color = Color.argb(46, Color.red(sky.bottom), Color.green(sky.bottom), Color.blue(sky.bottom))
+        /* The body: smoky frost first — it quiets a busy wallpaper and gives
+           white text its contrast — then a whisper of the sky's colour, then
+           light, top to bottom. */
+        paint.color = 0x61141B2D
+        c.drawPath(pane, paint)
+        paint.color = Color.argb(56, Color.red(sky.bottom), Color.green(sky.bottom), Color.blue(sky.bottom))
         c.drawPath(pane, paint)
         paint.shader = LinearGradient(
             0f, 0f, 0f, H,
-            intArrayOf(0x52FFFFFF, 0x1AFFFFFF, 0x26FFFFFF),
+            intArrayOf(0x47FFFFFF, 0x12FFFFFF, 0x21FFFFFF),
             floatArrayOf(0f, 0.55f, 1f),
             Shader.TileMode.CLAMP
         )

@@ -20,6 +20,7 @@ import {
   coupleExerciseInsight,
   myExerciseBreakdown,
 } from '@/domain/coupleExercises';
+import { pluralise } from '@/domain/plural';
 import { dayKey, lastNDayKeys, weekdayLetter } from '@/domain/progression';
 import { getExercise } from '@/vision/exercises';
 import { useCouple } from '@/state/useCouple';
@@ -233,7 +234,7 @@ export default function CoupleTrackerScreen() {
             <View style={styles.figureRule} />
             <Figure value={String(summary.bothDays)} label="shared days" />
             <View style={styles.figureRule} />
-            <Figure value={`${consistencyPct}%`} label={`of ${WINDOW_DAYS} days`} />
+            <Figure value={`${consistencyPct}%`} label={`of ${pluralise(WINDOW_DAYS, 'day')}`} />
           </View>
           <PressableScale
             onPress={() => {

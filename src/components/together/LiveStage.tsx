@@ -239,7 +239,7 @@ function Plate({ x, y, name, amount, score, total }: { x: number; y: number; nam
         {name}
       </Text>
       <Text style={styles.plateSub} numberOfLines={1}>
-        {amount} · {score} of {total}
+        {amount === '—' ? `${score} of ${total}` : `${amount} · ${score} of ${total}`}
       </Text>
     </View>
   );
@@ -315,16 +315,18 @@ const styles = StyleSheet.create({
   fly: { position: 'absolute', left: 0, top: 0, fontSize: 30 },
   tray: {
     position: 'absolute',
-    bottom: 10,
-    left: 12,
-    right: 12,
+    bottom: 12,
+    left: 16,
+    right: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(15,23,42,0.35)',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.28)',
     borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 2,
   },
-  trayBtn: { width: 40, height: 36, alignItems: 'center', justifyContent: 'center' },
-  trayEmoji: { fontSize: 22 },
+  trayBtn: { width: 38, height: 34, alignItems: 'center', justifyContent: 'center' },
+  trayEmoji: { fontSize: 19 },
 });

@@ -25,10 +25,19 @@ import { DEFAULT_STEP_GOAL, formatSteps } from '@/domain/steps';
 export const REPS_RING_GOAL = 100;
 
 /** The widget's looks, chosen on this phone. */
-export const WIDGET_THEMES = ['auto', 'light', 'dark', 'ocean'] as const;
+export const WIDGET_THEMES = ['sunset', 'ocean', 'dark', 'light', 'auto'] as const;
 export type WidgetTheme = (typeof WIDGET_THEMES)[number];
 
+/**
+ * The widget's layouts: "duo" puts both bears face to face with a
+ * tug-of-war per metric and a quick-drink button; "rings" is the partner's
+ * day as activity rings around their bear.
+ */
+export const WIDGET_LAYOUTS = ['duo', 'rings'] as const;
+export type WidgetLayout = (typeof WIDGET_LAYOUTS)[number];
+
 export interface WidgetStyle {
+  layout: WidgetLayout;
   /** Card colours: follow the system, or pin one. */
   theme: WidgetTheme;
   /** Show the steps ring and row. */
@@ -42,7 +51,8 @@ export interface WidgetStyle {
 }
 
 export const DEFAULT_WIDGET_STYLE: WidgetStyle = {
-  theme: 'auto',
+  layout: 'duo',
+  theme: 'sunset',
   showSteps: true,
   showReps: true,
   showMine: true,
@@ -55,8 +65,10 @@ export const WATER_WIDGET_LIVE_MS = 15 * 60 * 1000;
 export interface WaterWidgetSnapshot {
   /** Whose day this is, trimmed and fallback-applied. */
   name: string;
-  /** The eyebrow, "nkll · Today" — the widget only upper-cases it. */
+  /** The rings layout's title, "nkll · Today". */
   title: string;
+  /** The duo layout's title, "nkll vs you". */
+  vs: string;
   /** `YYYY-MM-DD` the numbers belong to; the widget empties itself on another day. */
   day: string;
 
@@ -106,10 +118,33 @@ export interface WaterWidgetSnapshot {
   meSteps: string;
   meReps: string;
 
+  /* The duo: raw numbers so the native side can draw the tug-of-war and
+     crown the leader itself — a partner's push replaces their numbers, and
+     the comparison must follow at once rather than wait for this app. */
+  /** Their water today, ml. */
+  waterMl: number;
+  /** Their steps, or -1 when not shared. */
+  stepsN: number;
+  /** Their reps today. */
+  repsN: number;
+  /** Whether the me* fields are real — false on a partner-built copy. */
+  hasMe: boolean;
+  meWaterMl: number;
+  /** My steps, or -1 when unknown. */
+  meStepsN: number;
+  meRepsN: number;
+  /** My bear: fill, goal reached, and drink bands, as for theirs. */
+  mePct: number;
+  meMet: boolean;
+  meLayers: { c: string; t: number }[];
+  /** The rivalry line under the bears — who leads, and a reason to act. */
+  duel: string;
+
   /* The look, flat so the native side reads it without nesting. A copy
      built on the partner's phone has `styled: false`, and the native side
      keeps the style it already had. */
   styled: boolean;
+  layout: WidgetLayout;
   theme: WidgetTheme;
   showSteps: boolean;
   showReps: boolean;
@@ -142,7 +177,13 @@ export interface WaterWidgetInput {
   /** When they last finished a set, epoch ms. */
   trainedAt?: number | null;
   /** My own numbers, when this copy is built on my phone. */
-  me?: { ml: number; steps: number | null; reps: number } | null;
+  me?: {
+    ml: number;
+    steps: number | null;
+    reps: number;
+    goalMl?: number | null;
+    layers?: readonly { k: string; ml: number }[];
+  } | null;
   /** The state's version; see `WaterWidgetSnapshot.rev`. */
   rev?: number;
   /** My chosen look, when this copy is built on my phone. */
@@ -168,20 +209,7 @@ export function buildWaterWidgetSnapshot(input: WaterWidgetInput, now = Date.now
   const pct = Math.min(1, ml / goalMl);
   const met = ml >= goalMl;
 
-  /* Bands share the fill in proportion to their volume. Older apps publish no
-     layers, and a total with none reads as all water — never an empty bear
-     beside a number that says otherwise. */
-  const raw = (input.layers ?? []).filter((l) => Number.isFinite(l.ml) && l.ml > 0);
-  const bands = raw.length > 0 ? raw : ml > 0 ? [{ k: 'water', ml }] : [];
-  const sum = bands.reduce((s, l) => s + l.ml, 0);
-  let acc = 0;
-  const layers = bands.map((l, i) => {
-    acc += l.ml;
-    /* The last band lands exactly on the fill line, so rounding never leaves
-       a sliver of glass between the drinks and the surface. */
-    const t = i === bands.length - 1 ? pct : (acc / sum) * pct;
-    return { c: DRINK_META[parseDrinkKind(l.k)].color, t: round3(t) };
-  });
+  const layers = bands(input.layers, ml, pct);
 
   const status = ml <= 0 ? 'No drinks yet' : met ? 'Goal met 🎉' : `${formatMl(goalMl - ml)} to go`;
 
@@ -205,10 +233,25 @@ export function buildWaterWidgetSnapshot(input: WaterWidgetInput, now = Date.now
   const footerAt = !allMet && lastText ? lastAt : 0;
 
   const me = input.me ?? null;
+  const meMl = me ? count(me.ml) : 0;
+  const meGoal = sanitizeGoal(me?.goalMl);
+  const mePct = me ? Math.min(1, meMl / meGoal) : 0;
+  const meSteps = me && me.steps != null && Number.isFinite(me.steps) && me.steps >= 0 ? Math.round(me.steps) : -1;
+
+  const fresh = lastAt > 0 && now - lastAt >= -60_000 && now - lastAt <= WATER_WIDGET_LIVE_MS;
+  const duel = duelLine({
+    name,
+    ml,
+    met,
+    reps,
+    fresh: fresh && lastMeta ? `${lastMeta.label.toLowerCase()} ${lastMeta.emoji}` : null,
+    me: me ? { ml: meMl, met: meMl >= meGoal, reps: count(me.reps) } : null,
+  });
 
   return {
     name,
     title: `${name} · Today`,
+    vs: `${name} vs you`,
     day: input.day,
     amount: formatMl(ml),
     goal: `of ${formatMl(goalMl)}`,
@@ -231,11 +274,82 @@ export function buildWaterWidgetSnapshot(input: WaterWidgetInput, now = Date.now
     meWater: me ? formatMl(me.ml) : '',
     meSteps: me ? (me.steps != null && me.steps >= 0 ? formatSteps(me.steps) : '—') : '',
     meReps: me ? String(count(me.reps)) : '',
+    waterMl: ml,
+    stepsN: stepsKnown ? steps : -1,
+    repsN: reps,
+    hasMe: !!me,
+    meWaterMl: meMl,
+    meStepsN: meSteps,
+    meRepsN: me ? count(me.reps) : 0,
+    mePct: round3(mePct),
+    meMet: !!me && meMl >= meGoal,
+    meLayers: me ? bands(me.layers, meMl, mePct) : [],
+    duel,
     styled: !!input.style,
     ...(input.style ?? DEFAULT_WIDGET_STYLE),
     rev: time(input.rev),
     updatedAt: now,
   };
+}
+
+/**
+ * Drinks as bands, bottom to top, sharing the fill in proportion to volume.
+ *
+ * Older apps publish no layers, and a total with none reads as all water —
+ * never an empty bear beside a number that says otherwise. The last band
+ * lands exactly on the fill line, so rounding never leaves a sliver of glass
+ * between the drinks and the surface.
+ */
+function bands(
+  input: readonly { k: string; ml: number }[] | undefined,
+  ml: number,
+  pct: number,
+): { c: string; t: number }[] {
+  const raw = (input ?? []).filter((l) => Number.isFinite(l.ml) && l.ml > 0);
+  const list = raw.length > 0 ? raw : ml > 0 ? [{ k: 'water', ml }] : [];
+  const sum = list.reduce((s, l) => s + l.ml, 0);
+  let acc = 0;
+  return list.map((l, i) => {
+    acc += l.ml;
+    const t = i === list.length - 1 ? pct : (acc / sum) * pct;
+    return { c: DRINK_META[parseDrinkKind(l.k)].color, t: round3(t) };
+  });
+}
+
+/**
+ * The rivalry line: who is ahead, and a reason to do something about it.
+ *
+ * Every branch is a fact already on the widget — a drink they just had, a
+ * gap in water or reps — phrased as a nudge, never an invented deadline.
+ * Without my numbers (a copy built on the partner's phone) it speaks about
+ * them alone.
+ */
+export function duelLine(input: {
+  name: string;
+  ml: number;
+  met: boolean;
+  reps: number;
+  /** "juice 🧃" when they drank in the last few minutes. */
+  fresh: string | null;
+  me: { ml: number; met: boolean; reps: number } | null;
+}): string {
+  const { name, ml, met, reps, fresh, me } = input;
+  if (me && met && me.met) return 'Both bears full — dream team 🎉';
+  if (fresh) return `${name} just had ${fresh} — your move!`;
+  if (!me) {
+    if (met) return `${name} filled their bear 🎉 — can you?`;
+    return ml > 0 ? `${name} is at ${formatMl(ml)} today 💧` : `${name} hasn’t had a sip yet ☀️`;
+  }
+  if (ml <= 0 && me.ml <= 0 && reps <= 0 && me.reps <= 0) return 'First sip wins the day ☀️';
+  const gap = ml - me.ml;
+  if (Math.abs(gap) >= 100) {
+    return gap > 0 ? `${name} is ${formatMl(gap)} ahead 💧 catch up!` : `You’re ${formatMl(-gap)} ahead — keep it flowing 💪`;
+  }
+  const repGap = reps - me.reps;
+  if (Math.abs(repGap) >= 5) {
+    return repGap > 0 ? `${name} out-repped you by ${repGap} 💪 your turn` : `You lead reps by ${-repGap} — ${name} owes you a set`;
+  }
+  return 'Neck and neck today 🤝';
 }
 
 /**

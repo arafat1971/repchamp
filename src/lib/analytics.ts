@@ -110,7 +110,7 @@ export interface AnalyticsEvents {
    * below it is invisible to the dead-entry check. */
 
   /** A glass was logged. `ml` says which chip, so the sizes can be tuned. */
-  water_logged: { ml: number; source: 'home' };
+  water_logged: { ml: number; source: 'home' | 'widget' };
   /** The daily target was moved. Tells us whether 2 L is the right default. */
   water_goal_set: { goalMl: number };
 

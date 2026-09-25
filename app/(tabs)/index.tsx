@@ -43,6 +43,7 @@ import { useStepsToday } from '@/state/useStepsToday';
 import { buildDashboardSnapshot } from '@/domain/dashboardSnapshot';
 import { buildWidgetSnapshot } from '@/domain/widgetSnapshot';
 import { buildWaterWidgetSnapshot, repsOnDay } from '@/domain/waterWidget';
+import { drinkLayers } from '@/domain/drinkKinds';
 import { useWidgetStyleStore } from '@/state/widgetStyleStore';
 import { getExercise } from '@/vision/exercises';
 import { clearWidgetSnapshot, publishWidgetSnapshot } from '@/services/partnerWidget';
@@ -222,6 +223,14 @@ export default function HomeScreen() {
      moves; this keeps it right whenever this app is open, from the same
      builder, so the two can never disagree. */
   const myStepsCount = stepsToday.status === 'ready' ? stepsToday.steps : null;
+  /* My own bear on the duo widget: my goal and today's drinks as bands. */
+  const myGoalMl = useHydrationStore((st) => st.goalMl);
+  const allDrinks = useHydrationStore((st) => st.drinks);
+  const myLayers = useMemo(
+    () => drinkLayers(allDrinks.filter((d) => d.day === today)).map((l) => ({ k: l.kind, ml: l.ml })),
+    [allDrinks, today],
+  );
+  const layout = useWidgetStyleStore((st) => st.layout);
   const theme = useWidgetStyleStore((st) => st.theme);
   const showSteps = useWidgetStyleStore((st) => st.showSteps);
   const showReps = useWidgetStyleStore((st) => st.showReps);
@@ -246,9 +255,9 @@ export default function HomeScreen() {
         reps: theirReps.reps,
         topExercise: theirReps.topEx,
         trainedAt: theirReps.trainedAt,
-        me: { ml: todayMl, steps: myStepsCount, reps: myReps.reps },
+        me: { ml: todayMl, steps: myStepsCount, reps: myReps.reps, goalMl: myGoalMl, layers: myLayers },
         rev: partnerWaterRevToday(couple.partner, today),
-        style: { theme, showSteps, showReps, showMine, motion },
+        style: { layout, theme, showSteps, showReps, showMine, motion },
       }),
       'water',
     );
@@ -260,6 +269,9 @@ export default function HomeScreen() {
     todayMl,
     myStepsCount,
     myReps.reps,
+    myGoalMl,
+    myLayers,
+    layout,
     theme,
     showSteps,
     showReps,

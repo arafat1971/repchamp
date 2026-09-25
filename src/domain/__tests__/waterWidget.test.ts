@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-import { DEFAULT_WIDGET_STYLE, buildWaterWidgetSnapshot, repsOnDay } from '@/domain/waterWidget';
+import { DEFAULT_WIDGET_STYLE, buildWaterWidgetSnapshot, duelLine, repsOnDay } from '@/domain/waterWidget';
 import { WIDGET_SNAPSHOT_KEYS } from '@/domain/widgetSnapshot';
 
 const base = { name: 'Nkll', day: '2026-09-24', ml: 0 };
@@ -134,8 +134,77 @@ describe('widget style', () => {
   });
 
   it('carries the look chosen on this phone', () => {
-    const style = { theme: 'ocean' as const, showSteps: false, showReps: true, showMine: false, motion: false };
+    const style = { layout: 'rings' as const, theme: 'ocean' as const, showSteps: false, showReps: true, showMine: false, motion: false };
     expect(buildWaterWidgetSnapshot({ ...base, style })).toMatchObject({ styled: true, ...style });
+  });
+});
+
+describe('the duo', () => {
+  const now = 1_790_000_000_000;
+
+  it('carries both sides as raw numbers for the tug-of-war', () => {
+    const s = buildWaterWidgetSnapshot(
+      {
+        ...base,
+        ml: 1400,
+        steps: 6000,
+        reps: 30,
+        me: { ml: 1000, steps: null, reps: 45, goalMl: 2000, layers: [{ k: 'coffee', ml: 1000 }] },
+      },
+      now,
+    );
+    expect(s).toMatchObject({
+      vs: 'Nkll vs you',
+      waterMl: 1400,
+      stepsN: 6000,
+      repsN: 30,
+      hasMe: true,
+      meWaterMl: 1000,
+      meStepsN: -1,
+      meRepsN: 45,
+      mePct: 0.5,
+      meMet: false,
+      meLayers: [{ c: '#8b5a2b', t: 0.5 }],
+    });
+  });
+
+  it('marks a copy built without my numbers, so the native side keeps mine', () => {
+    expect(buildWaterWidgetSnapshot(base)).toMatchObject({ hasMe: false, meLayers: [], meStepsN: -1 });
+  });
+});
+
+describe('duelLine', () => {
+  const me = (ml: number, reps = 0, met = false) => ({ ml, reps, met });
+  const line = (over: Partial<Parameters<typeof duelLine>[0]>) =>
+    duelLine({ name: 'Bea', ml: 0, met: false, reps: 0, fresh: null, me: me(0), ...over });
+
+  it('celebrates when both bears are full', () => {
+    expect(line({ ml: 2000, met: true, me: me(2100, 0, true) })).toBe('Both bears full — dream team 🎉');
+  });
+
+  it('turns a fresh drink into a nudge', () => {
+    expect(line({ ml: 500, fresh: 'juice 🧃' })).toBe('Bea just had juice 🧃 — your move!');
+  });
+
+  it('names the water gap either way', () => {
+    expect(line({ ml: 1400, me: me(1000) })).toBe('Bea is 400 ml ahead 💧 catch up!');
+    expect(line({ ml: 500, me: me(1500) })).toBe('You’re 1 L ahead — keep it flowing 💪');
+  });
+
+  it('falls back to reps when water is level', () => {
+    expect(line({ ml: 500, reps: 40, me: me(500, 20) })).toBe('Bea out-repped you by 20 💪 your turn');
+    expect(line({ ml: 500, reps: 5, me: me(500, 30) })).toBe('You lead reps by 25 — Bea owes you a set');
+  });
+
+  it('opens the day, and calls a draw a draw', () => {
+    expect(line({})).toBe('First sip wins the day ☀️');
+    expect(line({ ml: 500, reps: 10, me: me(520, 12) })).toBe('Neck and neck today 🤝');
+  });
+
+  it('speaks about them alone without my numbers', () => {
+    expect(line({ me: null, ml: 750 })).toBe('Bea is at 750 ml today 💧');
+    expect(line({ me: null, ml: 2000, met: true })).toBe('Bea filled their bear 🎉 — can you?');
+    expect(line({ me: null })).toBe('Bea hasn’t had a sip yet ☀️');
   });
 });
 

@@ -282,8 +282,11 @@ function useLayerWave(
     const top = tops.value[k] ?? 0;
     if (top <= 0) return { d: '' };
     const frac = level.value * top;
-    // Empty is empty: a resting wave's crest would still show a sliver.
-    if (frac <= 0.002) return { d: '' };
+    /* Empty is empty: a resting wave's crest would still show a sliver. An
+       off-canvas path rather than '' — react-native-svg ignores an empty
+       `d` and keeps drawing the last one, so a bear draining to zero would
+       freeze on its final sliver. */
+    if (frac <= 0.002) return { d: `M 0 ${VB_H + 20} L 1 ${VB_H + 20} Z` };
     const base = WATER_BOTTOM - frac * (WATER_BOTTOM - WATER_TOP);
     // Lower boundaries ripple less than the open surface, and a nearly empty
     // bear's wave settles flat rather than slopping above its own level.

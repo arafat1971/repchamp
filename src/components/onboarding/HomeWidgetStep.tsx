@@ -14,10 +14,10 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
+import { LinearGradient as Backdrop } from 'expo-linear-gradient';
 
 import { PressableScale, PrimaryButton } from '@/components/ui';
-import { SAMPLE_PREVIEW, WidgetPreview } from '@/components/widget/WidgetPreview';
+import { SAMPLE_SNAPSHOT, WidgetPreview } from '@/components/widget/WidgetPreview';
 import { DEFAULT_WIDGET_STYLE } from '@/domain/waterWidget';
 import { lightImpactHaptic } from '@/lib/feedback';
 import { isWidgetSupported, placedWidgetCount, requestPinWidget } from '@/services/partnerWidget';
@@ -88,7 +88,7 @@ export function HomeWidgetStep({ onNext }: { onNext: () => void }) {
         </View>
         <Text style={[text.h1, styles.title]}>Keep them on{'\n'}your home screen</Text>
         <Text style={[text.body, styles.copy]}>
-          Their water, steps and reps as live rings — moving the moment they do, without opening the app.
+          Your bear and theirs, side by side — every sip, step and rep a tug-of-war you can win from the home screen.
         </Text>
       </Animated.View>
 
@@ -162,16 +162,13 @@ function Phone({ width, placed }: { width: number; placed: boolean }) {
   return (
     <Animated.View style={[styles.phone, { width }, bob]}>
       <View style={styles.screen}>
-        <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
-          <Defs>
-            <LinearGradient id="onb-wall" x1="0" y1="0" x2="1" y2="1">
-              <Stop offset="0" stopColor="#312E81" />
-              <Stop offset="0.55" stopColor="#7C3AED" />
-              <Stop offset="1" stopColor="#EC4899" />
-            </LinearGradient>
-          </Defs>
-          <Rect width="100%" height="100%" fill="url(#onb-wall)" />
-        </Svg>
+        {/* A warm, light wallpaper so the Sunset widget pops off it. */}
+        <Backdrop
+          colors={['#FEF3C7', '#FBCFE8', '#C7D2FE']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
 
         <View style={styles.statusBar}>
           <Text style={styles.clock}>9:41</Text>
@@ -188,7 +185,7 @@ function Phone({ width, placed }: { width: number; placed: boolean }) {
         </Animated.View>
 
         <View style={styles.widgetSlot}>
-          <WidgetPreview style={DEFAULT_WIDGET_STYLE} data={SAMPLE_PREVIEW} width={inner} />
+          <WidgetPreview style={DEFAULT_WIDGET_STYLE} snap={SAMPLE_SNAPSHOT} width={inner} />
           {placed ? (
             <Animated.View entering={ZoomIn.duration(300)} style={styles.tick}>
               <Text style={styles.tickText}>✓</Text>
@@ -239,7 +236,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingTop: 10,
   },
-  clock: font('bold', 11, { color: palette.white }),
+  clock: font('bold', 11, { color: palette.ink }),
   island: { width: 64, height: 18, borderRadius: 10, backgroundColor: '#000' },
   toast: {
     flexDirection: 'row',

@@ -8,12 +8,7 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { ModalHeader } from '@/components/ModalHeader';
 import { WidgetPublishDebug } from '@/components/debug/WidgetPublishDebug';
 import { Card, Divider, PressableScale, PrimaryButton, Screen, SectionLabel, Toggle } from '@/components/ui';
-import {
-  SAMPLE_PREVIEW,
-  THEME_SWATCH,
-  WidgetPreview,
-  type WidgetPreviewData,
-} from '@/components/widget/WidgetPreview';
+import { LOOKS, MINE, SAMPLE_SNAPSHOT, THEIRS, WidgetPreview } from '@/components/widget/WidgetPreview';
 import {
   partnerGoalToday,
   partnerLayersToday,
@@ -23,11 +18,14 @@ import {
   partnerWaterToday,
 } from '@/domain/couple';
 import { dayKey } from '@/domain/progression';
+import { drinkLayers } from '@/domain/drinkKinds';
 import {
-  WATER_WIDGET_LIVE_MS,
+  WIDGET_LAYOUTS,
   WIDGET_THEMES,
   buildWaterWidgetSnapshot,
   repsOnDay,
+  type WaterWidgetSnapshot,
+  type WidgetLayout,
   type WidgetStyle,
   type WidgetTheme,
 } from '@/domain/waterWidget';
@@ -105,20 +103,22 @@ export default function WidgetStudioScreen() {
         style={styles.stage}
         onLayout={(e) => setStageWidth(e.nativeEvent.layout.width)}
       >
+        {/* A warm, light wallpaper: every theme — Sunset most of all — has to
+            stand off it the way it will off a real home screen. */}
         <Backdrop
-          colors={['#312E81', '#6D28D9', '#DB2777']}
+          colors={['#FEF3C7', '#FBCFE8', '#C7D2FE']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFill}
         />
         <View style={styles.stageIcons}>
-          {['#FDE68A', '#A7F3D0', '#BFDBFE', '#FBCFE8'].map((c) => (
-            <View key={c} style={[styles.stageIcon, { backgroundColor: c }]} />
+          {['#FFFFFF', '#FFFFFF', '#FFFFFF', '#FFFFFF'].map((c, i) => (
+            <View key={i} style={[styles.stageIcon, { backgroundColor: c }]} />
           ))}
         </View>
         {stageWidth > 0 ? (
           <Animated.View layout={LinearTransition.duration(260)}>
-            <WidgetPreview style={style} data={preview} width={Math.min(stageWidth - 28, 380)} />
+            <WidgetPreview style={style} snap={preview} width={Math.min(stageWidth - 28, 380)} />
           </Animated.View>
         ) : null}
         {isPlaced ? (
@@ -159,6 +159,13 @@ export default function WidgetStudioScreen() {
         </>
       )}
 
+      <SectionLabel>LAYOUT</SectionLabel>
+      <View style={styles.themes}>
+        {WIDGET_LAYOUTS.map((layout) => (
+          <LayoutTile key={layout} layout={layout} selected={style.layout === layout} onPress={() => set({ layout })} />
+        ))}
+      </View>
+
       <SectionLabel>LOOK</SectionLabel>
       <View style={styles.themes}>
         {WIDGET_THEMES.map((theme) => (
@@ -171,7 +178,7 @@ export default function WidgetStudioScreen() {
         <SwitchRow
           emoji="💧"
           title="Water"
-          subtitle="Their bear and the inner ring — always on"
+          subtitle="Both bears, and the heart of every layout"
           value
           locked
         />
@@ -262,10 +269,12 @@ export default function WidgetStudioScreen() {
  * The partner's real day, through the same builder the widget uses; the
  * sample when there is no partner yet.
  */
-function usePreviewData(): WidgetPreviewData {
+function usePreviewData(): WaterWidgetSnapshot {
   const couple = useCouple();
   const today = dayKey();
   const myMl = useHydrationStore((s) => selectTodayMl(s, today));
+  const myGoal = useHydrationStore((s) => s.goalMl);
+  const drinks = useHydrationStore((s) => s.drinks);
   const sessions = useProfileStore((s) => s.sessions);
   const { steps } = useStepsToday();
   const mySteps = steps.status === 'ready' ? steps.steps : null;
@@ -273,9 +282,9 @@ function usePreviewData(): WidgetPreviewData {
   return useMemo(() => {
     const partner = couple.partner;
     const name = partner?.displayName?.trim();
-    if (!couple.paired || !partner || !name) return SAMPLE_PREVIEW;
+    if (!couple.paired || !partner || !name) return SAMPLE_SNAPSHOT;
     const reps = partnerRepsToday(partner, today);
-    const snap = buildWaterWidgetSnapshot({
+    return buildWaterWidgetSnapshot({
       name,
       day: today,
       ml: partnerWaterToday(partner, today) ?? 0,
@@ -286,20 +295,67 @@ function usePreviewData(): WidgetPreviewData {
       reps: reps.reps,
       topExercise: reps.topEx,
       trainedAt: reps.trainedAt,
-      me: { ml: myMl, steps: mySteps, reps: repsOnDay(sessions, today).reps },
+      me: {
+        ml: myMl,
+        steps: mySteps,
+        reps: repsOnDay(sessions, today).reps,
+        goalMl: myGoal,
+        layers: drinkLayers(drinks.filter((d) => d.day === today)).map((l) => ({ k: l.kind, ml: l.ml })),
+      },
     });
-    return {
-      name: snap.name,
-      water: { value: snap.amount, goal: snap.goal, you: snap.meWater, pct: snap.pct },
-      steps: { value: snap.steps, goal: snap.stepsGoal, you: snap.meSteps, pct: snap.stepsPct },
-      reps: { value: snap.reps, goal: snap.repsDetail, you: snap.meReps, pct: snap.repsPct },
-      footer: snap.footer,
-      live: snap.activeAt > 0 && snap.updatedAt - snap.activeAt <= WATER_WIDGET_LIVE_MS,
-    };
-  }, [couple.paired, couple.partner, today, myMl, sessions, mySteps]);
+  }, [couple.paired, couple.partner, today, myMl, myGoal, drinks, sessions, mySteps]);
+}
+
+const LAYOUT_LABEL: Record<WidgetLayout, { title: string; sub: string }> = {
+  duo: { title: 'Duo', sub: 'You vs them' },
+  rings: { title: 'Rings', sub: 'Their day' },
+};
+
+/** A tiny sketch of each layout, so the choice is visual, not a word. */
+function LayoutTile({ layout, selected, onPress }: { layout: WidgetLayout; selected: boolean; onPress: () => void }) {
+  const label = LAYOUT_LABEL[layout];
+  return (
+    <PressableScale
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
+      accessibilityLabel={`${label.title} layout`}
+      style={[styles.tile, styles.layoutTile, selected && styles.tileOn]}
+    >
+      <Backdrop colors={['#4C1D95', '#BE185D']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.sketch}>
+        {layout === 'duo' ? (
+          <View style={styles.sketchRow}>
+            <View style={[styles.sketchBear, { backgroundColor: '#C7D2FE' }]} />
+            <View style={{ flex: 1, gap: 4, marginHorizontal: 6 }}>
+              {[0.62, 0.4, 0.75].map((w, i) => (
+                <View key={i} style={[styles.sketchTug, { backgroundColor: MINE }]}>
+                  <View style={{ width: `${w * 100}%`, height: '100%', backgroundColor: THEIRS }} />
+                </View>
+              ))}
+            </View>
+            <View style={[styles.sketchBear, { backgroundColor: '#FBCFE8' }]} />
+          </View>
+        ) : (
+          <View style={styles.sketchRow}>
+            <View style={styles.sketchRing}>
+              <View style={styles.sketchRingInner} />
+            </View>
+            <View style={{ flex: 1, gap: 4, marginLeft: 8 }}>
+              {['#7DD3FC', '#86EFAC', '#FDA4AF'].map((c) => (
+                <View key={c} style={[styles.sketchLine, { backgroundColor: c }]} />
+              ))}
+            </View>
+          </View>
+        )}
+      </Backdrop>
+      <Text style={[styles.tileLabel, selected && styles.tileLabelOn]}>{label.title}</Text>
+      <Text style={styles.tileSub}>{label.sub}</Text>
+    </PressableScale>
+  );
 }
 
 const THEME_LABEL: Record<WidgetTheme, string> = {
+  sunset: 'Sunset',
   auto: 'Auto',
   light: 'Light',
   dark: 'Dark',
@@ -307,7 +363,9 @@ const THEME_LABEL: Record<WidgetTheme, string> = {
 };
 
 function ThemeTile({ theme, selected, onPress }: { theme: WidgetTheme; selected: boolean; onPress: () => void }) {
-  const [a, b] = THEME_SWATCH[theme];
+  const bg = LOOKS[theme].bg;
+  const a = theme === 'auto' ? '#FFFFFF' : bg[0];
+  const b = theme === 'auto' ? '#1C1C1E' : bg[bg.length - 1]!;
   return (
     <PressableScale
       onPress={onPress}
@@ -392,7 +450,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     marginBottom: 16,
   },
-  stageIcons: { position: 'absolute', top: 14, left: 20, flexDirection: 'row', gap: 10, opacity: 0.55 },
+  stageIcons: { position: 'absolute', top: 14, left: 20, flexDirection: 'row', gap: 10, opacity: 0.9 },
   stageIcon: { width: 22, height: 22, borderRadius: 7 },
   placedBadge: {
     position: 'absolute',
@@ -416,6 +474,23 @@ const styles = StyleSheet.create({
     backgroundColor: palette.white,
   },
   tileOn: { borderColor: palette.green500 },
+  layoutTile: { paddingBottom: 8 },
+  sketch: { width: '100%', height: 58, borderRadius: 11, justifyContent: 'center', paddingHorizontal: 8 },
+  sketchRow: { flexDirection: 'row', alignItems: 'center' },
+  sketchBear: { width: 16, height: 22, borderRadius: 8 },
+  sketchTug: { height: 4, borderRadius: 2, overflow: 'hidden' },
+  sketchRing: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 4,
+    borderColor: '#FDA4AF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sketchRingInner: { width: 18, height: 18, borderRadius: 9, borderWidth: 3, borderColor: '#7DD3FC' },
+  sketchLine: { height: 5, borderRadius: 3, width: '80%' },
+  tileSub: font('semibold', 10, { color: palette.grey600 }),
   swatch: {
     width: '100%',
     height: 46,

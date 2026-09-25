@@ -25,7 +25,15 @@ export const useWidgetStyleStore = create<WidgetStyleState>()(
     }),
     {
       name: 'repchamp.widget-style',
-      version: 1,
+      /* v2 introduced layouts. Everyone moves to the duo in Sunset — the
+         new look is the point of the release — keeping their switches. */
+      version: 2,
+      migrate: (persisted) => ({
+        ...DEFAULT_WIDGET_STYLE,
+        ...(persisted as Partial<WidgetStyle>),
+        layout: 'duo',
+        theme: 'sunset',
+      }),
       storage: createJSONStorage(() => zustandStorage),
     },
   ),
@@ -33,6 +41,6 @@ export const useWidgetStyleStore = create<WidgetStyleState>()(
 
 /** The style alone, for code outside React and for the payload. */
 export function widgetStyle(): WidgetStyle {
-  const { theme, showSteps, showReps, showMine, motion } = useWidgetStyleStore.getState();
-  return { theme, showSteps, showReps, showMine, motion };
+  const { layout, theme, showSteps, showReps, showMine, motion } = useWidgetStyleStore.getState();
+  return { layout, theme, showSteps, showReps, showMine, motion };
 }

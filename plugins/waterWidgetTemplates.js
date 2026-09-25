@@ -274,8 +274,11 @@ class WaterWidgetProvider : AppWidgetProvider() {
     companion object {
         const val KEY = "repchamp.widget.water.v1"
         private const val LIVE_MS = 15L * 60L * 1000L
-        private val ME_KEYS = arrayOf("meWater", "meSteps", "meReps")
-        private val STYLE_KEYS = arrayOf("styled", "theme", "showSteps", "showReps", "showMine", "motion")
+        private val ME_KEYS = arrayOf(
+            "hasMe", "meWater", "meSteps", "meReps", "meWaterMl", "meStepsN", "meRepsN",
+            "mePct", "meMet", "meLayers"
+        )
+        private val STYLE_KEYS = arrayOf("styled", "layout", "theme", "showSteps", "showReps", "showMine", "motion")
 
         /**
          * Whether a new copy should replace the stored one.
@@ -313,13 +316,11 @@ class WaterWidgetProvider : AppWidgetProvider() {
                 val next = JSONObject(json)
                 val old = stored(context) ?: return json
                 var changed = false
-                if (old.optString("day") == next.optString("day")) {
-                    for (k in ME_KEYS) {
-                        if (next.optString(k, "").isBlank() && old.optString(k, "").isNotBlank()) {
-                            next.put(k, old.optString(k))
-                            changed = true
-                        }
-                    }
+                if (old.optString("day") == next.optString("day") &&
+                    !next.optBoolean("hasMe", false) && old.optBoolean("hasMe", false)
+                ) {
+                    for (k in ME_KEYS) next.put(k, old.opt(k))
+                    changed = true
                 }
                 // The look is this phone's choice, whatever day it is.
                 if (!next.optBoolean("styled", false) && old.optBoolean("styled", false)) {
@@ -354,8 +355,12 @@ class WaterWidgetProvider : AppWidgetProvider() {
             (snap?.optDouble(key, 0.0) ?: 0.0).toFloat().coerceIn(0f, 1f)
 
         fun render(context: Context, manager: AppWidgetManager, id: Int) {
-            val views = RemoteViews(context.packageName, R.layout.water_widget)
             val stored = stored(context)
+            val duo = (stored?.optString("layout", "duo") ?: "duo") != "rings"
+            val views = RemoteViews(
+                context.packageName,
+                if (duo) R.layout.water_widget_duo else R.layout.water_widget
+            )
             val density = context.resources.displayMetrics.density
             val now = System.currentTimeMillis()
             val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(now))
@@ -368,26 +373,34 @@ class WaterWidgetProvider : AppWidgetProvider() {
             val showReps = look?.optBoolean("showReps", true) ?: true
             val showMine = look?.optBoolean("showMine", true) ?: true
             val motion = look?.optBoolean("motion", true) ?: true
-            Palette.apply(views, look?.optString("theme", "auto") ?: "auto")
+            val palette = Palette.resolve(context, look?.optString("theme", "sunset") ?: "sunset")
+            Palette.apply(views, palette, duo)
+
+            // Tapping opens the partner's day in the app.
+            val open = Intent(Intent.ACTION_VIEW, Uri.parse("repchamp://couple/partner"))
+                .setPackage(context.packageName)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            views.setOnClickPendingIntent(
+                R.id.pt_root,
+                PendingIntent.getActivity(
+                    context, 7300, open,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            )
+
+            if (duo) {
+                renderDuo(context, views, stored, snap, palette, showSteps, showReps, showMine, motion, density, now)
+                manager.updateAppWidget(id, views)
+                return
+            }
+
             show(views, R.id.pt_steps_row, showSteps)
             show(views, R.id.pt_reps_row, showReps)
 
             val waterPct = fraction(snap, "pct")
             val stepsPct = if (showSteps) fraction(snap, "stepsPct") else -1f
             val repsPct = if (showReps) fraction(snap, "repsPct") else -1f
-            val layers = ArrayList<Pair<Int, Float>>()
-            val arr = snap?.optJSONArray("layers")
-            if (arr != null) {
-                for (i in 0 until arr.length()) {
-                    val o = arr.optJSONObject(i) ?: continue
-                    val color = try {
-                        Color.parseColor(o.optString("c"))
-                    } catch (e: Exception) {
-                        continue
-                    }
-                    layers.add(color to o.optDouble("t", 0.0).toFloat().coerceIn(0f, 1f))
-                }
-            }
+            val layers = layersOf(snap, "layers")
 
             when {
                 stored == null -> {
@@ -441,17 +454,160 @@ class WaterWidgetProvider : AppWidgetProvider() {
                 RingArt.draw(density, waterPct, stepsPct, repsPct, layers, snap?.optBoolean("met", false) ?: false, now)
             )
 
-            // Tapping opens the partner's day in the app.
-            val open = Intent(Intent.ACTION_VIEW, Uri.parse("repchamp://couple/partner"))
+            manager.updateAppWidget(id, views)
+        }
+
+        /** Drink bands from the payload: colour and top, bottom to top. */
+        private fun layersOf(snap: JSONObject?, key: String): List<Pair<Int, Float>> {
+            val out = ArrayList<Pair<Int, Float>>()
+            val arr = snap?.optJSONArray(key) ?: return out
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                val color = try {
+                    Color.parseColor(o.optString("c"))
+                } catch (e: Exception) {
+                    continue
+                }
+                out.add(color to o.optDouble("t", 0.0).toFloat().coerceIn(0f, 1f))
+            }
+            return out
+        }
+
+        /**
+         * The duo: both bears face to face, a tug-of-war per metric with the
+         * leader crowned, the rivalry line, and a button to drink right here.
+         */
+        private fun renderDuo(
+            context: Context,
+            views: RemoteViews,
+            stored: JSONObject?,
+            snap: JSONObject?,
+            look: Palette.Look,
+            showSteps: Boolean,
+            showReps: Boolean,
+            showMine: Boolean,
+            motion: Boolean,
+            density: Float,
+            now: Long
+        ) {
+            val name = stored?.optString("name")?.takeIf { it.isNotBlank() }
+            views.setTextViewText(
+                R.id.pt_title,
+                if (name == null) context.getString(R.string.pd_title_empty) else stored?.optString("vs") ?: name
+            )
+            views.setTextViewText(
+                R.id.pt_footer,
+                when {
+                    stored == null -> context.getString(R.string.pt_empty)
+                    snap == null -> context.getString(R.string.pd_new_day)
+                    else -> snap.optString("duel")
+                }
+            )
+            views.setTextViewText(R.id.d_them_name, name ?: context.getString(R.string.pd_partner))
+            views.setTextViewText(R.id.d_them_amt, snap?.optString("amount") ?: "0 ml")
+
+            val hasMe = snap?.optBoolean("hasMe", false) ?: false
+            val meWater = if (hasMe) snap?.optString("meWater") ?: "—" else "—"
+            views.setTextViewText(R.id.d_me_amt, meWater)
+
+            val waterPct = fraction(snap, "pct")
+            val mePct = if (hasMe) fraction(snap, "mePct") else 0f
+            val met = snap?.optBoolean("met", false) ?: false
+            val meMet = hasMe && (snap?.optBoolean("meMet", false) ?: false)
+            views.setImageViewBitmap(
+                R.id.d_them_bear,
+                BearArt.bitmap(density, waterPct, layersOf(snap, "layers"), met, BearArt.THEIRS, now)
+            )
+            views.setImageViewBitmap(
+                R.id.d_me_bear,
+                BearArt.bitmap(density, mePct, if (hasMe) layersOf(snap, "meLayers") else emptyList(), meMet, BearArt.MINE, now)
+            )
+
+            duel(
+                views, R.id.d_water_them, R.id.d_water_me, R.id.d_water_tug,
+                snap?.optLong("waterMl", 0L) ?: 0L,
+                if (hasMe) snap?.optLong("meWaterMl", 0L) ?: 0L else 0L,
+                snap?.optString("amount") ?: "0 ml", meWater, showMine, look
+            )
+            show(views, R.id.d_steps_row, showSteps)
+            if (showSteps) {
+                val a = snap?.optLong("stepsN", -1L) ?: -1L
+                val b = if (hasMe) snap?.optLong("meStepsN", -1L) ?: -1L else -1L
+                duel(
+                    views, R.id.d_steps_them, R.id.d_steps_me, R.id.d_steps_tug,
+                    max(0L, a), max(0L, b),
+                    if (a >= 0L) snap?.optString("steps") ?: "—" else "—",
+                    if (b >= 0L) snap?.optString("meSteps") ?: "—" else "—",
+                    showMine, look
+                )
+            }
+            show(views, R.id.d_reps_row, showReps)
+            if (showReps) {
+                duel(
+                    views, R.id.d_reps_them, R.id.d_reps_me, R.id.d_reps_tug,
+                    snap?.optLong("repsN", 0L) ?: 0L,
+                    if (hasMe) snap?.optLong("meRepsN", 0L) ?: 0L else 0L,
+                    snap?.optString("reps") ?: "0",
+                    if (hasMe) snap?.optString("meReps") ?: "0" else "—",
+                    showMine, look
+                )
+            }
+
+            /* Motion only while they have been active in the last fifteen
+               minutes, with a minute of grace for a clock running ahead. */
+            val activeAt = snap?.optLong("activeAt", 0L) ?: 0L
+            val lastAt = snap?.optLong("lastAt", 0L) ?: 0L
+            val fresh = motion && activeAt > 0L && now - activeAt >= -60_000L && now - activeAt <= LIVE_MS
+            val drankFresh = motion && lastAt > 0L && now - lastAt >= -60_000L && now - lastAt <= LIVE_MS
+            show(views, R.id.pt_live, fresh)
+            show(views, R.id.d_them_bubbles_high, drankFresh && waterPct >= 0.5f)
+            show(views, R.id.d_them_bubbles_low, drankFresh && waterPct >= 0.2f && waterPct < 0.5f)
+            show(views, R.id.d_them_twinkle, fresh && met)
+            show(views, R.id.d_me_twinkle, motion && meMet && fresh)
+            if (fresh) scheduleCalm(context, activeAt + LIVE_MS + 5_000L)
+
+            // The quick drink: one tap logs 250 ml through the app.
+            val drink = Intent(Intent.ACTION_VIEW, Uri.parse("repchamp://drink?ml=250"))
                 .setPackage(context.packageName)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            val pending = PendingIntent.getActivity(
-                context, 7300, open,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            views.setOnClickPendingIntent(
+                R.id.d_drink,
+                PendingIntent.getActivity(
+                    context, 7302, drink,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
             )
-            views.setOnClickPendingIntent(R.id.pt_root, pending)
+        }
 
-            manager.updateAppWidget(id, views)
+        /**
+         * One metric as a tug-of-war: the bar is their share from the left,
+         * mine from the right; the leader is crowned and drawn brighter.
+         * With "compare" off, my side stays blank and the bar is only theirs.
+         */
+        private fun duel(
+            views: RemoteViews,
+            themId: Int,
+            meId: Int,
+            tugId: Int,
+            a: Long,
+            b: Long,
+            themText: String,
+            meText: String,
+            showMine: Boolean,
+            look: Palette.Look
+        ) {
+            val share = when {
+                !showMine -> if (a > 0L) 1000 else 0
+                a + b > 0L -> ((a * 1000L) / (a + b)).toInt()
+                else -> 500
+            }
+            views.setProgressBar(tugId, 1000, share, false)
+            val themLead = a > b
+            val meLead = showMine && b > a
+            views.setTextViewText(themId, (if (themLead) "👑 " else "") + themText)
+            views.setTextColor(themId, if (themLead) look.text else look.secondary)
+            views.setTextViewText(meId, if (showMine) meText + (if (meLead) " 👑" else "") else "")
+            views.setTextColor(meId, if (meLead) look.text else look.secondary)
         }
 
         private fun show(views: RemoteViews, id: Int, on: Boolean) {
@@ -517,7 +673,7 @@ object RingArt {
         c.save()
         c.translate(${round(BEAR_LEFT)}f, ${round(BEAR_TOP)}f)
         c.scale(${Math.round(BEAR_SCALE * 1000) / 1000}f, ${Math.round(BEAR_SCALE * 1000) / 1000}f)
-        BearArt.drawInto(c, water, layers, met, now)
+        BearArt.drawInto(c, water, layers, met, BearArt.THEIRS, now)
         c.restore()
         return bmp
     }
@@ -561,11 +717,11 @@ object RingArt {
 }
 
 /**
- * The card's colours for a pinned theme. "auto" leaves the layout's own
- * day/night resources alone, which is what follows the system.
+ * The card's colours for a theme. "auto" reads the layout's own day/night
+ * resources, which is what follows the system.
  */
 object Palette {
-    private class Look(
+    class Look(
         val bg: Int,
         val chip: Int,
         val text: Int,
@@ -575,6 +731,11 @@ object Palette {
         val reps: Int
     )
 
+    private val SUNSET = Look(
+        R.drawable.pt_bg_sunset, R.drawable.pt_chip_ocean,
+        0xFFFFFFFF.toInt(), 0xFFF5D0FE.toInt(),
+        0xFF7DD3FC.toInt(), 0xFF86EFAC.toInt(), 0xFFFDA4AF.toInt()
+    )
     private val LIGHT = Look(
         R.drawable.pt_bg_light, R.drawable.pt_chip_light,
         0xFF000000.toInt(), 0xFF8A8A8E.toInt(),
@@ -591,15 +752,30 @@ object Palette {
         0xFF7DD3FC.toInt(), 0xFF86EFAC.toInt(), 0xFFFDA4AF.toInt()
     )
 
-    fun apply(views: RemoteViews, theme: String) {
-        val look = when (theme) {
-            "light" -> LIGHT
-            "dark" -> DARK
-            "ocean" -> OCEAN
-            else -> return
-        }
+    fun resolve(context: Context, theme: String): Look = when (theme) {
+        "sunset" -> SUNSET
+        "light" -> LIGHT
+        "dark" -> DARK
+        "ocean" -> OCEAN
+        else -> Look(
+            R.drawable.pt_bg, R.drawable.pt_chip,
+            context.getColor(R.color.pt_text), context.getColor(R.color.pt_secondary),
+            context.getColor(R.color.pt_water), context.getColor(R.color.pt_steps),
+            context.getColor(R.color.pt_reps)
+        )
+    }
+
+    fun apply(views: RemoteViews, look: Look, duo: Boolean) {
         views.setInt(R.id.pt_root, "setBackgroundResource", look.bg)
         views.setTextColor(R.id.pt_title, look.text)
+        if (duo) {
+            views.setTextColor(R.id.pt_footer, look.text)
+            views.setTextColor(R.id.d_them_name, look.secondary)
+            views.setTextColor(R.id.d_me_name, look.secondary)
+            views.setTextColor(R.id.d_them_amt, look.text)
+            views.setTextColor(R.id.d_me_amt, look.text)
+            return
+        }
         views.setTextColor(R.id.pt_footer, look.secondary)
         views.setTextColor(R.id.pt_water_value, look.water)
         views.setTextColor(R.id.pt_steps_value, look.steps)
@@ -615,15 +791,19 @@ object Palette {
 }
 
 /**
- * The bear — the same shapes and colours as BearJar.tsx, in the partner's
- * lavender theme — drawn into a 100 x 124 box.
+ * The bear — the same shapes as BearJar.tsx — drawn into a 100 x 124 box, in
+ * its owner's colours and with a mood: asleep while empty, happy while it
+ * fills, overjoyed at the goal.
  */
 object BearArt {
+    class Theme(val body: Int, val rim: Int, val tint: Int)
+
+    /** Theirs is lavender, mine is pink — the same pair as on Home. */
+    val THEIRS = Theme(Color.parseColor("#E6E8FF"), Color.parseColor("#A5B4FC"), Color.parseColor("#8B5CF6"))
+    val MINE = Theme(Color.parseColor("#FFE4EC"), Color.parseColor("#F9A8C9"), Color.parseColor("#FB7185"))
+
     private const val TOP = 7f + 2f
     private const val BOTTOM = 119f + 2f
-    private val BODY = Color.parseColor("#E6E8FF")
-    private val RIM = Color.parseColor("#A5B4FC")
-    private val TINT = Color.parseColor("#8B5CF6")
     private val INK = Color.parseColor("#1E293B")
     private val DEEP = Color.parseColor("#0B1B3F")
     private val SPARK = Color.parseColor("#FBBF24")
@@ -665,7 +845,21 @@ object BearArt {
         close()
     }
 
-    fun drawInto(c: Canvas, pct: Float, layers: List<Pair<Int, Float>>, met: Boolean, now: Long) {
+    /** A standalone bear, 50dp wide, for the duo. */
+    fun bitmap(density: Float, pct: Float, layers: List<Pair<Int, Float>>, met: Boolean, theme: Theme, now: Long): Bitmap {
+        val w = (50f * density).roundToInt().coerceIn(80, 200)
+        val h = (w * 1.24f).roundToInt()
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        c.scale(w / 100f, w / 100f)
+        drawInto(c, pct, layers, met, theme, now)
+        return bmp
+    }
+
+    fun drawInto(c: Canvas, pct: Float, layers: List<Pair<Int, Float>>, met: Boolean, theme: Theme, now: Long) {
+        val BODY = theme.body
+        val RIM = theme.rim
+        val TINT = theme.tint
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         val sil = silhouette()
 
@@ -733,23 +927,59 @@ object BearArt {
         paint.alpha = 255
         paint.style = Paint.Style.FILL
 
-        // Face, always above the drink — drawn a touch bolder, since the bear is small here.
-        paint.color = INK
-        c.drawOval(RectF(35.6f, 36.8f, 44.4f, 47.2f), paint)
-        c.drawOval(RectF(55.6f, 36.8f, 64.4f, 47.2f), paint)
+        /* Face, always above the drink, with the bear's mood: asleep while
+           empty, happy while it fills, overjoyed at the goal. */
+        val asleep = pct <= 0f
+        val joy = met
         paint.color = Color.WHITE
-        c.drawCircle(41.6f, 40.2f, 1.6f, paint)
-        c.drawCircle(61.6f, 40.2f, 1.6f, paint)
         paint.alpha = 217
         c.drawOval(RectF(40f, 45f, 60f, 59f), paint)
         paint.alpha = 255
         paint.color = INK
         c.drawOval(RectF(46.3f, 47.3f, 53.7f, 52.7f), paint)
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 1.8f
         paint.strokeCap = Paint.Cap.ROUND
-        c.drawPath(Path().apply { moveTo(46f, 54.5f); quadTo(50f, 58.5f, 54f, 54.5f) }, paint)
-        paint.style = Paint.Style.FILL
+        when {
+            asleep -> {
+                // Closed eyes, a small mouth, and a drift of z's.
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = 2.4f
+                c.drawPath(Path().apply { moveTo(36f, 42f); quadTo(40f, 46.5f, 44f, 42f) }, paint)
+                c.drawPath(Path().apply { moveTo(56f, 42f); quadTo(60f, 46.5f, 64f, 42f) }, paint)
+                paint.strokeWidth = 1.6f
+                c.drawPath(Path().apply { moveTo(48f, 55f); lineTo(52f, 55f) }, paint)
+                paint.color = RIM
+                paint.strokeWidth = 2f
+                // A small z low, a bigger one drifting up and right — all inside the box.
+                paint.strokeWidth = 1.6f
+                c.drawPath(Path().apply { moveTo(81f, 11f); lineTo(86f, 11f); lineTo(81f, 16f); lineTo(86f, 16f) }, paint)
+                paint.strokeWidth = 2f
+                c.drawPath(Path().apply { moveTo(89f, 2f); lineTo(96f, 2f); lineTo(89f, 9f); lineTo(96f, 9f) }, paint)
+                paint.style = Paint.Style.FILL
+            }
+            joy -> {
+                // Happy-closed eyes and a big open smile.
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = 2.6f
+                c.drawPath(Path().apply { moveTo(36f, 44f); quadTo(40f, 37f, 44f, 44f) }, paint)
+                c.drawPath(Path().apply { moveTo(56f, 44f); quadTo(60f, 37f, 64f, 44f) }, paint)
+                paint.style = Paint.Style.FILL
+                c.drawPath(Path().apply { moveTo(44.5f, 53.5f); quadTo(50f, 63f, 55.5f, 53.5f); close() }, paint)
+                paint.color = Color.parseColor("#FB7185")
+                c.drawOval(RectF(47.5f, 57f, 52.5f, 60f), paint)
+            }
+            else -> {
+                c.drawOval(RectF(35.6f, 36.8f, 44.4f, 47.2f), paint)
+                c.drawOval(RectF(55.6f, 36.8f, 64.4f, 47.2f), paint)
+                paint.color = Color.WHITE
+                c.drawCircle(41.6f, 40.2f, 1.6f, paint)
+                c.drawCircle(61.6f, 40.2f, 1.6f, paint)
+                paint.color = INK
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = 1.8f
+                c.drawPath(Path().apply { moveTo(46f, 54.5f); quadTo(50f, 58.5f, 54f, 54.5f) }, paint)
+                paint.style = Paint.Style.FILL
+            }
+        }
         paint.color = TINT
         paint.alpha = 153
         c.drawOval(RectF(25f, 48.5f, 36f, 55.5f), paint)
@@ -996,10 +1226,361 @@ ${metricRow('reps', '72', 'reps · Squat', 'You 40', false)}
 </LinearLayout>
 `;
 
+/* ---------- The duo layout ---------- */
+
+const duoBear = (who) => `
+            <LinearLayout
+                android:layout_width="62dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center_horizontal">
+
+                <FrameLayout
+                    android:layout_width="52dp"
+                    android:layout_height="64dp">
+
+                    <ImageView
+                        android:id="@+id/d_${who}_bear"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:scaleType="fitCenter"
+                        android:contentDescription="@null"
+                        android:src="@drawable/pd_bear_${who}" />
+${who === 'them' ? `
+                    <ProgressBar
+                        android:id="@+id/d_them_bubbles_high"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:indeterminate="true"
+                        android:indeterminateOnly="true"
+                        android:indeterminateDrawable="@drawable/pd_bubbles_high"
+                        android:visibility="gone" />
+
+                    <ProgressBar
+                        android:id="@+id/d_them_bubbles_low"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:indeterminate="true"
+                        android:indeterminateOnly="true"
+                        android:indeterminateDrawable="@drawable/pd_bubbles_low"
+                        android:visibility="gone" />
+` : ''}
+                    <ProgressBar
+                        android:id="@+id/d_${who}_twinkle"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:indeterminate="true"
+                        android:indeterminateOnly="true"
+                        android:indeterminateDrawable="@drawable/pt_twinkle"
+                        android:visibility="gone" />
+                </FrameLayout>
+
+                <TextView
+                    android:id="@+id/d_${who}_name"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="${who === 'them' ? 'Alex' : 'You'}"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:textColor="@color/pd_secondary"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/d_${who}_amt"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="${who === 'them' ? '1.4 L' : '1 L'}"
+                    android:maxLines="1"
+                    android:textColor="@color/pd_text"
+                    android:textSize="12.5sp"
+                    android:fontFamily="sans-serif-black" />
+            </LinearLayout>`;
+
+const duelRow = (key, icon, them, me, share, first) => `
+            <LinearLayout
+                android:id="@+id/d_${key}_row"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="${first ? 0 : 6}dp"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:id="@+id/d_${key}_them"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="end"
+                        android:text="${them}"
+                        android:maxLines="1"
+                        android:textColor="@color/pd_text"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:layout_marginEnd="4dp"
+                        android:text="${icon}"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:id="@+id/d_${key}_me"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="${me}"
+                        android:maxLines="1"
+                        android:textColor="@color/pd_secondary"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <ProgressBar
+                    android:id="@+id/d_${key}_tug"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="6dp"
+                    android:layout_marginTop="2dp"
+                    android:max="1000"
+                    android:progress="${share}"
+                    android:progressDrawable="@drawable/pd_tug" />
+            </LinearLayout>`;
+
+const DUO_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
+<!-- The duo: both bears face to face, a tug-of-war per metric between them,
+     the rivalry line, and a button to drink without opening the app. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/pt_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center_vertical"
+    android:paddingStart="14dp"
+    android:paddingEnd="14dp"
+    android:paddingTop="12dp"
+    android:paddingBottom="12dp"
+    android:background="@drawable/pt_bg_sunset">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/pt_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/pd_preview_title"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="@color/pd_text"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:id="@+id/pt_live"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="6dp"
+            android:paddingEnd="7dp"
+            android:paddingTop="2dp"
+            android:paddingBottom="2dp"
+            android:background="@drawable/pt_live_pill">
+
+            <ProgressBar
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:indeterminate="true"
+                android:indeterminateOnly="true"
+                android:indeterminateDrawable="@drawable/pt_live_pulse" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:text="@string/pt_live"
+                android:textColor="#4ADE80"
+                android:textSize="9sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.08" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+${duoBear('them')}
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:layout_marginEnd="6dp"
+            android:orientation="vertical">
+${duelRow('water', '💧', '👑 1.4 L', '1 L', 583, true)}
+${duelRow('steps', '👟', '👑 6,120', '4,100', 599, false)}
+${duelRow('reps', '💪', '👑 112', '40', 737, false)}
+        </LinearLayout>
+${duoBear('me')}
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/pt_footer"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/pd_preview_duel"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="@color/pd_text"
+            android:textSize="11.5sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/d_drink"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="5dp"
+            android:paddingBottom="5dp"
+            android:background="@drawable/pd_drink_pill"
+            android:text="@string/pd_drink"
+            android:textColor="#0369A1"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+</LinearLayout>
+`;
+
+/* Tug-of-war: mine (pink) is the track, theirs (violet) pulls from the left. */
+const TUG_XML = `<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@android:id/background">
+        <shape>
+            <solid android:color="#F472B6" />
+            <corners android:radius="3dp" />
+        </shape>
+    </item>
+    <item android:id="@android:id/progress">
+        <scale android:scaleWidth="100%" android:scaleGravity="left">
+            <shape>
+                <gradient android:startColor="#8B5CF6" android:endColor="#C4B5FD" android:angle="0" />
+                <corners android:radius="3dp" />
+            </shape>
+        </scale>
+    </item>
+</layer-list>
+`;
+
+const DRINK_PILL_XML = `<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#FFFFFF" />
+    <corners android:radius="999dp" />
+</shape>
+`;
+
+/* The duo bears' picker previews: the same bear, in each owner's colours. */
+function duoBearPreview(body, rim, tint, liquid, level) {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="52dp" android:height="64dp"
+    android:viewportWidth="100" android:viewportHeight="124">
+    <path android:fillColor="${rim}" android:strokeColor="${rim}" android:strokeWidth="5" android:pathData="${BEAR_SILHOUETTE}" />
+    <path android:fillColor="${body}" android:pathData="${BEAR_SILHOUETTE}" />
+    <group>
+        <clip-path android:pathData="${BEAR_SILHOUETTE}" />
+        <path android:fillColor="${liquid}" android:pathData="M0,${level} Q12,${level - 4} 25,${level} T50,${level} T75,${level} T100,${level} L100,124 L0,124 Z" />
+    </group>
+    <path android:fillColor="#1E293B" android:pathData="${circlePath(40, 42, 4)} ${circlePath(60, 42, 4)}" />
+    <path android:fillColor="#FFFFFF" android:fillAlpha="0.85" android:pathData="${circlePath(50, 52, 8)}" />
+    <path android:fillColor="#1E293B" android:pathData="${circlePath(50, 50, 3)}" />
+    <path android:fillColor="${tint}" android:fillAlpha="0.55" android:pathData="${circlePath(31, 52, 4)} ${circlePath(69, 52, 4)}" />
+</vector>
+`;
+}
+
+/* Bubbles inside a duo bear, in the bear's own 100 x 124 box. */
+function duoBubbleFrame(frame, { xs, from, to, size }) {
+  const paths = xs
+    .map((x, i) => {
+      const p = (frame / BUBBLE_FRAMES + i / xs.length) % 1;
+      const cy = from - p * (from - to);
+      const cx = x + 1.6 * Math.sin(p * Math.PI * 4);
+      const r = size * (0.7 + 0.6 * p);
+      const alpha = p > 0.8 ? round(0.75 * (1 - (p - 0.8) / 0.2)) : 0.75;
+      return `    <path android:fillColor="#FFFFFF" android:fillAlpha="${alpha}" android:pathData="${circlePath(cx, cy, r)}" />`;
+    })
+    .join('\n');
+  return `<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="52dp" android:height="64dp"
+    android:viewportWidth="100" android:viewportHeight="124">
+${paths}
+</vector>
+`;
+}
+
+const DUO_BUBBLES = {
+  high: { xs: [36, 52, 64, 44, 58], from: 116, to: 72, size: 2.4 },
+  low: { xs: [42, 50, 58], from: 118, to: 104, size: 1.9 },
+};
+
+function duoResources() {
+  const files = {
+    'layout/water_widget_duo.xml': DUO_LAYOUT_XML,
+    'drawable/pd_tug.xml': TUG_XML,
+    'drawable/pd_drink_pill.xml': DRINK_PILL_XML,
+    'drawable/pd_bear_them.xml': duoBearPreview('#EEF0FF', '#A5B4FC', '#8B5CF6', '#FB923C', 64),
+    'drawable/pd_bear_me.xml': duoBearPreview('#FFF0F5', '#F9A8C9', '#FB7185', '#38BDF8', 80),
+    'drawable/pt_bg_sunset.xml': `<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient android:startColor="#4C1D95" android:centerColor="#7E22CE" android:endColor="#BE185D" android:angle="315" />
+    <corners android:radius="@dimen/widget_radius" />
+</shape>
+`,
+    'values/pd_colors.xml': `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="pd_text">#FFFFFF</color>
+    <color name="pd_secondary">#F5D0FE</color>
+</resources>
+`,
+  };
+  for (const [name, set] of Object.entries(DUO_BUBBLES)) {
+    for (let f = 0; f < BUBBLE_FRAMES; f++) files[`drawable/pd_bubbles_${name}_${f}.xml`] = duoBubbleFrame(f, set);
+    files[`drawable/pd_bubbles_${name}.xml`] = animationList(`pd_bubbles_${name}`, BUBBLE_FRAMES, 120);
+  }
+  return files;
+}
+
 const WATER_INFO_XML = `<?xml version="1.0" encoding="utf-8"?>
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:initialLayout="@layout/water_widget"
-    android:previewLayout="@layout/water_widget"
+    android:initialLayout="@layout/water_widget_duo"
+    android:previewLayout="@layout/water_widget_duo"
     android:description="@string/water_widget_description"
     android:minWidth="280dp"
     android:minHeight="140dp"
@@ -1098,7 +1679,13 @@ const COLORS_NIGHT_XML = `<?xml version="1.0" encoding="utf-8"?>
 
 const WATER_STRINGS = {
   water_widget_label: 'Partner today',
-  water_widget_description: 'Your partner’s water, steps and reps as live rings, next to yours.',
+  water_widget_description: 'Your bear vs theirs — water, steps and reps as a live tug-of-war. Drink right from the widget.',
+  pd_title_empty: 'Partner vs you',
+  pd_new_day: 'New day — first sip wins ☀️',
+  pd_partner: 'Partner',
+  pd_drink: '💧 +250',
+  pd_preview_title: 'Alex vs you',
+  pd_preview_duel: 'Alex just had a juice 🧃 — your move!',
   pt_title_empty: 'Partner · Today',
   pt_empty: 'Pair up to see their day here',
   pt_new_day: 'A new day — nothing yet',
@@ -1119,6 +1706,7 @@ function waterResources() {
     'values/pt_colors.xml': COLORS_XML,
     'values-night/pt_colors.xml': COLORS_NIGHT_XML,
     ...THEME_DRAWABLES,
+    ...duoResources(),
     ...glintDrawable(),
     ...twinkleDrawables(),
     ...pulseDrawables(),

@@ -328,6 +328,8 @@ export default function RootLayout() {
             }}
           >
             <Stack.Screen name="(tabs)" />
+            {/* The widget's quick-drink button lands here, logs, and returns Home. */}
+            <Stack.Screen name="drink" options={{ animation: 'fade', gestureEnabled: false }} />
             <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
             {/* The session flow owns the camera and must not be swipe-dismissed
                 mid-set, which would strand the camera in an active state. */}

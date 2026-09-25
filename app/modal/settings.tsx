@@ -78,7 +78,7 @@ const PRIVACY_TOGGLES: ToggleRow[] = [
   },
   {
     key: 'ritualReminder',
-    emoji: '✦',
+    emoji: '✨',
     title: 'Ritual reminder',
     subtitle: 'One evening nudge with what’s left of your routine',
   },

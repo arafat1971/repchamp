@@ -327,6 +327,21 @@ export const YOGA_POSES: Readonly<Record<YogaPoseId, YogaPose>> = {
   },
 };
 
+/** The figure done the other way round — for the "other side" half of a flow. */
+export function mirrorFigure(f: Figure): Figure {
+  const m = (p: readonly [number, number]) => [100 - p[0], p[1]] as const;
+  return {
+    head: m(f.head), ls: m(f.rs), rs: m(f.ls), le: m(f.re), re: m(f.le), lw: m(f.rw), rw: m(f.lw),
+    lh: m(f.rh), rh: m(f.lh), lk: m(f.rk), rk: m(f.lk), la: m(f.ra), ra: m(f.la),
+  };
+}
+
+/** The figure to show for a flow step: mirrored on its second side. */
+export function stepFigure(step: FlowStep): Figure {
+  const f = YOGA_POSES[step.pose].figure;
+  return step.switchSide ? mirrorFigure(f) : f;
+}
+
 export function getYogaPose(id: YogaPoseId): YogaPose {
   return YOGA_POSES[id];
 }

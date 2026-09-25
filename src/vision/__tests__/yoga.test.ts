@@ -8,6 +8,7 @@ import {
   YOGA_POSES,
   flowMinutes,
   flowScore,
+  mirrorFigure,
   readPose,
   targetScore,
   type Figure,
@@ -26,14 +27,7 @@ function figurePose(f: Figure, overrides: Partial<Record<keyof Figure, readonly 
   };
 }
 
-/** Left and right swapped — the same pose done the other way round. */
-function mirrored(f: Figure): Figure {
-  const m = (p: readonly [number, number]) => [100 - p[0], p[1]] as const;
-  return {
-    head: m(f.head), ls: m(f.rs), rs: m(f.ls), le: m(f.re), re: m(f.le), lw: m(f.rw), rw: m(f.lw),
-    lh: m(f.rh), rh: m(f.lh), lk: m(f.rk), rk: m(f.lk), la: m(f.ra), ra: m(f.la),
-  };
-}
+const mirrored = mirrorFigure;
 
 describe('readPose', () => {
   it.each(Object.values(YOGA_POSES).map((p) => [p.id, p] as const))(

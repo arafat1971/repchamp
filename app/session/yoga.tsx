@@ -29,6 +29,7 @@ import {
   flowScore,
   getFlow,
   readPose,
+  stepFigure,
   type StepResult,
 } from '@/vision/yoga';
 
@@ -331,19 +332,6 @@ export default function YogaSession() {
       >
         {cameraReady && stage !== 'done' ? <PoseOverlay pose={posePoints} frame={poseFrame} color={accent} visible={poseVisible} /> : null}
 
-        {/* ---------------- Top bar ---------------- */}
-        <View style={[styles.topBar, { top: insets.top + 8 }]}>
-          <PressableScale onPress={leave} accessibilityRole="button" accessibilityLabel="End session" style={styles.close}>
-            <Text style={styles.closeText}>×</Text>
-          </PressableScale>
-          {stage === 'rest' || stage === 'pose' ? (
-            <View style={styles.stepPill}>
-              <Text style={styles.stepText}>{`${index + 1} / ${flow.steps.length}`}</Text>
-            </View>
-          ) : null}
-          <View style={{ width: 40 }} />
-        </View>
-
         {/* ---------------- Intro ---------------- */}
         {stage === 'intro' ? (
           <Animated.View entering={FadeIn} style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
@@ -352,7 +340,7 @@ export default function YogaSession() {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.poseStrip}>
               {flow.steps.map((s, i) => (
                 <View key={i} style={styles.poseChip}>
-                  <PoseFigure figure={YOGA_POSES[s.pose].figure} size={40} color={palette.white} strokeWidth={6} />
+                  <PoseFigure figure={stepFigure(s)} size={40} color={palette.white} strokeWidth={6} />
                   <Text style={styles.poseChipText} numberOfLines={1}>
                     {YOGA_POSES[s.pose].name}
                   </Text>
@@ -375,7 +363,7 @@ export default function YogaSession() {
           <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.center}>
             <Text style={styles.nextLabel}>{step.switchSide ? 'Other side' : index === 0 ? 'First' : 'Next'}</Text>
             <View style={styles.figureBig}>
-              <PoseFigure figure={pose.figure} size={150} color={palette.white} strokeWidth={5} />
+              <PoseFigure figure={stepFigure(step)} size={150} color={palette.white} strokeWidth={5} />
             </View>
             <Text style={styles.poseName}>{pose.name}</Text>
             <Text style={styles.sanskrit}>{pose.sanskrit}</Text>
@@ -388,7 +376,7 @@ export default function YogaSession() {
         {stage === 'pose' ? (
           <>
             <View style={[styles.refFigure, { top: insets.top + 60 }]}>
-              <PoseFigure figure={pose.figure} size={84} color={live.inPose ? IN_POSE : palette.white} strokeWidth={6} />
+              <PoseFigure figure={stepFigure(step)} size={84} color={live.inPose ? IN_POSE : palette.white} strokeWidth={6} />
             </View>
             <Animated.View entering={FadeInDown} style={[styles.panel, { paddingBottom: insets.bottom + 16 }]}>
               <View style={styles.panelHead}>
@@ -460,6 +448,19 @@ export default function YogaSession() {
             <Text style={styles.toastText}>{toast}</Text>
           </Animated.View>
         ) : null}
+
+        {/* ---------------- Top bar — last, so no overlay dims it ---------------- */}
+        <View style={[styles.topBar, { top: insets.top + 8 }]}>
+          <PressableScale onPress={leave} accessibilityRole="button" accessibilityLabel="End session" style={styles.close}>
+            <Text style={styles.closeText}>×</Text>
+          </PressableScale>
+          {stage === 'rest' || stage === 'pose' ? (
+            <View style={styles.stepPill}>
+              <Text style={styles.stepText}>{`${index + 1} / ${flow.steps.length}`}</Text>
+            </View>
+          ) : null}
+          <View style={{ width: 40 }} />
+        </View>
 
         {cameraBlocked ? <CameraDenied restricted={permissionStatus === 'restricted'} onBack={leave} /> : null}
       </CameraStage>

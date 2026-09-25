@@ -207,6 +207,15 @@ export interface WaterWidgetSnapshot {
   reactEmoji: string;
 
   /**
+   * Our daily ritual: habits done today, theirs and mine, of `ritualTotal`.
+   * -1 when unknown (an older app, or my side on a push-built copy — the
+   * native side keeps `meRitual` from this phone's last write).
+   */
+  ritual: number;
+  meRitual: number;
+  ritualTotal: number;
+
+  /**
    * The version of the state this shows — the writer's `rev`, 0 if unknown.
    * The native side keeps whichever copy of today has the higher one.
    */
@@ -257,6 +266,14 @@ export interface WaterWidgetInput {
   weather?: { kind: string; tempC: number; at: number } | null;
   /** My chosen look, when this copy is built on my phone. */
   style?: WidgetStyle | null;
+  /** Ritual scores: theirs, and mine when built on my phone. */
+  ritual?: { them: number; me?: number | null; total: number } | null;
+}
+
+/** A ritual score in 0..total, or -1 when unknown. */
+function score(v: number | null | undefined, total: number | undefined): number {
+  if (typeof v !== 'number' || !Number.isFinite(v) || !total || total <= 0) return -1;
+  return Math.max(0, Math.min(total, Math.round(v)));
 }
 
 function sanitizeGoal(goal: number | null | undefined): number {
@@ -374,6 +391,9 @@ export function buildWaterWidgetSnapshot(input: WaterWidgetInput, now = Date.now
     meadow: input.week?.meadow ?? [0, 0, 0, 0, 0, 0, 0],
     reactAt: react?.at ?? 0,
     reactEmoji: react?.emoji ?? '',
+    ritual: score(input.ritual?.them, input.ritual?.total),
+    meRitual: score(input.ritual?.me, input.ritual?.total),
+    ritualTotal: input.ritual && input.ritual.total > 0 ? Math.round(input.ritual.total) : 0,
     visitor: dailyVisitor(input.day),
     styled: !!input.style,
     ...(input.style ?? DEFAULT_WIDGET_STYLE),

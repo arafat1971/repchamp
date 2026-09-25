@@ -340,3 +340,24 @@ describe('the water payload matches what the native side reads', () => {
     expect(templates).toContain('"partner-water"');
   });
 });
+
+describe('ritual on the widget', () => {
+  const base = { name: 'Sam', day: '2026-09-25', ml: 500 };
+
+  it('carries both scores, clamped to the total', () => {
+    const snap = buildWaterWidgetSnapshot({ ...base, ritual: { them: 4, me: 9, total: 6 } }, 1);
+    expect(snap).toMatchObject({ ritual: 4, meRitual: 6, ritualTotal: 6 });
+  });
+
+  it('says unknown rather than zero when a side is missing', () => {
+    expect(buildWaterWidgetSnapshot({ ...base, ritual: { them: 2, total: 6 } }, 1)).toMatchObject({ ritual: 2, meRitual: -1 });
+    expect(buildWaterWidgetSnapshot(base, 1)).toMatchObject({ ritual: -1, meRitual: -1, ritualTotal: 0 });
+  });
+
+  it('keeps my score across a push-built copy, natively', () => {
+    const templates = readFileSync(join(__dirname, '../../../plugins/waterWidgetTemplates.js'), 'utf8');
+    const meKeys = templates.slice(templates.indexOf('ME_KEYS = arrayOf('), templates.indexOf('STYLE_KEYS = arrayOf('));
+    expect(meKeys).toContain('"meRitual"');
+    expect(meKeys).not.toContain('"ritual"');
+  });
+});

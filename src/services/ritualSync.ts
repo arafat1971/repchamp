@@ -1,6 +1,7 @@
 import { POKE_GAP_MS, type HabitId, type Poke } from '@/domain/ritual';
 import { dayKey } from '@/domain/progression';
 import { recordCoupleRitual } from '@/services/coupleService';
+import { ritualChanged } from '@/services/hydrationSync';
 
 /**
  * Publishing the ritual and the live moments on "Today, together".
@@ -20,7 +21,10 @@ export async function syncRitualNow(coupleId: string | null | undefined, uid: st
   if (lastTicks && lastTicks.day === day && lastTicks.key === key) return;
   try {
     await recordCoupleRitual(coupleId, uid, day, { habits: [...ticks] });
+    const first = lastTicks === null;
     lastTicks = { day, key };
+    // The first publish on open is a catch-up, not news for their widget.
+    if (!first) ritualChanged(coupleId, uid);
   } catch {
     // The next tick, or the next open, publishes it.
   }

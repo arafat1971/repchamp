@@ -36,6 +36,7 @@ import {
   partnerLayersToday,
   partnerRepsToday,
   partnerWaterRevToday,
+  partnerHabitsToday,
   partnerStepsToday,
   partnerWaterToday,
 } from '@/domain/couple';
@@ -49,12 +50,14 @@ import { buildWaterWidgetSnapshot, repsOnDay } from '@/domain/waterWidget';
 import { drinkLayers } from '@/domain/drinkKinds';
 import { useWidgetStyleStore } from '@/state/widgetStyleStore';
 import { useDuoStreakStore } from '@/state/duoStreakStore';
+import { useRitualStore } from '@/state/ritualStore';
 import { useWeatherStore } from '@/state/weatherStore';
 import { refreshWeather } from '@/services/weather';
 import { meadow, weekWrap, wrapLine } from '@/domain/week';
 import { bondMonths, occasionFor, seasonFor } from '@/domain/season';
 import { duoStreak } from '@/domain/duoStreak';
 import { DEFAULT_DAILY_GOAL_ML } from '@/domain/hydration';
+import { HABITS, cleanTicks, ritualFor, ritualScore } from '@/domain/ritual';
 import { getExercise } from '@/vision/exercises';
 import { clearWidgetSnapshot, publishWidgetSnapshot } from '@/services/partnerWidget';
 import { trackerHistory } from '@/domain/coupleTracker';
@@ -240,6 +243,9 @@ export default function HomeScreen() {
   const myStepsCount = stepsToday.status === 'ready' ? stepsToday.steps : null;
   /* My own bear on the duo widget: my goal and today's drinks as bands. */
   const myGoalMl = useHydrationStore((st) => st.goalMl);
+  const ritualDay = useRitualStore((st) => st.day);
+  const ritualTicks = useRitualStore((st) => st.ticks);
+  const myRitualTicks = useMemo(() => (ritualDay === today ? ritualTicks : []), [ritualDay, ritualTicks, today]);
   const allDrinks = useHydrationStore((st) => st.drinks);
   const myLayers = useMemo(
     () => drinkLayers(allDrinks.filter((d) => d.day === today)).map((l) => ({ k: l.kind, ml: l.ml })),
@@ -323,6 +329,21 @@ export default function HomeScreen() {
       return;
     }
     const theirReps = partnerRepsToday(couple.partner, today);
+    const theirSteps = partnerStepsToday(couple.partner, today);
+    /* Our daily ritual, both sides, from the same data the widget shows. */
+    const ritual = {
+      them: ritualScore(
+        ritualFor({
+          ml: partnerGlass.ml,
+          goalMl: partnerGlass.goalMl ?? DEFAULT_DAILY_GOAL_ML,
+          steps: theirSteps,
+          reps: theirReps.reps,
+          ticks: cleanTicks(partnerHabitsToday(couple.partner, today)),
+        }),
+      ),
+      me: ritualScore(ritualFor({ ml: todayMl, goalMl: myGoalMl, steps: myStepsCount, reps: myReps.reps, ticks: myRitualTicks })),
+      total: HABITS.length,
+    };
     publishWidgetSnapshot(
       buildWaterWidgetSnapshot({
         name: partnerGlass.name,
@@ -351,6 +372,7 @@ export default function HomeScreen() {
         react: reactAt > 0 ? { at: reactAt, emoji: reactEmoji } : null,
         week: weekInfo,
         weather: realWeather ? weatherNow : null,
+        ritual,
       }),
       'water',
     );
@@ -380,6 +402,7 @@ export default function HomeScreen() {
     showReps,
     showMine,
     motion,
+    myRitualTicks,
   ]);
 
   /* Mirror the same numbers into the daily dashboard widget. A no-op on any

@@ -276,7 +276,8 @@ class WaterWidgetProvider : AppWidgetProvider() {
         private const val LIVE_MS = 15L * 60L * 1000L
         private val ME_KEYS = arrayOf(
             "hasMe", "meWater", "meSteps", "meReps", "meWaterMl", "meStepsN", "meRepsN",
-            "mePct", "meMet", "meLayers", "streak", "meLastAt", "meadow", "sky", "temp", "season", "occasion"
+            "mePct", "meMet", "meLayers", "streak", "meLastAt", "meadow", "sky", "temp", "season", "occasion",
+            "meRitual"
         )
         private val STYLE_KEYS = arrayOf(
             "styled", "layout", "theme", "showSteps", "showReps", "showMine", "motion", "weather", "surface"
@@ -654,6 +655,23 @@ class WaterWidgetProvider : AppWidgetProvider() {
                         snap?.optString("reps") ?: "0",
                         if (hasMe) snap?.optString("meReps") ?: "0" else "—",
                         showMine
+                    )
+                )
+            }
+
+            // Our daily ritual: habits done, theirs and mine, crowned like the others.
+            val ritualTotal = snap?.optInt("ritualTotal", 0) ?: 0
+            val ritualA = snap?.optInt("ritual", -1) ?: -1
+            val ritualB = if (hasMe) snap?.optInt("meRitual", -1) ?: -1 else -1
+            show(views, R.id.s_ritual, ritualTotal > 0 && ritualA >= 0)
+            if (ritualTotal > 0 && ritualA >= 0) {
+                views.setTextViewText(
+                    R.id.s_ritual,
+                    chip(
+                        "✦", ritualA.toLong(), max(0, ritualB).toLong(),
+                        "$ritualA/$ritualTotal",
+                        if (ritualB >= 0) "$ritualB/$ritualTotal" else "—",
+                        showMine && ritualB >= 0
                     )
                 )
             }
@@ -3075,6 +3093,22 @@ const SCENE_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
                 android:textColor="#FFFFFF"
                 android:textSize="10.5sp"
                 android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/s_ritual"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingTop="2dp"
+                android:paddingBottom="2dp"
+                android:background="@drawable/ps_glass"
+                android:text="✦ 👑 4/6  ·  3/6"
+                android:maxLines="1"
+                android:textColor="#FDE68A"
+                android:textSize="10.5sp"
+                android:textStyle="bold" />
         </LinearLayout>
 
         <FrameLayout
@@ -3494,6 +3528,11 @@ class GlanceWidgetProvider : AppWidgetProvider() {
             views.setTextViewText(R.id.g_title, (name ?: context.getString(R.string.pd_partner)) + " & you")
             views.setTextViewText(R.id.g_them, snap?.optString("amount") ?: "0 ml")
             views.setTextViewText(R.id.g_me, if (hasMe) snap?.optString("meWater") ?: "—" else "—")
+            val rTotal = snap?.optInt("ritualTotal", 0) ?: 0
+            val rThem = snap?.optInt("ritual", -1) ?: -1
+            val rMe = if (hasMe) snap?.optInt("meRitual", -1) ?: -1 else -1
+            views.setTextViewText(R.id.g_them_r, if (rTotal > 0 && rThem >= 0) "✦ $rThem/$rTotal" else "")
+            views.setTextViewText(R.id.g_me_r, if (rTotal > 0 && rMe >= 0) "✦ $rMe/$rTotal" else "")
             val streak = if (hasMe) snap?.optInt("streak", 0) ?: 0 else 0
             views.setViewVisibility(R.id.g_streak, if (streak > 0) View.VISIBLE else View.GONE)
             views.setTextViewText(R.id.g_streak, "🔥 " + streak)
@@ -3623,20 +3662,42 @@ const GLANCE_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
-            <TextView
-                android:id="@+id/g_them"
+            <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:gravity="center"
-                android:text="1.4 L"
-                android:maxLines="1"
-                android:textColor="#FFFFFF"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:shadowColor="#99000000"
-                android:shadowRadius="3"
-                android:shadowDy="1" />
+                android:orientation="vertical"
+                android:gravity="center_horizontal">
+
+                <TextView
+                    android:id="@+id/g_them"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:text="1.4 L"
+                    android:maxLines="1"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:shadowColor="#99000000"
+                    android:shadowRadius="3"
+                    android:shadowDy="1" />
+
+                <!-- Our daily ritual for this side; empty when unknown. -->
+                <TextView
+                    android:id="@+id/g_them_r"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:text="✦ 4/6"
+                    android:maxLines="1"
+                    android:textColor="#FDE68A"
+                    android:textSize="9sp"
+                    android:textStyle="bold"
+                    android:shadowColor="#99000000"
+                    android:shadowRadius="3"
+                    android:shadowDy="1" />
+            </LinearLayout>
 
             <TextView
                 android:id="@+id/g_drink"
@@ -3651,20 +3712,42 @@ const GLANCE_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
                 android:contentDescription="@string/glance_drink"
                 android:textSize="12sp" />
 
-            <TextView
-                android:id="@+id/g_me"
+            <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:gravity="center"
-                android:text="1 L"
-                android:maxLines="1"
-                android:textColor="#FFFFFF"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:shadowColor="#99000000"
-                android:shadowRadius="3"
-                android:shadowDy="1" />
+                android:orientation="vertical"
+                android:gravity="center_horizontal">
+
+                <TextView
+                    android:id="@+id/g_me"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:text="1 L"
+                    android:maxLines="1"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:shadowColor="#99000000"
+                    android:shadowRadius="3"
+                    android:shadowDy="1" />
+
+                <!-- Our daily ritual for this side; empty when unknown. -->
+                <TextView
+                    android:id="@+id/g_me_r"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:text="✦ 3/6"
+                    android:maxLines="1"
+                    android:textColor="#FDE68A"
+                    android:textSize="9sp"
+                    android:textStyle="bold"
+                    android:shadowColor="#99000000"
+                    android:shadowRadius="3"
+                    android:shadowDy="1" />
+            </LinearLayout>
         </LinearLayout>
     </LinearLayout>
 </FrameLayout>

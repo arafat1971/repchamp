@@ -58,6 +58,7 @@ export const SAMPLE_SNAPSHOT: WaterWidgetSnapshot = buildWaterWidgetSnapshot(
     topExercise: 'Squat',
     trainedAt: SAMPLE_NOW - 30 * 60_000,
     streak: 4,
+    ritual: { them: 4, me: 3, total: 6 },
     me: {
       ml: 1000,
       steps: 4100,
@@ -303,15 +304,21 @@ export function GlancePreview({ style, snap = SAMPLE_SNAPSHOT, size }: { style: 
         </Text>
         <View style={{ flex: 1 }} />
         <View style={styles.glanceBottom}>
-          <Text style={styles.glanceAmount} numberOfLines={1}>
-            {snap.amount}
-          </Text>
+          <View style={styles.glanceSide}>
+            <Text style={styles.glanceAmount} numberOfLines={1}>
+              {snap.amount}
+            </Text>
+            {snap.ritualTotal > 0 && snap.ritual >= 0 ? <Text style={styles.glanceRitual}>✦ {snap.ritual}/{snap.ritualTotal}</Text> : null}
+          </View>
           <View style={styles.glanceDrink}>
             <Text style={styles.glanceDrop}>💧</Text>
           </View>
-          <Text style={styles.glanceAmount} numberOfLines={1}>
-            {snap.hasMe ? snap.meWater : '—'}
-          </Text>
+          <View style={styles.glanceSide}>
+            <Text style={styles.glanceAmount} numberOfLines={1}>
+              {snap.hasMe ? snap.meWater : '—'}
+            </Text>
+            {snap.ritualTotal > 0 && snap.hasMe && snap.meRitual >= 0 ? <Text style={styles.glanceRitual}>✦ {snap.meRitual}/{snap.ritualTotal}</Text> : null}
+          </View>
         </View>
       </View>
     </View>
@@ -810,6 +817,16 @@ function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: n
           ) : null}
           {style.showReps ? (
             <SceneChip icon="💪" them={snap.reps} me={snap.meReps || '—'} a={snap.repsN} b={snap.meRepsN} showMine={style.showMine} />
+          ) : null}
+          {snap.ritualTotal > 0 && snap.ritual >= 0 ? (
+            <SceneChip
+              icon="✦"
+              them={`${snap.ritual}/${snap.ritualTotal}`}
+              me={snap.meRitual >= 0 ? `${snap.meRitual}/${snap.ritualTotal}` : '—'}
+              a={snap.ritual}
+              b={Math.max(0, snap.meRitual)}
+              showMine={style.showMine && snap.meRitual >= 0}
+            />
           ) : null}
         </View>
         <View style={{ flex: 1 }} />
@@ -1333,7 +1350,9 @@ const styles = StyleSheet.create({
   glanceStreak: { ...font('bold', 10, { color: '#FDE68A' }), paddingHorizontal: 6, paddingVertical: 1 },
   glanceLine: { marginTop: 1, ...font('medium', 10, { color: 'rgba(255,255,255,0.9)' }), textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 3, textShadowOffset: { width: 0, height: 1 } },
   glanceBottom: { flexDirection: 'row', alignItems: 'center' },
-  glanceAmount: { flex: 1, textAlign: 'center', ...font('bold', 12, { color: '#FFFFFF' }), textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 3, textShadowOffset: { width: 0, height: 1 } },
+  glanceAmount: { alignSelf: 'stretch', textAlign: 'center', ...font('bold', 12, { color: '#FFFFFF' }), textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 3, textShadowOffset: { width: 0, height: 1 } },
+  glanceSide: { flex: 1, alignItems: 'center' },
+  glanceRitual: { ...font('bold', 9, { color: '#FDE68A' }), textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 3 },
   glanceDrink: { width: 36, height: 24, borderRadius: 12, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
   glanceDrop: { fontSize: 12 },
   floating: { backgroundColor: 'transparent', borderWidth: 0, shadowOpacity: 0, elevation: 0 },

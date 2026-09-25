@@ -4,6 +4,7 @@ import { SAMPLE_SNAPSHOT } from '@/components/widget/WidgetPreview';
 import {
   nudgeAt,
   partnerGoalToday,
+  partnerHabitsToday,
   partnerLastDrinkToday,
   partnerLayersToday,
   partnerRepsToday,
@@ -15,6 +16,7 @@ import { trackerHistory } from '@/domain/coupleTracker';
 import { drinkLayers } from '@/domain/drinkKinds';
 import { duoStreak } from '@/domain/duoStreak';
 import { dayKey } from '@/domain/progression';
+import { HABITS, cleanTicks, ritualFor, ritualScore } from '@/domain/ritual';
 import { bondMonths, occasionFor, seasonFor } from '@/domain/season';
 import { buildWaterWidgetSnapshot, repsOnDay, type WaterWidgetSnapshot } from '@/domain/waterWidget';
 import { meadow, weekWrap, wrapLine } from '@/domain/week';
@@ -22,6 +24,7 @@ import { buildWidgetSnapshot, type WidgetSnapshot } from '@/domain/widgetSnapsho
 import { useDuoStreakStore } from '@/state/duoStreakStore';
 import { selectTodayMl, useHydrationStore } from '@/state/hydrationStore';
 import { useProfileStore } from '@/state/profileStore';
+import { useRitualStore } from '@/state/ritualStore';
 import { useCouple } from '@/state/useCouple';
 import { useStepsToday } from '@/state/useStepsToday';
 import { useWeatherStore } from '@/state/weatherStore';
@@ -44,6 +47,8 @@ export function usePartnerTodaySnapshot(): WaterWidgetSnapshot {
   const week = useDuoStreakStore((s) => s.week);
   const weatherOn = useWidgetStyleStore((s) => s.weather);
   const weatherNow = useWeatherStore((s) => s.now);
+  const ritualDay = useRitualStore((s) => s.day);
+  const ritualTicks = useRitualStore((s) => s.ticks);
   const { steps } = useStepsToday();
   const mySteps = steps.status === 'ready' ? steps.steps : null;
 
@@ -66,7 +71,25 @@ export function usePartnerTodaySnapshot(): WaterWidgetSnapshot {
     const pairedAt =
       (couple.couple as { pairedAt?: { toMillis?: () => number } } | null)?.pairedAt?.toMillis?.() ?? 0;
     const bond = bondMonths(pairedAt, date);
+    const theirWater = partnerWaterToday(partner, today);
+    const theirSteps = partnerStepsToday(partner, today);
+    const ritual = {
+      them: ritualScore(
+        ritualFor({
+          ml: theirWater,
+          goalMl: partnerGoalToday(partner, today) ?? myGoal,
+          steps: theirSteps,
+          reps: reps.reps,
+          ticks: cleanTicks(partnerHabitsToday(partner, today)),
+        }),
+      ),
+      me: ritualScore(
+        ritualFor({ ml: myMl, goalMl: myGoal, steps: mySteps, reps: repsOnDay(sessions, today).reps, ticks: ritualDay === today ? ritualTicks : [] }),
+      ),
+      total: HABITS.length,
+    };
     return buildWaterWidgetSnapshot({
+      ritual,
       name,
       day: today,
       ml: partnerWaterToday(partner, today) ?? 0,
@@ -92,7 +115,7 @@ export function usePartnerTodaySnapshot(): WaterWidgetSnapshot {
         lastAt: myLastAt,
       },
     });
-  }, [couple.paired, couple.partner, couple.couple, couple.me?.uid, today, myMl, myGoal, drinks, sessions, mySteps, streakDays, week, weatherOn, weatherNow]);
+  }, [couple.paired, couple.partner, couple.couple, couple.me?.uid, today, myMl, myGoal, drinks, sessions, mySteps, streakDays, week, weatherOn, weatherNow, ritualDay, ritualTicks]);
 }
 
 /**

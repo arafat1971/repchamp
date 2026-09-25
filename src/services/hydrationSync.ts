@@ -17,6 +17,7 @@ import { partnerStepsToday, partnerWaterToday } from '@/domain/couple';
 import { METRIC_FIELD, type SharedMetricKey } from '@/domain/partnerSharing';
 import { drinkLayers } from '@/domain/drinkKinds';
 import { planDrinkNotice } from '@/domain/waterShare';
+import { HABITS, ritualFor, ritualScore } from '@/domain/ritual';
 import { buildWaterWidgetSnapshot } from '@/domain/waterWidget';
 import type { CoupleMember, DrinkLast } from '@/domain/couple';
 import {
@@ -30,6 +31,7 @@ import {
 } from '@/services/coupleService';
 import { sharingPrefs, useSharingStore } from '@/state/sharingStore';
 import { selectTodayMl, useHydrationStore } from '@/state/hydrationStore';
+import { ticksFor, useRitualStore } from '@/state/ritualStore';
 import { dayKey } from '@/domain/progression';
 
 /**
@@ -149,7 +151,26 @@ export function widgetFromPublished(me: CoupleMember) {
     rev: Math.max(doc?.rev ?? 0, water?.extras.rev ?? 0, steps?.rev ?? 0, reps?.rev ?? 0),
     cheerAt: lastSplashAt,
     react: lastReact,
+    // My ritual, as their widget's "them": water only counts when shared.
+    ritual: {
+      them: ritualScore(
+        ritualFor({
+          ml: prefs.water ? (water?.ml ?? doc?.waterMl ?? 0) : null,
+          goalMl: water?.extras.goalMl ?? doc?.goalMl ?? useHydrationStore.getState().goalMl,
+          steps: !prefs.steps ? null : steps ? steps.steps : (doc?.steps ?? null),
+          reps: reps ? reps.reps : (doc?.reps ?? 0),
+          ticks: ticksFor(useRitualStore.getState(), today),
+        }),
+      ),
+      total: HABITS.length,
+    },
   });
+}
+
+/** A tick moved: the partner's widget should hear it like a drink. */
+export function ritualChanged(coupleId: string | null | undefined, uid: string | null | undefined): void {
+  if (!coupleId || !uid) return;
+  scheduleWidgetPush(coupleId, uid);
 }
 
 /** Forget the publish memo — for tests, and for a uid change. */

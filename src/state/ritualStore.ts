@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { cleanTicks, toggleTick, withRitualDay, type HabitId, type RitualDay } from '@/domain/ritual';
+import { bindAction } from '@/domain/bondScope';
 import { zustandStorage } from '@/lib/storage';
 
 /**
@@ -16,6 +17,9 @@ interface RitualState {
   /** Each day's scores as this phone last saw them — the week-on-week view. */
   history: Record<string, RitualDay>;
   record: (day: string, seen: RitualDay) => void;
+  /** Which pairing `history` belongs to — see `domain/bondScope`. Ticks are mine alone and stay. */
+  coupleId: string;
+  bind: (coupleId: string) => void;
 }
 
 export const useRitualStore = create<RitualState>()(
@@ -30,6 +34,12 @@ export const useRitualStore = create<RitualState>()(
         return ticks;
       },
       history: {},
+      coupleId: '',
+      bind: (coupleId) => {
+        const action = bindAction(get().coupleId, coupleId);
+        if (action === 'adopt') set({ coupleId });
+        if (action === 'reset') set({ coupleId, history: {} });
+      },
       record: (day, seen) => {
         const next = withRitualDay(get().history, day, seen);
         if (next !== get().history) set({ history: next });
@@ -37,10 +47,10 @@ export const useRitualStore = create<RitualState>()(
     }),
     {
       name: 'repchamp.ritual',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => zustandStorage),
       migrate: (p) =>
-        ({ day: '', history: {}, ...(p as object), ticks: cleanTicks((p as { ticks?: unknown })?.ticks) }) as RitualState,
+        ({ day: '', history: {}, coupleId: '', ...(p as object), ticks: cleanTicks((p as { ticks?: unknown })?.ticks) }) as RitualState,
     },
   ),
 );

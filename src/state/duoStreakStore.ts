@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
+import { bindAction } from '@/domain/bondScope';
 import { withDay } from '@/domain/duoStreak';
 import { withTotals, type DayTotals } from '@/domain/week';
 import { zustandStorage } from '@/lib/storage';
@@ -14,6 +15,9 @@ interface DuoStreakState {
   week: Record<string, DayTotals>;
   record: (day: string) => void;
   recordTotals: (day: string, totals: DayTotals) => void;
+  /** Which pairing this history belongs to — see `domain/bondScope`. */
+  coupleId: string;
+  bind: (coupleId: string) => void;
 }
 
 export const useDuoStreakStore = create<DuoStreakState>()(
@@ -21,6 +25,12 @@ export const useDuoStreakStore = create<DuoStreakState>()(
     (set, get) => ({
       days: [],
       week: {},
+      coupleId: '',
+      bind: (coupleId) => {
+        const action = bindAction(get().coupleId, coupleId);
+        if (action === 'adopt') set({ coupleId });
+        if (action === 'reset') set({ coupleId, days: [], week: {} });
+      },
       record: (day) => {
         if (get().days.includes(day)) return;
         set({ days: withDay(get().days, day) });
@@ -31,6 +41,6 @@ export const useDuoStreakStore = create<DuoStreakState>()(
         set({ week: withTotals(get().week, day, totals) });
       },
     }),
-    { name: 'repchamp.duo-streak', version: 2, storage: createJSONStorage(() => zustandStorage), migrate: (p) => ({ week: {}, ...(p as object) }) as DuoStreakState },
+    { name: 'repchamp.duo-streak', version: 3, storage: createJSONStorage(() => zustandStorage), migrate: (p) => ({ week: {}, coupleId: '', ...(p as object) }) as DuoStreakState },
   ),
 );

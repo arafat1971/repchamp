@@ -22,6 +22,7 @@ import Svg, { Circle, ClipPath, Defs, Path, Rect } from 'react-native-svg';
 
 import { BearJar, type BearTheme } from '@/components/home/BearJar';
 import { Capsule, HealthCard, IOS, Metric, PersonRow } from '@/components/home/HealthCard';
+import { DropIcon } from '@/components/home/Icons';
 import { DRINK_KINDS, DRINK_META, drinkLayers, parseDrinkKind, type DrinkKind } from '@/domain/drinkKinds';
 import {
   DEFAULT_DAILY_GOAL_ML,
@@ -169,15 +170,15 @@ export function HydrationCard({
     live && partner
       ? theirLatest === 'water'
         ? `${partner.name} +${formatMl(live.ml)}`
-        : `${partner.name} ${DRINK_META[theirLatest].emoji} +${formatMl(live.ml)}`
+        : `${partner.name} +${formatMl(live.ml)} ${DRINK_META[theirLatest].label.toLowerCase()}`
       : bothMet && partner
-        ? '🥂 Both goals met'
+        ? 'You both met your goal'
         : null;
 
   return (
     <View onLayout={onLayout}>
       <HealthCard
-        icon="💧"
+        icon={<DropIcon size={16} color={IOS.water} />}
         title="Hydration"
         tint={IOS.water}
         trailing={water.met ? 'Goal met' : `${formatMl(water.remainingMl)} to go`}
@@ -327,7 +328,7 @@ export function HydrationCard({
 
           <PourButton
             color={meta.color}
-            label={`${meta.emoji} ${formatMl(choice.ml)}`}
+            label={`${meta.label} ${formatMl(choice.ml)}`}
             open={picking}
             onPress={() => (picking ? setPicking(false) : add(choice.kind, choice.ml))}
             onLongPress={() => {

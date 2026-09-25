@@ -33,18 +33,18 @@ export function selectHomeGreeting(input: {
   const hour = input.hour ?? new Date().getHours();
   const timeOfDay = timeOfDayLabel(hour);
 
+  /* Plain statements of where the day stands. Emoji and cheerleading
+     ("Let's bank some XP", "— nice") read as generated copy; a coach says
+     what is true and what to do. */
   let hook: string;
   if (!input.trainedToday && input.streak > 0) {
-    hook = hour < 12 ? '🔥 Ready for today’s streak?' : '🔥 Keep the streak alive';
+    hook = `Train today to keep your ${input.streak}-day streak`;
   } else if (!input.trainedToday) {
-    hook = hour < 12 ? 'Let’s bank some XP' : 'Your set is waiting';
+    hook = 'No set logged yet today';
   } else if (input.streak >= 3) {
-    hook = `🔥 ${input.streak}-day streak — nice`;
+    hook = `Trained today · ${input.streak}-day streak`;
   } else {
-    /* No name here. The line directly beneath this one is "Good evening,
-       {firstName}", so including it made the header greet the athlete twice in
-       two lines — "Looking strong, uwieue" over "Good evening, uwieue". */
-    hook = 'Looking strong today';
+    hook = 'Trained today';
   }
 
   const bonus =

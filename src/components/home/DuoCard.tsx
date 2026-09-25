@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
-import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Face, HealthCard, IOS } from '@/components/home/HealthCard';
+import { HeartIcon } from '@/components/home/Icons';
 import { PressableScale } from '@/components/ui';
 import { coupleBondPresentation, type CoupleMember } from '@/domain/couple';
 import type { Rivalry } from '@/domain/rivalry';
@@ -10,10 +10,9 @@ import { weekStrip } from '@/domain/weekStrip';
 import { font } from '@/theme/typography';
 import { palette } from '@/theme/tokens';
 
-/* You in green, them in pink; a day you both trained carries both. */
+/* You in green, them in pink; a day you both trained is both halves full. */
 const ME = IOS.green;
 const THEM = IOS.duo;
-const BOTH: readonly [string, string] = [ME, THEM];
 
 /**
  * The couple, in the Health app's grammar: who, the week you share, and one
@@ -80,7 +79,7 @@ export function DuoCard({
 
   return (
     <HealthCard
-      icon="💞"
+      icon={<HeartIcon size={16} color={risk ? '#FF9500' : THEM} />}
       title="Duo"
       tint={risk ? '#FF9500' : THEM}
       trailing={bond.eyebrow}
@@ -101,7 +100,7 @@ export function DuoCard({
             You & {partnerFirst}
           </Text>
           <Text style={styles.subtitle} numberOfLines={1}>
-            🔥 {streak}-day streak{score ? ` · ${score}` : ''}
+            {streak}-day streak{score ? ` · ${score}` : ''}
           </Text>
         </View>
       </View>
@@ -155,19 +154,14 @@ function Day({
   isToday: boolean;
   isFuture: boolean;
 }) {
-  const both = me && them;
   return (
     <View style={[styles.day, isFuture && { opacity: 0.4 }]}>
       <Text style={[styles.dayLetter, isToday && styles.dayLetterToday]}>{letter}</Text>
       <View style={[styles.dot, isToday && styles.dotToday]}>
-        {both ? (
-          <LinearGradient colors={BOTH} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.dotFill} />
-        ) : (
-          <View style={styles.halves}>
-            <View style={[styles.half, me && { backgroundColor: ME }]} />
-            <View style={[styles.half, them && { backgroundColor: THEM }]} />
-          </View>
-        )}
+        <View style={styles.halves}>
+          <View style={[styles.half, me && { backgroundColor: ME }]} />
+          <View style={[styles.half, them && { backgroundColor: THEM }]} />
+        </View>
       </View>
     </View>
   );
@@ -196,7 +190,6 @@ const styles = StyleSheet.create({
   dayLetterToday: font('bold', 11, { color: IOS.label }),
   dot: { width: DOT, height: DOT, borderRadius: DOT / 2, overflow: 'hidden', backgroundColor: IOS.fill },
   dotToday: { borderWidth: 2, borderColor: IOS.label },
-  dotFill: { flex: 1 },
   halves: { flex: 1, flexDirection: 'row' },
   half: { flex: 1 },
 

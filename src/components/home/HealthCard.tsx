@@ -34,7 +34,7 @@ export function HealthCard({
   accessibilityLabel,
   children,
 }: {
-  icon: string;
+  icon: ReactNode;
   title: string;
   tint: string;
   trailing?: string;
@@ -46,7 +46,7 @@ export function HealthCard({
     <View style={styles.card}>
       <View style={styles.head}>
         <View style={styles.category}>
-          <Text style={styles.icon}>{icon}</Text>
+          {icon}
           <Text style={[styles.title, { color: tint }]}>{title}</Text>
         </View>
         <View style={styles.trailing}>
@@ -155,7 +155,6 @@ const styles = StyleSheet.create({
   },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   category: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  icon: { fontSize: 14 },
   title: { ...font('bold', 14.5), letterSpacing: -0.2 },
   trailing: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
   trailingText: font('medium', 13, { color: IOS.secondary }),

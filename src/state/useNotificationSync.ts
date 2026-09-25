@@ -14,6 +14,7 @@ import { reminderHourFor } from '@/domain/reminderSchedule';
 import { partnerGoalToday, partnerHabitsToday, partnerRepsToday, partnerStepsToday, partnerWaterToday } from '@/domain/couple';
 import { buildRitualReminder, cleanTicks, ritualFor, ritualScore, ritualWeek } from '@/domain/ritual';
 import { repsOnDay } from '@/domain/waterWidget';
+import { useDuoStreakStore } from '@/state/duoStreakStore';
 import { useRitualStore } from '@/state/ritualStore';
 import { DEFAULT_STEP_GOAL } from '@/domain/steps';
 import { readStepsToday } from '@/services/pedometer';
@@ -28,6 +29,16 @@ export function useNotificationSync(): void {
   const hydrationReminder = useSettingsStore((s) => s.hydrationReminder);
   const sessions = useProfileStore((s) => s.sessions);
   const couple = useCouple();
+
+  /* Tie the on-phone couple history to this pairing: a new partner starts
+     clean rather than inheriting the last one's week. Lives here because this
+     hook is mounted once, app-wide, for the whole session. */
+  const pairedId = couple.paired ? (couple.couple?.id ?? '') : '';
+  useEffect(() => {
+    if (!pairedId) return;
+    useDuoStreakStore.getState().bind(pairedId);
+    useRitualStore.getState().bind(pairedId);
+  }, [pairedId]);
 
   const today = dayKey();
   const trainedToday = sessions.some((s) => s.day === today);

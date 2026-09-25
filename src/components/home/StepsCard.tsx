@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Capsule, HealthCard, IOS, Metric, PersonRow } from '@/components/home/HealthCard';
+import { StepsIcon } from '@/components/home/Icons';
 import { PressableScale } from '@/components/ui';
 import {
   type StepsState,
@@ -55,7 +56,7 @@ export function StepsCard({
         : `${formatSteps(read.goal - read.steps)} to go`;
 
   return (
-    <HealthCard icon="👟" title="Steps" tint={IOS.steps} trailing={read ? `Goal ${formatSteps(read.goal)}` : undefined}>
+    <HealthCard icon={<StepsIcon size={16} color={IOS.steps} />} title="Steps" tint={IOS.steps} trailing={read ? `Goal ${formatSteps(read.goal)}` : undefined}>
       {read ? (
         <>
           <View style={styles.metricRow}>

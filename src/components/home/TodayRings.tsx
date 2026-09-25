@@ -1,17 +1,8 @@
-import { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withRepeat,
-  withSequence,
-  withTiming,
-} from 'react-native-reanimated';
 
 import { PressableScale } from '@/components/ui';
 import { CountUp } from '@/components/motion';
+import { DropIcon, StepsIcon, TargetIcon } from '@/components/home/Icons';
 import { ProgressRing } from '@/components/home/ProgressRing';
 import type { StepsState } from '@/domain/steps';
 import { font } from '@/theme/typography';
@@ -57,26 +48,19 @@ export function TodayRings({
   const stepsReady = steps.status === 'ready';
   const stepPct = stepsReady ? Math.min(100, Math.round((steps.steps / Math.max(1, steps.goal)) * 100)) : 0;
   const closed = [challenge.percent, water.percent, stepPct].filter((p) => p >= 100).length;
-  const allClosed = closed === 3;
   const overall = Math.round((challenge.percent + water.percent + stepPct) / 3);
 
   return (
-    <View style={[styles.card, allClosed && styles.cardDone]}>
+    <View style={styles.card}>
       <View style={styles.head}>
-        <View>
-          <Text style={styles.eyebrow}>TODAY</Text>
-          <Text style={styles.title}>{headline(closed, overall)}</Text>
-        </View>
-        <View style={[styles.badge, allClosed && styles.badgeDone]}>
-          <Text style={[styles.badgeText, allClosed && styles.badgeTextDone]}>
-            {allClosed ? '✦ Perfect day' : `${closed}/3`}
-          </Text>
-        </View>
+        <Text style={styles.title}>Today</Text>
+        <Text style={styles.meta}>
+          {closed} of 3 goals met
+        </Text>
       </View>
 
       <View style={styles.body}>
         <View style={styles.ringStack}>
-          {allClosed ? <DoneGlow /> : null}
           <Ring size={OUTER} percent={challenge.percent} tone={RINGS.challenge} />
           <Ring size={OUTER - 2 * (THICK + GAP)} percent={water.percent} tone={RINGS.water} />
           <Ring size={OUTER - 4 * (THICK + GAP)} percent={stepPct} tone={RINGS.steps} />
@@ -87,7 +71,7 @@ export function TodayRings({
 
         <View style={styles.legend}>
           <Row
-            icon="💪"
+            icon={<TargetIcon size={16} color={RINGS.challenge.ink} />}
             label="Challenge"
             tone={RINGS.challenge}
             value={challenge.best}
@@ -96,7 +80,7 @@ export function TodayRings({
             onPress={onChallenge}
           />
           <Row
-            icon="💧"
+            icon={<DropIcon size={16} color={RINGS.water.ink} />}
             label="Water"
             tone={RINGS.water}
             text={litres(water.ml)}
@@ -105,7 +89,7 @@ export function TodayRings({
             onPress={onWater}
           />
           <Row
-            icon="👟"
+            icon={<StepsIcon size={16} color={RINGS.steps.ink} />}
             label="Steps"
             tone={RINGS.steps}
             value={stepsReady ? steps.steps : undefined}
@@ -119,15 +103,6 @@ export function TodayRings({
       </View>
     </View>
   );
-}
-
-/** One line that reads the day back, not a number to decode. */
-function headline(closed: number, overall: number): string {
-  if (closed === 3) return 'Every ring closed';
-  if (closed === 2) return 'One ring to go';
-  if (overall >= 50) return 'Past halfway';
-  if (overall > 0) return 'Building momentum';
-  return 'Close your rings';
 }
 
 function litres(ml: number): string {
@@ -153,28 +128,6 @@ function Ring({
   );
 }
 
-/** A slow golden breath behind a perfect day's rings. */
-function DoneGlow() {
-  const reduced = useReducedMotion();
-  const pulse = useSharedValue(0.5);
-  useEffect(() => {
-    if (reduced) return;
-    pulse.value = withRepeat(
-      withSequence(
-        withTiming(1, { duration: 1400, easing: Easing.inOut(Easing.sin) }),
-        withTiming(0.5, { duration: 1400, easing: Easing.inOut(Easing.sin) }),
-      ),
-      -1,
-      false,
-    );
-  }, [pulse, reduced]);
-  const style = useAnimatedStyle(() => ({
-    opacity: pulse.value,
-    transform: [{ scale: 0.92 + pulse.value * 0.12 }],
-  }));
-  return <Animated.View style={[styles.doneGlow, style]} pointerEvents="none" />;
-}
-
 function Row({
   icon,
   label,
@@ -186,7 +139,7 @@ function Row({
   onPress,
   last = false,
 }: {
-  icon: string;
+  icon: React.ReactNode;
   label: string;
   tone: { from: string; to: string; ink: string };
   value?: number;
@@ -200,7 +153,7 @@ function Row({
   const inner = (
     <View style={[styles.row, !last && styles.rowDivider]}>
       <View style={[styles.rowIcon, { backgroundColor: `${tone.to}14` }]}>
-        <Text style={styles.rowEmoji}>{icon}</Text>
+        {icon}
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.rowLabel}>{label}</Text>
@@ -214,7 +167,7 @@ function Row({
         </View>
       </View>
       <Text style={[styles.rowPct, { color: done ? tone.ink : palette.grey500 }]}>
-        {done ? '✓' : `${percent}%`}
+        {`${percent}%`}
       </Text>
     </View>
   );
@@ -236,38 +189,18 @@ const styles = StyleSheet.create({
     padding: 18,
     ...surfaceShadow,
   },
-  cardDone: { borderColor: 'rgba(217,119,6,0.35)' },
-  head: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  eyebrow: { ...font('bold', 10.5, { color: palette.grey500 }), letterSpacing: 1.6 },
-  title: { ...font('extrabold', 19, { color: palette.ink, marginTop: 2 }), letterSpacing: -0.4 },
-  badge: {
-    backgroundColor: palette.divider,
-    borderRadius: radius.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  badgeDone: { backgroundColor: '#FEF3C7' },
-  badgeText: { ...font('extrabold', 12, { color: palette.grey600 }), fontVariant: ['tabular-nums'] },
-  badgeTextDone: { color: '#B45309' },
+  head: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  title: { ...font('bold', 17, { color: palette.ink }), letterSpacing: -0.3 },
+  meta: font('medium', 13, { color: palette.grey600 }),
   body: { flexDirection: 'row', alignItems: 'center', gap: 18, marginTop: 16 },
   ringStack: { width: OUTER, height: OUTER },
   ringSlot: { alignItems: 'center', justifyContent: 'center' },
   ringCenter: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   centerValue: { ...font('extrabold', 15, { color: palette.ink }), fontVariant: ['tabular-nums'], letterSpacing: -0.3 },
-  doneGlow: {
-    position: 'absolute',
-    top: -10,
-    left: -10,
-    right: -10,
-    bottom: -10,
-    borderRadius: (OUTER + 20) / 2,
-    backgroundColor: 'rgba(251,191,36,0.22)',
-  },
   legend: { flex: 1 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
   rowDivider: { borderBottomWidth: 1, borderBottomColor: palette.dividerSoft },
   rowIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  rowEmoji: { fontSize: 15 },
   rowLabel: { ...font('semibold', 11, { color: palette.grey600 }), letterSpacing: 0.2 },
   rowValueLine: { flexDirection: 'row', alignItems: 'baseline' },
   rowValue: { ...font('extrabold', 16, { color: palette.ink }), fontVariant: ['tabular-nums'] },

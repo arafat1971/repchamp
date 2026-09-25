@@ -15,7 +15,7 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
+import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 
 import { BearJar, type BearTheme } from '@/components/home/BearJar';
 import {
@@ -170,7 +170,13 @@ export function WidgetPreview({
   return (
     <View style={[styles.card, { width, borderColor: look.border }]}>
       <Backdrop colors={look.bg} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
-      {style.layout === 'duo' ? <Duo {...parts} /> : <Rings {...parts} width={width} />}
+      {style.layout === 'scene' ? (
+        <Scene {...parts} width={width} />
+      ) : style.layout === 'duo' ? (
+        <Duo {...parts} />
+      ) : (
+        <Rings {...parts} width={width} />
+      )}
     </View>
   );
 }
@@ -183,6 +189,208 @@ interface PartProps {
   sweep: SharedValue<number>;
   tilt: SharedValue<number>;
   phase: SharedValue<number>;
+}
+
+/* ---------------- Scene ---------------- */
+
+interface Sky {
+  top: string;
+  bottom: string;
+  hillBack: string;
+  hillFront: string;
+  cloud: string;
+  night: boolean;
+}
+
+/** The same four skies the native painter uses, by local hour. */
+function skyFor(hour: number): Sky {
+  if (hour < 5 || hour >= 20) {
+    return { top: '#0B1026', bottom: '#3B2A6B', hillBack: '#1E3A5F', hillFront: '#15452F', cloud: 'rgba(255,255,255,0.2)', night: true };
+  }
+  if (hour < 8) return { top: '#93C5FD', bottom: '#FBCFE8', hillBack: '#86EFAC', hillFront: '#4ADE80', cloud: 'rgba(255,255,255,0.9)', night: false };
+  if (hour < 17) return { top: '#38BDF8', bottom: '#BAE6FD', hillBack: '#86EFAC', hillFront: '#22C55E', cloud: 'rgba(255,255,255,0.95)', night: false };
+  return { top: '#6D28D9', bottom: '#FB923C', hillBack: '#65A30D', hillFront: '#3F6212', cloud: 'rgba(255,228,230,0.6)', night: false };
+}
+
+/* Stars, fixed so they do not jump between renders. */
+const STARS = Array.from({ length: 26 }, (_, i) => ({
+  x: (i * 37) % 100,
+  y: ((i * 53) % 50) + 2,
+  r: 0.6 + ((i * 7) % 10) / 10,
+  o: 0.35 + ((i * 13) % 10) / 16,
+}));
+
+/**
+ * The scene, in the app: the real sky for the hour, a hill, both bears in a
+ * tug-of-war over water with the flag at the share of the pull, the words on
+ * top. Mirrors the native painter, so what is chosen here is what appears.
+ */
+function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: number }) {
+  const W = width;
+  const H = Math.max(158, width * 0.5);
+  const hour = new Date(snap.updatedAt).getHours() + new Date(snap.updatedAt).getMinutes() / 60;
+  const sky = skyFor(hour);
+  const share = style.showMine && snap.waterMl + snap.meWaterMl > 0 ? snap.waterMl / (snap.waterMl + snap.meWaterMl) : 0.5;
+
+  const bh = H * 0.44;
+  const bw = bh / 1.24;
+  const feet = H * 0.71;
+  const leftX = W * 0.17;
+  const rightX = W * 0.83;
+  const themLean = -(5 + 16 * Math.max(0, share - 0.5));
+  const meLean = 5 + 16 * Math.max(0, 0.5 - share);
+  const ropeY = feet - bh * 0.42;
+  const x0 = leftX + bw * 0.34;
+  const x1 = rightX - bw * 0.34;
+  const sag = H * 0.05;
+  const t = Math.min(0.92, Math.max(0.08, 1 - share));
+  const mid = (x0 + x1) / 2;
+  const fx = (1 - t) * (1 - t) * x0 + 2 * (1 - t) * t * mid + t * t * x1;
+  const fy = (1 - t) * (1 - t) * ropeY + 2 * (1 - t) * t * (ropeY + sag * 2) + t * t * ropeY;
+  const arc = Math.min(1, Math.max(0, sky.night ? (hour >= 20 ? hour - 20 : hour + 4) / 9 : (hour - 5) / 15));
+  const bx = W * (0.3 + 0.4 * arc);
+  const by = H * (0.3 - 0.14 * Math.sin(Math.PI * arc));
+  const met = snap.met || snap.meMet;
+
+  return (
+    <View style={{ height: H, margin: -14 }}>
+      <Svg width={W} height={H} style={StyleSheet.absoluteFill}>
+        <Defs>
+          <LinearGradient id="scene-sky" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={sky.top} />
+            <Stop offset="1" stopColor={sky.bottom} />
+          </LinearGradient>
+        </Defs>
+        <Rect width={W} height={H} fill="url(#scene-sky)" />
+        {sky.night
+          ? STARS.map((st, i) => <Circle key={i} cx={(st.x / 100) * W} cy={(st.y / 100) * H * 0.55 * 2} r={st.r} fill="#FFFFFF" opacity={st.o} />)
+          : null}
+        {sky.night ? (
+          <>
+            <Circle cx={bx} cy={by} r={11} fill="#FEF3C7" />
+            <Circle cx={bx + 5} cy={by - 3} r={9.5} fill={sky.top} />
+          </>
+        ) : (
+          <>
+            <Circle cx={bx} cy={by} r={20} fill={hour >= 17 ? '#FDBA74' : '#FDE047'} opacity={0.3} />
+            <Circle cx={bx} cy={by} r={12} fill={hour >= 17 ? '#FDBA74' : '#FDE047'} />
+          </>
+        )}
+        <Cloud x={W * 0.45} y={H * 0.15} s={1} color={sky.cloud} />
+        <Cloud x={W * 0.68} y={H * 0.08} s={0.8} color={sky.cloud} />
+        <Path
+          d={`M0 ${H * 0.64} Q${W * 0.3} ${H * 0.5} ${W * 0.62} ${H * 0.62} Q${W * 0.85} ${H * 0.7} ${W} ${H * 0.58} L${W} ${H} L0 ${H} Z`}
+          fill={sky.hillBack}
+        />
+        <Path d={`M0 ${H * 0.72} Q${W * 0.5} ${H * 0.62} ${W} ${H * 0.72} L${W} ${H} L0 ${H} Z`} fill={sky.hillFront} />
+        {met
+          ? Array.from({ length: 22 }, (_, i) => (
+              <Rect
+                key={i}
+                x={((i * 41) % 100) / 100 * W}
+                y={((i * 29) % 60) / 100 * H}
+                width={3}
+                height={1.6}
+                fill={['#F472B6', '#FDE047', '#60A5FA', '#34D399', '#F97316'][i % 5]}
+                transform={`rotate(${(i * 47) % 180} ${((i * 41) % 100) / 100 * W} ${((i * 29) % 60) / 100 * H})`}
+              />
+            ))
+          : null}
+      </Svg>
+
+      <SceneBear left={leftX - bw / 2} top={feet - bh} bw={bw} bh={bh} lean={themLean}>
+        <BearJar id="scene-them" percent={snap.pct * 100} width={bw} theme={THEIR_BEAR} layers={bearLayers(snap.layers)} tilt={tilt} phase={phase} pourKey={0} met={snap.met} />
+      </SceneBear>
+      <SceneBear left={rightX - bw / 2} top={feet - bh} bw={bw} bh={bh} lean={meLean}>
+        <BearJar id="scene-me" percent={snap.mePct * 100} width={bw} theme={MY_BEAR} layers={bearLayers(snap.meLayers)} tilt={tilt} phase={phase} pourKey={0} met={snap.meMet} />
+      </SceneBear>
+
+      <Svg width={W} height={H} style={StyleSheet.absoluteFill} pointerEvents="none">
+        <Path d={`M${x0} ${ropeY} Q${mid} ${ropeY + sag * 2} ${x1} ${ropeY}`} stroke="#92400E" strokeWidth={3} fill="none" strokeLinecap="round" />
+        <Path d={`M${x0} ${ropeY} Q${mid} ${ropeY + sag * 2} ${x1} ${ropeY}`} stroke="#FCD34D" strokeWidth={1} strokeDasharray="3 3" fill="none" />
+        <Path d={`M${fx} ${fy} L${fx} ${fy - 14}`} stroke="#7C2D12" strokeWidth={1.6} />
+        <Path d={`M${fx} ${fy - 14} L${fx + 10} ${fy - 10.5} L${fx} ${fy - 7} Z`} fill="#EF4444" />
+        <Circle cx={fx} cy={fy} r={2.6} fill="#DC2626" />
+      </Svg>
+
+      <Text style={[styles.sceneLabel, { left: leftX - 60, top: feet + 2 }]} numberOfLines={1}>
+        {snap.name} · {snap.amount}
+      </Text>
+      <Text style={[styles.sceneLabel, { left: rightX - 60, top: feet + 2 }]} numberOfLines={1}>
+        You · {snap.meWater || '—'}
+      </Text>
+
+      <View style={styles.sceneOverlay}>
+        <View style={styles.head}>
+          <Text style={[styles.title, styles.shadowed, { color: '#FFFFFF' }]} numberOfLines={1}>
+            {snap.vs}
+          </Text>
+          {live ? <LivePill /> : null}
+        </View>
+        <View style={styles.chips}>
+          {style.showSteps ? (
+            <SceneChip icon="👟" them={snap.stepsN >= 0 ? snap.steps : '—'} me={snap.meStepsN >= 0 ? snap.meSteps : '—'} a={Math.max(0, snap.stepsN)} b={Math.max(0, snap.meStepsN)} showMine={style.showMine} />
+          ) : null}
+          {style.showReps ? (
+            <SceneChip icon="💪" them={snap.reps} me={snap.meReps || '—'} a={snap.repsN} b={snap.meRepsN} showMine={style.showMine} />
+          ) : null}
+        </View>
+        <View style={{ flex: 1 }} />
+        <View style={styles.duoFoot}>
+          <View style={[styles.glass, { flex: 1, marginRight: 8 }]}>
+            <Text style={[styles.duelLine, { color: '#FFFFFF', marginRight: 0 }]} numberOfLines={1}>
+              {snap.duel}
+            </Text>
+          </View>
+          <DrinkPill animate={style.motion} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function SceneBear({ left, top, bw, bh, lean, children }: { left: number; top: number; bw: number; bh: number; lean: number; children: ReactNode }) {
+  /* Rotate about the feet, as the painter does: shift the pivot down, turn, shift back. */
+  return (
+    <View
+      style={{
+        position: 'absolute',
+        left,
+        top,
+        width: bw,
+        height: bh,
+        transform: [{ translateY: bh / 2 }, { rotate: `${lean}deg` }, { translateY: -bh / 2 }],
+      }}
+      pointerEvents="none"
+    >
+      {children}
+    </View>
+  );
+}
+
+function Cloud({ x, y, s, color }: { x: number; y: number; s: number; color: string }) {
+  return (
+    <>
+      <Circle cx={x} cy={y} r={9 * s} fill={color} />
+      <Circle cx={x + 10 * s} cy={y - 5 * s} r={11 * s} fill={color} />
+      <Circle cx={x + 22 * s} cy={y} r={9 * s} fill={color} />
+      <Rect x={x - 6 * s} y={y - 2 * s} width={34 * s} height={10 * s} rx={6 * s} fill={color} />
+    </>
+  );
+}
+
+function SceneChip({ icon, them, me, a, b, showMine }: { icon: string; them: string; me: string; a: number; b: number; showMine: boolean }) {
+  const themLead = a > b;
+  const meLead = showMine && b > a;
+  return (
+    <View style={styles.glass}>
+      <Text style={styles.chipScene} numberOfLines={1}>
+        {icon} {themLead ? '👑 ' : ''}
+        {them}
+        {showMine ? `  ·  ${me}${meLead ? ' 👑' : ''}` : ''}
+      </Text>
+    </View>
+  );
 }
 
 /* ---------------- Duo ---------------- */
@@ -534,6 +742,20 @@ const styles = StyleSheet.create({
   drinkText: font('extrabold', 12, { color: '#0369A1' }),
 
   ringsLayout: { flexDirection: 'row', alignItems: 'center' },
+  sceneOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, paddingHorizontal: 14, paddingTop: 11, paddingBottom: 10 },
+  sceneLabel: {
+    position: 'absolute',
+    width: 120,
+    textAlign: 'center',
+    ...font('extrabold', 10.5, { color: '#FFFFFF' }),
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowRadius: 3,
+    textShadowOffset: { width: 0, height: 1 },
+  },
+  shadowed: { textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 4, textShadowOffset: { width: 0, height: 1 } },
+  chips: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 3 },
+  glass: { backgroundColor: 'rgba(0,0,0,0.28)', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 },
+  chipScene: font('extrabold', 10.5, { color: '#FFFFFF' }),
   ringsBody: { flex: 1, marginLeft: 12 },
   metric: { flexDirection: 'row', alignItems: 'center', marginTop: 3 },
   metricVal: font('extrabold', 16),

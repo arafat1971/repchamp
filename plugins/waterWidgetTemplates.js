@@ -356,10 +356,16 @@ class WaterWidgetProvider : AppWidgetProvider() {
 
         fun render(context: Context, manager: AppWidgetManager, id: Int) {
             val stored = stored(context)
-            val duo = (stored?.optString("layout", "duo") ?: "duo") != "rings"
+            val layoutName = stored?.optString("layout", "scene") ?: "scene"
+            val scene = layoutName == "scene"
+            val duo = layoutName == "duo"
             val views = RemoteViews(
                 context.packageName,
-                if (duo) R.layout.water_widget_duo else R.layout.water_widget
+                when {
+                    scene -> R.layout.water_widget_scene
+                    duo -> R.layout.water_widget_duo
+                    else -> R.layout.water_widget
+                }
             )
             val density = context.resources.displayMetrics.density
             val now = System.currentTimeMillis()
@@ -374,7 +380,7 @@ class WaterWidgetProvider : AppWidgetProvider() {
             val showMine = look?.optBoolean("showMine", true) ?: true
             val motion = look?.optBoolean("motion", true) ?: true
             val palette = Palette.resolve(context, look?.optString("theme", "sunset") ?: "sunset")
-            Palette.apply(views, palette, duo)
+            if (!scene) Palette.apply(views, palette, duo)
 
             // Tapping opens the partner's day in the app.
             val open = Intent(Intent.ACTION_VIEW, Uri.parse("repchamp://couple/partner"))
@@ -388,6 +394,11 @@ class WaterWidgetProvider : AppWidgetProvider() {
                 )
             )
 
+            if (scene) {
+                renderScene(context, manager, id, views, stored, snap, showSteps, showReps, showMine, motion, now)
+                manager.updateAppWidget(id, views)
+                return
+            }
             if (duo) {
                 renderDuo(context, views, stored, snap, palette, showSteps, showReps, showMine, motion, density, now)
                 manager.updateAppWidget(id, views)
@@ -580,6 +591,128 @@ class WaterWidgetProvider : AppWidgetProvider() {
         }
 
         /**
+         * The scene: the real sky over a hill, both bears in a tug-of-war over
+         * water, painted as one picture sized to the widget; text, chips and
+         * the drink button ride on top, and the sky's own animations — stars
+         * at night, rain on their bear after a drink, confetti at a goal —
+         * are ProgressBars over it.
+         */
+        private fun renderScene(
+            context: Context,
+            manager: AppWidgetManager,
+            id: Int,
+            views: RemoteViews,
+            stored: JSONObject?,
+            snap: JSONObject?,
+            showSteps: Boolean,
+            showReps: Boolean,
+            showMine: Boolean,
+            motion: Boolean,
+            now: Long
+        ) {
+            val name = stored?.optString("name")?.takeIf { it.isNotBlank() }
+            views.setTextViewText(
+                R.id.pt_title,
+                if (name == null) context.getString(R.string.pd_title_empty) else stored?.optString("vs") ?: name
+            )
+            views.setTextViewText(
+                R.id.pt_footer,
+                when {
+                    stored == null -> context.getString(R.string.pt_empty)
+                    snap == null -> context.getString(R.string.pd_new_day)
+                    else -> snap.optString("duel")
+                }
+            )
+
+            val hasMe = snap?.optBoolean("hasMe", false) ?: false
+            show(views, R.id.s_steps, showSteps)
+            if (showSteps) {
+                val a = snap?.optLong("stepsN", -1L) ?: -1L
+                val b = if (hasMe) snap?.optLong("meStepsN", -1L) ?: -1L else -1L
+                views.setTextViewText(
+                    R.id.s_steps,
+                    chip(
+                        "👟", max(0L, a), max(0L, b),
+                        if (a >= 0L) snap?.optString("steps") ?: "—" else "—",
+                        if (b >= 0L) snap?.optString("meSteps") ?: "—" else "—",
+                        showMine
+                    )
+                )
+            }
+            show(views, R.id.s_reps, showReps)
+            if (showReps) {
+                views.setTextViewText(
+                    R.id.s_reps,
+                    chip(
+                        "💪",
+                        snap?.optLong("repsN", 0L) ?: 0L,
+                        if (hasMe) snap?.optLong("meRepsN", 0L) ?: 0L else 0L,
+                        snap?.optString("reps") ?: "0",
+                        if (hasMe) snap?.optString("meReps") ?: "0" else "—",
+                        showMine
+                    )
+                )
+            }
+
+            val waterA = snap?.optLong("waterMl", 0L) ?: 0L
+            val waterB = if (hasMe) snap?.optLong("meWaterMl", 0L) ?: 0L else 0L
+            val share = when {
+                !showMine -> 0.5f
+                waterA + waterB > 0L -> waterA.toFloat() / (waterA + waterB).toFloat()
+                else -> 0.5f
+            }
+
+            val activeAt = snap?.optLong("activeAt", 0L) ?: 0L
+            val lastAt = snap?.optLong("lastAt", 0L) ?: 0L
+            val fresh = motion && activeAt > 0L && now - activeAt >= -60_000L && now - activeAt <= LIVE_MS
+            val drankFresh = motion && lastAt > 0L && now - lastAt >= -60_000L && now - lastAt <= LIVE_MS
+            val met = snap?.optBoolean("met", false) ?: false
+            val meMet = hasMe && (snap?.optBoolean("meMet", false) ?: false)
+
+            val cal = java.util.Calendar.getInstance()
+            val hour = cal.get(java.util.Calendar.HOUR_OF_DAY) + cal.get(java.util.Calendar.MINUTE) / 60f
+            val options = manager.getAppWidgetOptions(id)
+            val wDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0).takeIf { it > 0 } ?: 330
+            val hDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0).takeIf { it > 0 } ?: 170
+
+            views.setImageViewBitmap(
+                R.id.s_scene,
+                SceneArt.draw(
+                    context.resources.displayMetrics.density, wDp, hDp, hour, now,
+                    SceneArt.Bear(fraction(snap, "pct"), layersOf(snap, "layers"), met, name ?: context.getString(R.string.pd_partner), snap?.optString("amount") ?: "0 ml"),
+                    SceneArt.Bear(if (hasMe) fraction(snap, "mePct") else 0f, if (hasMe) layersOf(snap, "meLayers") else emptyList(), meMet, context.getString(R.string.pd_you), if (hasMe) snap?.optString("meWater") ?: "—" else "—"),
+                    share, drankFresh
+                )
+            )
+
+            val night = SceneArt.isNight(hour)
+            show(views, R.id.pt_live, fresh)
+            show(views, R.id.s_stars, motion && night)
+            show(views, R.id.s_rain, drankFresh)
+            show(views, R.id.s_confetti, motion && (met || meMet) && fresh)
+            if (fresh) scheduleCalm(context, activeAt + LIVE_MS + 5_000L)
+
+            val drink = Intent(Intent.ACTION_VIEW, Uri.parse("repchamp://drink?ml=250"))
+                .setPackage(context.packageName)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            views.setOnClickPendingIntent(
+                R.id.d_drink,
+                PendingIntent.getActivity(
+                    context, 7302, drink,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            )
+        }
+
+        /** "👟 👑 6,120 · 4,100" — the leader crowned, my side optional. */
+        private fun chip(icon: String, a: Long, b: Long, themText: String, meText: String, showMine: Boolean): String {
+            val themLead = a > b
+            val meLead = showMine && b > a
+            val them = (if (themLead) "👑 " else "") + themText
+            return if (showMine) icon + " " + them + "  ·  " + meText + (if (meLead) " 👑" else "") else icon + " " + them
+        }
+
+        /**
          * One metric as a tug-of-war: the bar is their share from the left,
          * mine from the right; the leader is crowned and drawn brighter.
          * With "compare" off, my side stays blank and the bar is only theirs.
@@ -713,6 +846,224 @@ object RingArt {
         cap.color = colors[1]
         if (pct >= 1f) cap.setShadowLayer(1.6f, 0f, 0f, Color.argb(110, 0, 0, 0))
         c.drawCircle(x, y, STROKE / 2f, cap)
+    }
+}
+
+/**
+ * The scene: the real sky over a hill, and both bears in a tug-of-war over
+ * water — the rope's red flag drifts toward whoever has drunk more, and the
+ * one ahead leans back harder. Painted once per update, sized to the widget.
+ */
+object SceneArt {
+    class Bear(
+        val pct: Float,
+        val layers: List<Pair<Int, Float>>,
+        val met: Boolean,
+        val label: String,
+        val amount: String
+    )
+
+    private class Sky(val top: Int, val bottom: Int, val hillBack: Int, val hillFront: Int, val cloud: Int)
+
+    private val NIGHT = Sky(0xFF0B1026.toInt(), 0xFF3B2A6B.toInt(), 0xFF1E3A5F.toInt(), 0xFF15452F.toInt(), 0x33FFFFFF)
+    private val DAWN = Sky(0xFF93C5FD.toInt(), 0xFFFBCFE8.toInt(), 0xFF86EFAC.toInt(), 0xFF4ADE80.toInt(), 0xE6FFFFFF.toInt())
+    private val DAY = Sky(0xFF38BDF8.toInt(), 0xFFBAE6FD.toInt(), 0xFF86EFAC.toInt(), 0xFF22C55E.toInt(), 0xF2FFFFFF.toInt())
+    private val GOLDEN = Sky(0xFF6D28D9.toInt(), 0xFFFB923C.toInt(), 0xFF65A30D.toInt(), 0xFF3F6212.toInt(), 0x99FFE4E6.toInt())
+
+    fun isNight(hour: Float): Boolean = hour < 5f || hour >= 20f
+
+    private fun skyFor(hour: Float): Sky = when {
+        isNight(hour) -> NIGHT
+        hour < 8f -> DAWN
+        hour < 17f -> DAY
+        else -> GOLDEN
+    }
+
+    fun draw(
+        density: Float,
+        wDp: Int,
+        hDp: Int,
+        hour: Float,
+        now: Long,
+        them: Bear,
+        me: Bear,
+        share: Float,
+        raining: Boolean
+    ): Bitmap {
+        /* 1.5x, not the screen's density: the picture rides in the update's
+           binder transaction, and a full-density one can be too big. The
+           illustration is soft by nature, so the scale-up does not show. */
+        val scale = min(density, 1.5f)
+        val w = (wDp * scale).roundToInt().coerceIn(240, 720)
+        val h = (hDp * scale).roundToInt().coerceIn(140, 420)
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        val W = w.toFloat()
+        val H = h.toFloat()
+        val u = scale // one dp
+        val sky = skyFor(hour)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        // The card itself, rounded like every widget on the launcher.
+        val radius = 22f * u
+        val card = Path().apply { addRoundRect(RectF(0f, 0f, W, H), radius, radius, Path.Direction.CW) }
+        c.clipPath(card)
+
+        paint.shader = LinearGradient(0f, 0f, 0f, H, sky.top, sky.bottom, Shader.TileMode.CLAMP)
+        c.drawRect(0f, 0f, W, H, paint)
+        paint.shader = null
+
+        // Stars, placed the same way every night so they do not jump about.
+        if (isNight(hour)) {
+            val rnd = java.util.Random(7L)
+            paint.color = Color.WHITE
+            repeat(34) {
+                val x = rnd.nextFloat() * W
+                val y = rnd.nextFloat() * H * 0.55f
+                paint.alpha = 90 + rnd.nextInt(150)
+                c.drawCircle(x, y, (0.6f + rnd.nextFloat() * 1.1f) * u, paint)
+            }
+            paint.alpha = 255
+        }
+
+        // Sun or moon, travelling across the sky with the hour.
+        val night = isNight(hour)
+        val arc = if (night) ((if (hour >= 20f) hour - 20f else hour + 4f) / 9f) else ((hour - 5f) / 15f)
+        val bx = W * (0.3f + 0.4f * arc.coerceIn(0f, 1f))
+        val by = H * (0.3f - 0.14f * sin(PI.toFloat() * arc.coerceIn(0f, 1f)))
+        if (night) {
+            paint.color = 0xFFFEF3C7.toInt()
+            paint.setShadowLayer(10f * u, 0f, 0f, 0x88FEF3C7.toInt())
+            c.drawCircle(bx, by, 11f * u, paint)
+            paint.clearShadowLayer()
+            paint.color = sky.top
+            c.drawCircle(bx + 5f * u, by - 3f * u, 9.5f * u, paint)
+        } else {
+            val sun = if (hour >= 17f) 0xFFFDBA74.toInt() else 0xFFFDE047.toInt()
+            paint.color = sun
+            paint.alpha = 70
+            c.drawCircle(bx, by, 20f * u, paint)
+            paint.alpha = 255
+            c.drawCircle(bx, by, 12f * u, paint)
+        }
+
+        // Clouds drifting slowly with the minutes.
+        val drift = ((now / 60_000L) % 60L) / 60f
+        // Kept clear of the title in the top-left corner.
+        cloud(c, paint, sky.cloud, W * (0.4f + 0.45f * drift), H * 0.15f, 1.0f * u)
+        cloud(c, paint, sky.cloud, W * (0.4f + 0.45f * ((drift + 0.5f) % 1f)), H * 0.08f, 0.8f * u)
+
+        // Two soft hills.
+        paint.color = sky.hillBack
+        c.drawPath(Path().apply {
+            moveTo(0f, H * 0.64f)
+            quadTo(W * 0.3f, H * 0.5f, W * 0.62f, H * 0.62f)
+            quadTo(W * 0.85f, H * 0.7f, W, H * 0.58f)
+            lineTo(W, H); lineTo(0f, H); close()
+        }, paint)
+        paint.color = sky.hillFront
+        c.drawPath(Path().apply {
+            moveTo(0f, H * 0.72f)
+            quadTo(W * 0.5f, H * 0.62f, W, H * 0.72f)
+            lineTo(W, H); lineTo(0f, H); close()
+        }, paint)
+
+        // The bears, leaning back to pull; whoever is ahead leans harder.
+        val bh = H * 0.44f
+        val bw = bh / 1.24f
+        val feet = H * 0.71f
+        val leftX = W * 0.17f
+        val rightX = W * 0.83f
+        val themLean = -(5f + 16f * max(0f, share - 0.5f))
+        val meLean = 5f + 16f * max(0f, 0.5f - share)
+        bear(c, them, BearArt.THEIRS, leftX, feet, bw, bh, themLean, now)
+        bear(c, me, BearArt.MINE, rightX, feet, bw, bh, meLean, now)
+
+        // The rope, sagging between their paws, with the flag where the pull is.
+        val ropeY = feet - bh * 0.42f
+        val x0 = leftX + bw * 0.34f
+        val x1 = rightX - bw * 0.34f
+        val sag = H * 0.05f
+        paint.style = Paint.Style.STROKE
+        paint.strokeCap = Paint.Cap.ROUND
+        paint.color = 0xFF92400E.toInt()
+        paint.strokeWidth = 3f * u
+        val rope = Path().apply { moveTo(x0, ropeY); quadTo((x0 + x1) / 2f, ropeY + sag * 2f, x1, ropeY) }
+        c.drawPath(rope, paint)
+        paint.color = 0xFFFCD34D.toInt()
+        paint.strokeWidth = 1f * u
+        paint.pathEffect = android.graphics.DashPathEffect(floatArrayOf(3f * u, 3f * u), 0f)
+        c.drawPath(rope, paint)
+        paint.pathEffect = null
+        paint.style = Paint.Style.FILL
+
+        // The flag sits at their share of the pull — left when they lead.
+        val t = (1f - share).coerceIn(0.08f, 0.92f)
+        val fx = (1 - t) * (1 - t) * x0 + 2 * (1 - t) * t * ((x0 + x1) / 2f) + t * t * x1
+        val fy = (1 - t) * (1 - t) * ropeY + 2 * (1 - t) * t * (ropeY + sag * 2f) + t * t * ropeY
+        paint.color = 0xFF7C2D12.toInt()
+        paint.strokeWidth = 1.6f * u
+        paint.style = Paint.Style.STROKE
+        c.drawLine(fx, fy, fx, fy - 14f * u, paint)
+        paint.style = Paint.Style.FILL
+        paint.color = 0xFFEF4444.toInt()
+        c.drawPath(Path().apply {
+            moveTo(fx, fy - 14f * u); lineTo(fx + 10f * u, fy - 10.5f * u); lineTo(fx, fy - 7f * u); close()
+        }, paint)
+        paint.color = 0xFFDC2626.toInt()
+        c.drawCircle(fx, fy, 2.6f * u, paint)
+
+        // A little rain cloud over their bear, right after they drink.
+        if (raining) {
+            cloud(c, paint, 0xF2FFFFFF.toInt(), leftX - 10f * u, feet - bh - 12f * u, 0.7f * u)
+        }
+
+        // Confetti over any bear at its goal.
+        if (them.met || me.met) {
+            val rnd = java.util.Random(11L)
+            val colors = intArrayOf(0xFFF472B6.toInt(), 0xFFFDE047.toInt(), 0xFF60A5FA.toInt(), 0xFF34D399.toInt(), 0xFFF97316.toInt())
+            repeat(26) {
+                paint.color = colors[it % colors.size]
+                val x = rnd.nextFloat() * W
+                val y = rnd.nextFloat() * H * 0.6f
+                c.save()
+                c.rotate(rnd.nextFloat() * 180f, x, y)
+                c.drawRect(x, y, x + 3f * u, y + 1.6f * u, paint)
+                c.restore()
+            }
+        }
+
+        // Names and amounts on the grass under each bear.
+        label(c, them.label + " · " + them.amount, leftX, feet + 11f * u, u)
+        label(c, me.label + " · " + me.amount, rightX, feet + 11f * u, u)
+        return bmp
+    }
+
+    private fun bear(c: Canvas, b: Bear, theme: BearArt.Theme, cx: Float, feet: Float, bw: Float, bh: Float, lean: Float, now: Long) {
+        c.save()
+        c.rotate(lean, cx, feet)
+        c.translate(cx - bw / 2f, feet - bh)
+        c.scale(bw / 100f, bw / 100f)
+        BearArt.drawInto(c, b.pct, b.layers, b.met, theme, now)
+        c.restore()
+    }
+
+    private fun cloud(c: Canvas, paint: Paint, color: Int, x: Float, y: Float, s: Float) {
+        paint.color = color
+        c.drawCircle(x, y, 9f * s, paint)
+        c.drawCircle(x + 10f * s, y - 5f * s, 11f * s, paint)
+        c.drawCircle(x + 22f * s, y, 9f * s, paint)
+        c.drawRoundRect(RectF(x - 6f * s, y - 2f * s, x + 28f * s, y + 8f * s), 6f * s, 6f * s, paint)
+    }
+
+    private fun label(c: Canvas, text: String, cx: Float, y: Float, u: Float) {
+        val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        p.color = Color.WHITE
+        p.textSize = 10.5f * u
+        p.typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+        p.textAlign = Paint.Align.CENTER
+        p.setShadowLayer(3f * u, 0f, 1f * u, 0x99000000.toInt())
+        c.drawText(text, cx, y, p)
     }
 }
 
@@ -1577,10 +1928,287 @@ function duoResources() {
   return files;
 }
 
+/* ---------- The scene layout ---------- */
+
+const wideVector = (body) => `<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp" android:height="104dp"
+    android:viewportWidth="100" android:viewportHeight="52">
+${body}
+</vector>
+`;
+
+/* Night: a field of stars that swell and fade in turn, over the sky only. */
+function sceneStars() {
+  const files = {};
+  const stars = [
+    [34, 5], [41, 11], [47, 4], [53, 9], [59, 3], [65, 12], [38, 17], [62, 18], [8, 6], [92, 5], [28, 9], [72, 7],
+  ];
+  const frames = 8;
+  for (let f = 0; f < frames; f++) {
+    files[`drawable/ps_stars_${f}.xml`] = wideVector(
+      stars
+        .map(([x, y], i) => {
+          const k = Math.sin(((f / frames + i / stars.length) % 1) * Math.PI);
+          return `    <path android:fillColor="#FFFFFF" android:fillAlpha="${round(0.15 + 0.85 * k)}" android:pathData="${starPath(x, y, 0.5 + 1.1 * k)}" />`;
+        })
+        .join('\n'),
+    );
+  }
+  files['drawable/ps_stars.xml'] = animationList('ps_stars', frames, 140);
+  return files;
+}
+
+/* Rain on their bear, falling from the cloud the painter draws over it. */
+function sceneRain() {
+  const files = {};
+  const drops = [12, 15, 18, 21, 24];
+  const frames = 8;
+  for (let f = 0; f < frames; f++) {
+    files[`drawable/ps_rain_${f}.xml`] = wideVector(
+      drops
+        .map((x, i) => {
+          const p = (f / frames + i / drops.length) % 1;
+          const y = 13 + p * 14;
+          return `    <path android:fillColor="#7DD3FC" android:fillAlpha="${round(0.9 * (1 - p * 0.6))}" android:pathData="M${x},${round(y)} q0.9,1.6 0,2.4 q-0.9,-0.8 0,-2.4 Z" />`;
+        })
+        .join('\n'),
+    );
+  }
+  files['drawable/ps_rain.xml'] = animationList('ps_rain', frames, 90);
+  return files;
+}
+
+/* The picker never runs the painter, so its preview is a layer-list: a day
+   sky, a hill, and the two bears standing on it. */
+const SCENE_PREVIEW_XML = `<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient android:startColor="#38BDF8" android:endColor="#BAE6FD" android:angle="270" />
+            <corners android:radius="@dimen/widget_radius" />
+        </shape>
+    </item>
+    <item android:gravity="bottom" android:height="46dp">
+        <shape android:shape="rectangle">
+            <solid android:color="#22C55E" />
+            <corners android:bottomLeftRadius="@dimen/widget_radius" android:bottomRightRadius="@dimen/widget_radius" />
+        </shape>
+    </item>
+    <item android:gravity="bottom|left" android:left="26dp" android:bottom="34dp" android:width="52dp" android:height="64dp" android:drawable="@drawable/pd_bear_them" />
+    <item android:gravity="bottom|right" android:right="26dp" android:bottom="34dp" android:width="52dp" android:height="64dp" android:drawable="@drawable/pd_bear_me" />
+</layer-list>
+`;
+
+const SCENE_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
+<!-- The scene: one painted picture (the real sky, a hill, both bears in a
+     tug-of-war), the sky's animations over it, and the words on top. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/pt_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/s_scene"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:contentDescription="@string/ps_scene"
+        android:src="@drawable/ps_preview" />
+
+    <ProgressBar
+        android:id="@+id/s_stars"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:indeterminate="true"
+        android:indeterminateOnly="true"
+        android:indeterminateDrawable="@drawable/ps_stars"
+        android:visibility="gone" />
+
+    <ProgressBar
+        android:id="@+id/s_rain"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:indeterminate="true"
+        android:indeterminateOnly="true"
+        android:indeterminateDrawable="@drawable/ps_rain"
+        android:visibility="gone" />
+
+    <ProgressBar
+        android:id="@+id/s_confetti"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:indeterminate="true"
+        android:indeterminateOnly="true"
+        android:indeterminateDrawable="@drawable/pt_twinkle"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingStart="14dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="11dp"
+        android:paddingBottom="10dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/pt_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/pd_preview_title"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:shadowColor="#80000000"
+                android:shadowRadius="4"
+                android:shadowDy="1" />
+
+            <LinearLayout
+                android:id="@+id/pt_live"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="6dp"
+                android:paddingEnd="7dp"
+                android:paddingTop="2dp"
+                android:paddingBottom="2dp"
+                android:background="@drawable/ps_glass">
+
+                <ProgressBar
+                    android:layout_width="8dp"
+                    android:layout_height="8dp"
+                    android:indeterminate="true"
+                    android:indeterminateOnly="true"
+                    android:indeterminateDrawable="@drawable/pt_live_pulse" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:text="@string/pt_live"
+                    android:textColor="#4ADE80"
+                    android:textSize="9sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.08" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:orientation="horizontal"
+            android:gravity="center_horizontal">
+
+            <TextView
+                android:id="@+id/s_steps"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingTop="2dp"
+                android:paddingBottom="2dp"
+                android:background="@drawable/ps_glass"
+                android:text="👟 👑 6,120  ·  4,100"
+                android:maxLines="1"
+                android:textColor="#FFFFFF"
+                android:textSize="10.5sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/s_reps"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingTop="2dp"
+                android:paddingBottom="2dp"
+                android:background="@drawable/ps_glass"
+                android:text="💪 👑 112  ·  40"
+                android:maxLines="1"
+                android:textColor="#FFFFFF"
+                android:textSize="10.5sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/pt_footer"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:background="@drawable/ps_glass"
+                android:text="@string/pd_preview_duel"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/d_drink"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="5dp"
+                android:paddingBottom="5dp"
+                android:background="@drawable/pd_drink_pill"
+                android:text="@string/pd_drink"
+                android:textColor="#0369A1"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>
+`;
+
+function sceneResources() {
+  return {
+    'layout/water_widget_scene.xml': SCENE_LAYOUT_XML,
+    'drawable/ps_preview.xml': SCENE_PREVIEW_XML,
+    'drawable/ps_glass.xml': `<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#47000000" />
+    <corners android:radius="999dp" />
+</shape>
+`,
+    ...sceneStars(),
+    ...sceneRain(),
+  };
+}
+
 const WATER_INFO_XML = `<?xml version="1.0" encoding="utf-8"?>
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:initialLayout="@layout/water_widget_duo"
-    android:previewLayout="@layout/water_widget_duo"
+    android:initialLayout="@layout/water_widget_scene"
+    android:previewLayout="@layout/water_widget_scene"
     android:description="@string/water_widget_description"
     android:minWidth="280dp"
     android:minHeight="140dp"
@@ -1679,11 +2307,13 @@ const COLORS_NIGHT_XML = `<?xml version="1.0" encoding="utf-8"?>
 
 const WATER_STRINGS = {
   water_widget_label: 'Partner today',
-  water_widget_description: 'Your bear vs theirs — water, steps and reps as a live tug-of-war. Drink right from the widget.',
+  water_widget_description: 'Your bears in a tug-of-war under the real sky — water, steps and reps, live. Drink right from the widget.',
   pd_title_empty: 'Partner vs you',
   pd_new_day: 'New day — first sip wins ☀️',
   pd_partner: 'Partner',
   pd_drink: '💧 +250',
+  pd_you: 'You',
+  ps_scene: 'You and your partner in a tug-of-war over water',
   pd_preview_title: 'Alex vs you',
   pd_preview_duel: 'Alex just had a juice 🧃 — your move!',
   pt_title_empty: 'Partner · Today',
@@ -1707,6 +2337,7 @@ function waterResources() {
     'values-night/pt_colors.xml': COLORS_NIGHT_XML,
     ...THEME_DRAWABLES,
     ...duoResources(),
+    ...sceneResources(),
     ...glintDrawable(),
     ...twinkleDrawables(),
     ...pulseDrawables(),

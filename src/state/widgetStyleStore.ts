@@ -25,14 +25,15 @@ export const useWidgetStyleStore = create<WidgetStyleState>()(
     }),
     {
       name: 'repchamp.widget-style',
-      /* v2 introduced layouts. Everyone moves to the duo in Sunset — the
-         new look is the point of the release — keeping their switches. */
-      version: 2,
-      migrate: (persisted) => ({
+      /* v2 introduced layouts, v3 the scene. Everyone moves to the scene —
+         the new look is the point of the release — keeping their switches
+         and theme (which the other layouts still use). */
+      version: 3,
+      migrate: (persisted, version) => ({
         ...DEFAULT_WIDGET_STYLE,
         ...(persisted as Partial<WidgetStyle>),
-        layout: 'duo',
-        theme: 'sunset',
+        layout: 'scene',
+        ...(version < 2 ? { theme: 'sunset' as const } : {}),
       }),
       storage: createJSONStorage(() => zustandStorage),
     },

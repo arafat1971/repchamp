@@ -29,11 +29,12 @@ export const WIDGET_THEMES = ['sunset', 'ocean', 'dark', 'light', 'auto'] as con
 export type WidgetTheme = (typeof WIDGET_THEMES)[number];
 
 /**
- * The widget's layouts: "duo" puts both bears face to face with a
- * tug-of-war per metric and a quick-drink button; "rings" is the partner's
- * day as activity rings around their bear.
+ * The widget's layouts: "scene" is an illustrated scene under the real sky —
+ * both bears on a hill in a tug-of-war over water; "duo" puts them face to
+ * face with a tug bar per metric; "rings" is the partner's day as activity
+ * rings around their bear. All three carry the quick-drink button or tap.
  */
-export const WIDGET_LAYOUTS = ['duo', 'rings'] as const;
+export const WIDGET_LAYOUTS = ['scene', 'duo', 'rings'] as const;
 export type WidgetLayout = (typeof WIDGET_LAYOUTS)[number];
 
 export interface WidgetStyle {
@@ -51,7 +52,7 @@ export interface WidgetStyle {
 }
 
 export const DEFAULT_WIDGET_STYLE: WidgetStyle = {
-  layout: 'duo',
+  layout: 'scene',
   theme: 'sunset',
   showSteps: true,
   showReps: true,

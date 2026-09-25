@@ -160,13 +160,16 @@ export default function WidgetStudioScreen() {
       )}
 
       <SectionLabel>LAYOUT</SectionLabel>
-      <View style={styles.themes}>
+      <View style={[styles.themes, { gap: 8 }]}>
         {WIDGET_LAYOUTS.map((layout) => (
           <LayoutTile key={layout} layout={layout} selected={style.layout === layout} onPress={() => set({ layout })} />
         ))}
       </View>
 
       <SectionLabel>LOOK</SectionLabel>
+      {style.layout === 'scene' ? (
+        <Text style={styles.lookNote}>The scene paints the real sky — dawn, day, golden hour, stars at night. Themes dress Duo and Rings.</Text>
+      ) : null}
       <View style={styles.themes}>
         {WIDGET_THEMES.map((theme) => (
           <ThemeTile key={theme} theme={theme} selected={style.theme === theme} onPress={() => set({ theme })} />
@@ -307,6 +310,7 @@ function usePreviewData(): WaterWidgetSnapshot {
 }
 
 const LAYOUT_LABEL: Record<WidgetLayout, { title: string; sub: string }> = {
+  scene: { title: 'Scene', sub: 'Under the real sky' },
   duo: { title: 'Duo', sub: 'You vs them' },
   rings: { title: 'Rings', sub: 'Their day' },
 };
@@ -322,8 +326,25 @@ function LayoutTile({ layout, selected, onPress }: { layout: WidgetLayout; selec
       accessibilityLabel={`${label.title} layout`}
       style={[styles.tile, styles.layoutTile, selected && styles.tileOn]}
     >
-      <Backdrop colors={['#4C1D95', '#BE185D']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.sketch}>
-        {layout === 'duo' ? (
+      <Backdrop
+        colors={layout === 'scene' ? ['#38BDF8', '#BAE6FD'] : ['#4C1D95', '#BE185D']}
+        start={{ x: 0, y: 0 }}
+        end={layout === 'scene' ? { x: 0, y: 1 } : { x: 1, y: 1 }}
+        style={styles.sketch}
+      >
+        {layout === 'scene' ? (
+          <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+            <View style={styles.sketchSun} />
+            <View style={styles.sketchRow}>
+              <View style={[styles.sketchBear, { backgroundColor: '#EEF0FF' }]} />
+              <View style={styles.sketchRope}>
+                <View style={styles.sketchFlag} />
+              </View>
+              <View style={[styles.sketchBear, { backgroundColor: '#FFF0F5' }]} />
+            </View>
+            <View style={styles.sketchHill} />
+          </View>
+        ) : layout === 'duo' ? (
           <View style={styles.sketchRow}>
             <View style={[styles.sketchBear, { backgroundColor: '#C7D2FE' }]} />
             <View style={{ flex: 1, gap: 4, marginHorizontal: 6 }}>
@@ -477,6 +498,10 @@ const styles = StyleSheet.create({
   layoutTile: { paddingBottom: 8 },
   sketch: { width: '100%', height: 58, borderRadius: 11, justifyContent: 'center', paddingHorizontal: 8 },
   sketchRow: { flexDirection: 'row', alignItems: 'center' },
+  sketchSun: { position: 'absolute', top: 6, right: 22, width: 12, height: 12, borderRadius: 6, backgroundColor: '#FDE047' },
+  sketchRope: { flex: 1, height: 2, backgroundColor: '#92400E', marginHorizontal: 4, alignItems: 'center' },
+  sketchFlag: { width: 6, height: 6, backgroundColor: '#EF4444', marginTop: -6, marginLeft: -8 },
+  sketchHill: { height: 12, backgroundColor: '#22C55E', marginHorizontal: -8, marginBottom: -1, borderTopLeftRadius: 30, borderTopRightRadius: 30 },
   sketchBear: { width: 16, height: 22, borderRadius: 8 },
   sketchTug: { height: 4, borderRadius: 2, overflow: 'hidden' },
   sketchRing: {
@@ -491,6 +516,7 @@ const styles = StyleSheet.create({
   sketchRingInner: { width: 18, height: 18, borderRadius: 9, borderWidth: 3, borderColor: '#7DD3FC' },
   sketchLine: { height: 5, borderRadius: 3, width: '80%' },
   tileSub: font('semibold', 10, { color: palette.grey600 }),
+  lookNote: { ...font('semibold', 11.5, { color: palette.grey600 }), marginTop: -6, marginBottom: 10 },
   swatch: {
     width: '100%',
     height: 46,

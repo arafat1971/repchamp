@@ -110,6 +110,15 @@ function scheduleWidgetPush(coupleId: string, uid: string): void {
  */
 let lastSplashAt = 0;
 
+/** The last reaction I sent, riding on the widget push like a splash. */
+let lastReact: { at: number; emoji: string } | null = null;
+
+/** Record a reaction and push it to the partner's widget. */
+export function markReaction(coupleId: string, uid: string, emoji: string): void {
+  lastReact = { at: Date.now(), emoji };
+  scheduleWidgetPush(coupleId, uid);
+}
+
 /** Record a splash and push it to the partner's widget straight away. */
 export function markSplash(coupleId: string, uid: string): void {
   lastSplashAt = Date.now();
@@ -139,6 +148,7 @@ export function widgetFromPublished(me: CoupleMember) {
     trainedAt: reps ? reps.trainedAt : (doc?.trainedAt ?? 0),
     rev: Math.max(doc?.rev ?? 0, water?.extras.rev ?? 0, steps?.rev ?? 0, reps?.rev ?? 0),
     cheerAt: lastSplashAt,
+    react: lastReact,
   });
 }
 

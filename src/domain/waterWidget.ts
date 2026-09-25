@@ -20,6 +20,7 @@
 import { DRINK_META, parseDrinkKind } from '@/domain/drinkKinds';
 import { DEFAULT_DAILY_GOAL_ML, MAX_DAILY_GOAL_ML, MIN_DAILY_GOAL_ML, formatMl } from '@/domain/hydration';
 import { DEFAULT_STEP_GOAL, formatSteps } from '@/domain/steps';
+import { HOT_C, WEATHER_FRESH_MS, weatherEmoji, type WeatherKind } from '@/domain/weather';
 
 /** The reps ring closes here — a solid day's work across any movements. */
 export const REPS_RING_GOAL = 100;
@@ -49,6 +50,8 @@ export interface WidgetStyle {
   showMine: boolean;
   /** Micro-animations after activity. */
   motion: boolean;
+  /** Paint the real local weather (opt-in; asks for approximate location). */
+  weather: boolean;
 }
 
 export const DEFAULT_WIDGET_STYLE: WidgetStyle = {
@@ -58,6 +61,7 @@ export const DEFAULT_WIDGET_STYLE: WidgetStyle = {
   showReps: true,
   showMine: true,
   motion: true,
+  weather: false,
 };
 
 /** How long after activity the widget keeps its micro-animations going. */
@@ -165,6 +169,24 @@ export interface WaterWidgetSnapshot {
   showReps: boolean;
   showMine: boolean;
   motion: boolean;
+  weather: boolean;
+
+  /* The sky's weather, when "Real weather" is on and a reading is fresh:
+     '' for the plain sky. */
+  sky: string;
+  /** "☀️ 31°", or '' without a reading. */
+  temp: string;
+
+  /**
+   * The meadow: flowers each earlier day this week left, Monday first, seven
+   * slots (today and later are 0).
+   */
+  meadow: number[];
+
+  /** When they last sent me a reaction, epoch ms; 0 for none. */
+  reactAt: number;
+  /** The reaction itself, "❤️". */
+  reactEmoji: string;
 
   /**
    * The version of the state this shows — the writer's `rev`, 0 if unknown.
@@ -207,6 +229,12 @@ export interface WaterWidgetInput {
   streak?: number;
   /** When they last splashed me — see `WaterWidgetSnapshot.cheerAt`. */
   cheerAt?: number | null;
+  /** Their latest reaction to me. */
+  react?: { at: number; emoji: string } | null;
+  /** This week, as this phone saw it: the meadow, and Sunday's wrap line. */
+  week?: { meadow: number[]; wrap: string | null } | null;
+  /** The local weather, when on; ignored once older than three hours. */
+  weather?: { kind: string; tempC: number; at: number } | null;
   /** My chosen look, when this copy is built on my phone. */
   style?: WidgetStyle | null;
 }
@@ -261,6 +289,8 @@ export function buildWaterWidgetSnapshot(input: WaterWidgetInput, now = Date.now
 
   const fresh = lastAt > 0 && now - lastAt >= -60_000 && now - lastAt <= WATER_WIDGET_LIVE_MS;
   const cheerAt = time(input.cheerAt);
+  const weather = input.weather && now - input.weather.at <= WEATHER_FRESH_MS ? input.weather : null;
+  const react = input.react && time(input.react.at) > 0 && input.react.emoji ? { at: time(input.react.at), emoji: input.react.emoji.slice(0, 8) } : null;
   const meLastAt = me ? time(me.lastAt) : 0;
   const duel = duelLine({
     name,
@@ -269,6 +299,9 @@ export function buildWaterWidgetSnapshot(input: WaterWidgetInput, now = Date.now
     reps,
     cheered: cheerAt > 0 && now - cheerAt >= -60_000 && now - cheerAt <= WATER_WIDGET_LIVE_MS,
     together: sippedTogether(lastAt, meLastAt, now),
+    reacted: react && now - react.at >= -60_000 && now - react.at <= WATER_WIDGET_LIVE_MS ? react.emoji : null,
+    wrap: input.week?.wrap ?? null,
+    hot: weather && weather.tempC >= HOT_C ? Math.round(weather.tempC) : null,
     fresh: fresh && lastMeta ? `${lastMeta.label.toLowerCase()} ${lastMeta.emoji}` : null,
     me: me ? { ml: meMl, met: meMl >= meGoal, reps: count(me.reps) } : null,
   });
@@ -313,6 +346,11 @@ export function buildWaterWidgetSnapshot(input: WaterWidgetInput, now = Date.now
     streak: count(input.streak),
     cheerAt,
     meLastAt,
+    sky: weather?.kind ?? '',
+    temp: weather ? `${weatherEmoji(weather.kind as WeatherKind)} ${Math.round(weather.tempC)}°` : '',
+    meadow: input.week?.meadow ?? [0, 0, 0, 0, 0, 0, 0],
+    reactAt: react?.at ?? 0,
+    reactEmoji: react?.emoji ?? '',
     visitor: dailyVisitor(input.day),
     styled: !!input.style,
     ...(input.style ?? DEFAULT_WIDGET_STYLE),
@@ -407,22 +445,31 @@ export function duelLine(input: {
   cheered?: boolean;
   /** We both drank within minutes of each other, just now. */
   together?: boolean;
+  /** The reaction they just sent me, "❤️". */
+  reacted?: string | null;
+  /** Sunday's wrap line, when there is one. */
+  wrap?: string | null;
+  /** The temperature, when it is hot enough to say so. */
+  hot?: number | null;
   me: { ml: number; met: boolean; reps: number } | null;
 }): string {
   const { name, ml, met, reps, fresh, me } = input;
   if (me && met && me.met) return 'Both bears full — dream team 🎉';
   if (input.cheered) return `${name} splashed you 💦 — drink up!`;
+  if (input.reacted) return `${name} sent you ${input.reacted}`;
   if (input.together) return 'You sipped together 🥂 — cheers!';
   if (fresh) return `${name} just had ${fresh} — your move!`;
   if (!me) {
     if (met) return `${name} filled their bear 🎉 — can you?`;
     return ml > 0 ? `${name} is at ${formatMl(ml)} today 💧` : `${name} hasn’t had a sip yet ☀️`;
   }
+  if (input.wrap) return input.wrap;
   if (ml <= 0 && me.ml <= 0 && reps <= 0 && me.reps <= 0) return 'First sip wins the day ☀️';
   const gap = ml - me.ml;
   if (Math.abs(gap) >= 100) {
     return gap > 0 ? `${name} is ${formatMl(gap)} ahead 💧 catch up!` : `You’re ${formatMl(-gap)} ahead — keep it flowing 💪`;
   }
+  if (input.hot != null && !(met && me.met)) return `It’s ${input.hot}° — both bears need extra 💧`;
   const repGap = reps - me.reps;
   if (Math.abs(repGap) >= 5) {
     return repGap > 0 ? `${name} out-repped you by ${repGap} 💪 your turn` : `You lead reps by ${-repGap} — ${name} owes you a set`;

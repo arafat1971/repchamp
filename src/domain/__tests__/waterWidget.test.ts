@@ -141,7 +141,7 @@ describe('widget style', () => {
   });
 
   it('carries the look chosen on this phone', () => {
-    const style = { layout: 'rings' as const, theme: 'ocean' as const, showSteps: false, showReps: true, showMine: false, motion: false };
+    const style = { layout: 'rings' as const, theme: 'ocean' as const, weather: false, showSteps: false, showReps: true, showMine: false, motion: false };
     expect(buildWaterWidgetSnapshot({ ...base, style })).toMatchObject({ styled: true, ...style });
   });
 });
@@ -194,6 +194,13 @@ describe('duelLine', () => {
     expect(line({ ml: 2000, met: true, cheered: true, me: me(2100, 0, true) })).toBe('Both bears full — dream team 🎉');
   });
 
+  it('shows a reaction, the Sunday wrap and a hot-day hint in their turn', () => {
+    expect(line({ ml: 500, reacted: '❤️' })).toBe('Bea sent you ❤️');
+    expect(line({ ml: 500, me: me(500), wrap: 'Week wrap: you 2 · Bea 1 · 🌈 1' })).toBe('Week wrap: you 2 · Bea 1 · 🌈 1');
+    expect(line({ ml: 500, me: me(520), hot: 31 })).toBe('It’s 31° — both bears need extra 💧');
+    expect(line({ ml: 1400, me: me(1000), hot: 31 })).toBe('Bea is 400 ml ahead 💧 catch up!');
+  });
+
   it('turns a fresh drink into a nudge', () => {
     expect(line({ ml: 500, fresh: 'juice 🧃' })).toBe('Bea just had juice 🧃 — your move!');
   });
@@ -236,6 +243,21 @@ describe('sipping together', () => {
     );
     expect(s.duel).toBe('You sipped together 🥂 — cheers!');
     expect(s.meLastAt).toBe(now - 60_000);
+  });
+});
+
+describe('weather and reactions in the payload', () => {
+  const now = 1_790_000_000_000;
+  it('paints fresh weather and drops stale', () => {
+    const fresh = buildWaterWidgetSnapshot({ ...base, weather: { kind: 'rain', tempC: 24.4, at: now - 60_000 } }, now);
+    expect(fresh).toMatchObject({ sky: 'rain', temp: '🌧️ 24°' });
+    const stale = buildWaterWidgetSnapshot({ ...base, weather: { kind: 'rain', tempC: 24, at: now - 5 * 3600_000 } }, now);
+    expect(stale).toMatchObject({ sky: '', temp: '' });
+  });
+
+  it('carries a reaction and the meadow', () => {
+    const s = buildWaterWidgetSnapshot({ ...base, react: { at: now - 1000, emoji: '🔥' }, week: { meadow: [2, 0, 0, 0, 0, 0, 0], wrap: null } }, now);
+    expect(s).toMatchObject({ reactAt: now - 1000, reactEmoji: '🔥', meadow: [2, 0, 0, 0, 0, 0, 0], duel: 'Nkll sent you 🔥' });
   });
 });
 

@@ -653,6 +653,8 @@ export async function nudgePartner(
     drink?: string;
     /** For `drank`: a half-goal or goal crossing. */
     milestone?: 'half' | 'goal' | null;
+    /** A reaction ("❤️") sent from the widget: carried on the nudge, and the push says so. */
+    emoji?: string;
     /** Which spam bucket this spends; automatic updates use their own. */
     limit?: 'coupleNudge' | 'waterShare' | 'waterMilestone';
   } = {},
@@ -673,6 +675,7 @@ export async function nudgePartner(
         ...(ml ? { ml } : {}),
         ...(options.drink && options.drink !== 'water' ? { drink: options.drink } : {}),
         ...(options.milestone ? { milestone: options.milestone } : {}),
+        ...(options.emoji ? { emoji: options.emoji.slice(0, 8) } : {}),
         at: firestore.FieldValue.serverTimestamp(),
       },
     },
@@ -699,10 +702,12 @@ export async function nudgePartner(
       headers: { 'content-type': 'application/json', accept: 'application/json' },
       body: JSON.stringify({
         to: token,
-        ...reminderNotification(kind, senderName, ml, {
-          drink: options.drink,
-          milestone: options.milestone,
-        }),
+        ...(options.emoji
+          ? { title: `${senderName} sent you ${options.emoji.slice(0, 8)}`, body: 'Tap to send one back.' }
+          : reminderNotification(kind, senderName, ml, {
+              drink: options.drink,
+              milestone: options.milestone,
+            })),
         // Tagged so the foreground handler can suppress the duplicate (the in-app
         // nudge already showed it) — see `installForegroundNudgeSuppressor`.
         data: { type: 'couple-nudge', coupleId, kind, ...(ml ? { ml } : {}) },

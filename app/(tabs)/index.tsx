@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
@@ -47,6 +47,9 @@ import { buildWaterWidgetSnapshot, repsOnDay } from '@/domain/waterWidget';
 import { drinkLayers } from '@/domain/drinkKinds';
 import { useWidgetStyleStore } from '@/state/widgetStyleStore';
 import { useDuoStreakStore } from '@/state/duoStreakStore';
+import { useWeatherStore } from '@/state/weatherStore';
+import { refreshWeather } from '@/services/weather';
+import { meadow, weekWrap, wrapLine } from '@/domain/week';
 import { duoStreak } from '@/domain/duoStreak';
 import { DEFAULT_DAILY_GOAL_ML } from '@/domain/hydration';
 import { getExercise } from '@/vision/exercises';
@@ -258,14 +261,40 @@ export default function HomeScreen() {
   const duoDays = duoStreak(streakDays, today);
   /* A splash from them: their latest water nudge, aimed at me. */
   const lastNudge = couple.couple?.nudge;
+  const fromThem = !!lastNudge && lastNudge.fromUid !== couple.me?.uid;
   const splashAt =
-    lastNudge && lastNudge.fromUid !== couple.me?.uid && lastNudge.kind === 'water'
-      ? (nudgeAt(couple.couple ?? null) ?? 0)
-      : 0;
+    fromThem && lastNudge?.kind === 'water' && !lastNudge.emoji ? (nudgeAt(couple.couple ?? null) ?? 0) : 0;
+  /* A reaction from them: a nudge carrying an emoji. */
+  const reactAt = fromThem && lastNudge?.emoji ? (nudgeAt(couple.couple ?? null) ?? 0) : 0;
+  const reactEmoji = fromThem ? (lastNudge?.emoji ?? '') : '';
+
+  /* The week together: today's totals for both, kept for the meadow and
+     the Sunday wrap. */
+  const weekHistory = useDuoStreakStore((st) => st.week);
+  const theirMlToday = partnerGlass?.ml ?? 0;
+  useEffect(() => {
+    if (!partnerGlass) return;
+    useDuoStreakStore.getState().recordTotals(today, { them: theirMlToday, me: todayMl });
+  }, [partnerGlass, theirMlToday, todayMl, today]);
+  const weekInfo = useMemo(() => {
+    const name = partnerGlass?.name ?? 'Partner';
+    return {
+      meadow: meadow(weekHistory, today),
+      wrap: wrapLine(weekWrap(weekHistory, streakDays, today), name, today),
+    };
+  }, [weekHistory, streakDays, today, partnerGlass?.name]);
   const showSteps = useWidgetStyleStore((st) => st.showSteps);
   const showReps = useWidgetStyleStore((st) => st.showReps);
   const showMine = useWidgetStyleStore((st) => st.showMine);
   const motion = useWidgetStyleStore((st) => st.motion);
+  const realWeather = useWidgetStyleStore((st) => st.weather);
+  const weatherNow = useWeatherStore((st) => st.now);
+  /* Real weather, when switched on: refreshed on focus, at most half-hourly. */
+  useFocusEffect(
+    useCallback(() => {
+      void refreshWeather();
+    }, []),
+  );
   useEffect(() => {
     if (!partnerGlass) {
       // Unpaired: an old partner's day must not linger on the home screen.
@@ -294,9 +323,12 @@ export default function HomeScreen() {
           lastAt: myLastAt,
         },
         rev: partnerWaterRevToday(couple.partner, today),
-        style: { layout, theme, showSteps, showReps, showMine, motion },
+        style: { layout, theme, showSteps, showReps, showMine, motion, weather: realWeather },
         streak: duoDays,
         cheerAt: splashAt,
+        react: reactAt > 0 ? { at: reactAt, emoji: reactEmoji } : null,
+        week: weekInfo,
+        weather: realWeather ? weatherNow : null,
       }),
       'water',
     );
@@ -313,6 +345,11 @@ export default function HomeScreen() {
     myLastAt,
     duoDays,
     splashAt,
+    reactAt,
+    reactEmoji,
+    weekInfo,
+    realWeather,
+    weatherNow,
     layout,
     theme,
     showSteps,

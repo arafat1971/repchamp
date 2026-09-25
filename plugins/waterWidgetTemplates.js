@@ -276,7 +276,7 @@ class WaterWidgetProvider : AppWidgetProvider() {
         private const val LIVE_MS = 15L * 60L * 1000L
         private val ME_KEYS = arrayOf(
             "hasMe", "meWater", "meSteps", "meReps", "meWaterMl", "meStepsN", "meRepsN",
-            "mePct", "meMet", "meLayers", "streak", "meLastAt"
+            "mePct", "meMet", "meLayers", "streak", "meLastAt", "meadow", "sky", "temp"
         )
         private val STYLE_KEYS = arrayOf("styled", "layout", "theme", "showSteps", "showReps", "showMine", "motion")
 
@@ -679,6 +679,18 @@ class WaterWidgetProvider : AppWidgetProvider() {
             // They splashed me: hearts over my bear for the live window.
             val cheerAt = snap?.optLong("cheerAt", 0L) ?: 0L
             val cheered = cheerAt > 0L && now - cheerAt >= -60_000L && now - cheerAt <= LIVE_MS
+            // A reaction they sent me: an emoji in a bubble over my bear.
+            val reactAt = snap?.optLong("reactAt", 0L) ?: 0L
+            val reacted = reactAt > 0L && now - reactAt >= -60_000L && now - reactAt <= LIVE_MS
+            val reactEmoji = if (reacted) snap?.optString("reactEmoji", "") ?: "" else ""
+            // My local weather, when switched on, and this week's meadow.
+            val skyKind = snap?.optString("sky", "") ?: ""
+            val temp = snap?.optString("temp", "") ?: ""
+            val meadowArr = snap?.optJSONArray("meadow")
+            val meadow = IntArray(7) { meadowArr?.optInt(it, 0) ?: 0 }
+            views.setViewVisibility(R.id.s_temp, if (temp.isNotBlank()) View.VISIBLE else View.GONE)
+            views.setTextViewText(R.id.s_temp, temp)
+
             // Both drank within ten minutes of each other, just now: a clink.
             val meLastAt = if (hasMe) snap?.optLong("meLastAt", 0L) ?: 0L else 0L
             val latestSip = max(lastAt, meLastAt)
@@ -693,7 +705,8 @@ class WaterWidgetProvider : AppWidgetProvider() {
                     context.resources.displayMetrics.density, wDp, hDp, hour, now,
                     SceneArt.Bear(fraction(snap, "pct"), layersOf(snap, "layers"), met, name ?: context.getString(R.string.pd_partner), snap?.optString("amount") ?: "0 ml", waterA),
                     SceneArt.Bear(if (hasMe) fraction(snap, "mePct") else 0f, if (hasMe) layersOf(snap, "meLayers") else emptyList(), meMet, context.getString(R.string.pd_you), if (hasMe) snap?.optString("meWater") ?: "—" else "—", waterB),
-                    share, drankFresh, streak, snap?.optInt("visitor", 0) ?: 0, cheered, together
+                    share, drankFresh, streak, snap?.optInt("visitor", 0) ?: 0, cheered, together,
+                    skyKind, meadow, reactEmoji
                 )
             )
 
@@ -704,6 +717,21 @@ class WaterWidgetProvider : AppWidgetProvider() {
             show(views, R.id.s_confetti, motion && (((met || meMet) && fresh) || together))
             if (together) scheduleCalm(context, latestSip + LIVE_MS + 5_000L)
             show(views, R.id.s_hearts, motion && cheered)
+            show(views, R.id.s_rainfall, motion && (skyKind == "rain" || skyKind == "storm"))
+            show(views, R.id.s_snowfall, motion && skyKind == "snow")
+            if (reacted) scheduleCalm(context, reactAt + LIVE_MS + 5_000L)
+
+            // Tap their bear to send a reaction.
+            val react = Intent(Intent.ACTION_VIEW, Uri.parse("repchamp://react"))
+                .setPackage(context.packageName)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            views.setOnClickPendingIntent(
+                R.id.s_tap_them,
+                PendingIntent.getActivity(
+                    context, 7304, react,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            )
             if (fresh) scheduleCalm(context, activeAt + LIVE_MS + 5_000L)
             if (cheered) scheduleCalm(context, max(cheerAt, activeAt) + LIVE_MS + 5_000L)
 
@@ -920,7 +948,10 @@ object SceneArt {
         streak: Int,
         visitor: Int,
         cheered: Boolean,
-        together: Boolean
+        together: Boolean,
+        weather: String,
+        meadow: IntArray,
+        reaction: String
     ): Bitmap {
         /* 1.5x, not the screen's density: the picture rides in the update's
            binder transaction, and a full-density one can be too big. The
@@ -933,8 +964,9 @@ object SceneArt {
         val W = w.toFloat()
         val H = h.toFloat()
         val u = scale // one dp
-        val sky = skyFor(hour)
+        val sky = weathered(skyFor(hour), weather)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val overcast = weather == "rain" || weather == "storm" || weather == "snow" || weather == "fog"
 
         // The card itself, rounded like every widget on the launcher.
         val radius = 22f * u
@@ -958,12 +990,14 @@ object SceneArt {
             paint.alpha = 255
         }
 
-        // Sun or moon, travelling across the sky with the hour.
+        // Sun or moon, travelling across the sky with the hour — hidden by overcast.
         val night = isNight(hour)
         val arc = if (night) ((if (hour >= 20f) hour - 20f else hour + 4f) / 9f) else ((hour - 5f) / 15f)
         val bx = W * (0.3f + 0.4f * arc.coerceIn(0f, 1f))
         val by = H * (0.3f - 0.14f * sin(PI.toFloat() * arc.coerceIn(0f, 1f)))
-        if (night) {
+        if (overcast) {
+            // No sun or moon through heavy cloud.
+        } else if (night) {
             paint.color = 0xFFFEF3C7.toInt()
             paint.setShadowLayer(10f * u, 0f, 0f, 0x88FEF3C7.toInt())
             c.drawCircle(bx, by, 11f * u, paint)
@@ -984,6 +1018,7 @@ object SceneArt {
         // Kept clear of the title in the top-left corner.
         cloud(c, paint, sky.cloud, W * (0.4f + 0.45f * drift), H * 0.15f, 1.0f * u)
         cloud(c, paint, sky.cloud, W * (0.4f + 0.45f * ((drift + 0.5f) % 1f)), H * 0.08f, 0.8f * u)
+        weatherArt(c, paint, weather, W, H, u, drift)
 
         // A rainbow over the hill on a day both bears are full.
         if (them.met && me.met) {
@@ -1011,6 +1046,9 @@ object SceneArt {
             quadTo(W * 0.85f, H * 0.7f, W, H * 0.58f)
             lineTo(W, H); lineTo(0f, H); close()
         }, paint)
+        // The meadow: flowers the earlier days of this week left on the back hill.
+        meadowArt(c, paint, meadow, W, H, u)
+
         paint.color = sky.hillFront
         c.drawPath(Path().apply {
             moveTo(0f, H * 0.72f)
@@ -1102,6 +1140,9 @@ object SceneArt {
         // Names and amounts on the grass under each bear.
         label(c, them.label + " · " + them.amount, leftX, feet + 11f * u, u)
         label(c, me.label + " · " + me.amount, rightX, feet + 11f * u, u)
+
+        // Their reaction, in a bubble over my bear.
+        if (reaction.isNotBlank()) bubble(c, reaction, rightX - bw * 0.62f, feet - bh - 2f * u, u)
         return bmp
     }
 
@@ -1313,6 +1354,92 @@ object SceneArt {
             c.drawLine(cx + cos(a) * 4f * u, cy - 3f * u + sin(a) * 4f * u, cx + cos(a) * 8f * u, cy - 3f * u + sin(a) * 8f * u, paint)
         }
         paint.style = Paint.Style.FILL
+    }
+
+    private fun mixColor(a: Int, b: Int, t: Float): Int = Color.argb(
+        Color.alpha(a),
+        (Color.red(a) + (Color.red(b) - Color.red(a)) * t).roundToInt(),
+        (Color.green(a) + (Color.green(b) - Color.green(a)) * t).roundToInt(),
+        (Color.blue(a) + (Color.blue(b) - Color.blue(a)) * t).roundToInt()
+    )
+
+    /** The hour's sky, greyed or darkened for the weather. */
+    private fun weathered(s: Sky, weather: String): Sky {
+        val (tone, t) = when (weather) {
+            "cloudy" -> 0xFF94A3B8.toInt() to 0.3f
+            "fog" -> 0xFFE2E8F0.toInt() to 0.45f
+            "rain" -> 0xFF64748B.toInt() to 0.45f
+            "storm" -> 0xFF334155.toInt() to 0.6f
+            "snow" -> 0xFFCBD5E1.toInt() to 0.4f
+            else -> return s
+        }
+        return Sky(mixColor(s.top, tone, t), mixColor(s.bottom, tone, t), s.hillBack, s.hillFront, 0xF2E2E8F0.toInt())
+    }
+
+    /** Extra cloud, fog, a lightning bolt, or settled snow, by the weather. */
+    private fun weatherArt(c: Canvas, paint: Paint, weather: String, W: Float, H: Float, u: Float, drift: Float) {
+        when (weather) {
+            "cloudy", "rain", "storm" -> {
+                val grey = if (weather == "cloudy") 0xE6F1F5F9.toInt() else 0xE6CBD5E1.toInt()
+                cloud(c, paint, grey, W * (0.15f + 0.3f * drift), H * 0.1f, 1.2f * u)
+                cloud(c, paint, grey, W * 0.7f, H * 0.18f, 1.1f * u)
+                cloud(c, paint, grey, W * 0.45f, H * 0.04f, 0.9f * u)
+                if (weather == "storm") {
+                    paint.color = 0xFFFDE047.toInt()
+                    c.drawPath(Path().apply {
+                        val x = W * 0.72f
+                        val y = H * 0.24f
+                        moveTo(x, y); lineTo(x - 5f * u, y + 11f * u); lineTo(x - 1f * u, y + 11f * u)
+                        lineTo(x - 4f * u, y + 21f * u); lineTo(x + 5f * u, y + 7f * u); lineTo(x + 1f * u, y + 7f * u); close()
+                    }, paint)
+                }
+            }
+            "fog" -> {
+                paint.shader = LinearGradient(0f, H * 0.35f, 0f, H * 0.8f, 0x00FFFFFF, 0xB3FFFFFF.toInt(), Shader.TileMode.CLAMP)
+                c.drawRect(0f, H * 0.35f, W, H * 0.8f, paint)
+                paint.shader = null
+            }
+            "snow" -> {
+                val rnd = java.util.Random(23L)
+                paint.color = Color.WHITE
+                repeat(30) { c.drawCircle(rnd.nextFloat() * W, rnd.nextFloat() * H * 0.6f, (0.8f + rnd.nextFloat()) * u, paint) }
+            }
+        }
+    }
+
+    /**
+     * The week's meadow on the back hill: one small cluster per earlier day,
+     * Monday at the left, a flower for every 250 ml either of us drank.
+     */
+    private fun meadowArt(c: Canvas, paint: Paint, meadow: IntArray, W: Float, H: Float, u: Float) {
+        val colors = intArrayOf(0xFFF9A8D4.toInt(), 0xFFFDE68A.toInt(), 0xFFC4B5FD.toInt(), 0xFF93C5FD.toInt(), 0xFFFDBA74.toInt())
+        for (day in 0 until 7) {
+            val n = meadow[day]
+            if (n <= 0) continue
+            val cx = W * (0.08f + day * 0.14f)
+            for (k in 0 until n) {
+                val x = cx + ((k * 37) % 11 - 5) * 1.6f * u
+                val y = H * 0.64f + ((k * 53) % 7) * 0.9f * u
+                paint.color = 0xFF16A34A.toInt()
+                c.drawRect(x - 0.35f * u, y, x + 0.35f * u, y + 3.5f * u, paint)
+                paint.color = colors[(day + k) % colors.size]
+                c.drawCircle(x, y, 1.5f * u, paint)
+            }
+        }
+    }
+
+    /** A speech bubble holding an emoji, pointing down at the bear. */
+    private fun bubble(c: Canvas, emoji: String, x: Float, y: Float, u: Float) {
+        val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        p.color = Color.WHITE
+        p.setShadowLayer(3f * u, 0f, 1f * u, 0x55000000)
+        val r = RectF(x - 14f * u, y - 22f * u, x + 14f * u, y)
+        c.drawRoundRect(r, 10f * u, 10f * u, p)
+        c.drawPath(Path().apply { moveTo(x + 4f * u, y - 1f * u); lineTo(x + 10f * u, y + 6f * u); lineTo(x + 11f * u, y - 3f * u); close() }, p)
+        p.clearShadowLayer()
+        p.textSize = 14f * u
+        p.textAlign = Paint.Align.CENTER
+        c.drawText(emoji, x, y - 6f * u, p)
     }
 
     private fun heart(c: Canvas, paint: Paint, x: Float, y: Float, r: Float) {
@@ -2303,6 +2430,46 @@ const SCENE_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
         android:visibility="gone" />
 
     <ProgressBar
+        android:id="@+id/s_rainfall"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:indeterminate="true"
+        android:indeterminateOnly="true"
+        android:indeterminateDrawable="@drawable/ps_rainfall"
+        android:visibility="gone" />
+
+    <ProgressBar
+        android:id="@+id/s_snowfall"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:indeterminate="true"
+        android:indeterminateOnly="true"
+        android:indeterminateDrawable="@drawable/ps_snowfall"
+        android:visibility="gone" />
+
+    <!-- Their bear, the left third: tap to send a reaction. Beneath the
+         words, so the buttons on top keep their own taps. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="horizontal">
+
+        <LinearLayout
+            android:id="@+id/s_tap_them"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="36"
+            android:contentDescription="@string/ps_react_label"
+            android:orientation="horizontal" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="64"
+            android:orientation="horizontal" />
+    </LinearLayout>
+
+    <ProgressBar
         android:id="@+id/s_hearts"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -2349,6 +2516,22 @@ const SCENE_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
                 android:shadowColor="#80000000"
                 android:shadowRadius="4"
                 android:shadowDy="1" />
+
+            <TextView
+                android:id="@+id/s_temp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingTop="2dp"
+                android:paddingBottom="2dp"
+                android:background="@drawable/ps_glass"
+                android:text="☀️ 24°"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/s_streak"
@@ -2524,9 +2707,41 @@ function sceneHearts() {
   return files;
 }
 
+/* Weather over the whole scene: rain streaks, or snow drifting down. */
+function sceneWeather() {
+  const files = {};
+  const frames = 8;
+  const cols = Array.from({ length: 14 }, (_, i) => 4 + i * 7);
+  for (let f = 0; f < frames; f++) {
+    files[`drawable/ps_rainfall_${f}.xml`] = wideVector(
+      cols
+        .map((x, i) => {
+          const p = (f / frames + ((i * 3) % 7) / 7) % 1;
+          const y = p * 48;
+          return `    <path android:strokeColor="#DBEAFE" android:strokeAlpha="0.75" android:strokeWidth="0.45" android:strokeLineCap="round" android:pathData="M${x},${round(y)} l-0.8,3" />`;
+        })
+        .join('\n'),
+    );
+    files[`drawable/ps_snowfall_${f}.xml`] = wideVector(
+      cols
+        .map((x, i) => {
+          const p = (f / frames + ((i * 5) % 7) / 7) % 1;
+          const y = p * 48;
+          const dx = Math.sin((p + i) * Math.PI * 2) * 1.5;
+          return `    <path android:fillColor="#FFFFFF" android:fillAlpha="0.9" android:pathData="${circlePath(x + dx, y, 0.7)}" />`;
+        })
+        .join('\n'),
+    );
+  }
+  files['drawable/ps_rainfall.xml'] = animationList('ps_rainfall', frames, 70);
+  files['drawable/ps_snowfall.xml'] = animationList('ps_snowfall', frames, 160);
+  return files;
+}
+
 function sceneResources() {
   return {
     ...sceneHearts(),
+    ...sceneWeather(),
     'drawable/ps_splash_pill.xml': `<?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
     <solid android:color="#E0F2FE" />
@@ -2656,6 +2871,7 @@ const WATER_STRINGS = {
   pd_you: 'You',
   ps_splash: '💦',
   ps_splash_label: 'Splash your partner',
+  ps_react_label: 'React to your partner',
   ps_scene: 'You and your partner in a tug-of-war over water',
   pd_preview_title: 'Alex vs you',
   pd_preview_duel: 'Alex just had a juice 🧃 — your move!',

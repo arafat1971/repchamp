@@ -214,6 +214,28 @@ function skyFor(hour: number): Sky {
   return { top: '#6D28D9', bottom: '#FB923C', hillBack: '#65A30D', hillFront: '#3F6212', cloud: 'rgba(255,228,230,0.6)', night: false };
 }
 
+/** The hour's sky, greyed or darkened for the weather — as the painter does. */
+function weathered(s: Sky, kind: string): Sky {
+  const tones: Record<string, [string, number]> = {
+    cloudy: ['#94A3B8', 0.3],
+    fog: ['#E2E8F0', 0.45],
+    rain: ['#64748B', 0.45],
+    storm: ['#334155', 0.6],
+    snow: ['#CBD5E1', 0.4],
+  };
+  const tone = tones[kind];
+  if (!tone) return s;
+  return { ...s, top: mixHex(s.top, tone[0], tone[1]), bottom: mixHex(s.bottom, tone[0], tone[1]), cloud: 'rgba(226,232,240,0.95)' };
+}
+
+function mixHex(a: string, b: string, t: number): string {
+  const p = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const [ar, ag, ab] = p(a);
+  const [br, bg, bb] = p(b);
+  const m = (x: number, y: number) => Math.round(x + (y - x) * t).toString(16).padStart(2, '0');
+  return `#${m(ar!, br!)}${m(ag!, bg!)}${m(ab!, bb!)}`;
+}
+
 /* Stars, fixed so they do not jump between renders. */
 const STARS = Array.from({ length: 26 }, (_, i) => ({
   x: (i * 37) % 100,
@@ -232,7 +254,9 @@ function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: n
   // The placed 4 x 2 widget runs about 0.54 as tall as it is wide.
   const H = Math.max(180, width * 0.54);
   const hour = new Date(snap.updatedAt).getHours() + new Date(snap.updatedAt).getMinutes() / 60;
-  const sky = skyFor(hour);
+  const sky = weathered(skyFor(hour), snap.sky);
+  const overcast = ['rain', 'storm', 'snow', 'fog'].includes(snap.sky);
+  const reactFresh = snap.reactAt > 0 && snap.updatedAt - snap.reactAt <= WATER_WIDGET_LIVE_MS;
   const share = style.showMine && snap.waterMl + snap.meWaterMl > 0 ? snap.waterMl / (snap.waterMl + snap.meWaterMl) : 0.5;
 
   const bh = H * 0.44;
@@ -271,7 +295,7 @@ function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: n
         {sky.night
           ? STARS.map((st, i) => <Circle key={i} cx={(st.x / 100) * W} cy={(st.y / 100) * H * 0.55 * 2} r={st.r} fill="#FFFFFF" opacity={st.o} />)
           : null}
-        {sky.night ? (
+        {overcast ? null : sky.night ? (
           <>
             <Circle cx={bx} cy={by} r={11} fill="#FEF3C7" />
             <Circle cx={bx + 5} cy={by - 3} r={9.5} fill={sky.top} />
@@ -303,7 +327,24 @@ function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: n
           d={`M0 ${H * 0.64} Q${W * 0.3} ${H * 0.5} ${W * 0.62} ${H * 0.62} Q${W * 0.85} ${H * 0.7} ${W} ${H * 0.58} L${W} ${H} L0 ${H} Z`}
           fill={sky.hillBack}
         />
+        {snap.meadow.map((n, day) =>
+          Array.from({ length: n }, (_, k) => {
+            const x = W * (0.08 + day * 0.14) + (((k * 37) % 11) - 5) * 1.6;
+            const y = H * 0.64 + ((k * 53) % 7) * 0.9;
+            return <Circle key={`m${day}-${k}`} cx={x} cy={y} r={1.5} fill={['#F9A8D4', '#FDE68A', '#C4B5FD', '#93C5FD', '#FDBA74'][(day + k) % 5]} />;
+          }),
+        )}
         <Path d={`M0 ${H * 0.72} Q${W * 0.5} ${H * 0.62} ${W} ${H * 0.72} L${W} ${H} L0 ${H} Z`} fill={sky.hillFront} />
+        {snap.sky === 'snow'
+          ? Array.from({ length: 24 }, (_, i) => <Circle key={`s${i}`} cx={((i * 43) % 100) / 100 * W} cy={((i * 29) % 60) / 100 * H} r={1.2} fill="#FFFFFF" />)
+          : null}
+        {snap.sky === 'rain' || snap.sky === 'storm'
+          ? Array.from({ length: 20 }, (_, i) => {
+              const x = ((i * 47) % 100) / 100 * W;
+              const y = ((i * 31) % 70) / 100 * H;
+              return <Path key={`r${i}`} d={`M${x} ${y} l-2 6`} stroke="#DBEAFE" strokeOpacity={0.8} strokeWidth={1} />;
+            })
+          : null}
         <Visitor kind={snap.visitor} W={W} H={H} />
         <Garden ml={snap.waterMl} pct={snap.pct} layers={snap.layers} cx={leftX} feet={feet} bw={bw} />
         <Garden ml={snap.meWaterMl} pct={snap.mePct} layers={snap.meLayers} cx={rightX} feet={feet} bw={bw} />
@@ -384,6 +425,11 @@ function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: n
         ) : null}
       </Svg>
 
+      {reactFresh ? (
+        <View style={[styles.reaction, { left: rightX - bw * 0.62 - 14, top: feet - bh - 24 }]}>
+          <Text style={{ fontSize: 14 }}>{snap.reactEmoji}</Text>
+        </View>
+      ) : null}
       <Text style={[styles.sceneLabel, { left: leftX - 60, top: labelTop }]} numberOfLines={1}>
         {snap.name} · {snap.amount}
       </Text>
@@ -396,6 +442,11 @@ function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: n
           <Text style={[styles.title, styles.shadowed, { color: '#FFFFFF' }]} numberOfLines={1}>
             {snap.vs}
           </Text>
+          {snap.temp ? (
+            <View style={[styles.glass, { marginRight: 6 }]}>
+              <Text style={styles.chipScene}>{snap.temp}</Text>
+            </View>
+          ) : null}
           {snap.streak > 0 ? (
             <View style={[styles.glass, { marginRight: 6 }]}>
               <Text style={styles.streakText}>🔥 {snap.streak}</Text>
@@ -983,6 +1034,19 @@ const styles = StyleSheet.create({
   glass: { backgroundColor: 'rgba(0,0,0,0.28)', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 },
   chipScene: font('extrabold', 10.5, { color: '#FFFFFF' }),
   streakText: font('extrabold', 11, { color: '#FDE68A' }),
+  reaction: {
+    position: 'absolute',
+    width: 28,
+    height: 22,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
   splash: {
     backgroundColor: '#E0F2FE',
     borderRadius: 999,

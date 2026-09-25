@@ -134,6 +134,8 @@ export interface Couple {
     ml?: number;
     /** For a `drank` nudge, the drink kind when it wasn't water. */
     drink?: string;
+    /** A reaction sent from the widget ("❤️") — a nudge that carries an emoji. */
+    emoji?: string;
     /** For a `drank` nudge, a half-goal or goal crossing. */
     milestone?: 'half' | 'goal';
     at?: { toMillis?: () => number } | null;

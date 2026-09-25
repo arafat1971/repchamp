@@ -37,7 +37,9 @@
         "android.permission.READ_MEDIA_IMAGES",
         "android.permission.READ_MEDIA_VIDEO",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE"
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#8AC53E",
@@ -131,7 +133,15 @@
       ],
       "@sentry/react-native/expo",
       "expo-sharing",
-      "expo-video"
+      "expo-video",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "RepChamp can match your widget's sky to the weather where you are. Only a rough area is used, and only if you turn on Real weather.",
+          "isAndroidBackgroundLocationEnabled": false,
+          "isIosBackgroundLocationEnabled": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

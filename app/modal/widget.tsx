@@ -20,6 +20,8 @@ import {
 import { dayKey } from '@/domain/progression';
 import { drinkLayers } from '@/domain/drinkKinds';
 import { duoStreak } from '@/domain/duoStreak';
+import { weekWrap } from '@/domain/week';
+import { enableRealWeather, refreshWeather } from '@/services/weather';
 import {
   WARDROBE,
   WIDGET_LAYOUTS,
@@ -180,6 +182,9 @@ export default function WidgetStudioScreen() {
         ))}
       </View>
 
+      <SectionLabel>THIS WEEK</SectionLabel>
+      <WeekCard name={preview.name} />
+
       <SectionLabel>WARDROBE</SectionLabel>
       <Wardrobe />
 
@@ -215,6 +220,23 @@ export default function WidgetStudioScreen() {
           subtitle="Your number beside theirs on every row"
           value={style.showMine}
           onChange={(v) => set({ showMine: v })}
+        />
+        <Divider />
+        <SwitchRow
+          emoji="🌦️"
+          title="Real weather"
+          subtitle="Rain, snow and sun where you are — uses a rough area only"
+          value={style.weather}
+          onChange={(v) => {
+            if (!v) {
+              set({ weather: false });
+              return;
+            }
+            void enableRealWeather().then((ok) => {
+              set({ weather: ok });
+              if (ok) void refreshWeather(true);
+            });
+          }}
         />
         <Divider />
         <SwitchRow
@@ -314,6 +336,53 @@ function usePreviewData(): WaterWidgetSnapshot {
       },
     });
   }, [couple.paired, couple.partner, today, myMl, myGoal, drinks, sessions, mySteps]);
+}
+
+/**
+ * The week together, Monday to today: each day's water for both side by
+ * side, a gold dot on the days both bears were full, and who is ahead.
+ */
+function WeekCard({ name }: { name: string }) {
+  const history = useDuoStreakStore((s) => s.week);
+  const both = useDuoStreakStore((s) => s.days);
+  const wrap = weekWrap(history, both, dayKey());
+  const peak = Math.max(2000, ...wrap.days.map((d) => Math.max(d.them, d.me)));
+  const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  return (
+    <Card style={styles.card}>
+      <Text style={styles.cardTitle}>
+        {wrap.mine === wrap.theirs
+          ? `Level this week — ${wrap.mine} days each`
+          : wrap.mine > wrap.theirs
+            ? `You lead the week ${wrap.mine}–${wrap.theirs}`
+            : `${name} leads the week ${wrap.theirs}–${wrap.mine}`}
+      </Text>
+      <Text style={[text.caption, styles.cardBody]}>
+        {wrap.rainbows > 0 ? `🌈 ${wrap.rainbows} ${wrap.rainbows === 1 ? 'day' : 'days'} both bears were full` : 'Fill both bears on the same day for a rainbow 🌈'}
+      </Text>
+      <View style={styles.week}>
+        {labels.map((l, i) => {
+          const d = wrap.days[i];
+          return (
+            <View key={i} style={styles.weekCol}>
+              <View style={styles.weekBars}>
+                <View style={[styles.weekBar, { height: `${d ? (d.them / peak) * 100 : 0}%`, backgroundColor: THEIRS }]} />
+                <View style={[styles.weekBar, { height: `${d ? (d.me / peak) * 100 : 0}%`, backgroundColor: MINE }]} />
+              </View>
+              <Text style={[styles.weekDot, { opacity: d?.both ? 1 : 0 }]}>●</Text>
+              <Text style={styles.weekLabel}>{l}</Text>
+            </View>
+          );
+        })}
+      </View>
+      <View style={styles.legend}>
+        <View style={[styles.legendSwatch, { backgroundColor: THEIRS }]} />
+        <Text style={styles.legendText}>{name}</Text>
+        <View style={[styles.legendSwatch, { backgroundColor: MINE, marginLeft: 12 }]} />
+        <Text style={styles.legendText}>You</Text>
+      </View>
+    </Card>
+  );
 }
 
 /**
@@ -563,6 +632,15 @@ const styles = StyleSheet.create({
   sketchLine: { height: 5, borderRadius: 3, width: '80%' },
   tileSub: font('semibold', 10, { color: palette.grey600 }),
   wardrobe: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  week: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 14, height: 110 },
+  weekCol: { flex: 1, alignItems: 'center' },
+  weekBars: { flex: 1, flexDirection: 'row', alignItems: 'flex-end', gap: 3 },
+  weekBar: { width: 8, borderRadius: 4, minHeight: 2 },
+  weekDot: { ...font('bold', 9, { color: '#F59E0B' }), marginTop: 3 },
+  weekLabel: font('bold', 10.5, { color: palette.grey600 }),
+  legend: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
+  legendSwatch: { width: 10, height: 10, borderRadius: 5, marginRight: 5 },
+  legendText: font('semibold', 11, { color: palette.grey600 }),
   outfit: {
     flex: 1,
     alignItems: 'center',

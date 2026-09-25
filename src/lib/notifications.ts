@@ -688,14 +688,18 @@ export async function presentNudge(
   fromName: string,
   kind: ReminderKind = 'train',
   ml?: number | null,
-  detail: { drink?: string | null; milestone?: 'half' | 'goal' | null } = {},
+  detail: { drink?: string | null; milestone?: 'half' | 'goal' | null; emoji?: string | null } = {},
 ): Promise<void> {
   if (!(await ensureNotificationPermission())) return;
   try {
     lastInAppNudgeAt = Date.now();
+    const name = fromName.trim() || 'Your partner';
     await Notifications.scheduleNotificationAsync({
       content: {
-        ...reminderNotification(kind, fromName, ml, detail),
+        // A reaction from the widget reads as itself, not as its carrier kind.
+        ...(detail.emoji
+          ? { title: `${name} sent you ${detail.emoji}`, body: 'Tap to send one back.' }
+          : reminderNotification(kind, fromName, ml, detail)),
         // `local` marks this as the in-app copy, which is never the duplicate.
         data: { type: 'couple-nudge', kind, local: true },
       },

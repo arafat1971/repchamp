@@ -26,7 +26,9 @@ import {
   HERE_BEAT_MS,
   cleanPoke,
   cleanTicks,
+  effectivePlan,
   isHere,
+  planHabits,
   isNewPoke,
   ritualFor,
   ritualScore,
@@ -136,9 +138,13 @@ export default function PartnerDashboardScreen() {
   const myTicks = useMemo(() => (ritualDay === today ? storedTicks : []), [ritualDay, storedTicks, today]);
   const theirWaterShown = theirs.water.kind === 'shown' ? theirs.water.value : null;
   const theirStepsShown = theirs.steps.kind === 'shown' ? theirs.steps.value : null;
+  const meMember = couple?.members.find((m) => m.uid === uid) ?? null;
+  const planKey = JSON.stringify(effectivePlan(meMember?.ritualPlan, partner?.ritualPlan));
+  const plan = useMemo(() => JSON.parse(planKey) as ReturnType<typeof effectivePlan>, [planKey]);
+  const planList = useMemo(() => planHabits(plan), [plan]);
   const mineRitual = useMemo(
-    () => ritualFor({ ml: myWater, goalMl: myGoal, steps: mySteps, reps: myReps, ticks: myTicks }),
-    [myWater, myGoal, mySteps, myReps, myTicks],
+    () => ritualFor({ ml: myWater, goalMl: myGoal, steps: mySteps, reps: myReps, ticks: myTicks }, plan),
+    [myWater, myGoal, mySteps, myReps, myTicks, plan],
   );
   const theirTicksKey = JSON.stringify(partnerHabitsToday(partner, today) ?? []);
   const theirRitual = useMemo(
@@ -149,10 +155,10 @@ export default function PartnerDashboardScreen() {
         steps: theirStepsShown,
         reps: theirReps.reps,
         ticks: cleanTicks(JSON.parse(theirTicksKey)),
-      }),
+      }, plan),
     // theirTicksKey stands in for the partner's tick list.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [theirWaterShown, theirStepsShown, theirReps.reps, theirTicksKey, today],
+    [theirWaterShown, theirStepsShown, theirReps.reps, theirTicksKey, today, plan],
   );
   const myScore = ritualScore(mineRitual);
   const theirScore = ritualScore(theirRitual);
@@ -198,12 +204,12 @@ export default function PartnerDashboardScreen() {
     const before = prevTheirs.current;
     prevTheirs.current = done;
     if (!before) return;
-    const fresh = HABITS.find((h) => done.has(h.id) && !before.has(h.id));
+    const fresh = planList.find((h) => done.has(h.id) && !before.has(h.id));
     if (!fresh) return;
     playReceiveSound();
     lightImpactHaptic();
     say(done.size === HABITS.length ? `${partnerName} finished all ${HABITS.length}` : `${partnerName} ticked ${fresh.label.toLowerCase()}`);
-  }, [theirRitual, partnerName, say]);
+  }, [theirRitual, partnerName, say, planList]);
 
   /* Both perfect: once, with everything — confetti, jumping bears, a sound —
      and a ribbon that stays on the stage for the rest of the day. */
@@ -462,7 +468,7 @@ export default function PartnerDashboardScreen() {
 
       <Heading title="Today" aside={`${myScore + theirScore} of ${HABITS.length * 2} done`} />
       <View style={styles.block}>
-        <RitualCard mine={mineRitual} theirs={theirRitual} name={partnerName} onToggle={onToggle} />
+        <RitualCard mine={mineRitual} theirs={theirRitual} name={partnerName} onToggle={onToggle} onEdit={() => router.push('/modal/ritual-plan')} />
       </View>
 
       <Heading title="This week" aside={week7.perfectDays > 0 ? `${week7.perfectDays} perfect ${week7.perfectDays === 1 ? 'day' : 'days'}` : undefined} />

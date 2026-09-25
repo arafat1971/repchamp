@@ -449,10 +449,26 @@ service cloud.firestore {
                       && m.daily.poke.at is number)));
       }
 
+      // The couple's chosen ritual on a member's slice: three picks, a walk
+      // goal and a time — bounded like the daily fields.
+      function planSane(m) {
+        return !('ritualPlan' in m)
+          || (m.ritualPlan is map
+              && m.ritualPlan.keys().hasOnly(['picks', 'walkGoal', 'at'])
+              && m.ritualPlan.picks is list
+              && m.ritualPlan.picks.size() <= 3
+              && m.ritualPlan.walkGoal is number
+              && m.ritualPlan.walkGoal >= 1000
+              && m.ritualPlan.walkGoal <= 30000
+              && m.ritualPlan.at is number);
+      }
+
       function dailyInSaneRange() {
         return dailySane(request.resource.data.members[0])
+          && planSane(request.resource.data.members[0])
           && (resource.data.members.size() < 2
-              || dailySane(request.resource.data.members[1]));
+              || (dailySane(request.resource.data.members[1])
+                  && planSane(request.resource.data.members[1])));
       }
 
       // Each athlete may only mutate their own member slice (reps / days / push).

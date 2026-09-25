@@ -39,6 +39,32 @@ export function HabitIcon({ id, size = 20, color }: { id: HabitId | 'splash' | '
         </>
       ) : null}
       {id === 'rest' ? <Path d="M19.5 14.2A8 8 0 1 1 9.8 4.5a6.4 6.4 0 0 0 9.7 9.7Z" {...s} /> : null}
+      {id === 'sleep' ? (
+        <>
+          <Path d="M3 18.5v-9M3 14.5h18v4M21 14.5a3 3 0 0 0-3-3h-7.5v3" {...s} />
+          <Circle cx="7" cy="12" r="1.6" {...s} />
+        </>
+      ) : null}
+      {id === 'breathe' ? <Path d="M4 9h9.5a2.5 2.5 0 1 0-2.5-2.5M4 13h14a2.5 2.5 0 1 1-2.5 2.5M4 17h7" {...s} /> : null}
+      {id === 'read' ? (
+        <>
+          <Path d="M12 6.5C10 5 7 4.5 4 5v13c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5V5c-3-.5-6 0-8 1.5Z" {...s} />
+          <Path d="M12 6.5v13" {...s} />
+        </>
+      ) : null}
+      {id === 'outside' ? (
+        <>
+          <Circle cx="12" cy="12" r="3.8" {...s} />
+          <Path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6L7 7M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4" {...s} />
+        </>
+      ) : null}
+      {id === 'nosugar' ? (
+        <>
+          <Path d="M7 5h10l-1.5 15h-7L7 5Z" {...s} />
+          <Path d="M4.5 4.5l15 15" {...s} />
+        </>
+      ) : null}
+      {id === 'thanks' ? <Path d="M12 19.5s-7-4.3-7-9.7a3.8 3.8 0 0 1 7-2.1 3.8 3.8 0 0 1 7 2.1c0 5.4-7 9.7-7 9.7Z" {...s} /> : null}
       {id === 'splash' ? (
         <>
           <Path d="M9 5.5S5 10 5 12.8a4 4 0 0 0 8 0C13 10 9 5.5 9 5.5Z" {...s} />

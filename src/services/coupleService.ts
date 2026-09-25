@@ -27,7 +27,7 @@ import {
 } from '@/domain/couple';
 import { MAX_DAILY_GOAL_ML, MAX_DAILY_ML, MIN_DAILY_GOAL_ML } from '@/domain/hydration';
 import { reminderNotification, type ReminderKind } from '@/domain/partnerReminder';
-import { cleanPoke, cleanTicks } from '@/domain/ritual';
+import { cleanPlan, cleanPoke, cleanTicks } from '@/domain/ritual';
 import { MAX_DAILY_STEPS } from '@/domain/steps';
 import {
   assertClientRateLimit,
@@ -447,6 +447,28 @@ export async function recordCoupleRitual(coupleId: string, uid: string, day: str
   await recordCoupleDaily(coupleId, uid, day, clean);
 }
 
+/**
+ * Choose the couple's ritual: written onto my own slice, stamped with now, so
+ * it becomes the plan both of us follow (the newer plan wins).
+ */
+export async function setCoupleRitualPlan(
+  coupleId: string,
+  uid: string,
+  plan: { picks: string[]; walkGoal: number },
+): Promise<void> {
+  if (!isFirebaseConfigured()) return;
+  const clean = cleanPlan({ ...plan, at: Date.now() });
+  if (!clean) throw new Error('Pick three habits and a walk goal.');
+  const ref = coupleDoc(coupleId);
+  await firestore().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return;
+    const couple = snap.data() as Couple;
+    const members = couple.members.map((m) => (m.uid === uid ? { ...m, ritualPlan: clean } : m));
+    tx.set(ref, { members }, { merge: true });
+  });
+}
+
 /** Most reps a day can plausibly hold; anything above is a bug, not a workout. */
 const MAX_DAILY_REPS = 20000;
 
@@ -764,7 +786,7 @@ export async function nudgePartner(
 export async function pushPartnerWaterWidget(
   coupleId: string,
   fromUid: string,
-  build: ((me: CoupleMember) => WaterWidgetSnapshot) | null,
+  build: ((me: CoupleMember, partner: CoupleMember) => WaterWidgetSnapshot) | null,
 ): Promise<void> {
   if (!isFirebaseConfigured()) return;
   try {
@@ -789,7 +811,7 @@ export async function pushPartnerWaterWidget(
       headers: { 'content-type': 'application/json', accept: 'application/json' },
       body: JSON.stringify({
         to: token,
-        data: { type: 'partner-water', coupleId, widget: build ? build(me) : null },
+        data: { type: 'partner-water', coupleId, widget: build ? build(me, partner) : null },
         priority: 'high',
       }),
     });

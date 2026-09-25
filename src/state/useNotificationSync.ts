@@ -12,7 +12,7 @@ import { daysSinceLastSession } from '@/domain/dormantReminder';
 import { dayKey } from '@/domain/progression';
 import { reminderHourFor } from '@/domain/reminderSchedule';
 import { partnerGoalToday, partnerHabitsToday, partnerRepsToday, partnerStepsToday, partnerWaterToday } from '@/domain/couple';
-import { buildRitualReminder, cleanTicks, ritualFor, ritualScore, ritualWeek } from '@/domain/ritual';
+import { buildRitualReminder, cleanTicks, effectivePlan, ritualFor, ritualScore, ritualWeek } from '@/domain/ritual';
 import { repsOnDay } from '@/domain/waterWidget';
 import { useDuoStreakStore } from '@/state/duoStreakStore';
 import { useRitualStore } from '@/state/ritualStore';
@@ -145,6 +145,7 @@ export function useNotificationSync(): void {
   const myReps = repsOnDay(sessions, today).reps;
   const partner = couple.paired ? couple.partner : null;
   const partnerName = partner?.displayName?.trim() || null;
+  const planKey = JSON.stringify(effectivePlan(couple.me?.ritualPlan, partner?.ritualPlan));
   const partnerKey = partner
     ? JSON.stringify([
         partnerWaterToday(partner, today),
@@ -167,13 +168,14 @@ export function useNotificationSync(): void {
         if (!alive) return;
         const mySteps = read && read.status === 'ready' ? read.steps : null;
         const ticks = ritualDay === today ? ritualTicks : [];
-        const mine = ritualFor({ ml: todayMl, goalMl: hydrationGoalMl, steps: mySteps, reps: myReps, ticks });
+        const plan = JSON.parse(planKey) as ReturnType<typeof effectivePlan>;
+        const mine = ritualFor({ ml: todayMl, goalMl: hydrationGoalMl, steps: mySteps, reps: myReps, ticks }, plan);
         let theirs: { name: string; score: number } | null = null;
         if (partnerKey && partnerName) {
           const [ml, goal, steps, reps, habits] = JSON.parse(partnerKey) as [number | null, number | null, number | null, number, unknown];
           theirs = {
             name: partnerName,
-            score: ritualScore(ritualFor({ ml, goalMl: goal ?? hydrationGoalMl, steps, reps, ticks: cleanTicks(habits) })),
+            score: ritualScore(ritualFor({ ml, goalMl: goal ?? hydrationGoalMl, steps, reps, ticks: cleanTicks(habits) }, plan)),
           };
         }
         void syncRitualReminder({
@@ -185,7 +187,7 @@ export function useNotificationSync(): void {
       alive = false;
     };
     // `partnerKey` stands in for the partner's day.
-  }, [ritualReminder, ritualDay, ritualTicks, today, todayMl, hydrationGoalMl, myReps, partnerKey, partnerName, foregroundTick]);
+  }, [ritualReminder, ritualDay, ritualTicks, today, todayMl, hydrationGoalMl, myReps, partnerKey, partnerName, planKey, foregroundTick]);
 
   /* The ritual week for the Monday recap, reduced to a key so the effect
      re-runs when perfect days or the trend move, not on every history write. */

@@ -348,6 +348,34 @@ describe('today, together fields', () => {
   });
 });
 
+describe('ritual plan', () => {
+  const write = (plan: unknown) =>
+    updateDoc(doc(asUser(ALICE), 'couples', CODE), {
+      members: [member(ALICE, { ritualPlan: plan }), member(BOB)],
+    });
+
+  it('accepts a plan on my own slice', async () => {
+    await seedPaired();
+    await assertSucceeds(write({ picks: ['sleep', 'read', 'thanks'], walkGoal: 8000, at: 1 }));
+  });
+
+  it('refuses too many picks, an absurd goal or extra keys', async () => {
+    await seedPaired();
+    await assertFails(write({ picks: ['a', 'b', 'c', 'd'], walkGoal: 8000, at: 1 }));
+    await assertFails(write({ picks: ['a'], walkGoal: 999999, at: 1 }));
+    await assertFails(write({ picks: ['a'], walkGoal: 8000, at: 1, note: 'x' }));
+  });
+
+  it("refuses setting the partner's plan", async () => {
+    await seedPaired();
+    await assertFails(
+      updateDoc(doc(asUser(ALICE), 'couples', CODE), {
+        members: [member(ALICE), member(BOB, { ritualPlan: { picks: ['sleep'], walkGoal: 8000, at: 1 } })],
+      }),
+    );
+  });
+});
+
 describe('daily metrics', () => {
   const TODAY = '2026-09-23';
 

@@ -21,11 +21,14 @@ export function RitualCard({
   theirs,
   name,
   onToggle,
+  onEdit,
 }: {
   mine: readonly HabitState[];
   theirs: readonly HabitState[];
   name: string;
   onToggle: (id: HabitId) => void;
+  /** Open the plan: choose the three ticked habits and the walk goal. */
+  onEdit?: () => void;
 }) {
   const total = mine.length;
   const myScore = mine.filter((s) => s.done).length;
@@ -73,6 +76,11 @@ export function RitualCard({
           </View>
         );
       })}
+      {onEdit ? (
+        <PressableScale onPress={onEdit} accessibilityRole="button" style={styles.edit}>
+          <Text style={styles.editText}>Choose your habits</Text>
+        </PressableScale>
+      ) : null}
     </Card>
   );
 }
@@ -166,4 +174,6 @@ const styles = StyleSheet.create({
   done: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   tick: font('bold', 14, { color: palette.white }),
   unknown: font('semibold', 16, { color: palette.grey500 }),
+  edit: { marginTop: 6, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.divider, alignItems: 'center' },
+  editText: font('semibold', 14, { color: palette.slate500 }),
 });

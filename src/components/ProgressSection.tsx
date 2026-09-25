@@ -51,7 +51,7 @@ export function ProgressSection({ sessions }: { sessions: readonly SessionSummar
       {/* ── This week ── */}
       <Animated.View entering={FadeInDown.duration(320)}>
         <Card style={styles.card}>
-          <Text style={styles.eyebrow}>THIS WEEK</Text>
+          <Text style={styles.eyebrow}>This week</Text>
           <View style={styles.weekHead}>
             <Text style={styles.big}>
               {week.thisWeek.toLocaleString()}
@@ -92,7 +92,7 @@ export function ProgressSection({ sessions }: { sessions: readonly SessionSummar
       <Animated.View entering={FadeInDown.delay(80).duration(320)}>
         <Card style={styles.card}>
           <View style={styles.rowBetween}>
-            <Text style={styles.eyebrow}>CONSISTENCY</Text>
+            <Text style={styles.eyebrow}>Consistency</Text>
             <Text style={styles.meta}>
               {activeDays} active {activeDays === 1 ? 'day' : 'days'} · 12 weeks
             </Text>
@@ -127,7 +127,7 @@ export function ProgressSection({ sessions }: { sessions: readonly SessionSummar
       {/* ── Getting stronger ── */}
       <Animated.View entering={FadeInDown.delay(160).duration(320)}>
         <Card style={styles.card}>
-          <Text style={styles.eyebrow}>GETTING STRONGER</Text>
+          <Text style={styles.eyebrow}>Getting stronger</Text>
           {gains.length === 0 ? (
             <Text style={[styles.sub, { marginTop: 8 }]}>
               Train a movement three times and your best set here will show how far you have come.
@@ -162,7 +162,7 @@ export function ProgressSection({ sessions }: { sessions: readonly SessionSummar
 
 const styles = StyleSheet.create({
   card: { padding: 16 },
-  eyebrow: { ...font('extrabold', 11.5, { color: palette.slate500 }), letterSpacing: 1.3 },
+  eyebrow: font('semibold', 14, { color: palette.slate500 }),
   weekHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 },
   big: { ...font('extrabold', 34, { color: palette.ink }), letterSpacing: -0.8 },
   bigUnit: font('bold', 16, { color: palette.slate500 }),

@@ -241,7 +241,7 @@ export default function FriendsScreen() {
       </StaggerIn>
 
       <StaggerIn index={1}>
-        <Eyebrow style={{ marginBottom: 12, marginTop: 16 }}>ACTIVE NOW</Eyebrow>
+        <Eyebrow style={[styles.sectionTitle, { marginBottom: 12, marginTop: 16 }]}>Active now</Eyebrow>
         <View style={styles.onlineRow}>
           <PressableScale
             onPress={() => router.push('/modal/add-friend')}
@@ -338,7 +338,7 @@ export default function FriendsScreen() {
 
       {newAthletes.length > 0 ? (
         <StaggerIn index={2}>
-          <Eyebrow style={{ marginBottom: 12, marginTop: 8 }}>NEW ON REPCHAMP</Eyebrow>
+          <Eyebrow style={[styles.sectionTitle, { marginBottom: 12, marginTop: 8 }]}>New on RepChamp</Eyebrow>
           <Card style={{ padding: 8 }}>
             {newAthletes.slice(0, 8).map((a, index) => (
               <View key={a.uid}>
@@ -379,7 +379,7 @@ export default function FriendsScreen() {
 
       {seed.isSeeding && seed.phantomFriends.length > 0 ? (
         <StaggerIn index={3}>
-          <Eyebrow style={{ marginBottom: 12, marginTop: 16 }}>SUGGESTED FRIENDS</Eyebrow>
+          <Eyebrow style={[styles.sectionTitle, { marginBottom: 12, marginTop: 16 }]}>Suggested friends</Eyebrow>
           <Card style={{ padding: 8 }}>
             {seed.phantomFriends.map((p, index) => (
               <View key={p.id}>
@@ -430,7 +430,7 @@ export default function FriendsScreen() {
       ) : null}
 
       <StaggerIn index={4}>
-        <Eyebrow style={{ marginBottom: 12, marginTop: 16 }}>AI PARTNERS</Eyebrow>
+        <Eyebrow style={[styles.sectionTitle, { marginBottom: 12, marginTop: 16 }]}>AI partners</Eyebrow>
         <Card style={{ padding: 8 }}>
           {filteredOpponents.map((o, index) => {
             const { wins, losses } = record(o.id);
@@ -487,7 +487,7 @@ export default function FriendsScreen() {
           genuinely having no friends were indistinguishable. */}
       {filteredCloud.length === 0 ? (
         <StaggerIn index={5}>
-          <Eyebrow style={{ marginTop: 24, marginBottom: 12 }}>ON REPCHAMP</Eyebrow>
+          <Eyebrow style={[styles.sectionTitle, { marginTop: 24, marginBottom: 12 }]}>On RepChamp</Eyebrow>
           <Card style={{ padding: 8 }}>
             {loading ? (
               <FriendRowSkeleton />
@@ -499,7 +499,6 @@ export default function FriendsScreen() {
               />
             ) : search.trim() ? (
               <EmptyState
-                glyph="🔍"
                 title={`No matches for “${search.trim()}”`}
                 message="Try a different name, or add them by username."
                 actionLabel="Add a friend"
@@ -507,7 +506,6 @@ export default function FriendsScreen() {
               />
             ) : (
               <EmptyState
-                glyph="👋"
                 title="No friends yet"
                 message="Add someone by username and challenge them to a duel."
                 actionLabel="Add a friend"
@@ -518,7 +516,7 @@ export default function FriendsScreen() {
         </StaggerIn>
       ) : (
         <StaggerIn index={5}>
-          <Eyebrow style={{ marginTop: 24, marginBottom: 12 }}>ON REPCHAMP</Eyebrow>
+          <Eyebrow style={[styles.sectionTitle, { marginTop: 24, marginBottom: 12 }]}>On RepChamp</Eyebrow>
           <Card style={{ padding: 8 }}>
             {filteredCloud.map((f, index) => (
               <View key={f.uid}>
@@ -634,6 +632,8 @@ export default function FriendsScreen() {
 }
 
 const styles = StyleSheet.create({
+  /* Sentence case, one size up: tracked all-caps labels read as template. */
+  sectionTitle: font('semibold', 14, { color: palette.grey600 }),
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',

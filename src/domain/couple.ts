@@ -48,6 +48,12 @@ export interface CoupleMember {
    * field, and because a member who has logged nothing has nothing to say.
    */
   daily?: CoupleDailyMetrics;
+  /**
+   * This member's choice of the couple's ritual — three habits and a walk
+   * goal, stamped with when. The newer of the two members' plans is the one
+   * both follow (see `ritual.effectivePlan`). Absent until someone chooses.
+   */
+  ritualPlan?: { picks: string[]; walkGoal: number; at: number };
 }
 
 /**

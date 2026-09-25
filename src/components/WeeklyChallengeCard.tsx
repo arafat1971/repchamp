@@ -1,13 +1,12 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { PressableScale, ProgressBar } from '@/components/ui';
+import { Capsule, HealthCard, IOS, Metric } from '@/components/home/HealthCard';
+import { TargetIcon } from '@/components/home/Icons';
 import { currentWeekDayKeys, weeklyChallengeProgress } from '@/domain/weeklyChallenge';
 import { useProfileStore } from '@/state/profileStore';
 import { font, scaleForRole } from '@/theme/typography';
-import { palette, radius, shadow } from '@/theme/tokens';
 
 /**
  * This week's rotating challenge — a time-boxed goal that pulls athletes back
@@ -47,97 +46,42 @@ export function WeeklyChallengeCard({ now }: { now: Date }) {
   const onStart = () =>
     router.push({ pathname: '/session', params: { exercise: def.exercise, mode: 'practice' } });
 
+  const tint = complete ? '#FF9500' : IOS.green;
+
+  /* A white card like Home's summary cards, rather than a dark gradient slab:
+     the duel above is the one coloured block on this tab. Completion turns
+     the label and bar amber — a state change worth seeing, once a week. */
   return (
-    <PressableScale
+    <HealthCard
+      icon={<TargetIcon size={16} color={tint} />}
+      title="Weekly challenge"
+      tint={tint}
+      trailing={complete ? 'Done' : `${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} left`}
       onPress={onStart}
-      accessibilityRole="button"
       accessibilityLabel={`This week's challenge: ${def.title}, ${reps} of ${def.target} done`}
     >
-      {/* Deliberately quieter than the duel card above it.
-       *
-       * Both were near-identical full-width green blocks, so the screen led
-       * with nothing — a weekly goal carried the same weight as "start a duel
-       * now", which is the action this tab exists for. A dark slate ground
-       * keeps this legible and important-looking without competing.
-       *
-       * Completion still turns it amber: that is a state change worth
-       * noticing, and it only happens once a week. */}
-      <LinearGradient
-        colors={complete ? ['#f59e0b', '#d97706'] : ['#16301f', '#0d2416']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.card, shadow.brand]}
-      >
-        <View style={styles.headerRow}>
-          <Text style={styles.eyebrow} {...scaleForRole('control')}>
-            THIS WEEK’S CHALLENGE
-          </Text>
-          <View style={styles.countdown}>
-            <Text style={styles.countdownText} {...scaleForRole('control')}>
-              {daysLeft} {daysLeft === 1 ? 'DAY' : 'DAYS'} LEFT
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.titleRow}>
-          <Text style={{ fontSize: 30 }}>{def.emoji}</Text>
-          <Text style={styles.title}>{def.title}</Text>
-        </View>
-        <Text style={styles.blurb}>{complete ? 'Done — nice work! 🎉 Share it and challenge a friend.' : def.blurb}</Text>
-
-        <View style={styles.progressRow}>
-          <Text style={styles.progressCount}>
-            {Math.min(reps, def.target)}
-            <Text style={styles.progressTarget}> / {def.target}</Text>
-          </Text>
-          <Text style={styles.ctaText}>{complete ? 'Keep going →' : 'Start now →'}</Text>
-        </View>
-        <ProgressBar
-          percent={Math.round(percent * 100)}
-          height={9}
-          trackColor="rgba(255,255,255,0.25)"
-          fillColor={palette.white}
-        />
-      </LinearGradient>
-    </PressableScale>
+      <Text style={styles.title} {...scaleForRole('heading')}>
+        {def.title}
+      </Text>
+      <Text style={styles.blurb}>{complete ? 'Done for this week. Extra sets still count.' : def.blurb}</Text>
+      <View style={styles.progressRow}>
+        <Metric value={String(Math.min(reps, def.target))} unit={`of ${def.target}`} />
+        <Text style={[styles.cta, { color: tint }]}>{complete ? 'Keep going' : 'Start'}</Text>
+      </View>
+      <Capsule fraction={percent} color={tint} />
+    </HealthCard>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: radius['4xl'], padding: 20 },
-  /* Wraps rather than holding one rigid line. At large text sizes the eyebrow
-     and the countdown pill cannot both fit across the card, and `space-between`
-     simply pushed the pill off the right edge — "4 DA…". Wrapping drops it to
-     its own line instead, which costs a few points of height and keeps the
-     deadline readable. */
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  eyebrow: { ...font('extrabold', 10, { color: 'rgba(255,255,255,0.85)' }), letterSpacing: 1.5 },
-  countdown: {
-    /* Lightened with the card. A 20%-black pill was a visible darker patch on
-       the old green ground; on the dark one it disappeared entirely. */
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    borderRadius: radius['2xl'],
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  countdownText: { ...font('extrabold', 9.5, { color: palette.white }), letterSpacing: 0.8 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12 },
-  title: { ...font('extrabold', 22, { color: palette.white }) },
-  blurb: { ...font('bold', 12, { color: 'rgba(255,255,255,0.9)' }), marginTop: 4, lineHeight: 18 },
+  title: { ...font('bold', 20, { color: IOS.label, marginTop: 10 }), letterSpacing: -0.4 },
+  blurb: font('medium', 13.5, { color: IOS.secondary, marginTop: 2 }),
   progressRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    marginTop: 16,
-    marginBottom: 8,
+    alignItems: 'baseline',
+    marginTop: 12,
+    marginBottom: 10,
   },
-  progressCount: { ...font('extrabold', 20, { color: palette.white }) },
-  progressTarget: { ...font('extrabold', 14, { color: 'rgba(255,255,255,0.7)' }) },
-  ctaText: { ...font('extrabold', 14, { color: palette.white }) },
+  cta: font('bold', 15),
 });

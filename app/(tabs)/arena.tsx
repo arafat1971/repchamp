@@ -1,16 +1,10 @@
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { AppState, StyleSheet, Text, View } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-} from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 
+import { ArrowIcon } from '@/components/home/Icons';
 import { Avatar, Card, PressableScale, Screen, SectionLabel } from '@/components/ui';
 import { StaggerIn } from '@/components/motion';
 import { WeeklyChallengeCard } from '@/components/WeeklyChallengeCard';
@@ -23,39 +17,18 @@ import { fetchLeaderboard } from '@/services/leaderboardService';
 import { useAuthStore } from '@/state/authStore';
 import { selectLeague, selectWeeklyXp, useProfileStore } from '@/state/profileStore';
 import { font, text } from '@/theme/typography';
-import { gradients, palette, radius, shadow } from '@/theme/tokens';
+import { palette, radius, shadow } from '@/theme/tokens';
 
 /** A leaderboard row, plus the optional AI-partner fields injected when seeding. */
 type BoardRow = LeaderboardRow & { emoji?: string; isAI?: boolean };
-
-/** A soft pulsing ring behind the "LIVE" dot — signals the duel is real-time. */
-function LivePulse() {
-  const t = useSharedValue(0);
-  useEffect(() => {
-    t.value = withRepeat(withTiming(1, { duration: 1600 }), -1, false);
-  }, [t]);
-  const ring = useAnimatedStyle(() => ({
-    transform: [{ scale: 1 + t.value * 1.8 }],
-    opacity: 0.55 * (1 - t.value),
-  }));
-  return (
-    <View style={styles.liveWrap}>
-      <View style={styles.liveDotWrap}>
-        <Animated.View style={[styles.liveRing, ring]} />
-        <View style={styles.liveDot} />
-      </View>
-      <Text style={styles.liveText}>LIVE</Text>
-    </View>
-  );
-}
 
 /** Numbered rank medallion — green intensity carries the podium hierarchy. */
 function RankMedal({ rank }: { rank: number }) {
   if (rank === 1) {
     return (
-      <LinearGradient colors={gradients.brandStrong} style={styles.medal}>
+      <View style={[styles.medal, { backgroundColor: palette.green600 }]}>
         <Text style={[styles.medalText, { color: palette.white }]}>1</Text>
-      </LinearGradient>
+      </View>
     );
   }
   const second = rank === 2;
@@ -188,15 +161,15 @@ export default function ArenaScreen() {
           accessibilityRole="button"
           accessibilityLabel="Start a 1 versus 1 duel"
         >
-          <LinearGradient colors={gradients.brandStrong} style={[styles.heroCard, shadow.brand]}>
-            <View style={styles.heroTopRow}>
-              <Text style={styles.heroEyebrow}>HEAD TO HEAD</Text>
-              <LivePulse />
-            </View>
+          {/* Flat, one deep green: the tab's single coloured block. The bright
+              gradient, brand glow and a pulsing LIVE badge read as decoration
+              rather than a control. */}
+          <View style={styles.heroCard}>
+            <Text style={styles.heroEyebrow}>Head to head</Text>
 
-            <Text style={styles.heroTitle}>1 vs 1 Duel</Text>
+            <Text style={styles.heroTitle}>1 vs 1 duel</Text>
             <Text style={styles.heroCopy}>
-              Challenge a rival to a live rep fight. Winner takes the XP.
+              Race a rival rep for rep, live. The winner gets the XP.
             </Text>
 
             <View style={styles.vsRow}>
@@ -212,7 +185,7 @@ export default function ArenaScreen() {
               </View>
 
               <View style={styles.vsChip}>
-                <Text style={styles.vsChipText}>VS</Text>
+                <Text style={styles.vsChipText}>vs</Text>
               </View>
 
               <View style={styles.vsSide}>
@@ -225,9 +198,9 @@ export default function ArenaScreen() {
 
             <View style={styles.heroCta}>
               <Text style={styles.heroCtaText}>Find an opponent</Text>
-              <Text style={styles.heroCtaArrow}>→</Text>
+              <ArrowIcon size={16} color={palette.green700} strokeWidth={2.4} />
             </View>
-          </LinearGradient>
+          </View>
         </PressableScale>
       </StaggerIn>
 
@@ -252,7 +225,7 @@ export default function ArenaScreen() {
                 <View style={styles.trophyChip}>
                   <TrophyIcon />
                 </View>
-                <SectionLabel>Weekly Leaderboard</SectionLabel>
+                <SectionLabel>Weekly leaderboard</SectionLabel>
               </View>
               <Text style={styles.seeAll}>See all ›</Text>
             </View>
@@ -295,9 +268,9 @@ export default function ArenaScreen() {
                 {profile.avatarUri ? (
                   <Image source={{ uri: profile.avatarUri }} style={styles.youAvatar} contentFit="cover" />
                 ) : (
-                  <LinearGradient colors={gradients.brandStrong} style={styles.youAvatar}>
+                  <View style={[styles.youAvatar, { backgroundColor: palette.green600 }]}>
                     <Text style={font('extrabold', 14, { color: palette.white })}>{you.initial}</Text>
-                  </LinearGradient>
+                  </View>
                 )}
                 <Text style={[styles.boardName, { flex: 1 }]}>You</Text>
                 <Text style={styles.boardXp}>
@@ -368,37 +341,10 @@ const styles = StyleSheet.create({
   leaguePillText: font('extrabold', 12, { color: palette.green700 }),
 
   /* Hero */
-  heroCard: { borderRadius: radius['6xl'], padding: 20, overflow: 'hidden' },
-  heroTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  heroEyebrow: {
-    ...font('extrabold', 11, { color: 'rgba(255,255,255,0.85)' }),
-    letterSpacing: 1.5,
-  },
-  liveWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(0,0,0,0.18)',
-    borderRadius: radius.pill,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-  },
-  liveDotWrap: { width: 8, height: 8, alignItems: 'center', justifyContent: 'center' },
-  liveRing: {
-    position: 'absolute',
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: palette.white,
-  },
-  liveDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: palette.white },
-  liveText: { ...font('extrabold', 9.5, { color: palette.white }), letterSpacing: 1 },
+  heroCard: { borderRadius: radius['6xl'], padding: 20, overflow: 'hidden', backgroundColor: '#0B5132' },
+  heroEyebrow: font('semibold', 13, { color: 'rgba(255,255,255,0.72)' }),
 
-  heroTitle: { ...font('extrabold', 25, { color: palette.white }), marginTop: 12 },
+  heroTitle: { ...font('extrabold', 26, { color: palette.white }), marginTop: 6, letterSpacing: -0.5 },
   heroCopy: {
     ...font('semibold', 13, { color: 'rgba(255,255,255,0.9)' }),
     maxWidth: 250,
@@ -447,7 +393,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     ...shadow.card,
   },
-  vsChipText: { ...font('extrabold', 12, { color: palette.green700 }), letterSpacing: 0.5 },
+  vsChipText: font('bold', 12, { color: palette.green700 }),
 
   heroCta: {
     marginTop: 20,
@@ -460,8 +406,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
   },
-  heroCtaText: font('extrabold', 15, { color: palette.green600 }),
-  heroCtaArrow: font('extrabold', 16, { color: palette.green600 }),
+  heroCtaText: font('bold', 15, { color: palette.green700 }),
 
   /* Leaderboard */
   boardCard: { padding: 16 },

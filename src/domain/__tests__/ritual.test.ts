@@ -1,5 +1,9 @@
 import {
+  DEFAULT_PLAN,
   HABITS,
+  cleanPlan,
+  effectivePlan,
+  planHabits,
   POKE_FRESH_MS,
   WALK_GOAL,
   buildRitualReminder,
@@ -169,5 +173,36 @@ describe('better, week on week', () => {
     expect(trendLine({ now: 3, before: 3.1 })).toBe('Steady at 3 a day.');
     expect(trendLine({ now: 2, before: 3 })).toBe('Down 1 a day on last week.');
     expect(trendLine(null)).toBe('Your trend shows after a few days.');
+  });
+});
+
+describe('the couple plan', () => {
+  it('accepts three distinct catalog habits and a listed walk goal', () => {
+    expect(cleanPlan({ picks: ['sleep', 'read', 'thanks'], walkGoal: 10000, at: 5 })).toEqual({ picks: ['sleep', 'read', 'thanks'], walkGoal: 10000, at: 5 });
+    expect(cleanPlan({ picks: ['sleep', 'sleep', 'read'], walkGoal: 8000 })).toBeNull();
+    expect(cleanPlan({ picks: ['water', 'read', 'thanks'], walkGoal: 8000 })).toBeNull();
+    expect(cleanPlan({ picks: ['sleep', 'read', 'thanks'], walkGoal: 7777 })).toBeNull();
+    expect(cleanPlan('nope')).toBeNull();
+  });
+
+  it('follows whichever of us chose last, else the default', () => {
+    const a = { picks: ['sleep', 'read', 'thanks'], walkGoal: 5000, at: 10 };
+    const b = { picks: ['stretch', 'breathe', 'outside'], walkGoal: 10000, at: 20 };
+    expect(effectivePlan(a, b).walkGoal).toBe(10000);
+    expect(effectivePlan(a, null).picks).toEqual(['sleep', 'read', 'thanks']);
+    expect(effectivePlan(undefined, 'junk')).toEqual(DEFAULT_PLAN);
+  });
+
+  it('makes six habits: the counted three, then the chosen three', () => {
+    const habits = planHabits({ picks: ['sleep', 'read', 'thanks'], walkGoal: 5000, at: 1 });
+    expect(habits.map((h) => h.id)).toEqual(['water', 'walk', 'move', 'sleep', 'read', 'thanks']);
+    expect(habits[1]!.hint).toBe('5,000 steps or a 20 min walk');
+  });
+
+  it('counts the walk against the chosen goal', () => {
+    const plan = { picks: ['sleep', 'read', 'thanks'] as const, walkGoal: 5000, at: 1 };
+    const s = ritualFor({ ml: 0, goalMl: 2000, steps: 5000, reps: 0, ticks: ['sleep'] }, { ...plan, picks: [...plan.picks] });
+    expect(s.find((x) => x.habit.id === 'walk')!.done).toBe(true);
+    expect(s.find((x) => x.habit.id === 'sleep')!.done).toBe(true);
   });
 });

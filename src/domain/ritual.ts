@@ -15,7 +15,19 @@
 import { previousDay } from '@/domain/duoStreak';
 import { isRecentlyActive } from '@/domain/presence';
 
-export type HabitId = 'water' | 'walk' | 'move' | 'stretch' | 'greens' | 'rest';
+export type HabitId =
+  | 'water'
+  | 'walk'
+  | 'move'
+  | 'stretch'
+  | 'greens'
+  | 'rest'
+  | 'sleep'
+  | 'breathe'
+  | 'read'
+  | 'outside'
+  | 'nosugar'
+  | 'thanks';
 
 export interface Habit {
   id: HabitId;
@@ -27,6 +39,7 @@ export interface Habit {
   auto: boolean;
 }
 
+/** The default day: the three counted habits and three to tick. Always six long. */
 export const HABITS: readonly Habit[] = [
   { id: 'water', emoji: '💧', label: 'Hydrate', hint: 'Reach your water goal', auto: true },
   { id: 'walk', emoji: '👟', label: 'Walk', hint: '8,000 steps or a 20 min walk', auto: true },
@@ -36,13 +49,70 @@ export const HABITS: readonly Habit[] = [
   { id: 'rest', emoji: '🌙', label: 'Wind down', hint: 'Screens off before bed', auto: false },
 ];
 
-const IDS = new Set<string>(HABITS.map((h) => h.id));
+/** What a couple can choose their three ticked habits from. */
+export const CATALOG: readonly Habit[] = [
+  HABITS[3]!,
+  HABITS[4]!,
+  HABITS[5]!,
+  { id: 'sleep', emoji: '😴', label: 'Sleep 7 hours', hint: 'In bed in time for seven', auto: false },
+  { id: 'breathe', emoji: '🌬️', label: 'Breathe', hint: 'Five quiet minutes', auto: false },
+  { id: 'read', emoji: '📖', label: 'Read', hint: 'Ten pages of anything', auto: false },
+  { id: 'outside', emoji: '🌤️', label: 'Get outside', hint: 'Ten minutes of daylight', auto: false },
+  { id: 'nosugar', emoji: '🚫', label: 'No sugary drinks', hint: 'Water, tea or coffee instead', auto: false },
+  { id: 'thanks', emoji: '💌', label: 'Say thanks', hint: 'Tell each other one good thing', auto: false },
+];
+
+const IDS = new Set<string>([...HABITS.map((h) => h.id), ...CATALOG.map((h) => h.id)]);
+const PICKABLE = new Set<string>(CATALOG.map((h) => h.id));
+
+/** Walk goals a couple can choose, in steps. */
+export const WALK_GOALS = [5000, 8000, 10000] as const;
+
+/**
+ * The couple's plan: which three habits they tick, and the walk goal. One plan
+ * for both — whoever changed it last sets it — so the table always compares
+ * the same six habits side by side.
+ */
+export interface RitualPlan {
+  picks: HabitId[];
+  walkGoal: number;
+  /** When it was chosen, epoch ms; the newer of the two members' plans wins. */
+  at: number;
+}
+
+export const PICKS = 3;
+export const DEFAULT_PLAN: RitualPlan = { picks: ['stretch', 'greens', 'rest'], walkGoal: 8000, at: 0 };
+
+/** A plan from a synced document, or null when it is not a valid one. */
+export function cleanPlan(raw: unknown): RitualPlan | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const { picks, walkGoal, at } = raw as { picks?: unknown; walkGoal?: unknown; at?: unknown };
+  if (!Array.isArray(picks)) return null;
+  const clean = picks.filter((p, i): p is HabitId => typeof p === 'string' && PICKABLE.has(p) && picks.indexOf(p) === i);
+  if (clean.length !== PICKS) return null;
+  if (typeof walkGoal !== 'number' || !(WALK_GOALS as readonly number[]).includes(walkGoal)) return null;
+  return { picks: clean, walkGoal, at: typeof at === 'number' && Number.isFinite(at) ? at : 0 };
+}
+
+/** The plan both of us follow: the newer valid one, or the default. */
+export function effectivePlan(mine: unknown, theirs: unknown): RitualPlan {
+  const a = cleanPlan(mine);
+  const b = cleanPlan(theirs);
+  if (a && b) return a.at >= b.at ? a : b;
+  return a ?? b ?? DEFAULT_PLAN;
+}
+
+/** The six habits a plan makes: the counted three, then the chosen three. */
+export function planHabits(plan: RitualPlan = DEFAULT_PLAN): Habit[] {
+  const walk = { ...HABITS[1]!, hint: `${plan.walkGoal.toLocaleString('en-US')} steps or a 20 min walk` };
+  return [HABITS[0]!, walk, HABITS[2]!, ...plan.picks.map((id) => CATALOG.find((h) => h.id === id)!)];
+}
 
 /** Most ticks a day may carry — mirrored as a list size bound in firestore.rules. */
 export const MAX_TICKS = 12;
 
-/** The walk goal, in steps. */
-export const WALK_GOAL = 8000;
+/** The default walk goal, in steps. */
+export const WALK_GOAL = DEFAULT_PLAN.walkGoal;
 
 /** Hand ticks from a synced document: known ids only, once each. */
 export function cleanTicks(raw: unknown): HabitId[] {
@@ -79,9 +149,9 @@ export interface HabitState {
   tickable: boolean;
 }
 
-/** One side's ritual, habit by habit. */
-export function ritualFor(side: SideDay): HabitState[] {
-  return HABITS.map((habit) => {
+/** One side's ritual, habit by habit, under the couple's plan. */
+export function ritualFor(side: SideDay, plan: RitualPlan = DEFAULT_PLAN): HabitState[] {
+  return planHabits(plan).map((habit) => {
     const ticked = side.ticks.includes(habit.id);
     switch (habit.id) {
       case 'water': {
@@ -92,7 +162,7 @@ export function ritualFor(side: SideDay): HabitState[] {
       case 'walk': {
         // No count on this phone: the walk is a tick, like the others.
         if (side.steps == null) return { habit, done: ticked, progress: ticked ? 1 : 0, unknown: false, tickable: true };
-        const progress = Math.min(1, side.steps / WALK_GOAL);
+        const progress = Math.min(1, side.steps / plan.walkGoal);
         return { habit, done: progress >= 1 || ticked, progress: ticked ? 1 : progress, unknown: false, tickable: progress < 1 };
       }
       case 'move':

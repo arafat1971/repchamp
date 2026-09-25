@@ -16,7 +16,7 @@ import { trackerHistory } from '@/domain/coupleTracker';
 import { drinkLayers } from '@/domain/drinkKinds';
 import { duoStreak } from '@/domain/duoStreak';
 import { dayKey } from '@/domain/progression';
-import { HABITS, cleanTicks, ritualFor, ritualScore } from '@/domain/ritual';
+import { HABITS, cleanTicks, effectivePlan, ritualFor, ritualScore } from '@/domain/ritual';
 import { bondMonths, occasionFor, seasonFor } from '@/domain/season';
 import { buildWaterWidgetSnapshot, repsOnDay, type WaterWidgetSnapshot } from '@/domain/waterWidget';
 import { meadow, weekWrap, wrapLine } from '@/domain/week';
@@ -73,6 +73,7 @@ export function usePartnerTodaySnapshot(): WaterWidgetSnapshot {
     const bond = bondMonths(pairedAt, date);
     const theirWater = partnerWaterToday(partner, today);
     const theirSteps = partnerStepsToday(partner, today);
+    const plan = effectivePlan(couple.me?.ritualPlan, partner.ritualPlan);
     const ritual = {
       them: ritualScore(
         ritualFor({
@@ -81,10 +82,10 @@ export function usePartnerTodaySnapshot(): WaterWidgetSnapshot {
           steps: theirSteps,
           reps: reps.reps,
           ticks: cleanTicks(partnerHabitsToday(partner, today)),
-        }),
+        }, plan),
       ),
       me: ritualScore(
-        ritualFor({ ml: myMl, goalMl: myGoal, steps: mySteps, reps: repsOnDay(sessions, today).reps, ticks: ritualDay === today ? ritualTicks : [] }),
+        ritualFor({ ml: myMl, goalMl: myGoal, steps: mySteps, reps: repsOnDay(sessions, today).reps, ticks: ritualDay === today ? ritualTicks : [] }, plan),
       ),
       total: HABITS.length,
     };

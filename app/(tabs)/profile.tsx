@@ -1,4 +1,3 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { Image, StyleSheet, Text, View } from 'react-native';
@@ -222,9 +221,9 @@ export default function ProfileScreen() {
               {profile.avatarUri ? (
                 <Image source={{ uri: profile.avatarUri }} style={styles.avatar} />
               ) : (
-                <LinearGradient colors={gradients.brandStrong} style={styles.avatar}>
+                <View style={[styles.avatar, { backgroundColor: palette.green600 }]}>
                   <Text style={font('extrabold', 34, { color: palette.white })}>{initial}</Text>
-                </LinearGradient>
+                </View>
               )}
             </View>
             <View style={styles.avatarEdit}>

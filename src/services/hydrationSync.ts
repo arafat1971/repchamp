@@ -17,7 +17,7 @@ import { partnerStepsToday, partnerWaterToday } from '@/domain/couple';
 import { METRIC_FIELD, type SharedMetricKey } from '@/domain/partnerSharing';
 import { drinkLayers } from '@/domain/drinkKinds';
 import { planDrinkNotice } from '@/domain/waterShare';
-import { HABITS, ritualFor, ritualScore } from '@/domain/ritual';
+import { HABITS, effectivePlan, ritualFor, ritualScore } from '@/domain/ritual';
 import { buildWaterWidgetSnapshot } from '@/domain/waterWidget';
 import type { CoupleMember, DrinkLast } from '@/domain/couple';
 import {
@@ -128,7 +128,7 @@ export function markSplash(coupleId: string, uid: string): void {
 }
 
 /** My day as my partner's widget should show it; see `scheduleWidgetPush`. */
-export function widgetFromPublished(me: CoupleMember) {
+export function widgetFromPublished(me: CoupleMember, partner?: CoupleMember | null) {
   const today = dayKey();
   const prefs = sharingPrefs();
   const doc = me.daily?.day === today ? me.daily : undefined;
@@ -160,7 +160,7 @@ export function widgetFromPublished(me: CoupleMember) {
           steps: !prefs.steps ? null : steps ? steps.steps : (doc?.steps ?? null),
           reps: reps ? reps.reps : (doc?.reps ?? 0),
           ticks: ticksFor(useRitualStore.getState(), today),
-        }),
+        }, effectivePlan(me.ritualPlan, partner?.ritualPlan)),
       ),
       total: HABITS.length,
     },

@@ -57,7 +57,7 @@ import { meadow, weekWrap, wrapLine } from '@/domain/week';
 import { bondMonths, occasionFor, seasonFor } from '@/domain/season';
 import { duoStreak } from '@/domain/duoStreak';
 import { DEFAULT_DAILY_GOAL_ML } from '@/domain/hydration';
-import { HABITS, cleanTicks, ritualFor, ritualScore } from '@/domain/ritual';
+import { HABITS, cleanTicks, effectivePlan, ritualFor, ritualScore } from '@/domain/ritual';
 import { getExercise } from '@/vision/exercises';
 import { clearWidgetSnapshot, publishWidgetSnapshot } from '@/services/partnerWidget';
 import { trackerHistory } from '@/domain/coupleTracker';
@@ -331,6 +331,7 @@ export default function HomeScreen() {
     const theirReps = partnerRepsToday(couple.partner, today);
     const theirSteps = partnerStepsToday(couple.partner, today);
     /* Our daily ritual, both sides, from the same data the widget shows. */
+    const plan = effectivePlan(couple.me?.ritualPlan, couple.partner?.ritualPlan);
     const ritual = {
       them: ritualScore(
         ritualFor({
@@ -339,9 +340,9 @@ export default function HomeScreen() {
           steps: theirSteps,
           reps: theirReps.reps,
           ticks: cleanTicks(partnerHabitsToday(couple.partner, today)),
-        }),
+        }, plan),
       ),
-      me: ritualScore(ritualFor({ ml: todayMl, goalMl: myGoalMl, steps: myStepsCount, reps: myReps.reps, ticks: myRitualTicks })),
+      me: ritualScore(ritualFor({ ml: todayMl, goalMl: myGoalMl, steps: myStepsCount, reps: myReps.reps, ticks: myRitualTicks }, plan)),
       total: HABITS.length,
     };
     useRitualStore.getState().record(today, { me: ritual.me, them: ritual.them });

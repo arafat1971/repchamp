@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-import { buildWaterWidgetSnapshot, repsOnDay } from '@/domain/waterWidget';
+import { DEFAULT_WIDGET_STYLE, buildWaterWidgetSnapshot, repsOnDay } from '@/domain/waterWidget';
 import { WIDGET_SNAPSHOT_KEYS } from '@/domain/widgetSnapshot';
 
 const base = { name: 'Nkll', day: '2026-09-24', ml: 0 };
@@ -124,6 +124,18 @@ describe('steps and reps rings', () => {
     expect(buildWaterWidgetSnapshot(base)).toMatchObject({ meWater: '', meSteps: '', meReps: '' });
     const mine = buildWaterWidgetSnapshot({ ...base, me: { ml: 1000, steps: null, reps: 30 } });
     expect(mine).toMatchObject({ meWater: '1 L', meSteps: '—', meReps: '30' });
+  });
+});
+
+describe('widget style', () => {
+  it('marks a copy without a style as unstyled, so the native side keeps the old look', () => {
+    const s = buildWaterWidgetSnapshot(base);
+    expect(s).toMatchObject({ styled: false, ...DEFAULT_WIDGET_STYLE });
+  });
+
+  it('carries the look chosen on this phone', () => {
+    const style = { theme: 'ocean' as const, showSteps: false, showReps: true, showMine: false, motion: false };
+    expect(buildWaterWidgetSnapshot({ ...base, style })).toMatchObject({ styled: true, ...style });
   });
 });
 

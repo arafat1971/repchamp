@@ -20,7 +20,7 @@ describe('onboardingStepName', () => {
   });
 
   it('covers every step the flow actually has', () => {
-    expect(ONBOARDING_STEP_COUNT).toBe(25);
+    expect(ONBOARDING_STEP_COUNT).toBe(26);
     for (let i = 0; i < ONBOARDING_STEP_COUNT; i += 1) {
       expect(onboardingStepName(i)).not.toMatch(/^step-/);
     }
@@ -37,7 +37,7 @@ describe('onboardingStepName', () => {
 describe('onboardingProgressPercent', () => {
   it('runs 0 to 100 across the flow', () => {
     expect(onboardingProgressPercent(0)).toBe(0);
-    expect(onboardingProgressPercent(24)).toBe(100);
+    expect(onboardingProgressPercent(25)).toBe(100);
   });
 
   it('puts the paywall late, where it belongs', () => {

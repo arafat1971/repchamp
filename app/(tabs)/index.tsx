@@ -43,6 +43,7 @@ import { useStepsToday } from '@/state/useStepsToday';
 import { buildDashboardSnapshot } from '@/domain/dashboardSnapshot';
 import { buildWidgetSnapshot } from '@/domain/widgetSnapshot';
 import { buildWaterWidgetSnapshot, repsOnDay } from '@/domain/waterWidget';
+import { useWidgetStyleStore } from '@/state/widgetStyleStore';
 import { getExercise } from '@/vision/exercises';
 import { clearWidgetSnapshot, publishWidgetSnapshot } from '@/services/partnerWidget';
 import { trackerHistory } from '@/domain/coupleTracker';
@@ -221,6 +222,11 @@ export default function HomeScreen() {
      moves; this keeps it right whenever this app is open, from the same
      builder, so the two can never disagree. */
   const myStepsCount = stepsToday.status === 'ready' ? stepsToday.steps : null;
+  const theme = useWidgetStyleStore((st) => st.theme);
+  const showSteps = useWidgetStyleStore((st) => st.showSteps);
+  const showReps = useWidgetStyleStore((st) => st.showReps);
+  const showMine = useWidgetStyleStore((st) => st.showMine);
+  const motion = useWidgetStyleStore((st) => st.motion);
   useEffect(() => {
     if (!partnerGlass) {
       // Unpaired: an old partner's day must not linger on the home screen.
@@ -242,10 +248,24 @@ export default function HomeScreen() {
         trainedAt: theirReps.trainedAt,
         me: { ml: todayMl, steps: myStepsCount, reps: myReps.reps },
         rev: partnerWaterRevToday(couple.partner, today),
+        style: { theme, showSteps, showReps, showMine, motion },
       }),
       'water',
     );
-  }, [partnerGlass, couple.partner, couple.loading, today, todayMl, myStepsCount, myReps.reps]);
+  }, [
+    partnerGlass,
+    couple.partner,
+    couple.loading,
+    today,
+    todayMl,
+    myStepsCount,
+    myReps.reps,
+    theme,
+    showSteps,
+    showReps,
+    showMine,
+    motion,
+  ]);
 
   /* Mirror the same numbers into the daily dashboard widget. A no-op on any
      build without the extension, so this is safe to call unconditionally —

@@ -35,6 +35,8 @@ export type WidgetPayload = WidgetSnapshot | DashboardSnapshot | WaterWidgetSnap
 interface PartnerWidgetNative {
   setSnapshot(widget: string, json: string): void;
   count(widget: string): Promise<number>;
+  /** Absent on builds made before pinning was added. */
+  requestPin?(widget: string): Promise<boolean>;
 }
 
 function native(): PartnerWidgetNative | null {
@@ -117,5 +119,25 @@ export async function placedWidgetCount(widget: WidgetId = 'partner'): Promise<n
     return await mod.count(widget);
   } catch {
     return 0;
+  }
+}
+
+/**
+ * Ask the launcher to put a widget on the home screen — the system's own
+ * "Add to home screen" sheet, so one tap instead of a hunt through the
+ * widget picker.
+ *
+ * Resolves false where that is not possible (iOS, an older build, Android
+ * before 8, or a launcher that opts out); callers then show the gesture.
+ * True means the sheet was shown, not that it was accepted — confirm with
+ * `placedWidgetCount`.
+ */
+export async function requestPinWidget(widget: WidgetId = 'water'): Promise<boolean> {
+  const mod = native();
+  if (!mod?.requestPin) return false;
+  try {
+    return await mod.requestPin(widget);
+  } catch {
+    return false;
   }
 }

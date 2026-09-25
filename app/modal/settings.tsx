@@ -428,7 +428,7 @@ export default function SettingsScreen() {
           <Card style={styles.group}>
             <LinkRow
               emoji="📲"
-              label="Add partner widget"
+              label="Widget studio"
               onPress={() => router.push('/modal/widget')}
             />
           </Card>

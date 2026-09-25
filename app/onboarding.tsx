@@ -41,6 +41,7 @@ import { pluralise } from '@/domain/plural';
 import { OPPONENTS } from '@/domain/opponent';
 import { track } from '@/lib/analytics';
 import { onboardingProgressPercent, onboardingStepName } from '@/domain/onboardingFunnel';
+import { HomeWidgetStep } from '@/components/onboarding/HomeWidgetStep';
 import { checkHandleAtSignIn, mayPassUncheckedHandle } from '@/domain/signInHandle';
 import { fetchOffering, isPurchasesConfigured, purchase, sortPackagesForPaywall } from '@/services/purchases';
 import { checkUsername, fetchProfile } from '@/services/userService';
@@ -515,7 +516,11 @@ export default function OnboardingScreen() {
           />
         ) : null}
         {step === 23 ? <SetUpYourSpace username={username} onNext={next} /> : null}
-        {step === 24 ? <Offer onDone={finish} /> : null}
+        {/* The widget, just before the offer: the plan is set and the partner
+            is the reason to come back, so this is when a home-screen spot
+            for them makes the most sense. Skips itself where unsupported. */}
+        {step === 24 ? <HomeWidgetStep onNext={next} /> : null}
+        {step === 25 ? <Offer onDone={finish} /> : null}
       </Animated.View>
     </View>
   );

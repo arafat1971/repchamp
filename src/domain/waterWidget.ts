@@ -24,6 +24,31 @@ import { DEFAULT_STEP_GOAL, formatSteps } from '@/domain/steps';
 /** The reps ring closes here — a solid day's work across any movements. */
 export const REPS_RING_GOAL = 100;
 
+/** The widget's looks, chosen on this phone. */
+export const WIDGET_THEMES = ['auto', 'light', 'dark', 'ocean'] as const;
+export type WidgetTheme = (typeof WIDGET_THEMES)[number];
+
+export interface WidgetStyle {
+  /** Card colours: follow the system, or pin one. */
+  theme: WidgetTheme;
+  /** Show the steps ring and row. */
+  showSteps: boolean;
+  /** Show the reps ring and row. */
+  showReps: boolean;
+  /** Show my numbers beside theirs. */
+  showMine: boolean;
+  /** Micro-animations after activity. */
+  motion: boolean;
+}
+
+export const DEFAULT_WIDGET_STYLE: WidgetStyle = {
+  theme: 'auto',
+  showSteps: true,
+  showReps: true,
+  showMine: true,
+  motion: true,
+};
+
 /** How long after activity the widget keeps its micro-animations going. */
 export const WATER_WIDGET_LIVE_MS = 15 * 60 * 1000;
 
@@ -81,6 +106,16 @@ export interface WaterWidgetSnapshot {
   meSteps: string;
   meReps: string;
 
+  /* The look, flat so the native side reads it without nesting. A copy
+     built on the partner's phone has `styled: false`, and the native side
+     keeps the style it already had. */
+  styled: boolean;
+  theme: WidgetTheme;
+  showSteps: boolean;
+  showReps: boolean;
+  showMine: boolean;
+  motion: boolean;
+
   /**
    * The version of the state this shows — the writer's `rev`, 0 if unknown.
    * The native side keeps whichever copy of today has the higher one.
@@ -110,6 +145,8 @@ export interface WaterWidgetInput {
   me?: { ml: number; steps: number | null; reps: number } | null;
   /** The state's version; see `WaterWidgetSnapshot.rev`. */
   rev?: number;
+  /** My chosen look, when this copy is built on my phone. */
+  style?: WidgetStyle | null;
 }
 
 function sanitizeGoal(goal: number | null | undefined): number {
@@ -194,6 +231,8 @@ export function buildWaterWidgetSnapshot(input: WaterWidgetInput, now = Date.now
     meWater: me ? formatMl(me.ml) : '',
     meSteps: me ? (me.steps != null && me.steps >= 0 ? formatSteps(me.steps) : '—') : '',
     meReps: me ? String(count(me.reps)) : '',
+    styled: !!input.style,
+    ...(input.style ?? DEFAULT_WIDGET_STYLE),
     rev: time(input.rev),
     updatedAt: now,
   };

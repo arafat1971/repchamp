@@ -275,6 +275,7 @@ class WaterWidgetProvider : AppWidgetProvider() {
         const val KEY = "repchamp.widget.water.v1"
         private const val LIVE_MS = 15L * 60L * 1000L
         private val ME_KEYS = arrayOf("meWater", "meSteps", "meReps")
+        private val STYLE_KEYS = arrayOf("styled", "theme", "showSteps", "showReps", "showMine", "motion")
 
         /**
          * Whether a new copy should replace the stored one.
@@ -311,13 +312,19 @@ class WaterWidgetProvider : AppWidgetProvider() {
             return try {
                 val next = JSONObject(json)
                 val old = stored(context) ?: return json
-                if (old.optString("day") != next.optString("day")) return json
                 var changed = false
-                for (k in ME_KEYS) {
-                    if (next.optString(k, "").isBlank() && old.optString(k, "").isNotBlank()) {
-                        next.put(k, old.optString(k))
-                        changed = true
+                if (old.optString("day") == next.optString("day")) {
+                    for (k in ME_KEYS) {
+                        if (next.optString(k, "").isBlank() && old.optString(k, "").isNotBlank()) {
+                            next.put(k, old.optString(k))
+                            changed = true
+                        }
                     }
+                }
+                // The look is this phone's choice, whatever day it is.
+                if (!next.optBoolean("styled", false) && old.optBoolean("styled", false)) {
+                    for (k in STYLE_KEYS) next.put(k, old.opt(k))
+                    changed = true
                 }
                 if (changed) next.toString() else json
             } catch (e: Exception) {
@@ -355,9 +362,19 @@ class WaterWidgetProvider : AppWidgetProvider() {
             // Yesterday's numbers are not today's: a new day starts every ring empty.
             val snap = if (stored != null && stored.optString("day") == today) stored else null
 
+            // The look survives a new day; only the numbers reset.
+            val look = stored
+            val showSteps = look?.optBoolean("showSteps", true) ?: true
+            val showReps = look?.optBoolean("showReps", true) ?: true
+            val showMine = look?.optBoolean("showMine", true) ?: true
+            val motion = look?.optBoolean("motion", true) ?: true
+            Palette.apply(views, look?.optString("theme", "auto") ?: "auto")
+            show(views, R.id.pt_steps_row, showSteps)
+            show(views, R.id.pt_reps_row, showReps)
+
             val waterPct = fraction(snap, "pct")
-            val stepsPct = fraction(snap, "stepsPct")
-            val repsPct = fraction(snap, "repsPct")
+            val stepsPct = if (showSteps) fraction(snap, "stepsPct") else -1f
+            val repsPct = if (showReps) fraction(snap, "repsPct") else -1f
             val layers = ArrayList<Pair<Int, Float>>()
             val arr = snap?.optJSONArray("layers")
             if (arr != null) {
@@ -399,16 +416,16 @@ class WaterWidgetProvider : AppWidgetProvider() {
             views.setTextViewText(R.id.pt_steps_goal, snap?.optString("stepsGoal") ?: "")
             views.setTextViewText(R.id.pt_reps_value, snap?.optString("reps") ?: "0")
             views.setTextViewText(R.id.pt_reps_goal, snap?.optString("repsDetail") ?: "reps")
-            you(context, views, R.id.pt_water_you, snap?.optString("meWater"))
-            you(context, views, R.id.pt_steps_you, snap?.optString("meSteps"))
-            you(context, views, R.id.pt_reps_you, snap?.optString("meReps"))
+            you(context, views, R.id.pt_water_you, if (showMine) snap?.optString("meWater") else null)
+            you(context, views, R.id.pt_steps_you, if (showMine) snap?.optString("meSteps") else null)
+            you(context, views, R.id.pt_reps_you, if (showMine) snap?.optString("meReps") else null)
 
             /* Fresh: active — a drink or a set — in the last fifteen minutes.
                A minute of grace for the other phone's clock running ahead. */
             val activeAt = snap?.optLong("activeAt", 0L) ?: 0L
             val lastAt = snap?.optLong("lastAt", 0L) ?: 0L
-            val fresh = activeAt > 0L && now - activeAt >= -60_000L && now - activeAt <= LIVE_MS
-            val drankFresh = lastAt > 0L && now - lastAt >= -60_000L && now - lastAt <= LIVE_MS
+            val fresh = motion && activeAt > 0L && now - activeAt >= -60_000L && now - activeAt <= LIVE_MS
+            val drankFresh = motion && lastAt > 0L && now - lastAt >= -60_000L && now - lastAt <= LIVE_MS
             val allMet = snap?.optBoolean("allMet", false) ?: false
             val anyClosed = waterPct >= 1f || stepsPct >= 1f || repsPct >= 1f
 
@@ -416,7 +433,7 @@ class WaterWidgetProvider : AppWidgetProvider() {
             show(views, R.id.pt_orbit, fresh)
             show(views, R.id.pt_bubbles_high, drankFresh && waterPct >= 0.5f)
             show(views, R.id.pt_bubbles_low, drankFresh && waterPct >= 0.2f && waterPct < 0.5f)
-            show(views, R.id.pt_twinkle, allMet || (fresh && anyClosed))
+            show(views, R.id.pt_twinkle, motion && (allMet || (fresh && anyClosed)))
             if (fresh) scheduleCalm(context, activeAt + LIVE_MS + 5_000L)
 
             views.setImageViewBitmap(
@@ -507,6 +524,7 @@ object RingArt {
 
     /** One ring: a faint track, a gradient arc from twelve o'clock, round caps. */
     private fun ring(c: Canvas, r: Float, pct: Float, colors: IntArray) {
+        if (pct < 0f) return // hidden by the widget's style
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = STROKE
@@ -539,6 +557,60 @@ object RingArt {
         cap.color = colors[1]
         if (pct >= 1f) cap.setShadowLayer(1.6f, 0f, 0f, Color.argb(110, 0, 0, 0))
         c.drawCircle(x, y, STROKE / 2f, cap)
+    }
+}
+
+/**
+ * The card's colours for a pinned theme. "auto" leaves the layout's own
+ * day/night resources alone, which is what follows the system.
+ */
+object Palette {
+    private class Look(
+        val bg: Int,
+        val chip: Int,
+        val text: Int,
+        val secondary: Int,
+        val water: Int,
+        val steps: Int,
+        val reps: Int
+    )
+
+    private val LIGHT = Look(
+        R.drawable.pt_bg_light, R.drawable.pt_chip_light,
+        0xFF000000.toInt(), 0xFF8A8A8E.toInt(),
+        0xFF0A7CC4.toInt(), 0xFF248A3D.toInt(), 0xFFE0184A.toInt()
+    )
+    private val DARK = Look(
+        R.drawable.pt_bg_dark, R.drawable.pt_chip_dark,
+        0xFFFFFFFF.toInt(), 0xFF98989F.toInt(),
+        0xFF64D2FF.toInt(), 0xFF30D158.toInt(), 0xFFFF375F.toInt()
+    )
+    private val OCEAN = Look(
+        R.drawable.pt_bg_ocean, R.drawable.pt_chip_ocean,
+        0xFFFFFFFF.toInt(), 0xFFC7D2FE.toInt(),
+        0xFF7DD3FC.toInt(), 0xFF86EFAC.toInt(), 0xFFFDA4AF.toInt()
+    )
+
+    fun apply(views: RemoteViews, theme: String) {
+        val look = when (theme) {
+            "light" -> LIGHT
+            "dark" -> DARK
+            "ocean" -> OCEAN
+            else -> return
+        }
+        views.setInt(R.id.pt_root, "setBackgroundResource", look.bg)
+        views.setTextColor(R.id.pt_title, look.text)
+        views.setTextColor(R.id.pt_footer, look.secondary)
+        views.setTextColor(R.id.pt_water_value, look.water)
+        views.setTextColor(R.id.pt_steps_value, look.steps)
+        views.setTextColor(R.id.pt_reps_value, look.reps)
+        for (id in intArrayOf(R.id.pt_water_goal, R.id.pt_steps_goal, R.id.pt_reps_goal)) {
+            views.setTextColor(id, look.secondary)
+        }
+        for (id in intArrayOf(R.id.pt_water_you, R.id.pt_steps_you, R.id.pt_reps_you)) {
+            views.setTextColor(id, look.secondary)
+            views.setInt(id, "setBackgroundResource", look.chip)
+        }
     }
 }
 
@@ -739,6 +811,7 @@ class RepChampMessagingService : ExpoFirebaseMessagingService() {
 
 const metricRow = (key, value, goal, you, first) => `
         <LinearLayout
+            android:id="@+id/pt_${key}_row"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="${first ? 6 : 3}dp"
@@ -950,6 +1023,35 @@ const BG_XML = `<?xml version="1.0" encoding="utf-8"?>
 </shape>
 `;
 
+const solidCard = (color) => `<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="${color}" />
+    <corners android:radius="@dimen/widget_radius" />
+</shape>
+`;
+
+const pill = (color) => `<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="${color}" />
+    <corners android:radius="999dp" />
+</shape>
+`;
+
+/* Pinned themes. Ocean is the deep blue the water reads best on. */
+const THEME_DRAWABLES = {
+  'drawable/pt_bg_light.xml': solidCard('#FFFFFF'),
+  'drawable/pt_bg_dark.xml': solidCard('#1C1C1E'),
+  'drawable/pt_bg_ocean.xml': `<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient android:startColor="#1E1B4B" android:centerColor="#1E3A8A" android:endColor="#0C4A6E" android:angle="315" />
+    <corners android:radius="@dimen/widget_radius" />
+</shape>
+`,
+  'drawable/pt_chip_light.xml': pill('#F2F2F7'),
+  'drawable/pt_chip_dark.xml': pill('#2C2C2E'),
+  'drawable/pt_chip_ocean.xml': pill('#26FFFFFF'),
+};
+
 const CHIP_XML = `<?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
     <solid android:color="@color/pt_chip" />
@@ -1016,6 +1118,7 @@ function waterResources() {
     'drawable/pt_preview.xml': previewRings(),
     'values/pt_colors.xml': COLORS_XML,
     'values-night/pt_colors.xml': COLORS_NIGHT_XML,
+    ...THEME_DRAWABLES,
     ...glintDrawable(),
     ...twinkleDrawables(),
     ...pulseDrawables(),

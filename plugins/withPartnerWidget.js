@@ -262,6 +262,28 @@ ${KEY_CASES}
         }
     }
 
+    /**
+     * Ask the launcher to place a widget — the system's own "add to home
+     * screen" sheet. Resolves false where the launcher cannot pin (Android
+     * before 8, or a launcher that opts out), so the app can fall back to
+     * showing the gesture instead.
+     */
+    @ReactMethod
+    fun requestPin(widget: String, promise: com.facebook.react.bridge.Promise) {
+        val ctx = reactApplicationContext
+        val provider = providerFor(widget)
+        if (provider == null || android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) {
+            promise.resolve(false)
+            return
+        }
+        val manager = AppWidgetManager.getInstance(ctx)
+        if (!manager.isRequestPinAppWidgetSupported) {
+            promise.resolve(false)
+            return
+        }
+        promise.resolve(manager.requestPinAppWidget(ComponentName(ctx, provider), null, null))
+    }
+
     /** How many instances of one widget the athlete has actually placed. */
     @ReactMethod
     fun count(widget: String, promise: com.facebook.react.bridge.Promise) {

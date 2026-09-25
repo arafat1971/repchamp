@@ -291,6 +291,14 @@ export interface PartnerWidget {
   sharedDays: number;
   /** My reps in the window. Theirs is deliberately absent; see above. */
   myReps: number;
+  /**
+   * The window day by day, oldest first, today last: `B` a shared day, `D`
+   * both trained but not a shared day yet, `T` theirs only, `M` mine only,
+   * `N` neither — what the widget's strip paints.
+   */
+  strip: string;
+  /** Each strip day's weekday initial, in the same order ("TWTFSSM"). */
+  letters: string;
 }
 
 /**
@@ -315,7 +323,25 @@ export function partnerWidget(
     myDays: totals.myDays,
     sharedDays: totals.sharedDays,
     myReps: totals.myReps,
+    strip: past.map((h) => stripCode(h, days)).join(''),
+    letters: past.map((h) => 'SMTWTFS'[new Date(`${h.day}T12:00:00`).getDay()] ?? '·').join(''),
   };
+}
+
+/**
+ * One strip day, from the same rows the counts use: my side is a set on this
+ * phone (what "You N" counts) or a synced training day; theirs is synced. The
+ * heart is only for a shared day as the streak counts it — so a day where both
+ * dots are lit but the streak did not see it stays two dots (`D`), never a
+ * heart the "Together" number would contradict.
+ */
+function stripCode(row: DayStatusRow, days: readonly CoupleDay[]): string {
+  const d = days.find((x) => x.day === row.day);
+  const theirs = row.status === 'both' || row.status === 'theirs';
+  const mine = row.status === 'both' || row.status === 'mine' || (d?.myReps ?? 0) > 0;
+  if (row.status === 'both') return 'B';
+  if (theirs && mine) return 'D';
+  return theirs ? 'T' : mine ? 'M' : 'N';
 }
 
 /** Days since the partner last trained, or null when they never have. */

@@ -10,12 +10,15 @@ import {
   partnerStepsToday,
   partnerWaterToday,
 } from '@/domain/couple';
+import { partnerWidget } from '@/domain/coupleExercises';
+import { trackerHistory } from '@/domain/coupleTracker';
 import { drinkLayers } from '@/domain/drinkKinds';
 import { duoStreak } from '@/domain/duoStreak';
 import { dayKey } from '@/domain/progression';
 import { bondMonths, occasionFor, seasonFor } from '@/domain/season';
 import { buildWaterWidgetSnapshot, repsOnDay, type WaterWidgetSnapshot } from '@/domain/waterWidget';
 import { meadow, weekWrap, wrapLine } from '@/domain/week';
+import { buildWidgetSnapshot, type WidgetSnapshot } from '@/domain/widgetSnapshot';
 import { useDuoStreakStore } from '@/state/duoStreakStore';
 import { selectTodayMl, useHydrationStore } from '@/state/hydrationStore';
 import { useProfileStore } from '@/state/profileStore';
@@ -90,4 +93,24 @@ export function usePartnerTodaySnapshot(): WaterWidgetSnapshot {
       },
     });
   }, [couple.paired, couple.partner, couple.couple, couple.me?.uid, today, myMl, myGoal, drinks, sessions, mySteps, streakDays, week, weatherOn, weatherNow]);
+}
+
+/**
+ * The Partner's-week widget's payload, built exactly as Home publishes it —
+ * so the studio's preview of that widget shows the real week. Null unpaired.
+ */
+export function usePartnerWeekSnapshot(): WidgetSnapshot | null {
+  const couple = useCouple();
+  const today = dayKey();
+  const sessions = useProfileStore((s) => s.sessions);
+  const myMl = useHydrationStore((s) => selectTodayMl(s, today));
+  return useMemo(() => {
+    const uid = couple.me?.uid;
+    if (!couple.paired || !couple.partner || !uid) return null;
+    const widget = partnerWidget(trackerHistory(couple.couple, uid, today, 7), sessions, today);
+    return buildWidgetSnapshot(couple.partner.displayName ?? 'Your partner', widget, 0, {
+      theirMl: partnerWaterToday(couple.partner, today),
+      myMl,
+    });
+  }, [couple.paired, couple.partner, couple.couple, couple.me?.uid, sessions, today, myMl]);
 }

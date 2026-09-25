@@ -15,6 +15,8 @@ const w = (over: Partial<PartnerWidget> = {}): PartnerWidget => ({
   myDays: 4,
   sharedDays: 2,
   myReps: 120,
+  strip: 'NTMBNTB',
+  letters: 'FSSMTWT',
   ...over,
 });
 
@@ -286,5 +288,15 @@ describe('the water line', () => {
     const base = buildWidgetSnapshot('Bea', recent, 0).nudge;
     expect(buildWidgetSnapshot('Bea', recent, 0, { theirMl: null, myMl: 0 }).nudge).toBe(base);
     expect(buildWidgetSnapshot('Bea', recent, 0, { theirMl: 500, myMl: 900 }).nudge).toBe(base);
+  });
+});
+
+describe('the week strip', () => {
+  it('carries the strip and a phrased count line', () => {
+    const snap = buildWidgetSnapshot('Sam', w());
+    expect(snap.strip).toBe('NTMBNTB');
+    expect(snap.letters).toBe('FSSMTWT');
+    expect(snap.statsLine).toBe('Sam 3 · You 4 · Together 2 🔥');
+    expect(buildWidgetSnapshot('Sam', w({ sharedDays: 0 })).statsLine).toBe('Sam 3 · You 4 · Together 0');
   });
 });

@@ -15,7 +15,7 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
+import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop, Text as SvgText } from 'react-native-svg';
 
 import { BearJar, type BearTheme } from '@/components/home/BearJar';
 import {
@@ -27,6 +27,7 @@ import {
   type WidgetStyle,
   type WidgetTheme,
 } from '@/domain/waterWidget';
+import type { WidgetSnapshot } from '@/domain/widgetSnapshot';
 import { font } from '@/theme/typography';
 
 /**
@@ -277,11 +278,11 @@ export function GlancePreview({ style, snap = SAMPLE_SNAPSHOT, size }: { style: 
       </Svg>
 
       <SceneBear left={W * 0.27 - bw / 2} top={feet - bh} bw={bw} bh={bh} lean={-(3 + 10 * Math.max(0, share - 0.5))}>
-        <BearJar id="glance-them" percent={snap.pct * 100} width={bw} theme={THEIR_BEAR} layers={bearLayers(snap.layers)} tilt={tilt} phase={phase} pourKey={0} met={snap.met} />
+        <BearJar id="glance-them" percent={snap.pct * 100} width={bw} theme={THEIR_BEAR} layers={bearLayers(snap.layers)} tilt={tilt} phase={phase} moods pourKey={0} met={snap.met} />
         <Outfit streak={streak} bw={bw} bh={bh} winter={snap.season === 'winter'} />
       </SceneBear>
       <SceneBear left={W * 0.73 - bw / 2} top={feet - bh} bw={bw} bh={bh} lean={3 + 10 * Math.max(0, 0.5 - share)}>
-        <BearJar id="glance-me" percent={snap.hasMe ? snap.mePct * 100 : 0} width={bw} theme={MY_BEAR} layers={snap.hasMe ? bearLayers(snap.meLayers) : []} tilt={tilt} phase={phase} pourKey={0} met={snap.hasMe && snap.meMet} />
+        <BearJar id="glance-me" percent={snap.hasMe ? snap.mePct * 100 : 0} width={bw} theme={MY_BEAR} layers={snap.hasMe ? bearLayers(snap.meLayers) : []} tilt={tilt} phase={phase} moods pourKey={0} met={snap.hasMe && snap.meMet} />
         <Outfit streak={streak} bw={bw} bh={bh} winter={snap.season === 'winter'} />
       </SceneBear>
 
@@ -312,6 +313,90 @@ export function GlancePreview({ style, snap = SAMPLE_SNAPSHOT, size }: { style: 
             {snap.hasMe ? snap.meWater : '—'}
           </Text>
         </View>
+      </View>
+    </View>
+  );
+}
+
+/** A believable week for when there is no partner yet. */
+export const SAMPLE_WEEK: WidgetSnapshot = {
+  partnerName: 'Alex',
+  headline: 'You both trained today',
+  nudge: '3 shared days this week',
+  theirDays: 4,
+  myDays: 5,
+  sharedDays: 3,
+  myReps: 180,
+  strip: 'TBMNBMB',
+  letters: 'FSSMTWT',
+  statsLine: 'Alex 4 · You 5 · Together 3 🔥',
+  freshToday: true,
+  updatedAt: 0,
+};
+
+/**
+ * The Partner's-week widget as the native painter draws it: liquid glass, the
+ * headline, seven little pairs — their dot over mine, a gold heart where we
+ * both trained — the counts and the nudge.
+ */
+export function WeekPreview({ snap = SAMPLE_WEEK, width }: { snap?: WidgetSnapshot; width: number }) {
+  const H = Math.round(width * 0.66);
+  const stripW = width - 28;
+  const stripH = 58;
+  const col = stripW / 7;
+  const r = Math.min(col * 0.26, stripH * 0.16);
+  const topY = stripH * 0.24;
+  const botY = stripH * 0.6;
+  const n = snap.strip.length;
+  return (
+    <View style={[styles.week, styles.glassCard, { width, height: H }]}>
+      <GlassPane />
+      <View style={styles.weekBody}>
+        <View style={styles.glanceTop}>
+          <Text style={styles.weekEyebrow}>YOUR WEEK TOGETHER</Text>
+          {snap.freshToday ? <Text style={styles.weekLive}>● TODAY</Text> : null}
+        </View>
+        <Text style={styles.weekHeadline} numberOfLines={1}>
+          {snap.headline}
+        </Text>
+        <View style={styles.weekStrip}>
+          <Svg width={stripW} height={stripH}>
+            {Array.from({ length: 7 }, (_, i) => {
+              const k = i - (7 - n);
+              const code = k >= 0 ? snap.strip[k] : ' ';
+              const letter = k >= 0 ? (snap.letters[k] ?? '') : '';
+              const cx = col * (i + 0.5);
+              const both = code === 'B';
+              const hy = (topY + botY) / 2;
+              const hr = r * 0.62;
+              return (
+                <Fragment key={i}>
+                  {i === 6 ? <Rect x={cx - col * 0.42} y={1} width={col * 0.84} height={stripH - 2} rx={10} fill="rgba(255,255,255,0.15)" /> : null}
+                  {both ? <Rect x={cx - r * 0.45} y={topY} width={r * 0.9} height={botY - topY} rx={r * 0.45} fill="#FBBF24" /> : null}
+                  <Circle cx={cx} cy={topY} r={r} fill={both || code === 'D' || code === 'T' ? THEIRS : 'rgba(255,255,255,0.2)'} />
+                  <Circle cx={cx} cy={botY} r={r} fill={both || code === 'D' || code === 'M' ? MINE : 'rgba(255,255,255,0.2)'} />
+                  {both ? (
+                    <Path
+                      d={`M${cx} ${hy + hr * 1.1} C${cx - hr * 2} ${hy - hr * 0.3} ${cx - hr * 0.8} ${hy - hr * 1.5} ${cx} ${hy - hr * 0.45} C${cx + hr * 0.8} ${hy - hr * 1.5} ${cx + hr * 2} ${hy - hr * 0.3} ${cx} ${hy + hr * 1.1} Z`}
+                      fill="#FDE68A"
+                    />
+                  ) : null}
+                  <SvgText x={cx} y={stripH * 0.95} fontSize={10} fontWeight="bold" fill={i === 6 ? '#FFFFFF' : 'rgba(255,255,255,0.7)'} textAnchor="middle">
+                    {letter}
+                  </SvgText>
+                </Fragment>
+              );
+            })}
+          </Svg>
+        </View>
+        <Text style={styles.weekCounts} numberOfLines={1}>
+          {snap.statsLine}
+        </Text>
+        {snap.nudge ? (
+          <Text style={styles.weekNudge} numberOfLines={1}>
+            {snap.nudge}
+          </Text>
+        ) : null}
       </View>
     </View>
   );
@@ -649,12 +734,12 @@ function Scene({ snap, style, live, tilt, phase, width }: PartProps & { width: n
 
       <SceneBear left={leftX - bw / 2} top={feet - bh} bw={bw} bh={bh} lean={themLean}>
         {snap.streak >= 30 ? <Wings bw={bw} bh={bh} /> : null}
-        <BearJar id="scene-them" percent={snap.pct * 100} width={bw} theme={THEIR_BEAR} layers={bearLayers(snap.layers)} tilt={tilt} phase={phase} pourKey={0} met={snap.met} />
+        <BearJar id="scene-them" percent={snap.pct * 100} width={bw} theme={THEIR_BEAR} layers={bearLayers(snap.layers)} tilt={tilt} phase={phase} moods pourKey={0} met={snap.met} />
         <Outfit streak={snap.streak} bw={bw} bh={bh} winter={snap.season === 'winter'} />
       </SceneBear>
       <SceneBear left={rightX - bw / 2} top={feet - bh} bw={bw} bh={bh} lean={meLean}>
         {snap.streak >= 30 ? <Wings bw={bw} bh={bh} /> : null}
-        <BearJar id="scene-me" percent={snap.mePct * 100} width={bw} theme={MY_BEAR} layers={bearLayers(snap.meLayers)} tilt={tilt} phase={phase} pourKey={0} met={snap.meMet} />
+        <BearJar id="scene-me" percent={snap.mePct * 100} width={bw} theme={MY_BEAR} layers={bearLayers(snap.meLayers)} tilt={tilt} phase={phase} moods pourKey={0} met={snap.meMet} />
         <Outfit streak={snap.streak} bw={bw} bh={bh} winter={snap.season === 'winter'} />
       </SceneBear>
 
@@ -1234,6 +1319,14 @@ function LivePill() {
 
 const styles = StyleSheet.create({
   glance: { borderRadius: 22, overflow: 'hidden' },
+  week: { borderRadius: 22, overflow: 'hidden' },
+  weekBody: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 10 },
+  weekEyebrow: { flex: 1, ...font('bold', 10, { color: 'rgba(255,255,255,0.8)' }), letterSpacing: 1.4 },
+  weekLive: font('bold', 9, { color: '#86EFAC' }),
+  weekHeadline: { marginTop: 3, ...font('bold', 16, { color: '#FFFFFF' }), textShadowColor: 'rgba(0,0,0,0.4)', textShadowRadius: 4, textShadowOffset: { width: 0, height: 1 } },
+  weekStrip: { flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 4 },
+  weekCounts: { textAlign: 'center', ...font('bold', 10, { color: 'rgba(255,255,255,0.85)' }) },
+  weekNudge: { marginTop: 4, textAlign: 'center', ...font('bold', 11, { color: '#FDE68A' }) },
   glanceBody: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, padding: 10 },
   glanceTop: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   glanceTitle: { flex: 1, ...font('bold', 12, { color: '#FFFFFF' }), textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 4, textShadowOffset: { width: 0, height: 1 } },

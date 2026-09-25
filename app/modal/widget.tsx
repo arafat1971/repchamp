@@ -8,7 +8,7 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { ModalHeader } from '@/components/ModalHeader';
 import { WidgetPublishDebug } from '@/components/debug/WidgetPublishDebug';
 import { Card, Divider, PressableScale, PrimaryButton, Screen, SectionLabel, Toggle } from '@/components/ui';
-import { GlancePreview, LOOKS, MINE, THEIRS, WidgetPreview } from '@/components/widget/WidgetPreview';
+import { GlancePreview, LOOKS, MINE, THEIRS, WeekPreview, WidgetPreview } from '@/components/widget/WidgetPreview';
 import { dayKey } from '@/domain/progression';
 import { duoStreak } from '@/domain/duoStreak';
 import { weekWrap } from '@/domain/week';
@@ -26,7 +26,7 @@ import {
 } from '@/domain/waterWidget';
 import { lightImpactHaptic, selectionHaptic } from '@/lib/feedback';
 import { isWidgetSupported, placedWidgetCount, requestPinWidget } from '@/services/partnerWidget';
-import { usePartnerTodaySnapshot } from '@/state/usePartnerTodaySnapshot';
+import { usePartnerTodaySnapshot, usePartnerWeekSnapshot } from '@/state/usePartnerTodaySnapshot';
 import { useWidgetStyleStore } from '@/state/widgetStyleStore';
 import { useDuoStreakStore } from '@/state/duoStreakStore';
 import { font, text } from '@/theme/typography';
@@ -51,6 +51,7 @@ export default function WidgetStudioScreen() {
   const supported = isWidgetSupported();
   const style = useWidgetStyleStore();
   const preview = usePartnerTodaySnapshot();
+  const week = usePartnerWeekSnapshot();
 
   const [placed, setPlaced] = useState<number | null>(null);
   const [pinFailed, setPinFailed] = useState(false);
@@ -289,19 +290,32 @@ export default function WidgetStudioScreen() {
               </PressableScale>
             </View>
           </Card>
-          <Card style={styles.card}>
-            <Text style={styles.cardTitle}>Partner’s week</Text>
-            <Text style={[text.caption, styles.cardBody]}>
-              Who trained which days this week, and the days you shared.
-            </Text>
-            <PressableScale
-              onPress={() => void requestPinWidget('partner').then((ok) => setPinFailed(!ok))}
-              accessibilityRole="button"
-              accessibilityLabel="Add the partner's week widget"
-              style={styles.inlineAdd}
-            >
-              <Text style={styles.inlineAddText}>＋ Add</Text>
-            </PressableScale>
+          <Card style={[styles.card, styles.weekCard]}>
+            <View style={styles.weekStage}>
+              <Backdrop
+                colors={['#0F766E', '#1D4ED8', '#7C3AED']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
+              {stageWidth > 0 ? <WeekPreview snap={week ?? undefined} width={Math.min(stageWidth - 60, 300)} /> : null}
+            </View>
+            <View style={styles.weekFoot}>
+              <View style={styles.glanceCopy}>
+                <Text style={styles.cardTitle}>Your week together · 3×2</Text>
+                <Text style={[text.caption, styles.cardBody]}>
+                  Seven days at a glance. A gold heart marks every day you both trained.
+                </Text>
+              </View>
+              <PressableScale
+                onPress={() => void requestPinWidget('partner').then((ok) => setPinFailed(!ok))}
+                accessibilityRole="button"
+                accessibilityLabel="Add the week together widget"
+                style={styles.glanceAdd}
+              >
+                <Text style={styles.inlineAddText}>＋ Add</Text>
+              </PressableScale>
+            </View>
           </Card>
           {pinFailed ? (
             <PressableScale
@@ -716,6 +730,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   glanceCopy: { flex: 1 },
+  weekCard: { padding: 12 },
+  weekStage: { borderRadius: radius.lg, overflow: 'hidden', alignItems: 'center', paddingVertical: 18 },
+  weekFoot: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12, paddingHorizontal: 4 },
   glanceAdd: {
     alignSelf: 'flex-start',
     marginTop: 10,

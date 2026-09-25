@@ -121,8 +121,19 @@ class ${WIDGET_CLASS} : AppWidgetProvider() {
         ids.forEach { id -> render(context, manager, id) }
     }
 
+    override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, id: Int, options: android.os.Bundle) {
+        render(context, manager, id)
+    }
+
     private fun render(context: Context, manager: AppWidgetManager, id: Int) {
         val views = RemoteViews(context.packageName, R.layout.partner_widget)
+        val options = manager.getAppWidgetOptions(id)
+        val wDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0).takeIf { it > 0 } ?: 250
+        val hDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0).takeIf { it > 0 } ?: 180
+        val density = context.resources.displayMetrics.density
+        val cal = java.util.Calendar.getInstance()
+        val hour = cal.get(java.util.Calendar.HOUR_OF_DAY) + cal.get(java.util.Calendar.MINUTE) / 60f
+        views.setImageViewBitmap(R.id.widget_pane, SceneArt.drawPane(density, wDp, hDp, hour))
 
         // Expo's MMKV is not reachable from this process; the app mirrors a flat
         // snapshot here instead.
@@ -142,13 +153,15 @@ class ${WIDGET_CLASS} : AppWidgetProvider() {
                 val snap = JSONObject(raw)
                 views.setViewVisibility(R.id.widget_stats, android.view.View.VISIBLE)
                 views.setTextViewText(R.id.widget_headline, snap.optString("headline"))
-                views.setTextViewText(R.id.widget_their_days, snap.optInt("theirDays").toString())
-                views.setTextViewText(R.id.widget_my_days, snap.optInt("myDays").toString())
-                views.setTextViewText(R.id.widget_shared_days, snap.optInt("sharedDays").toString())
-                views.setTextViewText(
-                    R.id.widget_their_label,
-                    snap.optString("partnerName", context.getString(R.string.widget_partner))
-                )
+                views.setTextViewText(R.id.widget_counts, snap.optString("statsLine", ""))
+                val strip = snap.optString("strip", "")
+                views.setViewVisibility(R.id.widget_strip, if (strip.isEmpty()) android.view.View.GONE else android.view.View.VISIBLE)
+                if (strip.isNotEmpty()) {
+                    views.setImageViewBitmap(
+                        R.id.widget_strip,
+                        SceneArt.drawWeekStrip(density, wDp - 24, 58, strip, snap.optString("letters", ""))
+                    )
+                }
 
                 val nudge = snap.optString("nudge", "")
                 views.setTextViewText(R.id.widget_nudge, nudge)
@@ -183,9 +196,11 @@ class ${WIDGET_CLASS} : AppWidgetProvider() {
             }
         }
 
-        // Tapping opens the app. The deep link lands on the bond tracker.
-        val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
-        if (launch != null) {
+        // Tapping opens Today, together — the two of you, live.
+        val launch = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("repchamp://couple/partner"))
+            .setPackage(context.packageName)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        run {
             val pending = PendingIntent.getActivity(
                 context, 0, launch,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -331,213 +346,149 @@ class PartnerWidgetPackage : ReactPackage {
 `;
 
 const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
-<!-- RemoteViews-safe views only (LinearLayout, TextView, ImageView): a
-     widget cannot host arbitrary layouts, and an unsupported view makes the
-     whole thing fail to inflate rather than degrading gracefully.
+<!-- RemoteViews-safe views only (FrameLayout, LinearLayout, TextView,
+     ImageView): a widget cannot host arbitrary layouts, and an unsupported
+     view makes the whole thing fail to inflate rather than degrading.
+
+     The glass and the week strip are painted bitmaps (SceneArt.drawPane and
+     drawWeekStrip); the words stay real text, phrased by the app.
 
      Every field the provider fills carries a preview default, because the
-     widget picker renders this layout raw — it never calls onUpdate — so an
-     empty field shows a hollow card at the exact moment someone is deciding
-     whether to add it. -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+     widget picker renders this layout raw — it never calls onUpdate. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="16dp"
-    android:minWidth="48dp"
-    android:minHeight="48dp"
-    android:background="@drawable/widget_bg">
+    android:layout_height="match_parent">
 
-    <!-- Eyebrow row: the label, and a live dot that appears only when the
-         headline is a claim about today. -->
+    <ImageView
+        android:id="@+id/widget_pane"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:contentDescription="@null"
+        android:src="@drawable/widget_bg" />
+
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="10dp">
 
-        <TextView
-            android:id="@+id/widget_title"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/widget_partner"
-            android:textColor="@color/widget_eyebrow"
-            android:textSize="10sp"
-            android:textStyle="bold"
-            android:letterSpacing="0.14" />
-
-        <!-- ImageView, not View. RemoteViews permits a fixed set of classes and
-             a bare android.view.View is not among them: it inflates fine in
-             the app but the launcher rejects it with "Class not allowed to be
-             inflated", and the whole widget fails rather than losing the dot. -->
-        <ImageView
-            android:id="@+id/widget_dot"
-            android:layout_width="7dp"
-            android:layout_height="7dp"
-            android:layout_marginEnd="5dp"
-            android:contentDescription="@null"
-            android:src="@drawable/widget_dot" />
-
-        <TextView
-            android:id="@+id/widget_live"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/widget_today"
-            android:textColor="@color/widget_live"
-            android:textSize="9sp"
-            android:textStyle="bold"
-            android:letterSpacing="0.1" />
-    </LinearLayout>
-
-    <!-- The sentence. This is what the athlete actually reads. -->
-    <TextView
-        android:id="@+id/widget_headline"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="@string/widget_preview_headline"
-        android:maxLines="2"
-        android:ellipsize="end"
-        android:textColor="@color/widget_headline"
-        android:textSize="17sp"
-        android:textStyle="bold"
-        android:lineSpacingExtra="1dp" />
-
-    <LinearLayout
-        android:id="@+id/widget_stats"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:orientation="horizontal">
-
+        <!-- Eyebrow row: the label, and a live dot that appears only when the
+             headline is a claim about today. -->
         <LinearLayout
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginEnd="6dp"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:minHeight="48dp"
-            android:paddingTop="7dp"
-            android:paddingBottom="7dp"
-            android:background="@drawable/widget_stat_bg">
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
             <TextView
-                android:id="@+id/widget_their_days"
+                android:id="@+id/widget_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/widget_week_title"
+                android:textColor="#CCFFFFFF"
+                android:textSize="10sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.14" />
+
+            <!-- ImageView, not View: a bare android.view.View is not allowed
+                 in RemoteViews and fails the whole widget. -->
+            <ImageView
+                android:id="@+id/widget_dot"
+                android:layout_width="7dp"
+                android:layout_height="7dp"
+                android:layout_marginEnd="5dp"
+                android:contentDescription="@null"
+                android:src="@drawable/widget_dot" />
+
+            <TextView
+                android:id="@+id/widget_live"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="4"
-                android:textColor="@color/widget_headline"
-                android:textSize="20sp"
-                android:textStyle="bold" />
-            <!-- One line always: a stat label that wraps breaks the alignment
-                 of the three pills. Width is bounded rather than wrap_content
-                 so a long display name ellipsises inside its pill instead of
-                 pushing the other two out of shape. -->
+                android:text="@string/widget_today"
+                android:textColor="#86EFAC"
+                android:textSize="9sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.1" />
+        </LinearLayout>
+
+        <!-- The sentence. This is what the athlete actually reads. -->
+        <TextView
+            android:id="@+id/widget_headline"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:text="@string/widget_preview_headline"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:shadowColor="#66000000"
+            android:shadowRadius="4"
+            android:shadowDy="1" />
+
+        <LinearLayout
+            android:id="@+id/widget_stats"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <ImageView
+                android:id="@+id/widget_strip"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:layout_marginTop="4dp"
+                android:scaleType="fitCenter"
+                android:contentDescription="@string/widget_week_strip" />
+
             <TextView
-                android:id="@+id/widget_their_label"
+                android:id="@+id/widget_counts"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center"
-                android:paddingStart="2dp"
-                android:paddingEnd="2dp"
-                android:text="@string/widget_partner_short"
+                android:text="@string/widget_preview_counts"
                 android:maxLines="1"
                 android:ellipsize="end"
-                android:textColor="@color/widget_stat_label"
-                android:textSize="9sp" />
+                android:textColor="#D9FFFFFF"
+                android:textSize="10sp"
+                android:textStyle="bold" />
         </LinearLayout>
 
-        <LinearLayout
-            android:layout_width="0dp"
+        <!-- The reason-to-act line. Hidden when empty: filler trains the
+             athlete to stop reading the line that does mean something. -->
+        <TextView
+            android:id="@+id/widget_nudge"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginEnd="6dp"
-            android:orientation="vertical"
+            android:layout_marginTop="4dp"
             android:gravity="center"
-            android:minHeight="48dp"
-            android:paddingTop="7dp"
-            android:paddingBottom="7dp"
-            android:background="@drawable/widget_stat_bg">
-            <TextView
-                android:id="@+id/widget_my_days"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="5"
-                android:textColor="@color/widget_headline"
-                android:textSize="20sp"
-                android:textStyle="bold" />
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/widget_you"
-                android:textColor="@color/widget_stat_label"
-                android:textSize="9sp" />
-        </LinearLayout>
+            android:text="@string/widget_preview_nudge"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#FDE68A"
+            android:textSize="11sp"
+            android:textStyle="bold" />
 
-        <!-- Together is the one that matters: it is the only status that
-             advances the shared streak, so it gets the brightest number. -->
-        <LinearLayout
-            android:layout_width="0dp"
+        <TextView
+            android:id="@+id/widget_stale"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:minHeight="48dp"
-            android:paddingTop="7dp"
-            android:paddingBottom="7dp"
-            android:background="@drawable/widget_stat_bg">
-            <TextView
-                android:id="@+id/widget_shared_days"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="3"
-                android:textColor="@color/widget_shared_value"
-                android:textSize="20sp"
-                android:textStyle="bold" />
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/widget_together"
-                android:textColor="@color/widget_shared_label"
-                android:textSize="9sp" />
-        </LinearLayout>
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="2dp"
+            android:text="@string/widget_stale"
+            android:textColor="#B3FFFFFF"
+            android:textSize="9sp"
+            android:visibility="gone" />
     </LinearLayout>
-
-    <!-- The reason-to-act line. Hidden when empty: filler trains the athlete
-         to stop reading the line that does mean something.
-
-         Two lines, not one. At 11sp in a 3-cell widget a single line holds
-         about 32 characters and the longest branch is 44 — "Your turn — train
-         to make it a shared day" came out as "…make it a shar…". Shortening the
-         copy to fit would have blunted the one sentence doing the persuading,
-         and there is clearly vertical room below the stat row. Still capped at
-         two with an ellipsis, so a longer string in future degrades instead of
-         pushing the card taller. -->
-    <TextView
-        android:id="@+id/widget_nudge"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="9dp"
-        android:text="@string/widget_preview_nudge"
-        android:maxLines="2"
-        android:ellipsize="end"
-        android:lineSpacingExtra="1dp"
-        android:textColor="@color/widget_nudge"
-        android:textSize="11sp"
-        android:textStyle="bold" />
-
-    <TextView
-        android:id="@+id/widget_stale"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="@string/widget_stale"
-        android:textColor="@color/widget_shared_label"
-        android:textSize="9sp"
-        android:visibility="gone" />
-</LinearLayout>
+</FrameLayout>
 `;
 
 const INFO_XML = `<?xml version="1.0" encoding="utf-8"?>
@@ -650,6 +601,9 @@ const DOT_XML = `<?xml version="1.0" encoding="utf-8"?>
 
 const STRINGS = {
   widget_partner: 'PARTNER',
+  widget_week_title: 'YOUR WEEK TOGETHER',
+  widget_week_strip: 'Who trained each day this week',
+  widget_preview_counts: 'Alex 4 · You 5 · Together 3 🔥',
   widget_you: 'You',
   widget_together: 'Together',
   widget_empty: 'Pair with someone to see their week here.',

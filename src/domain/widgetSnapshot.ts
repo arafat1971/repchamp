@@ -50,6 +50,11 @@ export interface WidgetSnapshot {
    * manufactured deadline or a guilt line.
    */
   nudge: string;
+  /** The week, day by day for the painted strip — see `PartnerWidget.strip`. */
+  strip: string;
+  letters: string;
+  /** The three counts as one phrased line, e.g. "Sam 4 · You 5 · Together 3". */
+  statsLine: string;
   /** When the app last wrote this, epoch ms — so the widget can age it. */
   updatedAt: number;
 }
@@ -129,6 +134,9 @@ export function buildWidgetSnapshot(
     myDays: widget.myDays,
     sharedDays: widget.sharedDays,
     myReps: widget.myReps,
+    strip: widget.strip,
+    letters: widget.letters,
+    statsLine: `${name} ${widget.theirDays} · You ${widget.myDays} · Together ${widget.sharedDays}${widget.sharedDays > 0 ? ' 🔥' : ''}`,
     freshToday: pulse.kind === 'trained-today',
     updatedAt: now,
   };

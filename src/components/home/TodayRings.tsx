@@ -146,7 +146,9 @@ function Ring({
 }) {
   return (
     <View style={[StyleSheet.absoluteFill, styles.ringSlot]} pointerEvents="none">
-      <ProgressRing percent={percent} size={size} thickness={THICK} from={tone.from} to={tone.to} track={tone.track} />
+      {/* Floored at 1% so an empty ring still shows its start dot, the way
+          every ring does — at 0 some drew a dot and some drew nothing. */}
+      <ProgressRing percent={Math.max(1, percent)} size={size} thickness={THICK} from={tone.from} to={tone.to} track={tone.track} />
     </View>
   );
 }

@@ -1197,6 +1197,78 @@ object SceneArt {
      * surface as the scene, with a little flag between them leaning toward
      * whoever has drunk more. Sized to the 2 x 2 widget.
      */
+    /** The Partner's-week backdrop: the same liquid glass, tinted to the hour. */
+    fun drawPane(density: Float, wDp: Int, hDp: Int, hour: Float): Bitmap {
+        val u = min(density, 1.5f)
+        val w = (wDp * u).roundToInt().coerceIn(160, 640)
+        val h = (hDp * u).roundToInt().coerceIn(100, 480)
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        glassPane(Canvas(bmp), Paint(Paint.ANTI_ALIAS_FLAG), skyFor(hour), w.toFloat(), h.toFloat(), u)
+        return bmp
+    }
+
+    /**
+     * The week as seven little pairs, oldest first and today last: their bear's
+     * dot above mine, lit when that side trained, and a gold heart joining the
+     * two on a day we both did — the days the streak is made of.
+     */
+    fun drawWeekStrip(density: Float, wDp: Int, hDp: Int, strip: String, letters: String): Bitmap {
+        val u = min(density, 1.5f)
+        val w = (wDp * u).roundToInt().coerceIn(120, 640)
+        val h = (hDp * u).roundToInt().coerceIn(40, 200)
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        val W = w.toFloat()
+        val H = h.toFloat()
+        val n = max(1, strip.length)
+        val col = W / 7f
+        val r = min(col * 0.26f, H * 0.16f)
+        val topY = H * 0.24f
+        val botY = H * 0.6f
+        val theirs = 0xFFA78BFA.toInt()
+        val mine = 0xFFF472B6.toInt()
+        val off = 0x33FFFFFF
+        p.textAlign = Paint.Align.CENTER
+        p.isFakeBoldText = true
+        p.textSize = min(10f * u, H * 0.18f)
+        for (i in 0 until 7) {
+            val k = i - (7 - n)
+            val code = if (k >= 0 && k < strip.length) strip[k] else ' '
+            val cx = col * (i + 0.5f)
+            val today = i == 6
+            if (today) {
+                p.color = 0x26FFFFFF
+                c.drawRoundRect(RectF(cx - col * 0.42f, 1f * u, cx + col * 0.42f, H - 1f * u), 10f * u, 10f * u, p)
+            }
+            val both = code == 'B'
+            if (both) {
+                // The bond between the two dots, and the heart on it.
+                p.color = 0xFFFBBF24.toInt()
+                c.drawRoundRect(RectF(cx - r * 0.45f, topY, cx + r * 0.45f, botY), r * 0.45f, r * 0.45f, p)
+            }
+            p.color = if (code == 'B' || code == 'D' || code == 'T') theirs else off
+            c.drawCircle(cx, topY, r, p)
+            p.color = if (code == 'B' || code == 'D' || code == 'M') mine else off
+            c.drawCircle(cx, botY, r, p)
+            if (both) {
+                val hy = (topY + botY) / 2f
+                val hr = r * 0.62f
+                p.color = 0xFFFDE68A.toInt()
+                c.drawPath(Path().apply {
+                    moveTo(cx, hy + hr * 1.1f)
+                    cubicTo(cx - hr * 2f, hy - hr * 0.3f, cx - hr * 0.8f, hy - hr * 1.5f, cx, hy - hr * 0.45f)
+                    cubicTo(cx + hr * 0.8f, hy - hr * 1.5f, cx + hr * 2f, hy - hr * 0.3f, cx, hy + hr * 1.1f)
+                    close()
+                }, p)
+            }
+            val letter = if (k >= 0 && k < letters.length) letters[k].toString() else ""
+            p.color = if (today) 0xFFFFFFFF.toInt() else 0xB3FFFFFF.toInt()
+            c.drawText(letter, cx, H * 0.95f, p)
+        }
+        return bmp
+    }
+
     fun drawGlance(
         density: Float,
         wDp: Int,

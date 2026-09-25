@@ -3,6 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -77,6 +78,7 @@ import { useEffectivePro } from '@/state/proStore';
 import { isPurchasesConfigured } from '@/services/purchases';
 import { isWalled } from '@/domain/hardPaywall';
 import { useCouple } from '@/state/useCouple';
+import { usePublicAvatar } from '@/state/usePublicAvatar';
 import { useIncomingDuelCount } from '@/state/useIncomingDuelCount';
 import { useLiveActivityCount } from '@/state/useLiveActivityCount';
 import { useSelfPlayer } from '@/state/useSelfPlayer';
@@ -199,6 +201,10 @@ export default function HomeScreen() {
       layers: partnerLayersToday(couple.partner, today),
     };
   }, [couple.paired, couple.partner, today]);
+
+  /* The partner's photo as their profile has it now — the couple doc's copy is
+     a pairing-time snapshot, often empty or a path on their phone. */
+  const partnerAvatar = usePublicAvatar(couple.partner?.uid, couple.partner?.avatarUrl);
 
   const coupleId = couple.couple?.id ?? null;
   const myUid = couple.me?.uid ?? null;
@@ -436,6 +442,7 @@ export default function HomeScreen() {
 
   /* The masthead follows the sky; re-read on focus so an app left open over
      sunset does not keep its afternoon colours. */
+  const insets = useSafeAreaInsets();
   const [hour, setHour] = useState(() => new Date().getHours());
   useFocusEffect(useCallback(() => setHour(new Date().getHours()), []));
   const sky = skyFor(hour);
@@ -730,12 +737,16 @@ export default function HomeScreen() {
           <DuoCard
             me={couple.me}
             partner={couple.partner}
+            myAvatar={profile.avatarUri ?? null}
+            partnerAvatar={partnerAvatar}
             streak={couple.streak}
             combined={couple.combined}
             atRisk={couple.atRisk}
             levelName={couple.level.name}
             today={today}
             rivalry={rivalry}
+            myRepsToday={myReps.reps}
+            partnerRepsToday={partnerRepsToday(couple.partner, today).reps}
             onAction={(action) => void onCoupleAction(action)}
             onRace={startCoupleRace}
             onOpen={() => router.push('/couple/partner')}
@@ -752,7 +763,7 @@ export default function HomeScreen() {
           me={{ name: firstName || 'You', avatar: profile.avatarUri }}
           partner={
             partnerGlass
-              ? { name: partnerGlass.name, avatar: couple.partner?.avatarUrl ?? null }
+              ? { name: partnerGlass.name, avatar: partnerAvatar }
               : null
           }
           partnerMl={partnerGlass?.ml ?? null}
@@ -773,7 +784,7 @@ export default function HomeScreen() {
             couple.paired && couple.partner
               ? {
                   name: couple.partner.displayName,
-                  avatar: couple.partner.avatarUrl ?? null,
+                  avatar: partnerAvatar,
                   steps: partnerStepsToday(couple.partner, today),
                 }
               : null
@@ -868,6 +879,15 @@ export default function HomeScreen() {
       </StaggerIn>
 
       </Screen>
+      {/* Cards scrolling under the clock and battery read as a collision.
+          A short fade from the canvas behind the status bar lets them slip
+          away instead. */}
+      <LinearGradient
+        pointerEvents="none"
+        colors={[palette.canvas, 'rgba(246,247,245,0.85)', 'rgba(246,247,245,0)']}
+        locations={[0, 0.6, 1]}
+        style={[styles.statusFade, { height: insets.top + 18 }]}
+      />
     </View>
   );
 }
@@ -1111,6 +1131,7 @@ function QuickTile({
 
 const styles = StyleSheet.create({
   tabular: { fontVariant: ['tabular-nums'] },
+  statusFade: { position: 'absolute', top: 0, left: 0, right: 0 },
 
   // Masthead
   header: {

@@ -281,6 +281,20 @@ describe('partnerWidget', () => {
     expect(w.pulse).toEqual({ kind: 'recent', daysAgo: 2 });
   });
 
+  it('paints the week day by day, today last, with weekday initials', () => {
+    const w = partnerWidget(
+      [row('2026-09-17', 'theirs'), row('2026-09-18', 'neither'), row('2026-09-19', 'both', { isToday: true }), row('2026-09-20', 'mine', { isFuture: true })],
+      [],
+      '2026-09-19',
+    );
+    expect(w.strip).toBe('TNB');
+    // A set on this phone lights my dot even before the day syncs.
+    const local = partnerWidget([row('2026-09-18', 'neither'), row('2026-09-19', 'theirs', { isToday: true })], [s('2026-09-18', 'push', 10), s('2026-09-19', 'squat', 5)], '2026-09-19');
+    expect(local.strip).toBe('MD');
+    // 17 Sep 2026 is a Thursday.
+    expect(w.letters).toBe('TFS');
+  });
+
   it('calls them quiet once they pass the threshold', () => {
     const w = partnerWidget([row('2026-09-15', 'theirs')], [], '2026-09-19');
     expect(w.pulse).toEqual({ kind: 'quiet', daysAgo: 4 });

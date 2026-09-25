@@ -68,6 +68,7 @@ export function BearJar({
   phase,
   pourKey,
   met,
+  moods = false,
 }: {
   /** Unique per jar — SVG ids are global. */
   id: string;
@@ -84,6 +85,11 @@ export function BearJar({
   phase: SharedValue<number>;
   pourKey: number;
   met: boolean;
+  /**
+   * The widget's moods: asleep while empty, overjoyed at the goal — so the
+   * in-app previews wake the bears exactly when the home-screen widget does.
+   */
+  moods?: boolean;
 }) {
   const reduced = useReducedMotion();
   const height = (width * VB_H) / VB_W;
@@ -216,13 +222,35 @@ export function BearJar({
           <Path d="M 30 24 Q 34 18 40 16" stroke="#ffffff" strokeOpacity={0.75} strokeWidth={2.6} fill="none" strokeLinecap="round" />
 
           {/* Face, always above the water. */}
-          <Ellipse cx={40} cy={40} rx={3.6} ry={4.4} fill="#1e293b" />
-          <Ellipse cx={60} cy={40} rx={3.6} ry={4.4} fill="#1e293b" />
-          <Circle cx={41.3} cy={38.4} r={1.2} fill="#ffffff" />
-          <Circle cx={61.3} cy={38.4} r={1.2} fill="#ffffff" />
+          {moods && fill <= 0 ? (
+            <>
+              <Path d="M 36 40 Q 40 44.5 44 40" stroke="#1e293b" strokeWidth={2.4} fill="none" strokeLinecap="round" />
+              <Path d="M 56 40 Q 60 44.5 64 40" stroke="#1e293b" strokeWidth={2.4} fill="none" strokeLinecap="round" />
+              <Path d="M 81 11 L 86 11 L 81 16 L 86 16" stroke={theme.rim} strokeWidth={1.6} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              <Path d="M 89 2 L 96 2 L 89 9 L 96 9" stroke={theme.rim} strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            </>
+          ) : moods && met ? (
+            <>
+              <Path d="M 36 42 Q 40 35 44 42" stroke="#1e293b" strokeWidth={2.6} fill="none" strokeLinecap="round" />
+              <Path d="M 56 42 Q 60 35 64 42" stroke="#1e293b" strokeWidth={2.6} fill="none" strokeLinecap="round" />
+            </>
+          ) : (
+            <>
+              <Ellipse cx={40} cy={40} rx={3.6} ry={4.4} fill="#1e293b" />
+              <Ellipse cx={60} cy={40} rx={3.6} ry={4.4} fill="#1e293b" />
+              <Circle cx={41.3} cy={38.4} r={1.2} fill="#ffffff" />
+              <Circle cx={61.3} cy={38.4} r={1.2} fill="#ffffff" />
+            </>
+          )}
           <Ellipse cx={50} cy={50} rx={9} ry={6.5} fill="#ffffff" opacity={0.85} />
           <Ellipse cx={50} cy={48} rx={3.2} ry={2.3} fill="#1e293b" />
-          <Path d="M 46.5 52 Q 50 55.5 53.5 52" stroke="#1e293b" strokeWidth={1.4} fill="none" strokeLinecap="round" />
+          {moods && fill <= 0 ? (
+            <Path d="M 48 53 L 52 53" stroke="#1e293b" strokeWidth={1.6} strokeLinecap="round" />
+          ) : moods && met ? (
+            <Path d="M 45 51.5 Q 50 60 55 51.5 Z" fill="#1e293b" />
+          ) : (
+            <Path d="M 46.5 52 Q 50 55.5 53.5 52" stroke="#1e293b" strokeWidth={1.4} fill="none" strokeLinecap="round" />
+          )}
           <Ellipse cx={31} cy={50} rx={5} ry={3} fill={theme.tint} opacity={0.6} />
           <Ellipse cx={69} cy={50} rx={5} ry={3} fill={theme.tint} opacity={0.6} />
         </Svg>

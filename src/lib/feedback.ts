@@ -132,6 +132,13 @@ export function speak(text: string): void {
   Speech.speak(text, { rate: 1.05, pitch: 1 });
 }
 
+/** Slower and lower, for meditation and yoga guidance. Same voice-coach switch. */
+export function speakCalm(text: string): void {
+  if (!useSettingsStore.getState().voiceCoach) return;
+  Speech.stop();
+  Speech.speak(text, { rate: 0.88, pitch: 0.95 });
+}
+
 export function stopSpeaking(): void {
   Speech.stop();
 }

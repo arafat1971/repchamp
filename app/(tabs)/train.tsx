@@ -180,6 +180,25 @@ export default function TrainScreen() {
       </StaggerIn>
 
       <StaggerIn index={4}>
+        <SectionLabel style={{ marginTop: 24, marginBottom: 12 }}>Mind & body</SectionLabel>
+        <PressableScale
+          onPress={() => router.push('/modal/mind')}
+          accessibilityRole="button"
+          accessibilityLabel="Yoga and meditation"
+        >
+          <LinearGradient colors={['#3B2A6B', '#6D4AA8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.coupleCard, shadow.squat]}>
+            <View style={{ flex: 1 }}>
+              <Text style={font('extrabold', 18, { color: palette.white })}>Yoga & meditation</Text>
+              <Text style={styles.coupleBody}>
+                The camera checks your pose and times each hold. Guided sits to wind down.
+              </Text>
+            </View>
+            <Text style={{ fontSize: 38 }}>🧘</Text>
+          </LinearGradient>
+        </PressableScale>
+      </StaggerIn>
+
+      <StaggerIn index={5}>
         <SectionLabel style={{ marginTop: 24, marginBottom: 12 }}>Couple mode</SectionLabel>
         <PressableScale
           onPress={() => void trainTogether('push')}

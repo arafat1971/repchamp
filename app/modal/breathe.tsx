@@ -16,13 +16,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 
 import { PressableScale } from '@/components/ui';
-import { dayKey } from '@/domain/progression';
 import { guideFor, type HabitId } from '@/domain/ritual';
 import { track } from '@/lib/analytics';
 import { playChimeSound, successHaptic } from '@/lib/feedback';
-import { syncRitualNow } from '@/services/ritualSync';
+import { tickRitualHabit } from '@/services/ritualTick';
 import { useAuthStore } from '@/state/authStore';
-import { useRitualStore } from '@/state/ritualStore';
 import { useCouple } from '@/state/useCouple';
 import { font } from '@/theme/typography';
 
@@ -42,7 +40,6 @@ export default function BreatheScreen() {
   const reduced = useReducedMotion();
   const couple = useCouple();
   const uid = useAuthStore((s) => s.user?.uid ?? null);
-  const toggle = useRitualStore((s) => s.toggle);
 
   const total = guide.minutes * 60;
   const [left, setLeft] = useState(total);
@@ -86,12 +83,8 @@ export default function BreatheScreen() {
     playChimeSound();
     successHaptic();
     track('ritual_guide_done', { habit: guide.habit });
-    const today = dayKey();
-    const state = useRitualStore.getState();
-    const ticked = state.day === today && state.ticks.includes(guide.habit);
-    const ticks = ticked ? state.ticks : toggle(today, guide.habit);
-    void syncRitualNow(couple.couple?.id, uid, ticks);
-  }, [done, guide.habit, toggle, couple.couple?.id, uid]);
+    tickRitualHabit(guide.habit, couple.couple?.id, uid);
+  }, [done, guide.habit, couple.couple?.id, uid]);
 
   const circle = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
   const mm = Math.floor(left / 60);

@@ -162,25 +162,61 @@ function FriendsIcon({ color, focused }: IconProps) {
   );
 }
 
-function ProfileIcon({ color, focused }: IconProps) {
+/**
+ * Train: a dumbbell, solid when selected like the other tabs.
+ *
+ * The hook is a small amber dot while today's challenge is still open: one
+ * honest reason to tap, gone the moment it's cleared (or while you're already
+ * on Train). It pulses gently to be noticed, and sits still under Reduce Motion.
+ */
+function TrainIcon(props: IconProps) {
+  return <TrainIconInner {...props} />;
+}
+
+function TrainIconInner({ color, focused }: IconProps) {
   const c = String(color);
+  const sessions = useProfileStore((st) => st.sessions);
+  const today = dayKey();
+  const pending = useMemo(() => !dailyChallengeProgress(sessions, today).cleared, [sessions, today]);
+  const showDot = pending && !focused;
+
+  const reduced = useReducedMotion();
+  const halo = useSharedValue(0);
+  useEffect(() => {
+    if (!showDot || reduced) {
+      halo.value = 0;
+      return;
+    }
+    halo.value = withRepeat(withTiming(1, { duration: 1600, easing: Easing.out(Easing.quad) }), -1, false);
+  }, [showDot, reduced, halo]);
+  const haloStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(halo.value, [0, 1], [0.55, 0]),
+    transform: [{ scale: interpolate(halo.value, [0, 1], [1, 2.4]) }],
+  }));
+
   return (
     <IconShell focused={focused}>
       <Svg width={26} height={26} viewBox="0 0 24 24" fill="none">
+        <Path d="M8.2 12h7.6" stroke={c} strokeWidth={2.2} strokeLinecap="round" />
         {focused ? (
           <>
-            <Circle cx={12} cy={12} r={9.3} fill={c} />
-            <Circle cx={12} cy={9.6} r={2.9} fill={palette.white} />
-            <Path d="M6.8 18.9c0-2.9 2.3-4.8 5.2-4.8s5.2 1.9 5.2 4.8z" fill={palette.white} />
+            <Path d="M4.6 7.4h2.3a1 1 0 0 1 1 1v7.2a1 1 0 0 1-1 1H4.6a1 1 0 0 1-1-1V8.4a1 1 0 0 1 1-1z" fill={c} />
+            <Path d="M17.1 7.4h2.3a1 1 0 0 1 1 1v7.2a1 1 0 0 1-1 1h-2.3a1 1 0 0 1-1-1V8.4a1 1 0 0 1 1-1z" fill={c} />
           </>
         ) : (
           <>
-            <Circle cx={12} cy={12} r={9.3} stroke={c} strokeWidth={1.9} />
-            <Circle cx={12} cy={9.6} r={2.9} stroke={c} strokeWidth={1.9} />
-            <Path d="M6.8 18.9c0-2.9 2.3-4.8 5.2-4.8s5.2 1.9 5.2 4.8" stroke={c} strokeWidth={1.9} strokeLinecap="round" />
+            <Path d="M4.6 7.4h2.3a1 1 0 0 1 1 1v7.2a1 1 0 0 1-1 1H4.6a1 1 0 0 1-1-1V8.4a1 1 0 0 1 1-1z" stroke={c} strokeWidth={1.9} strokeLinejoin="round" />
+            <Path d="M17.1 7.4h2.3a1 1 0 0 1 1 1v7.2a1 1 0 0 1-1 1h-2.3a1 1 0 0 1-1-1V8.4a1 1 0 0 1 1-1z" stroke={c} strokeWidth={1.9} strokeLinejoin="round" />
           </>
         )}
+        <Path d="M2 10.4v3.2M22 10.4v3.2" stroke={c} strokeWidth={2} strokeLinecap="round" />
       </Svg>
+      {showDot ? (
+        <View style={styles.hookDotWrap} pointerEvents="none">
+          <Animated.View style={[styles.hookHalo, haloStyle]} />
+          <View style={styles.hookDot} />
+        </View>
+      ) : null}
     </IconShell>
   );
 }
@@ -722,16 +758,20 @@ export default function TabsLayout() {
         }}
       >
         <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: HomeIcon }} />
-        <Tabs.Screen name="arena" options={{ title: 'Arena', tabBarIcon: ArenaIcon }} />
-        <Tabs.Screen name="friends" options={{ title: 'Friends', tabBarIcon: FriendsIcon }} />
-        <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ProfileIcon }} />
+        {/* Train sits next to Home: it is what the app is for, and it now
+            holds yoga and meditation too. */}
         <Tabs.Screen
           name="train"
           options={{
             title: 'Train',
-            href: null,
+            tabBarIcon: TrainIcon,
+            tabBarAccessibilityLabel: 'Train',
           }}
         />
+        <Tabs.Screen name="arena" options={{ title: 'Arena', tabBarIcon: ArenaIcon }} />
+        <Tabs.Screen name="friends" options={{ title: 'Friends', tabBarIcon: FriendsIcon }} />
+        {/* Profile lives behind the avatar on Home, not in the bar. */}
+        <Tabs.Screen name="profile" options={{ title: 'Profile', href: null }} />
       </Tabs>
       {/* +25 rather than +10 — lifts the FAB 15pt clear of the tab bar so it
           reads as floating above it rather than sitting on its edge. */}
@@ -773,6 +813,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     height: 30,
     width: 36,
+  },
+  hookDotWrap: {
+    position: 'absolute',
+    top: 1,
+    right: 2,
+    width: 10,
+    height: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hookHalo: {
+    position: 'absolute',
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: palette.amber500,
+  },
+  hookDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: palette.amber500,
+    borderWidth: 2,
+    borderColor: palette.white,
   },
   iconFocused: {
     shadowColor: palette.green600,

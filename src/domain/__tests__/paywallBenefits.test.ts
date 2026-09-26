@@ -10,6 +10,7 @@ describe('orderBenefits', () => {
   it.each([
     ['exercise-library', 'library'],
     ['duel-exercise', 'library'],
+    ['mind-body', 'library'],
     ['programme', 'programmes'],
     ['form-report', 'reports'],
     ['form-report-teaser', 'reports'],

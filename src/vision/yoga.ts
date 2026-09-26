@@ -668,8 +668,44 @@ export const YOGA_FLOWS: readonly YogaFlow[] = [
   },
 ];
 
+/** Flow ids for one-pose practice are `pose:<poseId>`. */
+export const POSE_FLOW_PREFIX = 'pose:';
+
+/** Hold time for practising a single pose: longer as the pose gets harder to find. */
+export const SINGLE_POSE_HOLD_SEC: Readonly<Record<YogaLevel, number>> = { beginner: 45, intermediate: 40, advanced: 30 };
+
+/** Is this pose done on one side at a time (and so practised on both)? */
+export function isOneSided(pose: YogaPose): boolean {
+  return isAsymmetric(pose.targets);
+}
+
+/** Practise one pose on its own — both sides when it has two. */
+export function singlePoseFlow(id: YogaPoseId): YogaFlow {
+  const pose = YOGA_POSES[id];
+  const holdSec = SINGLE_POSE_HOLD_SEC[pose.level];
+  return {
+    id: `${POSE_FLOW_PREFIX}${id}`,
+    title: pose.name,
+    level: pose.level,
+    blurb: pose.setup,
+    steps: isOneSided(pose) ? sides(id, holdSec) : [{ pose: id, holdSec }],
+  };
+}
+
 export function getFlow(id: string): YogaFlow | undefined {
+  if (id.startsWith(POSE_FLOW_PREFIX)) {
+    const poseId = id.slice(POSE_FLOW_PREFIX.length) as YogaPoseId;
+    return poseId in YOGA_POSES ? singlePoseFlow(poseId) : undefined;
+  }
   return YOGA_FLOWS.find((f) => f.id === id);
+}
+
+/** Where a hold is worth a word: halfway on a long hold, and the last three seconds. */
+export function holdMilestone(heldMs: number, targetMs: number, said: { half: boolean; end: boolean }): 'half' | 'end' | null {
+  const left = targetMs - heldMs;
+  if (!said.end && left <= 3200 && left > 0 && targetMs >= 8000) return 'end';
+  if (!said.half && targetMs >= 20_000 && heldMs >= targetMs / 2 && left > 6000) return 'half';
+  return null;
 }
 
 /** Rough length of a flow in minutes, including the gaps between poses. */

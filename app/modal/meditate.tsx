@@ -22,7 +22,10 @@ import { MEDITATIONS, PHASE_WORD, breathAt, getMeditation, promptSchedule, type 
 import { canUse } from '@/domain/pro';
 import { dayKey } from '@/domain/progression';
 import { track } from '@/lib/analytics';
-import { playChimeSound, speakCalm, stopSpeaking, successHaptic } from '@/lib/feedback';
+import { playChimeSound, selectionHaptic, speakCalm, stopSpeaking, successHaptic } from '@/lib/feedback';
+import { tickRitualHabit } from '@/services/ritualTick';
+import { useAuthStore } from '@/state/authStore';
+import { useCouple } from '@/state/useCouple';
 import { useMindfulStore } from '@/state/mindfulStore';
 import { useIsPro } from '@/state/proStore';
 import { font } from '@/theme/typography';
@@ -41,6 +44,8 @@ export default function MeditateScreen() {
   const med = getMeditation(params.id ?? '') ?? MEDITATIONS[0]!;
   const reduced = useReducedMotion();
   const savedLength = useMindfulStore((s) => s.lengths[med.id]);
+  const couple = useCouple();
+  const uid = useAuthStore((s) => s.user?.uid ?? null);
 
   const [minutes, setMinutes] = useState(savedLength && med.minutes.includes(savedLength) ? savedLength : med.minutes[0]!);
   const [stage, setStage] = useState<'setup' | 'playing' | 'done'>('setup');
@@ -67,7 +72,9 @@ export default function MeditateScreen() {
     }
     const id = setInterval(() => {
       const now = Date.now();
-      if (lastTick.current !== null) runMs.current += now - lastTick.current;
+      // Capped per tick: a locked phone suspends timers, and time nobody saw
+      // pass shouldn't finish the sit for them.
+      if (lastTick.current !== null) runMs.current += Math.min(now - lastTick.current, 1000);
       lastTick.current = now;
       const sec = runMs.current / 1000;
       setElapsed(sec);
@@ -90,6 +97,8 @@ export default function MeditateScreen() {
     const mins = completed ? minutes : Math.floor(runMs.current / 60000);
     track('mind_session_finished', { kind: 'meditation', id: med.id, minutes: mins, score: 0, completed });
     if (mins >= 1) useMindfulStore.getState().add({ day: dayKey(), kind: 'meditation', id: med.id, minutes: mins });
+    // A finished sit is today's Breathe, done — not a box to remember to tick.
+    if (completed) tickRitualHabit('breathe', couple.couple?.id, uid);
   };
   useEffect(() => {
     if (stage !== 'done') return;
@@ -139,6 +148,8 @@ export default function MeditateScreen() {
       return () => cancelAnimation(scale);
     }
     if (!breath) return;
+    // A soft tap at each change, so the breath can be followed eyes closed.
+    selectionHaptic();
     const remaining = (1 - breath.progress) * breath.phaseSec * 1000;
     if (phase === 'inhale') scale.set(withTiming(1, { duration: remaining, easing: Easing.inOut(Easing.sin) }));
     else if (phase === 'exhale') scale.set(withTiming(SMALL, { duration: remaining, easing: Easing.inOut(Easing.sin) }));
@@ -157,7 +168,7 @@ export default function MeditateScreen() {
       <LinearGradient colors={['#0B1026', '#1E1B4B', '#3B2A6B']} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={styles.safe}>
         <Text style={styles.title}>{`${med.emoji}  ${med.title}`}</Text>
-        <Text style={styles.sub}>{stage === 'done' ? 'Done. Logged to your streak.' : med.blurb}</Text>
+        <Text style={styles.sub}>{stage === 'done' ? 'Done. Logged to your streak, and today’s Breathe is ticked.' : med.blurb}</Text>
 
         <View style={styles.stage}>
           <Animated.View style={[styles.circle, circle]} />

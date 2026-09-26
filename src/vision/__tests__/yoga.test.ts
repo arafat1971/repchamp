@@ -8,6 +8,9 @@ import {
   YOGA_POSES,
   flowMinutes,
   flowScore,
+  getFlow,
+  holdMilestone,
+  singlePoseFlow,
   mirrorFigure,
   readPose,
   targetScore,
@@ -188,5 +191,35 @@ describe('gestures', () => {
     g.push(figurePose(mountain), t);
     const s = new GestureDetector(900);
     for (t = 0; t <= 2000; t += 100) expect(s.push(oneUpFixed, t, true)).toBeNull();
+  });
+});
+
+describe('single-pose practice', () => {
+  it('practises a one-sided pose on both sides, a symmetric one once', () => {
+    const tree = singlePoseFlow('tree');
+    expect(tree.steps).toHaveLength(2);
+    expect(tree.steps[1]!.switchSide).toBe(true);
+    expect(singlePoseFlow('mountain').steps).toHaveLength(1);
+  });
+
+  it('resolves pose flow ids and rejects unknown ones', () => {
+    expect(getFlow('pose:boat')?.title).toBe('Boat');
+    expect(getFlow('pose:nope')).toBeUndefined();
+    expect(getFlow('power')?.title).toBe('Advanced power flow');
+  });
+});
+
+describe('holdMilestone', () => {
+  const none = { half: false, end: false };
+  it('says halfway on a long hold, then the last three seconds', () => {
+    expect(holdMilestone(5000, 30_000, none)).toBeNull();
+    expect(holdMilestone(15_000, 30_000, none)).toBe('half');
+    expect(holdMilestone(15_000, 30_000, { half: true, end: false })).toBeNull();
+    expect(holdMilestone(27_000, 30_000, { half: true, end: false })).toBe('end');
+    expect(holdMilestone(30_000, 30_000, { half: true, end: false })).toBeNull();
+  });
+  it('skips halfway on a short hold', () => {
+    expect(holdMilestone(8000, 15_000, none)).toBeNull();
+    expect(holdMilestone(12_000, 15_000, none)).toBe('end');
   });
 });

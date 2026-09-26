@@ -15,6 +15,10 @@ import { canUse } from '@/domain/pro';
 import { dayKey } from '@/domain/progression';
 import { track } from '@/lib/analytics';
 import { lockHaptic, playChimeSound, selectionHaptic, speakCalm, stopSpeaking, successHaptic } from '@/lib/feedback';
+import { bestScore } from '@/domain/mindful';
+import { tickRitualHabit } from '@/services/ritualTick';
+import { useAuthStore } from '@/state/authStore';
+import { useCouple } from '@/state/useCouple';
 import { useMindfulStore } from '@/state/mindfulStore';
 import { useIsPro } from '@/state/proStore';
 import { font } from '@/theme/typography';
@@ -28,6 +32,7 @@ import {
   YOGA_POSES,
   flowScore,
   getFlow,
+  holdMilestone,
   readPose,
   stepFigure,
   type StepResult,
@@ -79,6 +84,10 @@ export default function YogaSession() {
   const [toast, setToast] = useState<string | null>(null);
   const [results, setResults] = useState<StepResult[]>([]);
   const [appActive, setAppActive] = useState(AppState.currentState === 'active');
+  /** Previous best for this flow when the summary shows; null = first time. */
+  const [record, setRecord] = useState<{ prev: number | null; beat: boolean } | null>(null);
+  const couple = useCouple();
+  const uid = useAuthStore((st) => st.user?.uid ?? null);
 
   const step = flow.steps[Math.min(index, flow.steps.length - 1)]!;
   const pose = YOGA_POSES[step.pose];
@@ -99,6 +108,9 @@ export default function YogaSession() {
   const completeRef = useRef<(skipped: boolean) => void>(() => {});
   const skipRef = useRef<() => void>(() => {});
   const restRef = useRef(FIRST_REST_SEC);
+  const startRef = useRef<() => void>(() => {});
+  /** Which spoken milestones this hold has had. */
+  const said = useRef({ half: false, end: false });
 
   /* Pro guard for a deep link — the hub gates the tap. */
   useEffect(() => {
@@ -131,6 +143,12 @@ export default function YogaSession() {
   const onGesture = useCallback(
     (g: Gesture) => {
       const s = stageRef.current;
+      // Hands-free start: set the phone down, walk back, raise a hand.
+      if (s === 'intro' && g === 'one-hand') {
+        lockHaptic();
+        startRef.current();
+        return;
+      }
       if (s !== 'pose' && s !== 'rest') return;
       if (!pausedRef.current && g === 'one-hand') {
         lockHaptic();
@@ -161,7 +179,9 @@ export default function YogaSession() {
       let suppressed = false;
       let reading: Live | null = null;
 
-      if (s === 'pose' && !pausedRef.current) {
+      if (s === 'intro') {
+        // Only the start gesture is live here; nothing is being held yet.
+      } else if (s === 'pose' && !pausedRef.current) {
         const r = readPose(body, pose, pinnedSide.current);
         const upd = tracker.current.push(r.match, t);
         suppressed = upd.match >= 0.5;
@@ -172,6 +192,14 @@ export default function YogaSession() {
         if (r.cue && !upd.inPose && t - lastCue.current.at > (r.cue === lastCue.current.text ? CUE_EVERY_MS * 2 : CUE_EVERY_MS)) {
           lastCue.current = { text: r.cue, at: t };
           speakCalm(r.cue);
+        }
+        const milestone = upd.inPose ? holdMilestone(upd.heldMs, tracker.current.targetMs, said.current) : null;
+        if (milestone === 'half') {
+          said.current.half = true;
+          speakCalm('Halfway. Keep breathing.');
+        } else if (milestone === 'end') {
+          said.current.end = true;
+          speakCalm('Three. Two. One.');
         }
         if (upd.done) completeRef.current(false);
       }
@@ -210,11 +238,17 @@ export default function YogaSession() {
       const score = flowScore(all);
       const minutes = Math.round(activeMs.current / 60000);
       track('mind_session_finished', { kind: 'yoga', id: flow.id, minutes, score, completed });
+      const prev = bestScore(useMindfulStore.getState().entries, flow.id);
       if (minutes >= 1 || completed) {
         useMindfulStore.getState().add({ day: dayKey(), kind: 'yoga', id: flow.id, minutes: Math.max(1, minutes), score });
       }
+      if (completed) {
+        setRecord({ prev, beat: prev !== null && score > prev });
+        // A finished flow is today's Stretch, done.
+        tickRitualHabit('stretch', couple.couple?.id, uid);
+      }
     },
-    [flow.id],
+    [flow.id, couple.couple?.id, uid],
   );
 
   const complete = useCallback(
@@ -239,6 +273,7 @@ export default function YogaSession() {
       const upcoming = flow.steps[index + 1]!;
       const nextPose = YOGA_POSES[upcoming.pose];
       tracker.current = new HoldTracker(upcoming.holdSec * 1000);
+      said.current = { half: false, end: false };
       // "Other side" is pinned once, from the side just held, so the reading
       // can't flip back as soon as the new side is found.
       pinnedSide.current = upcoming.switchSide && lastSide.current ? (lastSide.current === 'left' ? 'right' : 'left') : undefined;
@@ -263,6 +298,7 @@ export default function YogaSession() {
     handlerRef.current = handlePose;
     completeRef.current = complete;
     skipRef.current = () => complete(true);
+    startRef.current = start;
   });
 
   /* Rest countdown, and the running clock for the log. Frozen while paused. */
@@ -287,9 +323,12 @@ export default function YogaSession() {
     return () => clearInterval(id);
   }, [paused, stage]);
 
-  const start = () => {
+  function start() {
+    if (stageRef.current !== 'intro') return;
+    stageRef.current = 'rest';
     track('mind_session_started', { kind: 'yoga', id: flow.id });
     tracker.current = new HoldTracker(flow.steps[0]!.holdSec * 1000);
+    said.current = { half: false, end: false };
     pinnedSide.current = undefined;
     lastSide.current = null;
     setIndex(0);
@@ -298,7 +337,7 @@ export default function YogaSession() {
     restRef.current = FIRST_REST_SEC;
     setStage('rest');
     speakCalm(`Step back so your whole body is in view. First, ${YOGA_POSES[flow.steps[0]!.pose].name}. ${YOGA_POSES[flow.steps[0]!.pose].setup}`);
-  };
+  }
 
   const leave = () => {
     if (stage === 'rest' || stage === 'pose') {
@@ -349,9 +388,9 @@ export default function YogaSession() {
             </ScrollView>
             <View style={styles.gestureCard}>
               <Text style={styles.gestureTitle}>✋ Hands-free</Text>
-              <Text style={styles.gestureBody}>Raise one hand and hold it to pause. While paused, raise one hand to carry on, or both hands to skip the pose.</Text>
+              <Text style={styles.gestureBody}>Step back and raise one hand to begin. During the flow, hold one hand up to pause; then one hand carries on, both hands skip the pose.</Text>
             </View>
-            <Text style={styles.framing}>{framing >= 0.6 ? '✓ I can see you' : cameraReady ? 'Step back until I can see all of you' : modelState === 'loading' ? 'Warming up the camera coach…' : ' '}</Text>
+            <Text style={styles.framing}>{framing >= 0.6 ? '✓ I can see you — raise one hand to begin' : cameraReady ? 'Step back until I can see all of you' : modelState === 'loading' ? 'Warming up the camera coach…' : ' '}</Text>
             <PressableScale onPress={start} accessibilityRole="button" style={styles.startBtn}>
               <Text style={styles.startText}>Start flow</Text>
             </PressableScale>
@@ -469,6 +508,13 @@ export default function YogaSession() {
       {stage === 'done' ? (
         <Animated.View entering={FadeIn} style={[styles.summary, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 20 }]}>
           <Text style={styles.summaryEyebrow}>Flow complete</Text>
+          {record ? (
+            <View style={[styles.recordPill, record.beat && styles.recordPillBest]}>
+              <Text style={styles.recordText}>
+                {record.prev === null ? 'First score on this flow' : record.beat ? `New best · was ${record.prev}` : `Best so far: ${record.prev}`}
+              </Text>
+            </View>
+          ) : null}
           <Text style={styles.summaryTitle}>{flow.title}</Text>
           <View style={styles.scoreRing}>
             <Text style={styles.scoreNum}>{score}</Text>
@@ -563,6 +609,9 @@ const styles = StyleSheet.create({
   summary: { ...StyleSheet.absoluteFill, backgroundColor: '#140F26', alignItems: 'center', paddingHorizontal: 20, gap: 14 },
   summaryEyebrow: font('bold', 13, { color: 'rgba(255,255,255,0.65)', letterSpacing: 1.2, textTransform: 'uppercase' }),
   summaryTitle: font('extrabold', 26, { color: palette.white }),
+  recordPill: { paddingHorizontal: 14, height: 30, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.12)', justifyContent: 'center' },
+  recordPillBest: { backgroundColor: palette.amber500 },
+  recordText: font('bold', 13, { color: palette.white }),
   scoreRing: { width: 140, height: 140, borderRadius: 70, borderWidth: 8, borderColor: palette.purple500, alignItems: 'center', justifyContent: 'center' },
   scoreNum: font('extrabold', 44, { color: palette.white }),
   scoreLabel: font('medium', 13, { color: 'rgba(255,255,255,0.7)' }),

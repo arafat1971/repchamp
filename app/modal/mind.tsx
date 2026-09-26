@@ -1,19 +1,20 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ModalHeader } from '@/components/ModalHeader';
 import { PoseFigure } from '@/components/mind/PoseFigure';
 import { Badge, Card, Chevron, PressableScale, Screen, SectionLabel } from '@/components/ui';
-import { MEDITATIONS, bestScore, mindfulStreak, weekMinutes } from '@/domain/mindful';
+import { MEDITATIONS, bestScore, getMeditation, mindfulStreak, weekMinutes, type MindfulEntry } from '@/domain/mindful';
+import { previousDay } from '@/domain/duoStreak';
 import { canUse } from '@/domain/pro';
 import { dayKey } from '@/domain/progression';
 import { useMindfulStore } from '@/state/mindfulStore';
 import { useIsPro } from '@/state/proStore';
 import { font, text } from '@/theme/typography';
 import { palette, shadow } from '@/theme/tokens';
-import { YOGA_FLOWS, YOGA_POSES, flowMinutes, type YogaLevel } from '@/vision/yoga';
+import { YOGA_FLOWS, YOGA_POSES, flowMinutes, getFlow, isOneSided, singlePoseFlow, type YogaLevel } from '@/vision/yoga';
 
 const LEVEL_BADGE: Record<YogaLevel, { label: string; color: string; background: string }> = {
   beginner: { label: 'Beginner', color: palette.green600, background: palette.green50 },
@@ -96,6 +97,35 @@ export default function MindScreen() {
         })}
       </View>
 
+      <SectionLabel style={styles.section}>Pose library</SectionLabel>
+      <Text style={[text.caption, { marginTop: -6, marginBottom: 12 }]}>Practise one pose on its own, with the same live coaching.</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.poseStrip} style={styles.poseScroller}>
+        {Object.values(YOGA_POSES).map((pose) => {
+          const badge = LEVEL_BADGE[pose.level];
+          const hold = singlePoseFlow(pose.id).steps[0]!.holdSec;
+          return (
+            <PressableScale
+              key={pose.id}
+              onPress={() => open(() => router.push({ pathname: '/session/yoga', params: { flow: `pose:${pose.id}` } }))}
+              accessibilityRole="button"
+              accessibilityLabel={`${pose.name}, ${badge.label}, hold ${hold} seconds${isOneSided(pose) ? ' each side' : ''}`}
+            >
+              <Card style={styles.poseCard}>
+                <View style={styles.poseFigure}>
+                  <PoseFigure figure={pose.figure} size={64} color={palette.purple600} strokeWidth={6} />
+                </View>
+                <Text style={styles.poseName} numberOfLines={1}>
+                  {pose.name}
+                </Text>
+                <Text style={styles.poseMeta} numberOfLines={1}>
+                  {`${hold}s${isOneSided(pose) ? ' × 2' : ''} · ${badge.label}`}
+                </Text>
+              </Card>
+            </PressableScale>
+          );
+        })}
+      </ScrollView>
+
       <SectionLabel style={styles.section}>Meditation</SectionLabel>
       <View style={{ gap: 10 }}>
         {MEDITATIONS.map((m) => (
@@ -121,11 +151,56 @@ export default function MindScreen() {
           </PressableScale>
         ))}
       </View>
+
+      {entries.length > 0 ? (
+        <>
+          <SectionLabel style={styles.section}>Recent</SectionLabel>
+          <Card style={{ paddingVertical: 4 }}>
+            {entries
+              .slice(-6)
+              .reverse()
+              .map((e, i) => (
+                <View key={`${e.day}-${e.id}-${i}`} style={[styles.recentRow, i > 0 && styles.recentDivider]}>
+                  <Text style={styles.recentIcon}>{e.kind === 'yoga' ? '🧘' : (getMeditation(e.id)?.emoji ?? '🌙')}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={text.cardTitle} numberOfLines={1}>
+                      {entryTitle(e)}
+                    </Text>
+                    <Text style={text.caption}>{`${dayLabel(e.day, today)} · ${e.minutes} min`}</Text>
+                  </View>
+                  {e.score !== undefined ? <Text style={styles.recentScore}>{e.score}</Text> : null}
+                </View>
+              ))}
+          </Card>
+        </>
+      ) : null}
     </Screen>
   );
 }
 
+function entryTitle(e: MindfulEntry): string {
+  return e.kind === 'yoga' ? (getFlow(e.id)?.title ?? 'Yoga') : (getMeditation(e.id)?.title ?? 'Meditation');
+}
+
+/** "Today", "Yesterday", or the date. */
+function dayLabel(day: string, today: string): string {
+  if (day === today) return 'Today';
+  if (day === previousDay(today)) return 'Yesterday';
+  const [, mm, dd] = day.split('-').map(Number);
+  return new Date(2000, mm! - 1, dd!).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
 const styles = StyleSheet.create({
+  poseScroller: { marginHorizontal: -20 },
+  poseStrip: { gap: 10, paddingHorizontal: 20, paddingBottom: 4 },
+  poseCard: { width: 116, padding: 10, alignItems: 'center' },
+  poseFigure: { width: 84, height: 84, borderRadius: 18, backgroundColor: palette.tintPurpleTop, alignItems: 'center', justifyContent: 'center' },
+  poseName: { marginTop: 8, ...font('bold', 14, { color: palette.ink }) },
+  poseMeta: { marginTop: 2, ...font('medium', 11, { color: palette.grey600 }) },
+  recentRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 10 },
+  recentDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.divider },
+  recentIcon: { fontSize: 22 },
+  recentScore: font('extrabold', 18, { color: palette.purple600 }),
   hero: { flexDirection: 'row', alignItems: 'center', borderRadius: 22, padding: 20, marginTop: 8 },
   heroLabel: { marginTop: 2, ...font('medium', 13, { color: 'rgba(255,255,255,0.78)' }) },
   heroDivider: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', backgroundColor: 'rgba(255,255,255,0.35)', marginHorizontal: 16 },

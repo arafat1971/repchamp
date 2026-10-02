@@ -285,12 +285,12 @@ export default function WidgetStudioScreen() {
                 end={{ x: 1, y: 1 }}
                 style={StyleSheet.absoluteFill}
               />
-              <AthletePreview sex={athlete} size={96} />
+              <AthletePreview sex={athlete} size={128} />
             </View>
             <View style={styles.glanceCopy}>
               <Text style={styles.cardTitle}>Reps · 2×2</Text>
               <Text style={[text.caption, styles.cardBody]}>
-                Your athlete squats on your home screen. One tap and you’re straight into a set.
+                Your athlete does push-ups on your home screen. One tap and you’re straight into a set.
               </Text>
               <View style={styles.sexRow}>
                 {(['male', 'female'] as const).map((s) => (

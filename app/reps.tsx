@@ -8,8 +8,8 @@ import { selectTotalReps, useProfileStore } from '@/state/profileStore';
 import { useEffectivePro } from '@/state/proStore';
 
 /**
- * Where the Reps widget's tap lands (`repchamp://reps`): straight into a squat
- * session — through the same free-rep allowance as Home's quick start, so the
+ * Where the Reps widget's tap lands (`repchamp://reps`): straight into a
+ * push-up session — through the same free-rep allowance as Home's quick start, so the
  * widget is never a way around the paywall.
  */
 export default function StartReps() {
@@ -25,7 +25,7 @@ export default function StartReps() {
     if (walled) {
       router.replace({ pathname: '/modal/paywall', params: { source: 'rep-limit', hard: '1' } });
     } else {
-      router.replace({ pathname: '/session', params: { exercise: 'squat', mode: 'practice' } });
+      router.replace({ pathname: '/session', params: { exercise: 'push', mode: 'practice' } });
     }
   }, [isPro, profile, router]);
 

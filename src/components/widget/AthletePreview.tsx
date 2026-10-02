@@ -4,12 +4,12 @@ import Svg, { Defs, Path, RadialGradient, Stop } from 'react-native-svg';
 
 import * as Athlete from '../../../plugins/athleteArt';
 
-/** The squat the widget plays, as depth per frame. */
+/** The push-up the widget plays, as depth per frame. */
 const FRAMES = [0, 0, 0, 0.25, 0.55, 0.85, 1, 1, 0.85, 0.55, 0.25];
 
 /**
  * The Reps widget's athlete, drawn in the app from the same art the widget
- * uses, squatting on a loop (still under reduced motion).
+ * uses, doing push-ups on a loop (still under reduced motion).
  */
 export function AthletePreview({ sex, size }: { sex: 'male' | 'female'; size: number }) {
   const reduced = useReducedMotion();

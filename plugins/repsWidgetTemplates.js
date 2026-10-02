@@ -1,6 +1,6 @@
 /**
  * The Reps widget: your athlete — a man or a woman, chosen in the app — doing
- * squats on the wallpaper, with today's reps under them. A tap opens the app
+ * push-ups on the wallpaper, with today's reps under them. A tap opens the app
  * straight into a rep session (`repchamp://reps`, which applies the same
  * free-rep allowance as Home).
  *
@@ -47,14 +47,14 @@ function vector(parts) {
   return `<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
-    android:width="110dp" android:height="143dp"
+    android:width="140dp" android:height="92dp"
     android:viewportWidth="${athlete.W}" android:viewportHeight="${athlete.H}">
 ${parts.map(part).join('\n')}
 </vector>
 `;
 }
 
-/* One squat: down smoothly, a beat at the bottom, up, a breath at the top. */
+/* One push-up: down smoothly, a beat at the bottom, up, a breath at the top. */
 const SQUAT = [
   [0, 420],
   [0.25, 90],
@@ -103,8 +103,8 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
     android:contentDescription="@string/rw_description">
 
     <FrameLayout
-        android:layout_width="96dp"
-        android:layout_height="125dp">
+        android:layout_width="150dp"
+        android:layout_height="99dp">
 ${anim('rw_male', 'rw_male', true)}
 ${anim('rw_female', 'rw_female', false)}
     </FrameLayout>
@@ -228,10 +228,10 @@ const INFO_XML = `<?xml version="1.0" encoding="utf-8"?>
 
 const REPS_STRINGS = {
   reps_widget_label: 'Reps',
-  rw_description: 'Your athlete doing squats — tap to start a rep session',
-  rw_start: 'Tap to train',
+  rw_description: 'Your athlete doing push-ups — tap to start a rep session',
+  rw_start: 'Push-ups',
   rw_reps: '%1$d reps today',
-  rw_hint: 'Tap to do reps',
+  rw_hint: 'Tap to drop and give me 10',
 };
 
 module.exports = { PROVIDER_KT, LAYOUT_XML, INFO_XML, REPS_STRINGS, repsResources };

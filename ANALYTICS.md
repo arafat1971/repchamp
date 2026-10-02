@@ -13,6 +13,7 @@ The funnel that predicts revenue, end to end:
 | `session_started` | a set begins | `app/session/index.tsx` |
 | `session_finished` | a set ends | `app/session/index.tsx` |
 | `home_hero_shown` | the adaptive hero renders (`kind`) | `app/(tabs)/index.tsx` |
+| `invite_card_shown` / `invite_card_tapped` / `invite_card_dismissed` | the standing "Train with someone" card for solo athletes renders / its CTA is tapped / "Not now" is tapped | `app/(tabs)/index.tsx` |
 | `home_hero_tapped` | hero CTA pressed (`kind`) | `app/(tabs)/index.tsx` |
 | `couple_invite_created` | a pair code is minted | `couple-invite.tsx` |
 | `couple_paired` | a partner joins (`via: code \| qr`) | `couple-invite.tsx`, `couple-scan.tsx` |

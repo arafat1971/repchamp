@@ -20,6 +20,7 @@ import { HeroCard } from '@/components/home/HeroCard';
 import { ActiveNowRail } from '@/components/home/ActiveNowRail';
 import { HomeSectionHeader, homeSectionLink } from '@/components/home/HomeSectionHeader';
 import { DuoCard } from '@/components/home/DuoCard';
+import { InvitePartnerCard } from '@/components/home/InvitePartnerCard';
 import { HydrationCard } from '@/components/home/HydrationCard';
 import { StepsCard } from '@/components/home/StepsCard';
 import { TodayBento } from '@/components/home/TodayBento';
@@ -73,6 +74,8 @@ import { trackerHistory } from '@/domain/coupleTracker';
 import { selectHomeFocus, type HomeFocus } from '@/domain/homeFocus';
 import { leagueProgressFromWeeklyXp } from '@/domain/leagueProgress';
 import { liveActivity } from '@/domain/liveActivity';
+import { showInvitePartnerCard } from '@/domain/invitePartnerCard';
+import { storage } from '@/lib/storage';
 import { usePhantomSeed } from '@/domain/seedPhantoms';
 import { rivalryWith } from '@/domain/rivalry';
 import { weekStrip } from '@/domain/weekStrip';
@@ -102,6 +105,8 @@ import { palette, radius, surfaceShadow } from '@/theme/tokens';
    layout's FAB and the daily modal all read — it used to be declared once in
    each of the three, so changing the target left them contradicting one
    another about whether it was cleared. */
+
+const INVITE_CARD_DISMISSED_KEY = 'home.invitePartnerDismissedAt';
 
 const IC_PUSHUP = require('../../assets/ic-pushup.png');
 const IC_SQUAT = require('../../assets/ic-squat.png');
@@ -614,6 +619,31 @@ export default function HomeScreen() {
     track('home_hero_shown', { kind: focus.kind });
   }, [focus.kind]);
 
+  /* The standing "train with a partner" card for solo athletes. Read from
+     MMKV synchronously so a dismissed card never flashes on first paint. */
+  const [inviteDismissedAt, setInviteDismissedAt] = useState<number | null>(() => {
+    const raw = storage.getString(INVITE_CARD_DISMISSED_KEY);
+    const n = raw ? Number(raw) : NaN;
+    return Number.isFinite(n) ? n : null;
+  });
+  const inviteCardShown = showInvitePartnerCard({
+    paired: couple.paired,
+    coupleLoading: couple.loading,
+    hasTrained: profile.sessions.length > 0,
+    focusKind: focus.kind,
+    dismissedAt: inviteDismissedAt,
+    now: minute,
+  });
+  useEffect(() => {
+    if (inviteCardShown) track('invite_card_shown');
+  }, [inviteCardShown]);
+  const dismissInviteCard = () => {
+    const at = Date.now();
+    storage.set(INVITE_CARD_DISMISSED_KEY, String(at));
+    setInviteDismissedAt(at);
+    track('invite_card_dismissed');
+  };
+
   const rivalry = useMemo(
     () => rivalryWith(profile.sessions, couple.partner?.uid),
     [profile.sessions, couple.partner?.uid],
@@ -901,6 +931,17 @@ export default function HomeScreen() {
             partner={couple.partner}
             partnerAvatar={partnerAvatar}
             today={today}
+          />
+        </StaggerIn>
+      ) : inviteCardShown ? (
+        <StaggerIn index={3} style={styles.summaryGap}>
+          <HomeSectionHeader title="Together" />
+          <InvitePartnerCard
+            onInvite={() => {
+              track('invite_card_tapped');
+              router.push('/modal/couple-invite');
+            }}
+            onDismiss={dismissInviteCard}
           />
         </StaggerIn>
       ) : null}

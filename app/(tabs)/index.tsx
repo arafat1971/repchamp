@@ -14,7 +14,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { track } from '@/lib/analytics';
-import { ArrowIcon, BellIcon, DuelIcon, FlameIcon, LockIcon } from '@/components/home/Icons';
+import { ArrowIcon, BellIcon, DuelIcon, FlameIcon, GearIcon, LockIcon } from '@/components/home/Icons';
 import { HeroCard } from '@/components/home/HeroCard';
 import { ActiveNowRail } from '@/components/home/ActiveNowRail';
 import { HomeSectionHeader, homeSectionLink } from '@/components/home/HomeSectionHeader';
@@ -733,6 +733,14 @@ export default function HomeScreen() {
             pendingDuels={pendingDuels}
             onPress={() => router.push('/modal/notifications')}
           />
+          <PressableScale
+            onPress={() => router.push('/modal/settings')}
+            accessibilityRole="button"
+            accessibilityLabel="Settings"
+            style={styles.iconButton}
+          >
+            <GearIcon size={19} color={palette.ink} />
+          </PressableScale>
         </View>
       </View>
 

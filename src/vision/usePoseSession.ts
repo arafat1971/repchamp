@@ -143,6 +143,12 @@ export interface PoseSessionCallbacks {
   }) => void;
   /** Fired during calibration with 0..1 framing confidence. */
   onFraming?: (confidence: number) => void;
+  /**
+   * Every decoded pose, counting or not — for consumers that read the body
+   * directly (camera yoga, hand gestures) rather than through the rep counter.
+   * Arrives at the framing rate (~10 Hz) while `counting` is false.
+   */
+  onRawPose?: (pose: Pose) => void;
 }
 
 export interface UsePoseSessionOptions extends PoseSessionCallbacks {
@@ -195,6 +201,7 @@ export function usePoseSession({
   recordOnly = false,
   onPose,
   onFraming,
+  onRawPose,
 }: UsePoseSessionOptions) {
   const model = useAcceleratedModel(POSE_MODEL_SOURCE);
   const definition = useMemo(() => getExercise(exercise), [exercise]);
@@ -329,6 +336,7 @@ export function usePoseSession({
       if (!pose) return;
 
       onFraming?.(framingConfidence(pose));
+      onRawPose?.(pose);
 
       if (!countingRef.current) return;
 
@@ -342,7 +350,7 @@ export function usePoseSession({
         formCue: update.formCue,
       });
     },
-    [onPose, onFraming, inferEveryN, maxFrameSkip],
+    [onPose, onFraming, onRawPose, inferEveryN, maxFrameSkip],
   );
 
   /**

@@ -12,6 +12,13 @@ import { zustandStorage } from '@/lib/storage';
 interface MindfulState {
   log: MindfulEntry[];
   record: (entry: MindfulEntry, today: string) => void;
+  /** Best camera-coach score per flow id, 0..100 — kept apart from the 28-day log so a best outlives it. */
+  best: Record<string, number>;
+  /** Records a finished camera-coach score; returns the previous best (null if none). */
+  recordScore: (flowId: string, score: number) => number | null;
+  /** The length last chosen per guided meditation, in minutes. */
+  lengths: Record<string, number>;
+  setLength: (id: string, minutes: number) => void;
 }
 
 export const useMindfulStore = create<MindfulState>()(
@@ -19,12 +26,20 @@ export const useMindfulStore = create<MindfulState>()(
     (set, get) => ({
       log: [],
       record: (entry, today) => set({ log: withMindfulEntry(get().log, entry, today) }),
+      best: {},
+      recordScore: (flowId, score) => {
+        const prev = get().best[flowId] ?? null;
+        if (prev === null || score > prev) set({ best: { ...get().best, [flowId]: score } });
+        return prev;
+      },
+      lengths: {},
+      setLength: (id, minutes) => set({ lengths: { ...get().lengths, [id]: minutes } }),
     }),
     {
       name: 'repchamp.mindful',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => zustandStorage),
-      migrate: (p) => ({ ...(p as object), log: cleanLog((p as { log?: unknown })?.log) }) as MindfulState,
+      migrate: (p) => ({ best: {}, lengths: {}, ...(p as object), log: cleanLog((p as { log?: unknown })?.log) }) as MindfulState,
     },
   ),
 );

@@ -64,6 +64,10 @@ export interface AnalyticsEvents {
   /** A yoga flow or guided meditation opened from Train, and one finished. */
   mindful_started: { kind: 'yoga' | 'meditation'; id: string };
   mindful_done: { kind: 'yoga' | 'meditation'; id: string };
+  /** A camera-coach yoga flow finished: its alignment score and minutes held. */
+  yoga_coach_done: { flow: string; score: number; minutes: number };
+  /** A hands-free gesture was acted on in a camera-coach session. */
+  yoga_gesture: { action: 'start' | 'pause' | 'resume' | 'skip' };
   qr_scanned: { kind: 'couple' | 'duel' | 'friend' };
 
   /** Mirrors `couple_paired` so both invite surfaces are measured the same way. */

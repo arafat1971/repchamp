@@ -275,7 +275,7 @@ export function buildRitualReminder(input: {
   }
   return {
     title: `${total - left.length}/${total} today — ${left.length} to go`,
-    body: them ? `Still time for ${what}. ${them.name} is at ${them.score}/${total} 💞` : `Still time for ${what}.`,
+    body: them ? `Still time for ${what}. ${them.name} is at ${them.score}/${total} ✨` : `Still time for ${what}.`,
   };
 }
 

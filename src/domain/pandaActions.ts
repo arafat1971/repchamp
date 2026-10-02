@@ -44,7 +44,7 @@ export const ACTION_META: Record<PandaAction, ActionMeta> = {
   hug: {
     emoji: '🤗',
     label: 'Hug',
-    burst: '💞',
+    burst: '🤗',
     code: 'p:hg',
     sent: (n) => `You hugged ${n}`,
     got: (n) => `${n} sent you a hug`,

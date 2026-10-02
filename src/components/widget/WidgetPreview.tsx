@@ -277,7 +277,7 @@ function Clean({ snap, style, live, width }: { snap: WaterWidgetSnapshot; style:
 /**
  * The panda layout, as `water_widget_bear.xml` lays it out: only their panda,
  * straight on the wallpaper, its bottle filled to their day, with a small
- * shadowed caption and a drop button. Tap it here too for hearts.
+ * shadowed caption and a drop button. Tap it here too for a giggle.
  */
 function SoloBear({
   snap,
@@ -313,7 +313,7 @@ function SoloBear({
       </View>
       <Text style={styles.soloCaption} numberOfLines={1}>
         {snap.name} · {snap.amount}
-        {pokes > 0 ? ' 💗' : snap.met ? ' 🎉' : ''}
+        {pokes > 0 ? ' 🤭' : snap.met ? ' 🎉' : ''}
       </Text>
     </View>
   );

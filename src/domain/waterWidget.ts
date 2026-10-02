@@ -495,7 +495,7 @@ export function duelLine(input: {
   reacted?: string | null;
   /** Sunday's wrap line, when there is one. */
   wrap?: string | null;
-  /** Today's occasion line ("3-month bond today 💞"), when there is one. */
+  /** Today's occasion line ("3-month bond today ✨"), when there is one. */
   occasion?: string | null;
   /** The temperature, when it is hot enough to say so. */
   hot?: number | null;

@@ -269,7 +269,7 @@ describe('the calendar in the payload', () => {
       me: { ml: 1500, steps: null, reps: 0 },
       calendar: { season: 'winter', occasion: 'bond', bond: 3 },
     });
-    expect(s).toMatchObject({ season: 'winter', occasion: 'bond', duel: '3-month bond today 💞' });
+    expect(s).toMatchObject({ season: 'winter', occasion: 'bond', duel: '3-month bond today ✨' });
   });
 });
 

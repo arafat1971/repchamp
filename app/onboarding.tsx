@@ -306,7 +306,7 @@ export default function OnboardingScreen() {
             title="Nobody quits alone"
             body="Pair up and your streak becomes theirs too. Skipping stops being a private decision."
             points={[
-              { icon: '💞', title: 'Couple mode', sub: 'One shared streak, two phones' },
+              { icon: '🐼', title: 'Couple mode', sub: 'One shared streak, two phones' },
               { icon: '⚔️', title: 'Live duels', sub: 'Race a rival rep-for-rep' },
               { icon: '🔥', title: 'One shared streak', sub: 'Break it and you both lose it' },
             ]}

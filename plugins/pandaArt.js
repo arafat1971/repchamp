@@ -6,7 +6,7 @@
  * drinks it down, so the picture always means what it shows.
  *
  * Two outfits share one body: `classic`, and `hoodie` (a blue hoodie,
- * headphones and heart-sparkle eyes). Every shape is plain SVG path data —
+ * and sparkly eyes). Every shape is plain SVG path data —
  * arcs carry their own rotation — so react-native-svg (app) and VectorDrawable
  * (widget) both take it as is.
  *
@@ -16,7 +16,7 @@
  * mouth for a sip — draws correctly.
  *
  * Coordinates: a 200 x 260 box; the panda fills y 30..260 (designer y + DY)
- * and the band above is room for hearts to float up.
+ * and the band above is room for sparkles to float up.
  */
 
 const W = 200;
@@ -690,8 +690,9 @@ function bottleFrontParts(pose = REST) {
     { d: bEllipse(pose, 0, 7.8, 1.2, 0.8), fill: C.black },
     { d: bEllipse(pose, -5.5, 7, 1.8, 1.1), fill: C.pink, opacity: 0.8 },
     { d: bEllipse(pose, 5.5, 7, 1.8, 1.1), fill: C.pink, opacity: 0.8 },
+    /* A little water drop on the glass. */
     {
-      d: `M${bxy(pose, 0, 28)} C${bxy(pose, -8, 21)} ${bxy(pose, -6, 14)} ${bxy(pose, 0, 18.5)} C${bxy(pose, 6, 14)} ${bxy(pose, 8, 21)} ${bxy(pose, 0, 28)} Z`,
+      d: `M${bxy(pose, 0, 13)} Q${bxy(pose, 5.5, 20)} ${bxy(pose, 5.5, 23)} A5.5,5.5 ${f(pose.angle)} 1,1 ${bxy(pose, -5.5, 23)} Q${bxy(pose, -5.5, 20)} ${bxy(pose, 0, 13)} Z`,
       fill: '#5EB4FF',
       opacity: 0.9,
     },
@@ -749,16 +750,17 @@ function armParts(outfit = 'classic', pose = REST) {
 function doodleParts(outfit = 'classic') {
   if (outfit === 'hoodie') {
     return [
-      /* A speech bubble with a heart, two yellow sparkles and a couple of dashes. */
+      /* A speech bubble with a water drop, two yellow sparkles and a couple of dashes. */
       { d: pts('M12,70 Q12,56 26,56 Q40,56 40,70 Q40,84 26,84 L22,84 L16,90 L17,83 Q12,80 12,70 Z'), fill: '#FFFFFF', stroke: C.heart, width: 2.2 },
-      { d: pts('M26,77 C19,71 21,64 26,68 C31,64 33,71 26,77 Z'), fill: C.heart },
+      { d: `M${at(26, 61.5)} Q${at(31, 68)} ${at(31, 71.5)} ${arc(5, 5, 1, 1, 21, 71.5)} Q${at(21, 68)} ${at(26, 61.5)} Z`, fill: C.heart },
       { d: pts('M22,100 L24,106 L30,108 L24,110 L22,116 L20,110 L14,108 L20,106 Z'), fill: C.sparkle },
       { d: pts('M180,150 L182,155 L187,157 L182,159 L180,164 L178,159 L173,157 L178,155 Z'), fill: C.sparkle },
       { d: pts('M8,48 L3,44 M14,44 L12,38'), stroke: C.heart, width: 2.6 },
     ];
   }
   return [
-    { d: pts('M22,78 C10,68 14,55 23,61 C30,53 40,64 26,80 Z'), stroke: C.heart, width: 3 },
+    /* A sparkle doodle by the head. */
+    { d: pts('M23,56 L25.6,65 L34,67.5 L25.6,70 L23,79 L20.4,70 L12,67.5 L20.4,65 Z'), stroke: C.heart, width: 2.6 },
     { d: pts('M10,90 L4,92 M12,97 L7,101'), stroke: C.heart, width: 3 },
   ];
 }

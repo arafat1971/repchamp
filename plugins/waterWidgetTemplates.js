@@ -259,8 +259,8 @@ import kotlin.math.sin
 class WaterWidgetProvider : AppWidgetProvider() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == ACTION_POKE || intent.action == ACTION_HUG) {
-            val g = if (intent.action == ACTION_HUG) "hug" else "tickle"
+        if (intent.action == ACTION_POKE) {
+            val g = "tickle"
             Gesture.record(context, g, byMe = true)
             refresh(context)
             TickleSound.play(context, g)
@@ -299,7 +299,6 @@ class WaterWidgetProvider : AppWidgetProvider() {
         private const val POUR_MS = 3L * 60L * 1000L
         /** Tapping the bear layout; handled here, the app never opens. */
         private const val ACTION_POKE = "gg.repchamp.widget.BEAR_POKE"
-        private const val ACTION_HUG = "gg.repchamp.widget.BEAR_HUG"
         private const val POKE_KEY = "repchamp.widget.bear.poke"
         /** When the partner last tickled this phone's panda (set by the push). */
         const val TICKLED_KEY = "repchamp.widget.bear.tickled"
@@ -562,7 +561,6 @@ class WaterWidgetProvider : AppWidgetProvider() {
             // and which one. Taps here and pushes from the partner both land here.
             val gesture = Gesture.current(context, now)
             val gesturing = gesture != null
-            val myName = Gesture.myName(context)
             views.setTextViewText(
                 R.id.b_caption,
                 when {
@@ -607,25 +605,14 @@ class WaterWidgetProvider : AppWidgetProvider() {
             show(views, R.id.b_feet_live, motion)
             show(views, R.id.b_feet_still, !motion)
 
-            // My panda, beside theirs: its bottle holds what is left of my day.
-            val hasMe = snap?.optBoolean("hasMe", false) ?: false
-            val myLeft = if (hasMe) 1f - fraction(snap, "mePct") else 1f
-            val myStep = if (myLeft <= 0f) 0 else max(1, (myLeft * ${WATER_STEPS}f).roundToInt()).coerceAtMost(${WATER_STEPS})
-            val myWater = context.resources.getIdentifier("pw_water_$myStep", "drawable", context.packageName)
-            if (myWater != 0) views.setImageViewResource(R.id.b_me_water, myWater)
-            show(views, R.id.b_me_head, !gesturing)
-
-            // The gesture's frames on both sides, and its burst in between.
+            // The gesture's frames on their panda, and its burst by its head.
             for (g in Gesture.ALL) {
                 val active = gesture != null && gesture.first == g
                 val byMe = gesture?.second == true
                 if (g in Gesture.ROLED) {
-                    showId(context, views, "g_me_\${g}_give", active && byMe)
-                    showId(context, views, "g_me_\${g}_get", active && !byMe)
                     showId(context, views, "g_them_\${g}_give", active && !byMe)
                     showId(context, views, "g_them_\${g}_get", active && byMe)
                 } else {
-                    showId(context, views, "g_me_\${g}_both", active)
                     showId(context, views, "g_them_\${g}_both", active)
                 }
                 showId(context, views, "g_burst_$g", active && motion)
@@ -637,21 +624,13 @@ class WaterWidgetProvider : AppWidgetProvider() {
             if (pouring) scheduleCalm(context, lastAt + POUR_MS + 5_000L)
             else if (drankFresh || fresh) scheduleCalm(context, max(lastAt, activeAt) + LIVE_MS + 5_000L)
 
-            // Tap their panda: a tickle. Tap mine: a hug. Both play right here
-            // and on their phone, without opening the app.
+            // Tap their panda: a tickle — it plays right here and on their
+            // phone, without opening the app.
             val poke = Intent(context, WaterWidgetProvider::class.java).setAction(ACTION_POKE)
             views.setOnClickPendingIntent(
                 R.id.b_tap,
                 PendingIntent.getBroadcast(
                     context, 7305, poke,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
-            )
-            val hug = Intent(context, WaterWidgetProvider::class.java).setAction(ACTION_HUG)
-            views.setOnClickPendingIntent(
-                R.id.b_me_tap,
-                PendingIntent.getBroadcast(
-                    context, 7306, hug,
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                 )
             )
@@ -2311,12 +2290,6 @@ object Gesture {
         } catch (e: Exception) {
             null
         }
-    }
-
-    fun myName(context: Context): String = try {
-        JSONObject(WaterWidgetProvider.prefs(context).getString(Tickle.TARGET_KEY, null) ?: "{}").optString("name")
-    } catch (e: Exception) {
-        ""
     }
 
     /** "You hugged Alex 🤗", "Alex booped your nose 👉"… */
@@ -4042,10 +4015,11 @@ function pandaBubbleFrame(frame, reach) {
 }
 
 /* Hearts floating up off the panda's head and fading. */
-function pandaHeartFrame(frame, colors) {
+function pandaDropFrame(frame, colors) {
+  // A water drop, point up.
   const heart = (cx, cy, rr) =>
-    `M${round(cx)},${round(cy + rr * 0.9)} C${round(cx - rr * 1.6)},${round(cy - rr * 0.2)} ${round(cx - rr * 0.9)},${round(cy - rr * 1.5)} ${round(cx)},${round(cy - rr * 0.55)} ` +
-    `C${round(cx + rr * 0.9)},${round(cy - rr * 1.5)} ${round(cx + rr * 1.6)},${round(cy - rr * 0.2)} ${round(cx)},${round(cy + rr * 0.9)} Z`;
+    `M${round(cx)},${round(cy - rr * 1.5)} Q${round(cx + rr)},${round(cy - rr * 0.2)} ${round(cx + rr)},${round(cy + rr * 0.3)} ` +
+    `A${round(rr)},${round(rr)} 0 1,1 ${round(cx - rr)},${round(cy + rr * 0.3)} Q${round(cx - rr)},${round(cy - rr * 0.2)} ${round(cx)},${round(cy - rr * 1.5)} Z`;
   const p = frame / PANDA_FRAMES;
   return pandaVector(
     [
@@ -4089,9 +4063,9 @@ const ROLED = ['tickle', 'boop'];
 const sideAnims = (side) =>
   GESTURES.flatMap((g) => (ROLED.includes(g) ? ['give', 'get'] : ['both']).map((role) => anim(`g_${side}_${g}_${role}`, `pw_g_${side}_${g}_${role}`))).join('\n');
 
-/* Both pandas on the wallpaper: mine on the left (classic), theirs on the
-   right (hoodie), facing each other. Gestures play across both, with a little
-   burst between them. */
+/* Their panda alone on the wallpaper. Every gesture plays on it — the ones
+   I send (it receives them) and the ones they send (it gives them) — with a
+   little burst by its head. */
 const BEAR_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/pt_root"
@@ -4101,28 +4075,14 @@ const BEAR_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
     android:gravity="center">
 
     <FrameLayout
-        android:layout_width="270dp"
+        android:layout_width="160dp"
         android:layout_height="161dp">
-
-        <FrameLayout
-            android:id="@+id/b_me_tap"
-            android:layout_width="124dp"
-            android:layout_height="161dp"
-            android:layout_gravity="start"
-            android:contentDescription="@string/pb_me">
-${layer('b_me_body', 'pw_me_body')}
-${anim('b_me_head', 'pw_me_head', true)}
-${sideAnims('me')}
-${layer('b_me_bottle', 'pw_bottle')}
-${layer('b_me_water', 'pw_water_20')}
-${layer('b_me_front', 'pw_me_front')}
-        </FrameLayout>
 
         <FrameLayout
             android:id="@+id/b_tap"
             android:layout_width="124dp"
             android:layout_height="161dp"
-            android:layout_gravity="end"
+            android:layout_gravity="center_horizontal"
             android:contentDescription="@string/pb_bear">
 ${layer('b_body', 'pw_body')}
 ${layer('b_feet_still', 'pw_feet', '\n                android:visibility="gone"')}
@@ -4143,10 +4103,9 @@ ${anim('b_pour', 'pw_sip')}
         </FrameLayout>
 
         <FrameLayout
-            android:layout_width="80dp"
-            android:layout_height="110dp"
-            android:layout_gravity="center_horizontal|top"
-            android:layout_marginTop="6dp">
+            android:layout_width="64dp"
+            android:layout_height="88dp"
+            android:layout_gravity="start|top">
 ${GESTURES.map((g) => `
             <ProgressBar
                 android:id="@+id/g_burst_${g}"
@@ -4164,7 +4123,7 @@ ${GESTURES.map((g) => `
             android:layout_height="10dp"
             android:layout_gravity="top|end"
             android:layout_marginTop="30dp"
-            android:layout_marginEnd="22dp"
+            android:layout_marginEnd="26dp"
             android:indeterminate="true"
             android:indeterminateOnly="true"
             android:indeterminateDrawable="@drawable/pt_live_pulse"
@@ -4174,7 +4133,7 @@ ${GESTURES.map((g) => `
             android:id="@+id/d_drink"
             android:layout_width="34dp"
             android:layout_height="34dp"
-            android:layout_gravity="bottom|center_horizontal"
+            android:layout_gravity="bottom|end"
             android:gravity="center"
             android:background="@drawable/pb_drop_btn"
             android:text="💧"
@@ -4187,7 +4146,7 @@ ${GESTURES.map((g) => `
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="2dp"
-        android:text="You · Alex"
+        android:text="Alex · 1.25 L"
         android:maxLines="1"
         android:textColor="#FFFFFF"
         android:textSize="13sp"
@@ -4536,27 +4495,11 @@ ${parts.map((pp) => vectorPart(pp)).join('\n')}
 }
 
 /**
- * Everything both pandas need on the two-panda widget: my panda's body,
- * blinking head and bottle front, and every gesture's frames for both sides
- * (frames are shared between gestures wherever the pose is the same).
+ * Every gesture's frames for their panda (frames are shared between gestures
+ * wherever the pose is the same), and each gesture's burst.
  */
 function gestureResources() {
-  const files = {
-    'drawable/pw_me_body.xml': pandaVector(art.backParts('classic')),
-    'drawable/pw_me_front.xml': pandaVector([...art.bottleFrontParts(art.REST), ...art.armParts('classic', art.REST)]),
-    'drawable/pw_mh_open.xml': headFrame('classic', { eyes: 'open', fur: 0 }),
-    'drawable/pw_mh_shut.xml': headFrame('classic', { eyes: 'shut', fur: 0 }),
-    'drawable/pw_me_head.xml': `<?xml version="1.0" encoding="utf-8"?>
-<animation-list xmlns:android="http://schemas.android.com/apk/res/android" android:oneshot="false">
-    <item android:drawable="@drawable/pw_mh_open" android:duration="3600" />
-    <item android:drawable="@drawable/pw_mh_shut" android:duration="130" />
-    <item android:drawable="@drawable/pw_mh_open" android:duration="4300" />
-    <item android:drawable="@drawable/pw_mh_shut" android:duration="110" />
-    <item android:drawable="@drawable/pw_mh_open" android:duration="170" />
-    <item android:drawable="@drawable/pw_mh_shut" android:duration="110" />
-</animation-list>
-`,
-  };
+  const files = {};
   const unique = new Map();
   const frameFor = (outfit, opts) => {
     const all = { mouth: 'smile', ...opts, fur: 0 };
@@ -4573,7 +4516,8 @@ function gestureResources() {
 ${items.map(([n, ms]) => `    <item android:drawable="@drawable/${n}" android:duration="${ms}" />`).join('\n')}
 </animation-list>
 `;
-  for (const [side, outfit, toward] of [['me', 'classic', 1], ['them', WIDGET_OUTFIT, -1]]) {
+  // Their panda faces left on the widget, as it does beside mine in the app.
+  for (const [side, outfit, toward] of [['them', WIDGET_OUTFIT, -1]]) {
     for (const g of GESTURES) {
       for (const role of ROLED.includes(g) ? ['give', 'get'] : ['both']) {
         const steps = gestureSteps(g, role, toward).map(([opts, ms]) => [frameFor(outfit, opts), ms]);
@@ -4630,10 +4574,8 @@ ${items.join('\n')}
   }
   /* A tap: pink hearts. They just drank: blue ones, like the painting's doodle. */
   for (let f = 0; f < PANDA_FRAMES; f++) {
-    files[`drawable/pw_hearts_${f}.xml`] = pandaHeartFrame(f, ['#FB7185', '#F472B6', '#FB7185']);
-    files[`drawable/pw_sip_${f}.xml`] = pandaHeartFrame(f, ['#38BDF8', '#3B82F6', '#60A5FA']);
+    files[`drawable/pw_sip_${f}.xml`] = pandaDropFrame(f, ['#38BDF8', '#3B82F6', '#60A5FA']);
   }
-  files['drawable/pw_hearts.xml'] = animationList('pw_hearts', PANDA_FRAMES, 105);
   files['drawable/pw_sip.xml'] = animationList('pw_sip', PANDA_FRAMES, 140);
   /* The drop button: a white disc with a soft rim, so it reads on any wallpaper. */
   files['drawable/pb_drop_btn.xml'] = `<?xml version="1.0" encoding="utf-8"?>
@@ -4783,7 +4725,6 @@ const WATER_STRINGS = {
   pc_drink: '+ 250 ml',
   pc_title: '%1$s & you · Today',
   pb_tickled: '%1$s tickled you 🤭',
-  pb_me: 'Your panda — tap to send a hug',
   pg_sent_tickle: 'You tickled %1$s 🤭',
   pg_got_tickle: '%1$s tickled you 🤭',
   pg_sent_boop: 'Boop! on %1$s 👉',
@@ -4850,6 +4791,13 @@ function waterResources() {
 /* Files an earlier version of this widget wrote, removed on prebuild so a
    non-clean regenerate does not carry dead resources into the APK. */
 const OBSOLETE_RESOURCES = [
+  'drawable/pw_hearts.xml',
+  ...Array.from({ length: 12 }, (_, i) => `drawable/pw_hearts_${i}.xml`),
+  'drawable/pw_me_body.xml',
+  'drawable/pw_me_front.xml',
+  'drawable/pw_me_head.xml',
+  'drawable/pw_mh_open.xml',
+  'drawable/pw_mh_shut.xml',
   'drawable/pw_tickle_head.xml',
   'drawable/pw_tickle_feet.xml',
   'drawable/pw_giggle.xml',

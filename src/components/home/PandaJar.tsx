@@ -199,8 +199,8 @@ const later = (fn: () => void) => {
  *   with happy eyes, and the water drains to the new level mid-gulp. The
  *   water stays level with the ground while the bottle tips.
  * - `mood`: `thirsty` (heavy lids, sweat drop), `sleepy` (drowsy, z's),
- *   `celebrate` (heart eyes, sparkles — the bottle is finished), `happy`.
- * - `interactive`: a tap gets a reaction (a heart-eyed hop, a giggle, a
+ *   `celebrate` (sparkly eyes — the bottle is finished), `happy`.
+ * - `interactive`: a tap gets a reaction (a giggle, a hop, a
  *   surprised jump), and its eyes follow your finger.
  */
 export function PandaJar({
@@ -761,20 +761,12 @@ export function PandaJar({
       ) : (
         picture
       )}
-      {reaction === 'love' && !reduced
-        ? HEARTS.map((h, i) => <Heart key={`${pokes}-${i}`} {...h} width={width} height={height} />)
-        : null}
       {reaction === 'surprise' && !reduced ? <Pop key={pokes} text="!" width={width} height={height} /> : null}
       {reaction === 'giggle' && !reduced ? <Pop key={pokes} text="hehe" width={width} height={height} /> : null}
     </View>
   );
 }
 
-const HEARTS = [
-  { x: 0.3, delay: 0, emoji: '💗' },
-  { x: 0.52, delay: 120, emoji: '💖' },
-  { x: 0.74, delay: 240, emoji: '💗' },
-];
 
 /** Bubbles rising up the water column while it drinks. */
 function Bubbles({ width, height, level }: { width: number; height: number; level: SharedValue<number> }) {
@@ -825,26 +817,6 @@ function Bubble({
   return <Animated.View pointerEvents="none" style={[styles.bubble, { width: size, height: size, borderRadius: size / 2 }, anim]} />;
 }
 
-function Heart({ x, delay, emoji, width, height }: { x: number; delay: number; emoji: string; width: number; height: number }) {
-  const t = useSharedValue(0);
-  useEffect(() => {
-    t.value = withDelay(delay, withTiming(1, { duration: 1300, easing: Easing.out(Easing.cubic) }));
-  }, [delay, t]);
-  const size = Math.max(14, width * 0.15);
-  const anim = useAnimatedStyle(() => ({
-    opacity: t.value < 0.7 ? 1 : 1 - (t.value - 0.7) / 0.3,
-    transform: [
-      { translateX: x * width - size / 2 + Math.sin(t.value * 6) * 4 },
-      { translateY: height * 0.14 - t.value * height * 0.2 },
-      { scale: 0.5 + Math.min(1, t.value * 3) * 0.6 },
-    ],
-  }));
-  return (
-    <Animated.Text pointerEvents="none" style={[styles.float, { fontSize: size }, anim]}>
-      {emoji}
-    </Animated.Text>
-  );
-}
 
 /** A little word or mark popping above the head. */
 function Pop({ text, width, height }: { text: string; width: number; height: number }) {

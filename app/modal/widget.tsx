@@ -172,13 +172,20 @@ export default function WidgetStudioScreen() {
       ) : null}
 
       <SectionLabel>LOOK</SectionLabel>
+      {style.layout === 'clean' || style.layout === 'bear' ? (
+        <Text style={styles.lookNote}>
+          {style.layout === 'bear'
+            ? 'Just the panda, straight on your wallpaper — its bottle fills as they drink. Tap it on your home screen for a little love.'
+            : 'This card follows your phone’s light and dark mode.'}
+        </Text>
+      ) : null}
       {style.layout === 'scene' ? (
         <Text style={styles.lookNote}>
           The scene follows the real sky and calendar — dawn to starlight, spring blossom to winter snow, and your
           bond’s monthly anniversary. Themes dress Duo and Rings; Glass makes them liquid glass too.
         </Text>
       ) : null}
-      <View style={styles.themes}>
+      <View style={[styles.themes, (style.layout === 'clean' || style.layout === 'bear') && { display: 'none' }]}>
         {WIDGET_THEMES.map((theme) => (
           <ThemeTile key={theme} theme={theme} selected={style.theme === theme} onPress={() => set({ theme })} />
         ))}
@@ -458,6 +465,8 @@ function SurfaceTile({ surface, selected, onPress }: { surface: WidgetSurface; s
 }
 
 const LAYOUT_LABEL: Record<WidgetLayout, { title: string; sub: string }> = {
+  bear: { title: 'Panda', sub: 'Fills as they drink' },
+  clean: { title: 'Clean', sub: 'At a glance' },
   scene: { title: 'Scene', sub: 'Under the real sky' },
   duo: { title: 'Duo', sub: 'You vs them' },
   rings: { title: 'Rings', sub: 'Their day' },
@@ -475,12 +484,27 @@ function LayoutTile({ layout, selected, onPress }: { layout: WidgetLayout; selec
       style={[styles.tile, styles.layoutTile, selected && styles.tileOn]}
     >
       <Backdrop
-        colors={layout === 'scene' ? ['#38BDF8', '#BAE6FD'] : ['#4C1D95', '#BE185D']}
+        colors={
+          layout === 'bear' ? ['#A78BFA', '#F9A8D4'] : layout === 'clean' ? ['#FFFFFF', '#F2F2F7'] : layout === 'scene' ? ['#38BDF8', '#BAE6FD'] : ['#4C1D95', '#BE185D']
+        }
         start={{ x: 0, y: 0 }}
         end={layout === 'scene' ? { x: 0, y: 1 } : { x: 1, y: 1 }}
-        style={styles.sketch}
+        style={[styles.sketch, layout === 'clean' && styles.sketchClean]}
       >
-        {layout === 'scene' ? (
+        {layout === 'bear' ? (
+          <View style={{ alignItems: 'center' }}>
+            <View style={[styles.sketchBear, { backgroundColor: '#E6E8FF', borderWidth: 1.5, borderColor: '#A5B4FC' }]} />
+          </View>
+        ) : layout === 'clean' ? (
+          <View style={styles.sketchRow}>
+            {['#0A7CC4', '#248A3D', '#E0184A'].map((c) => (
+              <View key={c} style={styles.sketchTile}>
+                <View style={[styles.sketchLine, { width: '80%', backgroundColor: '#1C1C1E', height: 5 }]} />
+                <View style={[styles.sketchLine, { width: '60%', backgroundColor: c, marginTop: 4 }]} />
+              </View>
+            ))}
+          </View>
+        ) : layout === 'scene' ? (
           <View style={{ flex: 1, justifyContent: 'flex-end' }}>
             <View style={styles.sketchSun} />
             <View style={styles.sketchRow}>
@@ -670,6 +694,8 @@ const styles = StyleSheet.create({
   },
   sketchRingInner: { width: 18, height: 18, borderRadius: 9, borderWidth: 3, borderColor: '#7DD3FC' },
   sketchLine: { height: 5, borderRadius: 3, width: '80%' },
+  sketchClean: { borderWidth: StyleSheet.hairlineWidth, borderColor: '#D1D1D6', paddingHorizontal: 5 },
+  sketchTile: { flex: 1, height: 38, marginHorizontal: 2, borderRadius: 7, backgroundColor: '#F2F2F7', justifyContent: 'center', paddingHorizontal: 5 },
   tileSub: font('semibold', 10, { color: palette.grey600 }),
   wardrobe: { flexDirection: 'row', gap: 8, marginTop: 12 },
   week: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 14, height: 110 },

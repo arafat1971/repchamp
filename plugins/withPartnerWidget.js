@@ -294,6 +294,21 @@ ${KEY_CASES}
      * before 8, or a launcher that opts out), so the app can fall back to
      * showing the gesture instead.
      */
+    /**
+     * Where a tickle from the widget goes: the partner's push token and my
+     * name, or nothing (unpaired, or their build does not understand tickles).
+     */
+    @ReactMethod
+    fun setTickleTarget(to: String?, name: String) {
+        val prefs = reactApplicationContext.getSharedPreferences("repchamp.widget", Context.MODE_PRIVATE).edit()
+        if (to.isNullOrBlank()) {
+            prefs.remove(Tickle.TARGET_KEY)
+        } else {
+            prefs.putString(Tickle.TARGET_KEY, org.json.JSONObject().put("to", to).put("name", name).toString())
+        }
+        prefs.apply()
+    }
+
     @ReactMethod
     fun requestPin(widget: String, promise: com.facebook.react.bridge.Promise) {
         val ctx = reactApplicationContext
@@ -717,6 +732,12 @@ const withWidgetSources = (config) =>
         write(path.join(res, file), contents);
       }
       write(path.join(javaDir, 'RepChampMessagingService.kt'), water.MESSAGING_KT(pkg));
+      /* The giggle the widget plays, from the generated app sounds. */
+      const giggle = path.join(cfg.modRequest.projectRoot, 'assets/sounds/tickle.wav');
+      if (fs.existsSync(giggle)) {
+        fs.mkdirSync(path.join(res, 'raw'), { recursive: true });
+        fs.copyFileSync(giggle, path.join(res, 'raw/tickle.wav'));
+      }
 
       /* Strings are merged rather than overwritten — `strings.xml` already
          carries the app name and Expo's own entries. */

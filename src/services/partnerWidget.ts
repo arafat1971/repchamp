@@ -37,6 +37,8 @@ interface PartnerWidgetNative {
   count(widget: string): Promise<number>;
   /** Absent on builds made before pinning was added. */
   requestPin?(widget: string): Promise<boolean>;
+  /** Absent on builds made before tickles. */
+  setTickleTarget?(to: string | null, name: string): void;
 }
 
 function native(): PartnerWidgetNative | null {
@@ -51,6 +53,18 @@ function native(): PartnerWidgetNative | null {
 }
 
 /** True when this build can actually host the widget. */
+/**
+ * Tell the widget where a tap sends its tickle: the partner's push token (only
+ * when their build understands tickles) and my name. `null` stops it.
+ */
+export function setTickleTarget(to: string | null, name: string): void {
+  try {
+    native()?.setTickleTarget?.(to, name);
+  } catch {
+    // An older native build: tickles from the widget simply stay local.
+  }
+}
+
 export function isWidgetSupported(): boolean {
   return native() != null;
 }

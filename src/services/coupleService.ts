@@ -77,7 +77,43 @@ async function findMembershipId(uid: string): Promise<string | null> {
  * it as a blank banner — so a sender only sends one to a partner advertising
  * this. Published with the push token, the one write every build makes.
  */
-export const WIDGET_PUSH_VERSION = 1;
+export const WIDGET_PUSH_VERSION = 2;
+
+/** The first version that takes the water widget's silent push. */
+const WATER_PUSH_MIN = 1;
+/** The first version whose widget giggles at a `partner-tickle` push. */
+export const TICKLE_PUSH_MIN = 2;
+
+/** Whether a partner's build can be tickled. */
+export function canTickle(partner: CoupleMember | null | undefined): boolean {
+  const token = partner?.expoPushToken ?? '';
+  return (partner?.widgetPush ?? 0) >= TICKLE_PUSH_MIN && token.startsWith('ExponentPushToken');
+}
+
+let lastTickleAt = 0;
+const TICKLE_GAP_MS = 3_000;
+
+/**
+ * Tickle the partner's panda: a silent data push their widget turns into a
+ * giggle (and a little sound), with their app closed. Throttled to one every
+ * few seconds; best-effort. Returns false when throttled or not possible.
+ */
+export function sendTickle(partner: CoupleMember | null | undefined, fromName: string): boolean {
+  if (!isFirebaseConfigured() || !canTickle(partner)) return false;
+  const now = Date.now();
+  if (now - lastTickleAt < TICKLE_GAP_MS) return false;
+  lastTickleAt = now;
+  void fetch(EXPO_PUSH_ENDPOINT, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify({
+      to: partner!.expoPushToken,
+      data: { type: 'partner-tickle', at: now, name: fromName },
+      priority: 'high',
+    }),
+  }).catch(() => {});
+  return true;
+}
 
 /**
  * Write this athlete's Expo push token onto their own couple-member slice so the
@@ -802,7 +838,7 @@ export async function pushPartnerWaterWidget(
     const me = couple.members.find((m) => m.uid === fromUid);
     const partner = couple.members.find((m) => m.uid !== fromUid);
     if (!me || !partner) return;
-    if ((partner.widgetPush ?? 0) < WIDGET_PUSH_VERSION) return;
+    if ((partner.widgetPush ?? 0) < WATER_PUSH_MIN) return;
     const token = partner.expoPushToken ?? null;
     if (!token || !token.startsWith('ExponentPushToken')) return;
 

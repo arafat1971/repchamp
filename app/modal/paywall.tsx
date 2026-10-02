@@ -62,7 +62,7 @@ import { gradients, palette, radius, surfaceShadow } from '@/theme/tokens';
 const BENEFITS: Record<BenefitId, { title: string; detail: string }> = {
   library: {
     title: 'Full exercise library',
-    detail: 'Every movement beyond push-ups & squats',
+    detail: 'Every movement beyond push-ups & squats, plus camera yoga & guided meditation',
   },
   programmes: {
     title: 'Guided programmes',

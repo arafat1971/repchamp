@@ -23,7 +23,8 @@ export type ProFeature =
   | 'exercise-library' // every movement beyond push-ups + squats
   | 'form-history' // post-set form report (depth / tempo / alignment)
   | 'advanced-stats' // same gate as form-history — detailed form analytics
-  | 'custom-programmes'; // adaptive multi-week plans
+  | 'custom-programmes' // adaptive multi-week plans
+  | 'mind-body'; // camera yoga, guided meditation, hands-free gestures
 
 /**
  * Whether a given exercise is playable without Pro.

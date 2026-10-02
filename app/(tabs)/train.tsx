@@ -13,6 +13,7 @@ import { ExerciseGlyph } from '@/components/ExerciseGlyph';
 import { ExerciseLibrary } from '@/components/ExerciseLibrary';
 import { YogaGlyph } from '@/components/YogaGlyph';
 import { ProgrammeCard } from '@/components/ProgrammeCard';
+import { CameraCoachSection } from '@/components/train/CameraCoach';
 import { WeekRepsCard } from '@/components/train/WeekRepsCard';
 import { weekReps } from '@/domain/weekReps';
 import { HomeSectionHeader } from '@/components/home/HomeSectionHeader';
@@ -282,6 +283,10 @@ export default function TrainScreen() {
             />
           ))}
         </StaggerIn>
+
+        {/* The camera-coached half (Pro): pose-scored flows, single poses and
+            voice-guided sits — next to the free timed flows above. */}
+        <CameraCoachSection />
 
         <HomeSectionHeader title="Together" />
         {/* The one dark surface on the tab, like the streak tile on Home: the

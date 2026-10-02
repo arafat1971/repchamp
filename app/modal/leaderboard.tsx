@@ -6,7 +6,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ModalHeader } from '@/components/ModalHeader';
 import { LockIcon } from '@/components/home/Icons';
-import { Avatar, Card, Divider, EmptyState, Screen } from '@/components/ui';
+import { Avatar, Divider, EmptyState, Screen } from '@/components/ui';
+import { HomeCard as Card } from '@/components/ui/HomeCard';
 import { buildLeaderboard, type LeaderboardRow } from '@/domain/leaderboard';
 import { usePhantomSeed } from '@/domain/seedPhantoms';
 import { fetchLeaderboard, fetchFriends } from '@/services/leaderboardService';
@@ -14,7 +15,7 @@ import { selectLeague, selectWeeklyXp, useProfileStore } from '@/state/profileSt
 import { useAuthStore } from '@/state/authStore';
 import { useSettingsStore } from '@/state/settingsStore';
 import { font, text } from '@/theme/typography';
-import { gradients, palette, radius, shadow } from '@/theme/tokens';
+import { gradients, palette, radius, shadow, surfaceShadow } from '@/theme/tokens';
 
 /** A leaderboard row, plus the optional AI-partner fields injected when seeding. */
 type BoardRow = LeaderboardRow & { emoji?: string; isAI?: boolean };
@@ -129,17 +130,15 @@ export default function LeaderboardScreen() {
         ))}
       </View>
 
-      <LinearGradient colors={gradients.brand} style={[styles.leagueBanner, shadow.brand]}>
-        <View style={styles.leagueBadge}>
-          <Text style={{ fontSize: 26 }}>{league.emoji}</Text>
-        </View>
+      <View style={styles.leagueBanner}>
+        <Image source={require('../../assets/trophy-bronze.png')} style={styles.leagueTrophy} contentFit="contain" />
         <View style={{ flex: 1 }}>
-          <Text style={font('extrabold', 16, { color: palette.white })}>{league.name} League</Text>
-          <Text style={font('semibold', 12, { color: 'rgba(255,255,255,0.9)' })}>
+          <Text style={font('extrabold', 17, { color: palette.ink })}>{league.name} League</Text>
+          <Text style={font('semibold', 12.5, { color: palette.grey600 })}>
             {weeklyXp.toLocaleString()} XP this week
           </Text>
         </View>
-      </LinearGradient>
+      </View>
 
       <Card style={styles.list}>
         {/* Friends scope with nobody added used to render an empty card and,
@@ -247,11 +246,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    borderRadius: radius['3xl'],
-    paddingVertical: 16,
+    borderRadius: radius['4xl'],
+    paddingVertical: 14,
     paddingHorizontal: 16,
-    marginBottom: 20,
+    marginBottom: 16,
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: 'rgba(15,31,23,0.06)',
+    ...surfaceShadow,
   },
+  leagueTrophy: { width: 52, height: 52 },
   leagueBadge: {
     width: 52,
     height: 52,

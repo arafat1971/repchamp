@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Card } from '@/components/ui';
+import { HomeCard as Card } from '@/components/ui/HomeCard';
 import type { Journey } from '@/domain/ritual';
 import { pluralise } from '@/domain/plural';
 import { font } from '@/theme/typography';

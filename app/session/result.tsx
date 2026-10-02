@@ -1,6 +1,7 @@
 import { Redirect, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState } from 'react';
 import { BackHandler, Share, StyleSheet, Text, useWindowDimensions, View, ScrollView } from 'react-native';
 import Animated, { FadeInDown, FadeInUp, ZoomIn } from 'react-native-reanimated';
@@ -34,7 +35,7 @@ import { showDialog } from '@/state/useDialog';
 import { getExercise } from '@/vision/exercises';
 import { reservedControlHeight } from '@/theme/fontScale';
 import { font, scaleForRole } from '@/theme/typography';
-import { palette, radius, shadow } from '@/theme/tokens';
+import { palette, radius, surfaceShadow } from '@/theme/tokens';
 
 export default function ResultScreen() {
   const { fontScale } = useWindowDimensions();
@@ -462,6 +463,16 @@ export default function ResultScreen() {
           lands on — for a copy most athletes never share.
           `captureRef` works on the visible one, so there is only one now. */}
 
+      <LinearGradient
+        pointerEvents="none"
+        colors={
+          session.won
+            ? ['rgba(245,158,11,0.16)', 'rgba(34,197,94,0.07)', 'rgba(246,247,245,0)']
+            : ['rgba(34,197,94,0.14)', 'rgba(34,197,94,0.04)', 'rgba(246,247,245,0)']
+        }
+        locations={[0, 0.4, 0.75]}
+        style={StyleSheet.absoluteFill}
+      />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
@@ -498,7 +509,8 @@ export default function ResultScreen() {
           </View>
           {streak > 0 ? (
             <View style={styles.rewardChipFire}>
-              <Text style={styles.rewardChipTextDark}>🔥 {streak} day streak</Text>
+              <Image source={require('../../assets/fire-flame.png')} style={styles.chipIcon} contentFit="contain" />
+              <Text style={styles.rewardChipTextDark}>{streak} day streak</Text>
             </View>
           ) : null}
           {session.drew ? (
@@ -625,20 +637,17 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     marginTop: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.1,
-    shadowRadius: 24,
-    elevation: 8,
+    ...surfaceShadow,
+    shadowOpacity: 0.12,
   },
   trophyWrapper: { marginBottom: 12, alignItems: 'center' },
-  trophyHeroImg: { width: 88, height: 88 },
+  trophyHeroImg: { width: 112, height: 112 },
 
   titleSection: { alignItems: 'center', alignSelf: 'stretch', width: '100%', marginBottom: 16 },
   screenTitleText: {
-    ...font('bold', 30, { color: palette.ink }),
+    ...font('extrabold', 32, { color: palette.ink }),
     textAlign: 'center',
-    letterSpacing: -0.6,
+    letterSpacing: -1,
     lineHeight: 36,
   },
   screenSubtitleText: {
@@ -668,7 +677,11 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 999,
   },
+  chipIcon: { width: 18, height: 18 },
   rewardChipFire: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     backgroundColor: palette.amber50,
     borderWidth: 1,
     borderColor: palette.amber200,
@@ -697,20 +710,20 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     gap: 12,
     backgroundColor: palette.canvas,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: palette.border,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(15,31,23,0.06)',
   },
   secondaryRow: { flexDirection: 'row', gap: 12 },
   secondaryButtonLight: {
     // `minHeight` at render time — see `@/theme/fontScale`.
     flex: 1,
-    borderRadius: radius.xl,
+    borderRadius: radius.pill,
     backgroundColor: palette.white,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: 'rgba(15,31,23,0.08)',
     alignItems: 'center',
     justifyContent: 'center',
-    ...shadow.card,
+    ...surfaceShadow,
   },
   secondaryLabelLight: font('extrabold', 14, { color: palette.ink }),
 
@@ -721,7 +734,11 @@ const styles = StyleSheet.create({
     backgroundColor: palette.green500,
     alignItems: 'center',
     justifyContent: 'center',
-    ...shadow.brand,
+    shadowColor: palette.green500,
+    shadowOpacity: 0.3,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 5,
   },
   doneLinkButton: {
     alignItems: 'center',

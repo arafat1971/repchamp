@@ -3,7 +3,9 @@ import { useState } from 'react';
 import { Platform, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { ModalHeader } from '@/components/ModalHeader';
-import { Card, Chevron, Divider, Eyebrow, PressableScale, Screen, Toggle } from '@/components/ui';
+import { Chevron, Divider, PressableScale, Screen, Toggle } from '@/components/ui';
+import { HomeSectionHeader } from '@/components/home/HomeSectionHeader';
+import { HomeCard as Card } from '@/components/ui/HomeCard';
 import { captureError } from '@/lib/crash';
 import {
   cancelDailyTrainingReminder,
@@ -390,10 +392,10 @@ export default function SettingsScreen() {
     <Screen>
       <ModalHeader title="Settings" />
 
-      <Eyebrow style={styles.eyebrow}>During workouts</Eyebrow>
+      <HomeSectionHeader title="During workouts" />
       {renderGroup(WORKOUT_TOGGLES)}
 
-      <Eyebrow style={styles.eyebrow}>Notifications &amp; privacy</Eyebrow>
+      <HomeSectionHeader title="Notifications &amp; privacy" />
       {renderGroup(
         /* Android only: iOS counts steps without a background service, so the
            switch would control nothing there. */
@@ -402,7 +404,7 @@ export default function SettingsScreen() {
 
       {cloudConfigured ? (
         <>
-          <Eyebrow style={styles.eyebrow}>Account</Eyebrow>
+          <HomeSectionHeader title="Account" />
           <Card style={styles.group}>
             <View style={styles.row}>
               <View style={{ flex: 1 }}>
@@ -427,7 +429,7 @@ export default function SettingsScreen() {
           than no entry point. */}
       {isWidgetSupported() ? (
         <>
-          <Eyebrow style={styles.eyebrow}>Home screen</Eyebrow>
+          <HomeSectionHeader title="Home screen" />
           <Card style={styles.group}>
             <LinkRow
               label="Widget studio"
@@ -437,7 +439,7 @@ export default function SettingsScreen() {
         </>
       ) : null}
 
-      <Eyebrow style={styles.eyebrow}>Your data</Eyebrow>
+      <HomeSectionHeader title="Your data" />
       <Card style={styles.group}>
         <LinkRow
           label="Privacy Policy & Terms"

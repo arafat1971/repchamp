@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
-import { Card } from '@/components/ui';
+import { HomeCard as Card } from '@/components/ui/HomeCard';
 import { ME, THEM } from '@/components/together/RitualCard';
 import { trendLine, type RitualWeek } from '@/domain/ritual';
 import { nextOutfit } from '@/domain/waterWidget';

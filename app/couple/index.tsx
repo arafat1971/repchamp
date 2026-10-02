@@ -5,7 +5,8 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { ModalHeader } from '@/components/ModalHeader';
-import { Avatar, Card, GradientCard, PressableScale, PrimaryButton, Screen } from '@/components/ui';
+import { Avatar, GradientCard, PressableScale, PrimaryButton, Screen } from '@/components/ui';
+import { HomeCard as Card } from '@/components/ui/HomeCard';
 import { JourneyCard } from '@/components/together/JourneyCard';
 import { ME, THEM } from '@/components/together/RitualCard';
 import { HABITS, journey } from '@/domain/ritual';

@@ -1,8 +1,9 @@
 import { useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { IconButton } from '@/components/ui';
-import { text } from '@/theme/typography';
+import { PressableScale } from '@/components/ui';
+import { font } from '@/theme/typography';
+import { palette, surfaceShadow } from '@/theme/tokens';
 
 /** Back chevron + title, shared by every screen in the modal group. */
 export function ModalHeader({
@@ -23,17 +24,20 @@ export function ModalHeader({
   return (
     <View style={styles.row}>
       {hideBack ? null : (
-        <IconButton
-          glyph="‹"
-          label="Go back"
+        <PressableScale
           onPress={() => (onBack ? onBack() : router.back())}
-        />
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          style={styles.back}
+        >
+          <Text style={styles.backGlyph}>‹</Text>
+        </PressableScale>
       )}
       <View style={{ flex: 1 }}>
-        <Text style={text.h1} numberOfLines={1}>
+        <Text style={styles.title} accessibilityRole="header" numberOfLines={1}>
           {title}
         </Text>
-        {subtitle ? <Text style={[text.captionMd, { marginTop: 4 }]}>{subtitle}</Text> : null}
+        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
       </View>
     </View>
   );
@@ -47,4 +51,18 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 16,
   },
+  back: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: 'rgba(15,31,23,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...surfaceShadow,
+  },
+  backGlyph: { fontSize: 26, color: palette.ink, lineHeight: 28, marginTop: -2 },
+  title: { ...font('extrabold', 28, { color: palette.ink }), letterSpacing: -0.8 },
+  subtitle: { ...font('semibold', 13, { color: palette.grey600 }), marginTop: 2 },
 });

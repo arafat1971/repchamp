@@ -1,12 +1,17 @@
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { ModalHeader } from '@/components/ModalHeader';
-import { Badge, Card, Eyebrow, Screen } from '@/components/ui';
+import { Badge, Screen } from '@/components/ui';
+import { HomeSectionHeader } from '@/components/home/HomeSectionHeader';
+import { HomeCard as Card } from '@/components/ui/HomeCard';
 import { evaluateAchievements, type Achievement } from '@/domain/achievements';
 import { selectBestStreak, selectWeeklyXp, useProfileStore } from '@/state/profileStore';
 import { font, text } from '@/theme/typography';
-import { gradients, palette, radius, shadow } from '@/theme/tokens';
+import { gradients, palette, radius, surfaceShadow } from '@/theme/tokens';
+
+const TROPHY = require('../../assets/trophy-gold.png');
 
 export default function AchievementsScreen() {
   const profile = useProfileStore();
@@ -24,25 +29,24 @@ export default function AchievementsScreen() {
     <Screen>
       <ModalHeader title="Achievements" />
 
-      <LinearGradient colors={gradients.brand} style={[styles.summary, shadow.brand]}>
-        <Text style={font('extrabold', 34, { color: palette.white })}>
-          {earned.length}
-          <Text style={font('extrabold', 18, { color: 'rgba(255,255,255,0.75)' })}>
-            /{achievements.length}
-          </Text>
-        </Text>
+      <View style={styles.summary}>
+        <Image source={TROPHY} style={styles.summaryTrophy} contentFit="contain" />
         <View style={{ flex: 1 }}>
-          <Text style={font('extrabold', 14, { color: palette.white })}>Badges unlocked</Text>
-          <Text style={font('semibold', 11, { color: 'rgba(255,255,255,0.85)' })}>
+          <Text style={font('extrabold', 34, { color: palette.ink })}>
+            {earned.length}
+            <Text style={font('extrabold', 18, { color: palette.grey500 })}>/{achievements.length}</Text>
+          </Text>
+          <Text style={font('extrabold', 14, { color: palette.ink })}>Badges unlocked</Text>
+          <Text style={font('semibold', 12, { color: palette.grey600 })}>
             Keep training to earn the rest
           </Text>
         </View>
-      </LinearGradient>
+      </View>
 
       {earned.length > 0 ? (
         <>
-          <Eyebrow style={styles.eyebrow}>Earned</Eyebrow>
-          <View style={{ gap: 8, marginBottom: 24 }}>
+          <HomeSectionHeader title="Earned" />
+          <View style={{ gap: 10, marginBottom: 8 }}>
             {earned.map((a) => (
               <AchievementRow key={a.id} achievement={a} />
             ))}
@@ -52,8 +56,8 @@ export default function AchievementsScreen() {
 
       {inProgress.length > 0 ? (
         <>
-          <Eyebrow style={styles.eyebrow}>In progress</Eyebrow>
-          <View style={{ gap: 8 }}>
+          <HomeSectionHeader title="In progress" />
+          <View style={{ gap: 10 }}>
             {inProgress.map((a) => (
               <AchievementRow key={a.id} achievement={a} />
             ))}
@@ -111,11 +115,15 @@ const styles = StyleSheet.create({
     borderRadius: radius['4xl'],
     paddingVertical: 16,
     paddingHorizontal: 20,
-    marginBottom: 20,
+    marginBottom: 8,
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: 'rgba(15,31,23,0.06)',
+    ...surfaceShadow,
   },
-  eyebrow: { marginBottom: 12 },
+  summaryTrophy: { width: 84, height: 84 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
-  earnedRow: { borderWidth: 1, borderColor: palette.green700 },
+  earnedRow: { borderColor: palette.green500, backgroundColor: palette.green50 },
   icon: {
     width: 48,
     height: 48,

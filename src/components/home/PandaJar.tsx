@@ -21,6 +21,7 @@ import Svg, { Defs, G, LinearGradient, Path, RadialGradient, Stop } from 'react-
 
 import { lightImpactHaptic, playTickleSound } from '@/lib/feedback';
 import type { PandaMood, PandaOutfit } from '@/domain/pandaMood';
+import type { PandaAction } from '@/domain/pandaActions';
 import * as Art from '../../../plugins/pandaArt';
 import type { Part } from '../../../plugins/pandaArt';
 
@@ -181,7 +182,12 @@ function squashHop() {
   );
 }
 
-type Reaction = 'love' | 'giggle' | 'surprise';
+type Reaction = 'love' | 'giggle' | 'surprise' | 'hug';
+
+/** Run a state update just after the current effect, not inside it. */
+const later = (fn: () => void) => {
+  setTimeout(fn, 0);
+};
 
 /**
  * The hydration panda: a fluffy vector panda hugging a big water bottle that
@@ -208,6 +214,7 @@ export function PandaJar({
   mirrored = false,
   interactive = false,
   onPoke,
+  gesture,
 }: {
   /** Unique per panda — SVG ids are global. */
   id: string;
@@ -223,6 +230,11 @@ export function PandaJar({
   mirrored?: boolean;
   interactive?: boolean;
   onPoke?: () => void;
+  /**
+   * A gesture to play: `giving` reaches toward the other panda, otherwise it
+   * is on the receiving end. A new `key` plays it again.
+   */
+  gesture?: { kind: PandaAction; key: number; giving: boolean } | null;
 }) {
   const art = ART[outfit];
   const reduced = useReducedMotion();
@@ -484,6 +496,66 @@ export function PandaJar({
     onPoke?.();
   };
 
+  /* ---- Gestures between the two pandas ----
+     Leaning is in screen space (outside the mirror), toward the other panda:
+     right for mine on the left, left for theirs on the right. */
+  const toward = mirrored ? -1 : 1;
+  const lean = useSharedValue(0);
+  const leanStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: lean.value * toward * width * 0.11 }, { rotate: `${lean.value * toward * 9}deg` }],
+  }));
+  const lastGesture = useRef(gesture?.key ?? 0);
+  useEffect(() => {
+    if (!gesture || gesture.key === lastGesture.current) return;
+    lastGesture.current = gesture.key;
+    if (reduced) return;
+    const { kind, giving } = gesture;
+    const reach = (amt: number, hold: number) =>
+      lean.set(
+        withSequence(
+          withTiming(amt, { duration: 240, easing: Easing.out(Easing.quad) }),
+          withDelay(hold, withSpring(0, { damping: 8, stiffness: 120 })),
+        ),
+      );
+    const bounce = (h: number) =>
+      hop.set(withSequence(withTiming(h, { duration: 170, easing: Easing.out(Easing.quad) }), withSpring(0, { damping: 5, stiffness: 150 })));
+    glow.set(withSequence(withTiming(1, { duration: 200 }), withDelay(1100, withTiming(0, { duration: 700 }))));
+    if (kind === 'hug') {
+      // Both lean all the way in and hold it, eyes closed happy, cheeks warm.
+      reach(1, 1300);
+      later(() => setReaction('hug'));
+    } else if (kind === 'cheers') {
+      // Bottles up and toward each other — clink — then a sip.
+      reach(0.6, 1000);
+      lift.set(withSequence(withTiming(0.55, { duration: 380, easing: Easing.out(Easing.cubic) }), withDelay(900, withTiming(0, { duration: 450 }))));
+    } else if (kind === 'highfive') {
+      reach(0.55, 220);
+      bounce(1.1);
+      feet.set(kick());
+      later(() => setReaction('giggle'));
+    } else if (kind === 'boop') {
+      if (giving) {
+        reach(0.8, 140);
+      } else {
+        // Nose scrunch, a surprised little "o", a hop back.
+        nose.set(withSequence(withTiming(1.6, { duration: 70 }), withTiming(0, { duration: 120 }), withTiming(1.2, { duration: 70 }), withTiming(0, { duration: 140 })));
+        lean.set(withSequence(withTiming(-0.35, { duration: 120 }), withSpring(0, { damping: 7, stiffness: 160 })));
+        bounce(0.5);
+        later(() => setReaction('surprise'));
+      }
+    } else if (giving) {
+      // Tickling: wiggling fingers reach across.
+      reach(0.45, 260);
+    } else {
+      later(() => setReaction('giggle'));
+      wiggle.set(0);
+      wiggle.set(withTiming(1, { duration: 900 }));
+      feet.set(kick());
+    }
+    // Keyed by the gesture.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gesture?.key]);
+
   /* Whether the drink is mid-gulp, for the mouth. */
   const [gulping, setGulping] = useState(false);
   useAnimatedReaction(
@@ -496,7 +568,7 @@ export function PandaJar({
   /* Celebrating: cheeks stay warm. */
   useEffect(() => {
     if (reduced) return;
-    glow.value = mood === 'celebrate' ? withRepeat(withTiming(0.7, { duration: 1600, easing: Easing.inOut(Easing.sin) }), -1, true) : withTiming(0, { duration: 400 });
+    glow.set(mood === 'celebrate' ? withRepeat(withTiming(0.7, { duration: 1600, easing: Easing.inOut(Easing.sin) }), -1, true) : withTiming(0, { duration: 400 }));
   }, [mood, reduced, glow]);
 
   /* A blep now and then when content: the tongue pokes out for a moment. */
@@ -517,7 +589,7 @@ export function PandaJar({
   /* ---- What the face shows ---- */
   const lidKind: Lid | null = drinking
     ? 'happy'
-    : reaction === 'giggle'
+    : reaction === 'giggle' || reaction === 'hug'
       ? 'happy'
       : reaction
         ? null
@@ -582,6 +654,7 @@ export function PandaJar({
   }));
 
   const picture = (
+    <Animated.View collapsable={false} style={[{ width, height }, leanStyle]}>
     <Animated.View style={[{ width, height }, whole]}>
       <Animated.View collapsable={false} style={[StyleSheet.absoluteFill, { transformOrigin: SEAT }, belly]}>
         <Layer scope={`${scope}b`} arts={[art.back, art.feet[0], art.feet[1]]}>
@@ -675,6 +748,7 @@ export function PandaJar({
         </>
       ) : null}
       {mood === 'sleepy' && !reduced ? <Zzz left={width * 0.78} top={height * 0.08} size={width * 0.11} /> : null}
+    </Animated.View>
     </Animated.View>
   );
 

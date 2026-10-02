@@ -5,6 +5,7 @@ import Animated, {
   FadeIn,
   FadeInDown,
   FadeOut,
+  ZoomIn,
   FadeOutUp,
   SensorType,
   cancelAnimation,
@@ -33,7 +34,8 @@ import {
   type HydrationProgress,
   formatMl,
 } from '@/domain/hydration';
-import { lightImpactHaptic, playSparkleSound, selectionHaptic, successHaptic } from '@/lib/feedback';
+import { lightImpactHaptic, playGestureSound, playSparkleSound, selectionHaptic, successHaptic } from '@/lib/feedback';
+import { ACTION_META, PANDA_ACTIONS, type PandaAction } from '@/domain/pandaActions';
 import { hydrationPace } from '@/domain/hydrationPace';
 import { pandaMood } from '@/domain/pandaMood';
 import { font } from '@/theme/typography';
@@ -66,7 +68,9 @@ export function HydrationCard({
   onUndoWater,
   onStepWaterGoal,
   onSplash,
-  onTickle,
+  onGesture,
+  incomingGesture,
+  suggestedGesture,
   duoStreak = 0,
 }: {
   water: HydrationProgress;
@@ -84,8 +88,12 @@ export function HydrationCard({
   onStepWaterGoal: (direction: 1 | -1) => void;
   /** Throw a live 💧 at the partner; false when throttled. */
   onSplash?: () => boolean;
-  /** Tickling their panda here tickles theirs on their home screen too. */
-  onTickle?: () => void;
+  /** Send their panda a gesture; false when throttled. Also plays on their phone. */
+  onGesture?: (action: PandaAction) => boolean;
+  /** Their gesture, as it arrives live. */
+  incomingGesture?: { action: PandaAction; key: number } | null;
+  /** The gesture that fits the moment, highlighted in the bar. */
+  suggestedGesture?: PandaAction;
   /** Days in a row you both filled your bears — shown by the title. */
   duoStreak?: number;
 }) {
@@ -221,6 +229,42 @@ export function HydrationCard({
         ? 'You both met your goal'
         : null;
 
+  /* ---- Gestures between the pandas ---- */
+  const [myGesture, setMyGesture] = useState<{ kind: PandaAction; key: number; giving: boolean } | null>(null);
+  const [theirGesture, setTheirGesture] = useState<{ kind: PandaAction; key: number; giving: boolean } | null>(null);
+  const [burst, setBurst] = useState<{ action: PandaAction; key: number; line: string } | null>(null);
+  useEffect(() => {
+    if (!burst) return;
+    const t = setTimeout(() => setBurst(null), 2600);
+    return () => clearTimeout(t);
+  }, [burst]);
+  const gesture = (action: PandaAction, fromTap = false) => {
+    if (!partner || !onGesture || !onGesture(action)) return;
+    const key = Date.now();
+    lightImpactHaptic();
+    playGestureSound(action);
+    setMyGesture({ kind: action, key, giving: true });
+    // A tap on their panda already made it giggle.
+    if (!fromTap) setTheirGesture({ kind: action, key, giving: action !== 'boop' && action !== 'tickle' });
+    setBurst({ action, key, line: ACTION_META[action].sent(partner.name) });
+  };
+  const lastIncoming = useRef(incomingGesture?.key ?? 0);
+  useEffect(() => {
+    if (!incomingGesture || !partner || incomingGesture.key === lastIncoming.current) return;
+    lastIncoming.current = incomingGesture.key;
+    const { action, key } = incomingGesture;
+    const t = setTimeout(() => {
+      lightImpactHaptic();
+      playGestureSound(action);
+      setTheirGesture({ kind: action, key, giving: true });
+      setMyGesture({ kind: action, key, giving: action !== 'boop' && action !== 'tickle' });
+      setBurst({ action, key, line: ACTION_META[action].got(partner.name) });
+    }, 0);
+    return () => clearTimeout(t);
+    // Keyed by the gesture.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incomingGesture?.key]);
+
   return (
     <View onLayout={onLayout}>
       <HealthCard
@@ -243,6 +287,7 @@ export function HydrationCard({
                   phase={phase}
                   sipKey={myPour}
                   mood={myMood}
+                  gesture={myGesture}
                 />
                 </HoldBear>
               ) : null}
@@ -254,12 +299,29 @@ export function HydrationCard({
             </View>
 
             <View style={styles.middle}>
-              <View style={[styles.leadChip, lead.tone === 'me' && styles.leadMe, lead.tone === 'them' && styles.leadThem]}>
-                <Text style={[styles.leadText, lead.tone === 'me' && { color: '#0369A1' }, lead.tone === 'them' && { color: '#6D28D9' }]} numberOfLines={2}>
-                  {lead.text}
-                </Text>
-              </View>
-              {news ? (
+              {burst ? (
+                <Animated.Text key={`b${burst.key}`} entering={ZoomIn.springify().damping(9)} exiting={FadeOut.duration(250)} style={styles.burst}>
+                  {ACTION_META[burst.action].burst}
+                </Animated.Text>
+              ) : null}
+              {burst ? null : (
+                <View style={[styles.leadChip, lead.tone === 'me' && styles.leadMe, lead.tone === 'them' && styles.leadThem]}>
+                  <Text style={[styles.leadText, lead.tone === 'me' && { color: '#0369A1' }, lead.tone === 'them' && { color: '#6D28D9' }]} numberOfLines={2}>
+                    {lead.text}
+                  </Text>
+                </View>
+              )}
+              {burst ? (
+                <Animated.Text
+                  key={`l${burst.key}`}
+                  entering={FadeInDown.springify().damping(14)}
+                  exiting={FadeOutUp.duration(250)}
+                  style={[styles.news, styles.newsCenter, { color: '#6D28D9' }]}
+                  numberOfLines={2}
+                >
+                  {burst.line}
+                </Animated.Text>
+              ) : news ? (
                 <Animated.Text
                   key={live?.id ?? 'news'}
                   entering={FadeInDown.springify().damping(14)}
@@ -280,7 +342,8 @@ export function HydrationCard({
                 outfit="hoodie"
                 mirrored
                 interactive
-                onPoke={onTickle}
+                onPoke={() => gesture('tickle', true)}
+                gesture={theirGesture}
                 phase={phase}
                 sipKey={theirPour}
                 mood={theirMood}
@@ -317,6 +380,28 @@ export function HydrationCard({
             </View>
           </View>
         )}
+        {partner && onGesture ? (
+          /* Gestures: tap one and both pandas play it — here and on their phone. */
+          <View style={styles.gestures}>
+            {PANDA_ACTIONS.map((a) => {
+              const on = a === suggestedGesture;
+              return (
+                <Pressable
+                  key={a}
+                  onPress={() => gesture(a)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${ACTION_META[a].label} ${partner.name}'s panda`}
+                  style={({ pressed }) => [styles.gesture, on && styles.gestureOn, pressed && { transform: [{ scale: 0.92 }] }]}
+                >
+                  <Text style={styles.gestureEmoji}>{ACTION_META[a].emoji}</Text>
+                  <Text style={[styles.gestureLabel, on && styles.gestureLabelOn]} numberOfLines={1}>
+                    {ACTION_META[a].label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
         {/* The bar, with where you should be by now marked on it. */}
         <PaceBar fraction={heldPercent / 100} marker={pace.status === 'done' ? null : pace.expectedFraction} />
         <View style={styles.coach}>
@@ -697,6 +782,13 @@ const styles = StyleSheet.create({
   leadThem: { backgroundColor: 'rgba(139,92,246,0.12)' },
   leadText: { ...font('bold', 11.5, { color: IOS.secondary }), textAlign: 'center' },
   newsCenter: { textAlign: 'center', marginTop: 0 },
+  burst: { fontSize: 38, textAlign: 'center' },
+  gestures: { flexDirection: 'row', gap: 6, marginBottom: 12 },
+  gesture: { flex: 1, alignItems: 'center', paddingVertical: 7, borderRadius: 14, backgroundColor: IOS.fill },
+  gestureOn: { backgroundColor: 'rgba(139,92,246,0.12)', borderWidth: 1, borderColor: 'rgba(139,92,246,0.35)' },
+  gestureEmoji: { fontSize: 18 },
+  gestureLabel: { ...font('semibold', 10.5, { color: IOS.secondary }), marginTop: 2 },
+  gestureLabelOn: { color: '#6D28D9' },
   controls: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
   splash: {
     flexDirection: 'row',

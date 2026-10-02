@@ -63,7 +63,10 @@ import { DEFAULT_DAILY_GOAL_ML } from '@/domain/hydration';
 import { HABITS, type Poke, cleanTicks, effectivePlan, morningCard, planHabits, ritualFor, ritualScore } from '@/domain/ritual';
 import { getExercise } from '@/vision/exercises';
 import { clearWidgetSnapshot, publishWidgetSnapshot, setTickleTarget } from '@/services/partnerWidget';
-import { canTickle, sendTickle } from '@/services/coupleService';
+import { canTickle, sendPandaAction } from '@/services/coupleService';
+import { smartAction } from '@/domain/pandaActions';
+import { hydrationPace } from '@/domain/hydrationPace';
+import { usePartnerGesture } from '@/state/usePartnerGesture';
 import { trackerHistory } from '@/domain/coupleTracker';
 import { selectHomeFocus, type HomeFocus } from '@/domain/homeFocus';
 import { leagueProgressFromWeeklyXp } from '@/domain/leagueProgress';
@@ -270,6 +273,28 @@ export default function HomeScreen() {
     }
     return latest;
   }, [allDrinks, today]);
+
+  /* The pandas' live gestures: theirs as they arrive, and the one that fits
+     the moment (cheers when you both just drank, a high five at their goal,
+     a hug when they're behind, else a tickle). */
+  const partnerGesture = usePartnerGesture(couple.partner, today);
+  const [minute, setMinute] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setMinute(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const suggestedGesture = useMemo(() => {
+    const theirMl = partnerGlass?.ml ?? 0;
+    const theirGoal = partnerGlass?.goalMl ?? 0;
+    const theirPace = theirGoal > 0 ? hydrationPace(theirMl, theirGoal, new Date(minute)) : null;
+    return smartAction({
+      now: minute,
+      myLastSipAt: myLastAt || null,
+      theirLastSipAt: partnerLastDrinkToday(couple.partner, today)?.at ?? null,
+      theyMet: theirGoal > 0 && theirMl >= theirGoal,
+      theirBehindMl: theirPace?.status === 'behind' ? theirPace.behindMl : 0,
+    });
+  }, [partnerGlass, myLastAt, couple.partner, today, minute]);
   const layout = useWidgetStyleStore((st) => st.layout);
   const theme = useWidgetStyleStore((st) => st.theme);
   /* The duo streak: a day counts once both bears are full, as seen here. */
@@ -853,7 +878,9 @@ export default function HomeScreen() {
           onUndoWater={todayDrinks.length > 0 ? undoWater : undefined}
           onStepWaterGoal={stepWaterGoal}
           onSplash={() => sendLivePoke('💧', 'splash')}
-          onTickle={() => sendTickle(couple.partner, firstName || 'Your partner')}
+          onGesture={(action) => sendPandaAction(coupleId, myUid, couple.partner, action, firstName || 'Your partner')}
+          incomingGesture={partnerGesture}
+          suggestedGesture={suggestedGesture}
           duoStreak={partnerGlass ? duoDays : 0}
         />
       </StaggerIn>

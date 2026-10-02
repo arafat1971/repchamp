@@ -325,6 +325,11 @@ describe('the water payload matches what the native side reads', () => {
       'type',
       // The tickle target the app leaves for the widget (not the payload).
       'to',
+      // The gesture the widget is playing (its own storage, not the payload).
+      'g',
+      'me',
+      'at',
+      'action',
     ]);
     for (const key of new Set(read)) expect(written).toContain(key);
   });

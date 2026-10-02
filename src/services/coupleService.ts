@@ -28,6 +28,8 @@ import {
 import { MAX_DAILY_GOAL_ML, MAX_DAILY_ML, MIN_DAILY_GOAL_ML } from '@/domain/hydration';
 import { reminderNotification, type ReminderKind } from '@/domain/partnerReminder';
 import { cleanPlan, cleanPoke, cleanTicks } from '@/domain/ritual';
+import { actionCode, cleanActionPoke, type PandaAction } from '@/domain/pandaActions';
+import { dayKey } from '@/domain/progression';
 import { MAX_DAILY_STEPS } from '@/domain/steps';
 import {
   assertClientRateLimit,
@@ -77,12 +79,12 @@ async function findMembershipId(uid: string): Promise<string | null> {
  * it as a blank banner — so a sender only sends one to a partner advertising
  * this. Published with the push token, the one write every build makes.
  */
-export const WIDGET_PUSH_VERSION = 2;
+export const WIDGET_PUSH_VERSION = 3;
 
 /** The first version that takes the water widget's silent push. */
 const WATER_PUSH_MIN = 1;
-/** The first version whose widget giggles at a `partner-tickle` push. */
-export const TICKLE_PUSH_MIN = 2;
+/** The first version whose widget plays every panda gesture (`partner-panda`). */
+export const TICKLE_PUSH_MIN = 3;
 
 /** Whether a partner's build can be tickled. */
 export function canTickle(partner: CoupleMember | null | undefined): boolean {
@@ -90,28 +92,40 @@ export function canTickle(partner: CoupleMember | null | undefined): boolean {
   return (partner?.widgetPush ?? 0) >= TICKLE_PUSH_MIN && token.startsWith('ExponentPushToken');
 }
 
-let lastTickleAt = 0;
-const TICKLE_GAP_MS = 3_000;
+let lastGestureAt = 0;
+const GESTURE_GAP_MS = 2_500;
 
 /**
- * Tickle the partner's panda: a silent data push their widget turns into a
- * giggle (and a little sound), with their app closed. Throttled to one every
- * few seconds; best-effort. Returns false when throttled or not possible.
+ * Send the partner's panda a gesture (tickle, boop, hug, high five, cheers).
+ *
+ * Two routes, both best-effort: the live poke slot on my own member, which
+ * their open app sees within a second; and a silent data push, which their
+ * widget (and a closed app) turns into the same animation and a little sound.
+ * Throttled to one every few seconds. Returns false when throttled.
  */
-export function sendTickle(partner: CoupleMember | null | undefined, fromName: string): boolean {
-  if (!isFirebaseConfigured() || !canTickle(partner)) return false;
+export function sendPandaAction(
+  coupleId: string | null | undefined,
+  uid: string | null | undefined,
+  partner: CoupleMember | null | undefined,
+  action: PandaAction,
+  fromName: string,
+): boolean {
+  if (!isFirebaseConfigured() || !coupleId || !uid || !partner) return false;
   const now = Date.now();
-  if (now - lastTickleAt < TICKLE_GAP_MS) return false;
-  lastTickleAt = now;
-  void fetch(EXPO_PUSH_ENDPOINT, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', accept: 'application/json' },
-    body: JSON.stringify({
-      to: partner!.expoPushToken,
-      data: { type: 'partner-tickle', at: now, name: fromName },
-      priority: 'high',
-    }),
-  }).catch(() => {});
+  if (now - lastGestureAt < GESTURE_GAP_MS) return false;
+  lastGestureAt = now;
+  void recordCoupleRitual(coupleId, uid, dayKey(), { poke: { e: actionCode(action), at: now } }).catch(() => {});
+  if (canTickle(partner)) {
+    void fetch(EXPO_PUSH_ENDPOINT, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({
+        to: partner.expoPushToken,
+        data: { type: 'partner-panda', action, at: now, name: fromName },
+        priority: 'high',
+      }),
+    }).catch(() => {});
+  }
   return true;
 }
 
@@ -477,7 +491,8 @@ export async function recordCoupleRitual(coupleId: string, uid: string, day: str
   const clean: RitualPatch = {};
   if (patch.habits) clean.habits = cleanTicks(patch.habits);
   if (typeof patch.hereAt === 'number' && Number.isFinite(patch.hereAt) && patch.hereAt > 0) clean.hereAt = Math.round(patch.hereAt);
-  const poke = cleanPoke(patch.poke);
+  // An emoji poke, or a panda gesture riding the same slot.
+  const poke = cleanPoke(patch.poke) ?? cleanActionPoke(patch.poke);
   if (poke) clean.poke = poke;
   if (Object.keys(clean).length === 0) return;
   await recordCoupleDaily(coupleId, uid, day, clean);

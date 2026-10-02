@@ -111,6 +111,21 @@ const SOUNDS = {
     { frequency: 1, durationMs: 60, gain: 0, decay: 1 },
     { frequency: 1250, to: 880, durationMs: 170, gain: 0.24, decay: 9 },
   ],
+  // Cheers: two glasses meeting — a bright ping and its ring.
+  'clink.wav': [
+    { frequency: 2637, durationMs: 60, gain: 0.3, decay: 18 },
+    { frequency: 3136, durationMs: 420, gain: 0.26, decay: 9 },
+  ],
+  // A hug: a warm, soft swell up a major third.
+  'hug.wav': [
+    { frequency: 523, to: 587, durationMs: 160, gain: 0.22, decay: 3 },
+    { frequency: 659, durationMs: 360, gain: 0.24, decay: 5 },
+  ],
+  // A high five: a quick bright slap up to the octave.
+  'hifive.wav': [
+    { frequency: 1568, durationMs: 50, gain: 0.3, decay: 20 },
+    { frequency: 2093, durationMs: 260, gain: 0.28, decay: 10 },
+  ],
 };
 
 const outDir = path.join(__dirname, '..', 'assets', 'sounds');

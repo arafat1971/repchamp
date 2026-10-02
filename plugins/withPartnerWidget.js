@@ -732,11 +732,11 @@ const withWidgetSources = (config) =>
         write(path.join(res, file), contents);
       }
       write(path.join(javaDir, 'RepChampMessagingService.kt'), water.MESSAGING_KT(pkg));
-      /* The giggle the widget plays, from the generated app sounds. */
-      const giggle = path.join(cfg.modRequest.projectRoot, 'assets/sounds/tickle.wav');
-      if (fs.existsSync(giggle)) {
-        fs.mkdirSync(path.join(res, 'raw'), { recursive: true });
-        fs.copyFileSync(giggle, path.join(res, 'raw/tickle.wav'));
+      /* The gesture sounds the widget plays, from the generated app sounds. */
+      fs.mkdirSync(path.join(res, 'raw'), { recursive: true });
+      for (const name of ['tickle', 'hug', 'hifive', 'clink', 'pop']) {
+        const src = path.join(cfg.modRequest.projectRoot, `assets/sounds/${name}.wav`);
+        if (fs.existsSync(src)) fs.copyFileSync(src, path.join(res, `raw/${name}.wav`));
       }
 
       /* Strings are merged rather than overwritten — `strings.xml` already

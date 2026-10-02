@@ -258,6 +258,27 @@ import kotlin.math.sin
  */
 class WaterWidgetProvider : AppWidgetProvider() {
 
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action == ACTION_POKE) {
+            val g = "tickle"
+            Gesture.record(context, g, byMe = true)
+            refresh(context)
+            TickleSound.play(context, g)
+            Tickle.send(context, g)
+            // One cycle of hearts, then calm again. goAsync keeps us alive for it.
+            val pending = goAsync()
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                try {
+                    refresh(context)
+                } finally {
+                    pending.finish()
+                }
+            }, POKE_MS + 150L)
+            return
+        }
+        super.onReceive(context, intent)
+    }
+
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         ids.forEach { render(context, manager, it) }
     }
@@ -274,6 +295,18 @@ class WaterWidgetProvider : AppWidgetProvider() {
     companion object {
         const val KEY = "repchamp.widget.water.v1"
         private const val LIVE_MS = 15L * 60L * 1000L
+        /** The pour means "just now": it stops a few minutes after the drink. */
+        private const val POUR_MS = 3L * 60L * 1000L
+        /** Tapping the bear layout; handled here, the app never opens. */
+        private const val ACTION_POKE = "gg.repchamp.widget.BEAR_POKE"
+        private const val POKE_KEY = "repchamp.widget.bear.poke"
+        /** When the partner last tickled this phone's panda (set by the push). */
+        const val TICKLED_KEY = "repchamp.widget.bear.tickled"
+        /** How long a gesture plays. */
+        const val POKE_MS = ${GESTURE_MS}L
+
+        fun prefs(context: Context) =
+            context.getSharedPreferences("repchamp.widget", Context.MODE_PRIVATE)
         private val ME_KEYS = arrayOf(
             "hasMe", "meWater", "meSteps", "meReps", "meWaterMl", "meStepsN", "meRepsN",
             "mePct", "meMet", "meLayers", "streak", "meLastAt", "meadow", "sky", "temp", "season", "occasion",
@@ -361,12 +394,16 @@ class WaterWidgetProvider : AppWidgetProvider() {
 
         fun render(context: Context, manager: AppWidgetManager, id: Int) {
             val stored = stored(context)
-            val layoutName = stored?.optString("layout", "scene") ?: "scene"
+            val layoutName = stored?.optString("layout", "bear") ?: "bear"
             val scene = layoutName == "scene"
             val duo = layoutName == "duo"
+            val clean = layoutName == "clean"
+            val bear = layoutName == "bear"
             val views = RemoteViews(
                 context.packageName,
                 when {
+                    bear -> R.layout.water_widget_bear
+                    clean -> R.layout.water_widget_clean
                     scene -> R.layout.water_widget_scene
                     duo -> R.layout.water_widget_duo
                     else -> R.layout.water_widget
@@ -385,7 +422,8 @@ class WaterWidgetProvider : AppWidgetProvider() {
             val showMine = look?.optBoolean("showMine", true) ?: true
             val motion = look?.optBoolean("motion", true) ?: true
             val palette = Palette.resolve(context, look?.optString("theme", "sunset") ?: "sunset")
-            if (!scene) Palette.apply(views, palette, duo)
+            // The clean card follows the system's light and dark on its own.
+            if (!scene && !clean && !bear) Palette.apply(views, palette, duo)
 
             // Tapping opens the partner's day in the app.
             val open = Intent(Intent.ACTION_VIEW, Uri.parse("repchamp://couple/partner"))
@@ -399,6 +437,16 @@ class WaterWidgetProvider : AppWidgetProvider() {
                 )
             )
 
+            if (bear) {
+                renderBear(context, views, stored, snap, showMine, motion, density, now)
+                manager.updateAppWidget(id, views)
+                return
+            }
+            if (clean) {
+                renderClean(context, views, stored, snap, showSteps, showReps, showMine, motion, now)
+                manager.updateAppWidget(id, views)
+                return
+            }
             if (scene) {
                 renderScene(context, manager, id, views, stored, snap, showSteps, showReps, showMine, motion, now)
                 manager.updateAppWidget(id, views)
@@ -487,6 +535,206 @@ class WaterWidgetProvider : AppWidgetProvider() {
                 out.add(color to o.optDouble("t", 0.0).toFloat().coerceIn(0f, 1f))
             }
             return out
+        }
+
+        /**
+         * The bear: theirs alone, filled with the drinks they logged today.
+         * When a drink lands (their push redraws us) a pour falls into it for
+         * a few minutes, and bubbles rise for the live window.
+         */
+        private fun renderBear(
+            context: Context,
+            views: RemoteViews,
+            stored: JSONObject?,
+            snap: JSONObject?,
+            showMine: Boolean,
+            motion: Boolean,
+            density: Float,
+            now: Long
+        ) {
+            val name = stored?.optString("name")?.takeIf { it.isNotBlank() }
+                ?: context.getString(R.string.pd_partner)
+            val pct = fraction(snap, "pct")
+            val met = snap?.optBoolean("met", false) ?: false
+            val amount = snap?.optString("amount")?.takeIf { it.isNotBlank() } ?: "0 ml"
+            // A gesture between the pandas, playing for a moment: who gave it,
+            // and which one. Taps here and pushes from the partner both land here.
+            val gesture = Gesture.current(context, now)
+            val gesturing = gesture != null
+            // Their steps: when the count goes up, the panda walks for a moment
+            // and the caption says how many they just took.
+            val stepsN = snap?.optLong("stepsN", -1L) ?: -1L
+            val stepsText = snap?.optString("steps")?.takeIf { stepsN >= 0L && it.isNotBlank() }
+            val walk = Walk.update(context, snap?.optString("day") ?: "", stepsN, now)
+            val walking = motion && walk != null && !gesturing
+            views.setTextViewText(
+                R.id.b_caption,
+                when {
+                    stored == null -> context.getString(R.string.pt_empty)
+                    gesture != null -> Gesture.caption(context, gesture.first, gesture.second, name)
+                    walking -> context.getString(R.string.pb_walking, name, walk!!)
+                    stepsText != null -> "$name · 💧 $amount · 👟 $stepsText" + if (met) " 🎉" else ""
+                    met -> "$name · $amount 🎉"
+                    else -> "$name · $amount"
+                }
+            )
+            // The bottle holds what is left of their day, to the nearest 5 %:
+            // full at breakfast, drunk down to empty at the goal.
+            val left = 1f - pct
+            val step = if (left <= 0f) 0 else max(1, (left * ${WATER_STEPS}f).roundToInt()).coerceAtMost(${WATER_STEPS})
+            val waterRes = context.resources.getIdentifier("pw_water_$step", "drawable", context.packageName)
+            if (waterRes != 0) views.setImageViewResource(R.id.b_water, waterRes)
+            // Sparkly eyes at the goal; otherwise it blinks now and then.
+            show(views, R.id.b_love, met && !gesturing)
+
+            val lastAt = snap?.optLong("lastAt", 0L) ?: 0L
+            val since = now - lastAt
+            val pouring = motion && lastAt > 0L && since >= -60_000L && since <= POUR_MS
+            val drankFresh = motion && lastAt > 0L && since >= -60_000L && since <= LIVE_MS
+            val activeAt = snap?.optLong("activeAt", 0L) ?: 0L
+            val fresh = motion && activeAt > 0L && now - activeAt >= -60_000L && now - activeAt <= LIVE_MS
+            show(views, R.id.b_pour, pouring && !gesturing)
+            // They just drank: their panda lifts the bottle and gulps, on a loop
+            // for the pour window, drawn for the nearest quarter of what is left.
+            val sipping = pouring && !gesturing
+            val bucket = (left * ${SIP_BUCKETS}f).roundToInt().coerceIn(0, ${SIP_BUCKETS})
+            val sipIds = intArrayOf(${[0, 1, 2, 3, 4].map((k) => `R.id.b_sip_${k}`).join(', ')})
+            sipIds.forEachIndexed { k, sipId -> show(views, sipId, sipping && k == bucket) }
+            show(views, R.id.b_bottle, !sipping)
+            show(views, R.id.b_water, !sipping)
+            show(views, R.id.b_front, !sipping)
+            // Idle life plays on its own timeline; a tap, the goal or a sip
+            // takes over the face, so the head holds still for those.
+            val marching = walking && !sipping
+            val live = motion && !sipping && !met && !gesturing && !marching
+            show(views, R.id.b_head_live, live)
+            show(views, R.id.b_walk_head, marching)
+            show(views, R.id.b_walk_feet, marching)
+            show(views, R.id.b_head_still, !live && !gesturing && !marching)
+            show(views, R.id.b_eyes, !live && !gesturing && !met && !marching)
+            show(views, R.id.b_mouth, !live && !gesturing && !sipping && !marching)
+            show(views, R.id.b_feet_live, motion && !marching)
+            show(views, R.id.b_feet_still, !motion)
+            if (marching) scheduleCalm(context, Walk.until(context) + 1_000L)
+
+            // The gesture's frames on their panda, and its burst by its head.
+            for (g in Gesture.ALL) {
+                val active = gesture != null && gesture.first == g
+                val byMe = gesture?.second == true
+                if (g in Gesture.ROLED) {
+                    showId(context, views, "g_them_\${g}_give", active && !byMe)
+                    showId(context, views, "g_them_\${g}_get", active && byMe)
+                } else {
+                    showId(context, views, "g_them_\${g}_both", active)
+                }
+                showId(context, views, "g_burst_$g", active && motion)
+            }
+            if (gesture != null) scheduleCalm(context, now + ${GESTURE_MS}L + 300L)
+            show(views, R.id.b_bubbles_high, drankFresh && pct >= 0.5f)
+            show(views, R.id.b_bubbles_low, drankFresh && pct >= 0.2f && pct < 0.5f)
+            show(views, R.id.pt_live, fresh)
+            if (pouring) scheduleCalm(context, lastAt + POUR_MS + 5_000L)
+            else if (drankFresh || fresh) scheduleCalm(context, max(lastAt, activeAt) + LIVE_MS + 5_000L)
+
+            // Tap their panda: a tickle — it plays right here and on their
+            // phone, without opening the app.
+            val poke = Intent(context, WaterWidgetProvider::class.java).setAction(ACTION_POKE)
+            views.setOnClickPendingIntent(
+                R.id.b_tap,
+                PendingIntent.getBroadcast(
+                    context, 7305, poke,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            )
+
+            val drink = Intent(Intent.ACTION_VIEW, Uri.parse("repchamp://drink?ml=250"))
+                .setPackage(context.packageName)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            views.setOnClickPendingIntent(
+                R.id.d_drink,
+                PendingIntent.getActivity(
+                    context, 7302, drink,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            )
+        }
+
+        /**
+         * The clean card: their number large in each tile, mine under it, a
+         * thin bar toward their goal, and the drink button. Nothing painted.
+         */
+        private fun renderClean(
+            context: Context,
+            views: RemoteViews,
+            stored: JSONObject?,
+            snap: JSONObject?,
+            showSteps: Boolean,
+            showReps: Boolean,
+            showMine: Boolean,
+            motion: Boolean,
+            now: Long
+        ) {
+            val name = stored?.optString("name")?.takeIf { it.isNotBlank() }
+            views.setTextViewText(
+                R.id.pt_title,
+                if (name == null) context.getString(R.string.pt_title_empty)
+                else context.getString(R.string.pc_title, name)
+            )
+            views.setTextViewText(
+                R.id.pt_footer,
+                when {
+                    stored == null -> context.getString(R.string.pt_empty)
+                    snap == null -> context.getString(R.string.pd_new_day)
+                    else -> snap.optString("duel").ifBlank { snap.optString("footer") }
+                }
+            )
+
+            val hasMe = snap?.optBoolean("hasMe", false) ?: false
+            val mine = showMine && hasMe
+            fun youText(value: String?): String =
+                if (!mine || value.isNullOrBlank()) "" else context.getString(R.string.pt_you, value)
+
+            views.setTextViewText(R.id.c_water_value, snap?.optString("amount") ?: "0 ml")
+            views.setTextViewText(R.id.c_water_you, youText(snap?.optString("meWater")))
+            views.setProgressBar(R.id.c_water_bar, 1000, (fraction(snap, "pct") * 1000f).roundToInt(), false)
+
+            show(views, R.id.c_steps_tile, showSteps)
+            if (showSteps) {
+                val a = snap?.optLong("stepsN", -1L) ?: -1L
+                val b = if (hasMe) snap?.optLong("meStepsN", -1L) ?: -1L else -1L
+                views.setTextViewText(R.id.c_steps_value, if (a >= 0L) snap?.optString("steps") ?: "—" else "—")
+                views.setTextViewText(R.id.c_steps_you, if (b >= 0L) youText(snap?.optString("meSteps")) else "")
+                views.setProgressBar(R.id.c_steps_bar, 1000, (fraction(snap, "stepsPct") * 1000f).roundToInt(), false)
+            }
+            show(views, R.id.c_reps_tile, showReps)
+            if (showReps) {
+                views.setTextViewText(R.id.c_reps_value, snap?.optString("reps") ?: "0")
+                views.setTextViewText(R.id.c_reps_you, if (hasMe) youText(snap?.optString("meReps")) else "")
+                views.setProgressBar(R.id.c_reps_bar, 1000, (fraction(snap, "repsPct") * 1000f).roundToInt(), false)
+            }
+            // A gap only between two visible tiles.
+            show(views, R.id.c_gap1, showSteps || showReps)
+            show(views, R.id.c_gap2, showSteps && showReps)
+
+            val streak = if (hasMe) snap?.optInt("streak", 0) ?: 0 else 0
+            show(views, R.id.c_streak, streak > 0)
+            views.setTextViewText(R.id.c_streak, "🔥 " + streak)
+
+            val activeAt = snap?.optLong("activeAt", 0L) ?: 0L
+            val fresh = motion && activeAt > 0L && now - activeAt >= -60_000L && now - activeAt <= LIVE_MS
+            show(views, R.id.pt_live, fresh)
+            if (fresh) scheduleCalm(context, activeAt + LIVE_MS + 5_000L)
+
+            val drink = Intent(Intent.ACTION_VIEW, Uri.parse("repchamp://drink?ml=250"))
+                .setPackage(context.packageName)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            views.setOnClickPendingIntent(
+                R.id.d_drink,
+                PendingIntent.getActivity(
+                    context, 7302, drink,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            )
         }
 
         /**
@@ -821,6 +1069,12 @@ class WaterWidgetProvider : AppWidgetProvider() {
             views.setTextColor(themId, if (themLead) look.text else look.secondary)
             views.setTextViewText(meId, if (showMine) meText + (if (meLead) " 👑" else "") else "")
             views.setTextColor(meId, if (meLead) look.text else look.secondary)
+        }
+
+        /** Show or hide a view found by name (the gesture layers are generated). */
+        private fun showId(context: Context, views: RemoteViews, name: String, on: Boolean) {
+            val id = context.resources.getIdentifier(name, "id", context.packageName)
+            if (id != 0) views.setViewVisibility(id, if (on) View.VISIBLE else View.GONE)
         }
 
         private fun show(views: RemoteViews, id: Int, on: Boolean) {
@@ -2018,6 +2272,88 @@ object Palette {
  * its owner's colours and with a mood: asleep while empty, happy while it
  * fills, overjoyed at the goal.
  */
+/**
+ * Their panda, its bottle filled to the day: the emptied render, then the full
+ * one clipped below the water line. Geometry mirrors \`src/domain/panda.ts\`.
+ */
+/**
+ * The gesture playing on the widget: which one, who gave it, and when. Kept
+ * in the widget's storage so a redraw (or the partner's push) can show it.
+ */
+object Gesture {
+    val ALL = listOf("tickle", "boop", "hug", "highfive", "cheers")
+    val ROLED = setOf("tickle", "boop")
+    private const val KEY = "repchamp.widget.gesture"
+
+    fun record(context: Context, gesture: String, byMe: Boolean) {
+        if (gesture !in ALL) return
+        WaterWidgetProvider.prefs(context).edit()
+            .putString(KEY, JSONObject().put("g", gesture).put("me", byMe).put("at", System.currentTimeMillis()).toString())
+            .apply()
+    }
+
+    /** The gesture playing now, as (name, given by me), or null. */
+    fun current(context: Context, now: Long): Pair<String, Boolean>? {
+        val raw = WaterWidgetProvider.prefs(context).getString(KEY, null) ?: return null
+        return try {
+            val o = JSONObject(raw)
+            val at = o.optLong("at", 0L)
+            if (now - at !in 0L..WaterWidgetProvider.POKE_MS) null else Pair(o.optString("g"), o.optBoolean("me"))
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /** "You hugged Alex 🤗", "Alex booped your nose 👉"… */
+    fun caption(context: Context, gesture: String, byMe: Boolean, name: String): String {
+        val res = context.resources.getIdentifier(
+            (if (byMe) "pg_sent_" else "pg_got_") + gesture, "string", context.packageName
+        )
+        return if (res != 0) context.getString(res, name) else name
+    }
+}
+
+/**
+ * Notices their steps going up between redraws. Remembers the last count
+ * (per day); when it rises, the panda walks for WALK_MS and the caption
+ * shows the steps just taken.
+ */
+object Walk {
+    private const val KEY = "repchamp.widget.walk"
+    private const val WALK_MS = 90_000L
+
+    /** The steps just taken (formatted) while the walk window is open, else null. */
+    fun update(context: Context, day: String, steps: Long, now: Long): String? {
+        val prefs = WaterWidgetProvider.prefs(context)
+        val old = try {
+            JSONObject(prefs.getString(KEY, null) ?: "{}")
+        } catch (e: Exception) {
+            JSONObject()
+        }
+        val sameDay = old.optString("day") == day && day.isNotBlank()
+        val last = if (sameDay) old.optLong("n", -1L) else -1L
+        var at = if (sameDay) old.optLong("at", 0L) else 0L
+        var delta = if (sameDay) old.optLong("d", 0L) else 0L
+        if (steps >= 0L && last >= 0L && steps > last) {
+            at = now
+            delta = steps - last
+        }
+        if (steps >= 0L && (steps != last || !sameDay)) {
+            prefs.edit().putString(
+                KEY,
+                JSONObject().put("day", day).put("n", steps).put("at", at).put("d", delta).toString()
+            ).apply()
+        }
+        return if (at > 0L && now - at in 0L..WALK_MS && delta > 0L) String.format("%,d", delta) else null
+    }
+
+    fun until(context: Context): Long = try {
+        JSONObject(WaterWidgetProvider.prefs(context).getString(KEY, null) ?: "{}").optLong("at", 0L) + WALK_MS
+    } catch (e: Exception) {
+        0L
+    }
+}
+
 object BearArt {
     class Theme(val body: Int, val rim: Int, val tint: Int)
 
@@ -2068,9 +2404,17 @@ object BearArt {
         close()
     }
 
-    /** A standalone bear, 50dp wide, for the duo. */
-    fun bitmap(density: Float, pct: Float, layers: List<Pair<Int, Float>>, met: Boolean, theme: Theme, now: Long): Bitmap {
-        val w = (50f * density).roundToInt().coerceIn(80, 200)
+    /** A standalone bear, \`widthDp\` wide: 50 for the duo, larger for the bear layout. */
+    fun bitmap(
+        density: Float,
+        pct: Float,
+        layers: List<Pair<Int, Float>>,
+        met: Boolean,
+        theme: Theme,
+        now: Long,
+        widthDp: Float = 50f
+    ): Bitmap {
+        val w = (widthDp * density).roundToInt().coerceIn(80, 420)
         val h = (w * 1.24f).roundToInt()
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
@@ -2152,7 +2496,8 @@ object BearArt {
 
         /* Face, always above the drink, with the bear's mood: asleep while
            empty, happy while it fills, overjoyed at the goal. */
-        val asleep = pct <= 0f
+        // \`met\` also wakes an empty bear: the bear widget passes it on a tap.
+        val asleep = pct <= 0f && !met
         val joy = met
         paint.color = Color.WHITE
         paint.alpha = 217
@@ -2219,6 +2564,7 @@ object BearArt {
 
 const MESSAGING_KT = (pkg) => `package ${pkg}
 
+import android.content.Context
 import com.google.firebase.messaging.RemoteMessage
 import expo.modules.notifications.service.ExpoFirebaseMessagingService
 import org.json.JSONObject
@@ -2231,12 +2577,118 @@ import org.json.JSONObject
  * no JavaScript has to start for it. Everything else goes to Expo exactly as
  * before. Registered above Expo's own service (priority -1) so FCM picks it.
  */
+/**
+ * The giggle. Plays as a short UI sound that follows the phone's ringer: on
+ * silent or vibrate it stays quiet.
+ */
+object TickleSound {
+    fun play(context: Context, gesture: String = "tickle") {
+        try {
+            val audio = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+            if (audio.ringerMode != android.media.AudioManager.RINGER_MODE_NORMAL) return
+            val sound = when (gesture) {
+                "hug" -> R.raw.hug
+                "highfive" -> R.raw.hifive
+                "cheers" -> R.raw.clink
+                "boop" -> R.raw.pop
+                else -> R.raw.tickle
+            }
+            val afd = context.resources.openRawResourceFd(sound) ?: return
+            val player = android.media.MediaPlayer()
+            player.setAudioAttributes(
+                android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
+            player.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+            afd.close()
+            player.setOnCompletionListener { it.release() }
+            player.prepare()
+            player.start()
+        } catch (e: Exception) {
+            // A missing sound is never worth a crash.
+        }
+    }
+}
+
+/**
+ * Sends a tickle to the partner's phone, straight from the widget — no app.
+ *
+ * The app leaves the target (their push token, and my name) in the widget's
+ * storage, only when their build understands tickles. It goes as a silent
+ * data push, like the water updates; their messaging service makes their
+ * panda giggle. Throttled so a drumming finger sends one every few seconds.
+ */
+object Tickle {
+    const val TARGET_KEY = "repchamp.widget.tickle"
+    private const val SENT_KEY = "repchamp.widget.tickle.sent"
+    private const val GAP_MS = 3_000L
+
+    fun send(context: Context, gesture: String = "tickle") {
+        val prefs = WaterWidgetProvider.prefs(context)
+        val now = System.currentTimeMillis()
+        if (now - prefs.getLong(SENT_KEY, 0L) < GAP_MS) return
+        val target = try {
+            JSONObject(prefs.getString(TARGET_KEY, null) ?: return)
+        } catch (e: Exception) {
+            return
+        }
+        val to = target.optString("to")
+        if (!to.startsWith("ExponentPushToken")) return
+        prefs.edit().putLong(SENT_KEY, now).apply()
+        val body = JSONObject()
+            .put("to", to)
+            .put("priority", "high")
+            .put(
+                "data",
+                JSONObject()
+                    .put("type", "partner-panda")
+                    .put("action", gesture)
+                    .put("at", now)
+                    .put("name", target.optString("name"))
+            )
+            .toString()
+        Thread {
+            try {
+                val conn = java.net.URL("https://exp.host/--/api/v2/push/send").openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.connectTimeout = 8_000
+                conn.readTimeout = 8_000
+                conn.doOutput = true
+                conn.setRequestProperty("content-type", "application/json")
+                conn.setRequestProperty("accept", "application/json")
+                conn.outputStream.use { it.write(body.toByteArray()) }
+                conn.inputStream.use { it.readBytes() }
+                conn.disconnect()
+            } catch (e: Exception) {
+                // Best-effort: a lost tickle is only a lost giggle.
+            }
+        }.start()
+    }
+}
+
 class RepChampMessagingService : ExpoFirebaseMessagingService() {
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         val body = remoteMessage.data["body"]
         if (body != null) {
             try {
                 val data = JSONObject(body)
+                val type = data.optString("type")
+                if (type == "partner-tickle" || type == "partner-panda") {
+                    // Their gesture: both pandas play it on my widget, then settle.
+                    val gesture = if (type == "partner-tickle") "tickle" else data.optString("action", "tickle")
+                    Gesture.record(this, gesture, byMe = false)
+                    WaterWidgetProvider.refresh(this)
+                    TickleSound.play(this, gesture)
+                    try {
+                        Thread.sleep(WaterWidgetProvider.POKE_MS + 150L)
+                    } catch (e: InterruptedException) {
+                        // Settle now, then.
+                    }
+                    WaterWidgetProvider.refresh(this)
+                    return
+                }
                 if (data.optString("type") == "partner-water") {
                     val prefs = getSharedPreferences("repchamp.widget", MODE_PRIVATE).edit()
                     val widget = data.optJSONObject("widget")
@@ -3254,10 +3706,960 @@ function sceneResources() {
   };
 }
 
+/* ---------- The clean layout ---------- */
+
+/* The default look: a plain system card (white by day, graphite by night),
+   three metric tiles and one button. No illustration competing with the
+   numbers — the widget reads at a glance, like a Fitness or Weather widget. */
+
+const cleanTile = (id, value, you, pct) => `
+        <LinearLayout
+            android:id="@+id/c_${id}_tile"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="9dp"
+            android:background="@drawable/pc_tile">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/pc_${id}"
+                android:maxLines="1"
+                android:textColor="@color/pt_${id}"
+                android:textSize="10sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.06" />
+
+            <TextView
+                android:id="@+id/c_${id}_value"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:gravity="center_vertical"
+                android:text="${value}"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="@color/pt_text"
+                android:textSize="19sp"
+                android:fontFamily="sans-serif-medium"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/c_${id}_you"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="${you}"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="@color/pt_secondary"
+                android:textSize="10.5sp" />
+
+            <ProgressBar
+                android:id="@+id/c_${id}_bar"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="4dp"
+                android:layout_marginTop="6dp"
+                android:max="1000"
+                android:progress="${pct}"
+                android:progressDrawable="@drawable/pc_bar_${id}" />
+        </LinearLayout>`;
+
+const CLEAN_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/pt_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:paddingStart="14dp"
+    android:paddingEnd="14dp"
+    android:paddingTop="12dp"
+    android:paddingBottom="12dp"
+    android:background="@drawable/pt_bg">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/pt_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/pt_preview_title"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="@color/pt_text"
+            android:textSize="14sp"
+            android:fontFamily="sans-serif-medium"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:id="@+id/pt_live"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="6dp"
+            android:paddingEnd="7dp"
+            android:paddingTop="2dp"
+            android:paddingBottom="2dp"
+            android:visibility="gone"
+            android:background="@drawable/pt_live_pill">
+
+            <ProgressBar
+                android:layout_width="7dp"
+                android:layout_height="7dp"
+                android:indeterminate="true"
+                android:indeterminateOnly="true"
+                android:indeterminateDrawable="@drawable/pt_live_pulse" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:text="@string/pt_live"
+                android:textColor="@color/pt_live"
+                android:textSize="9sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.08" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/c_streak"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:paddingStart="7dp"
+            android:paddingEnd="7dp"
+            android:paddingTop="2dp"
+            android:paddingBottom="2dp"
+            android:background="@drawable/pt_chip"
+            android:text="🔥 4"
+            android:textColor="@color/pt_text"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="10dp"
+        android:orientation="horizontal">
+${cleanTile('water', '1.25 L', 'You 1 L', 625)}
+        <FrameLayout
+            android:id="@+id/c_gap1"
+            android:layout_width="6dp"
+            android:layout_height="match_parent" />
+${cleanTile('steps', '5,820', 'You 4,100', 730)}
+        <FrameLayout
+            android:id="@+id/c_gap2"
+            android:layout_width="6dp"
+            android:layout_height="match_parent" />
+${cleanTile('reps', '72', 'You 40', 1000)}
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/pt_footer"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="8dp"
+            android:text="@string/pd_preview_duel"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="@color/pt_secondary"
+            android:textSize="11.5sp" />
+
+        <TextView
+            android:id="@+id/d_drink"
+            android:layout_width="wrap_content"
+            android:layout_height="28dp"
+            android:gravity="center"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:background="@drawable/pc_drink"
+            android:text="@string/pc_drink"
+            android:contentDescription="@string/glance_drink"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+</LinearLayout>
+`;
+
+const cleanBar = (color) => `<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@android:id/background">
+        <shape>
+            <solid android:color="@color/pc_track" />
+            <corners android:radius="2dp" />
+        </shape>
+    </item>
+    <item android:id="@android:id/progress">
+        <scale android:scaleWidth="100%" android:scaleGravity="left">
+            <shape>
+                <solid android:color="${color}" />
+                <corners android:radius="2dp" />
+            </shape>
+        </scale>
+    </item>
+</layer-list>
+`;
+
+function cleanResources() {
+  return {
+    'layout/water_widget_clean.xml': CLEAN_LAYOUT_XML,
+    'drawable/pc_tile.xml': `<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/pt_chip" />
+    <corners android:radius="14dp" />
+</shape>
+`,
+    'drawable/pc_drink.xml': `<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/pc_accent" />
+    <corners android:radius="999dp" />
+</shape>
+`,
+    'drawable/pc_bar_water.xml': cleanBar('@color/pt_water'),
+    'drawable/pc_bar_steps.xml': cleanBar('@color/pt_steps'),
+    'drawable/pc_bar_reps.xml': cleanBar('@color/pt_reps'),
+  };
+}
+
+/* ---------- The panda layout ---------- */
+
+/* The default: their panda alone on the wallpaper — the vector panda from
+   `pandaArt.js` (the same drawing the app animates), hugging a bottle whose
+   water is the gauge. The widget stacks it as VectorDrawables: the panda
+   (body, head, eyes), a blink over the eyes, heart-eyes for a tap, the water
+   at the nearest 5 %, then the bottle's shine and the arms in front. Hearts
+   and bubbles are frame animations in the same 200 x 260 box. */
+
+const art = require('./pandaArt');
+
+const PANDA_FRAMES = 12;
+/** Water is drawn in 5 % steps: 21 drawables, picked by name at render time. */
+const WATER_STEPS = 20;
+
+/** "#RRGGBB" with an opacity as "#AARRGGBB" for a gradient stop. */
+function argb(hex, alpha) {
+  if (alpha == null) return hex;
+  const a = Math.round(Math.max(0, Math.min(1, alpha)) * 255).toString(16).padStart(2, '0').toUpperCase();
+  return `#${a}${hex.slice(1)}`;
+}
+
+/** One drawing part as VectorDrawable XML (gradients via aapt). */
+function vectorPart(part) {
+  const attrs = [`android:pathData="${part.d}"`];
+  let inner = '';
+  const fill = part.fill ?? 'none';
+  if (fill.startsWith('grad:')) {
+    const g = art.GRADIENTS[fill.slice(5)];
+    const items = g.stops.map(([o, c, a]) => `                <item android:offset="${o}" android:color="${argb(c, a)}" />`).join('\n');
+    let head;
+    if (g.type === 'linear') {
+      head = `<gradient android:type="linear" android:startX="${g.x1}" android:startY="${g.y1}" android:endX="${g.x2}" android:endY="${g.y2}">`;
+    } else {
+      const [cx, cy, rr] = g.relative && part.box ? art.gradientCircle(g, part.box) : [g.cx, g.cy, g.r];
+      head = `<gradient android:type="radial" android:centerX="${round(cx)}" android:centerY="${round(cy)}" android:gradientRadius="${round(rr)}">`;
+    }
+    inner = `
+        <aapt:attr name="android:fillColor">
+            ${head}
+${items}
+            </gradient>
+        </aapt:attr>
+    `;
+  } else if (fill !== 'none') {
+    attrs.push(`android:fillColor="${fill}"`);
+  }
+  if (part.stroke) {
+    attrs.push(`android:strokeColor="${part.stroke}"`, `android:strokeWidth="${part.width}"`, 'android:strokeLineCap="round"', 'android:strokeLineJoin="round"');
+  }
+  if (part.opacity != null) {
+    attrs.push(`android:fillAlpha="${part.opacity}"`);
+    if (part.stroke) attrs.push(`android:strokeAlpha="${part.opacity}"`);
+  }
+  return inner ? `    <path ${attrs.join(' ')}>${inner}</path>` : `    <path ${attrs.join(' ')} />`;
+}
+
+/** A whole drawable in the 200 x 260 box, sized like the widget's frame. */
+/**
+ * A drawable of nested groups: each group is { parts, rotation, pivotX,
+ * pivotY, translateX, translateY, scaleX, scaleY, children }. VectorDrawable
+ * groups do the transforms, so a tilted or bobbing frame is the same art.
+ */
+function pandaVectorGroups(groups) {
+  const render = (g, pad) => {
+    const attrs = ['rotation', 'pivotX', 'pivotY', 'translateX', 'translateY', 'scaleX', 'scaleY']
+      .filter((k) => g[k] != null)
+      .map((k) => `android:${k}="${round(g[k])}"`)
+      .join(' ');
+    const inner = [
+      ...(g.parts ?? []).map((p) => vectorPart(p).replace(/^ {4}/gm, pad + '    ')),
+      ...(g.children ?? []).map((c) => render(c, pad + '    ')),
+    ].join('\n');
+    return `${pad}<group ${attrs}>\n${inner}\n${pad}</group>`;
+  };
+  return `<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="124dp" android:height="161dp"
+    android:viewportWidth="${art.W}" android:viewportHeight="${art.H}">
+${groups.map((g) => render(g, '    ')).join('\n')}
+</vector>
+`;
+}
+
+function pandaVector(parts) {
+  const body = parts.length
+    ? parts.map(vectorPart).join('\n')
+    : '    <path android:fillColor="#00000000" android:pathData="M0,0 L1,0 L1,1 Z" />';
+  return `<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="124dp" android:height="161dp"
+    android:viewportWidth="${art.W}" android:viewportHeight="${art.H}">
+${body}
+</vector>
+`;
+}
+
+/* Bubbles rising up the water column to `reach` of a full bottle. */
+function pandaBubbleFrame(frame, reach) {
+  const lanes = [
+    { off: -3.5, size: 2.4, phase: 0 },
+    { off: 3.5, size: 1.9, phase: 0.25 },
+    { off: -0.5, size: 2.9, phase: 0.5 },
+    { off: 2, size: 1.7, phase: 0.75 },
+  ];
+  return pandaVector(
+    lanes.map(({ off, size, phase }) => {
+      const p = (frame / PANDA_FRAMES + phase) % 1;
+      const [x, y] = art.bottleAxis(p * reach);
+      const alpha = p > 0.8 ? round(0.9 * (1 - (p - 0.8) / 0.2)) : 0.9;
+      return {
+        d: `M${round(x + off - size + Math.sin(p * Math.PI * 4))},${round(y)} a${size},${size} 0 1,1 ${size * 2},0 a${size},${size} 0 1,1 ${-size * 2},0 Z`,
+        fill: '#FFFFFF',
+        stroke: '#7DD3FC',
+        width: 0.7,
+        opacity: alpha,
+      };
+    }),
+  );
+}
+
+/* Hearts floating up off the panda's head and fading. */
+function pandaDropFrame(frame, colors) {
+  // A water drop, point up.
+  const heart = (cx, cy, rr) =>
+    `M${round(cx)},${round(cy - rr * 1.5)} Q${round(cx + rr)},${round(cy - rr * 0.2)} ${round(cx + rr)},${round(cy + rr * 0.3)} ` +
+    `A${round(rr)},${round(rr)} 0 1,1 ${round(cx - rr)},${round(cy + rr * 0.3)} Q${round(cx - rr)},${round(cy - rr * 0.2)} ${round(cx)},${round(cy - rr * 1.5)} Z`;
+  const p = frame / PANDA_FRAMES;
+  return pandaVector(
+    [
+      { x: 52, d: 0, rr: 8 },
+      { x: 100, d: 0.18, rr: 10.5 },
+      { x: 148, d: 0.36, rr: 7.5 },
+    ].map(({ x, d, rr }, i) => {
+      const q = (p + 1 - d) % 1;
+      const cy = 52 - q * 42;
+      const cx = x + Math.sin(q * Math.PI * 2) * 5;
+      const alpha = q < 0.12 ? round(q / 0.12) : q > 0.7 ? round(1 - (q - 0.7) / 0.3) : 1;
+      return { d: heart(cx, cy, rr * (0.7 + 0.3 * Math.min(1, q * 4))), fill: colors[i % colors.length], opacity: alpha };
+    }),
+  );
+}
+
+/* Just the panda: no card, no text block — it sits on the wallpaper. A small
+   caption under it (with a shadow, so it reads on any wallpaper) and a drop
+   button to log my own water are all that ride along. */
+const layer = (id, src, extra = '') => `
+            <ImageView
+                android:id="@+id/${id}"
+                android:layout_width="124dp"
+                android:layout_height="161dp"
+                android:scaleType="fitCenter"
+                android:importantForAccessibility="no"
+                android:src="@drawable/${src}"${extra} />`;
+const anim = (id, src, visible = false) => `
+            <ProgressBar
+                android:id="@+id/${id}"
+                android:layout_width="124dp"
+                android:layout_height="161dp"
+                android:indeterminate="true"
+                android:indeterminateOnly="true"
+                android:indeterminateDrawable="@drawable/${src}"
+                android:visibility="${visible ? 'visible' : 'gone'}" />`;
+
+const GESTURES = ['tickle', 'boop', 'hug', 'highfive', 'cheers'];
+/** Gestures whose two sides differ: the one giving and the one receiving. */
+const ROLED = ['tickle', 'boop'];
+const sideAnims = (side) =>
+  GESTURES.flatMap((g) => (ROLED.includes(g) ? ['give', 'get'] : ['both']).map((role) => anim(`g_${side}_${g}_${role}`, `pw_g_${side}_${g}_${role}`))).join('\n');
+
+/* Their panda alone on the wallpaper. Every gesture plays on it — the ones
+   I send (it receives them) and the ones they send (it gives them) — with a
+   little burst by its head. */
+const BEAR_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/pt_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center">
+
+    <FrameLayout
+        android:layout_width="160dp"
+        android:layout_height="161dp">
+
+        <FrameLayout
+            android:id="@+id/b_tap"
+            android:layout_width="124dp"
+            android:layout_height="161dp"
+            android:layout_gravity="center_horizontal"
+            android:contentDescription="@string/pb_bear">
+${layer('b_body', 'pw_body')}
+${layer('b_feet_still', 'pw_feet', '\n                android:visibility="gone"')}
+${anim('b_feet_live', 'pw_feet_live', true)}
+${anim('b_head_live', 'pw_head_live', true)}
+${anim('b_walk_feet', 'pw_walk_feet')}
+${anim('b_walk_head', 'pw_walk_head')}
+${layer('b_head_still', 'pw_head_still', '\n                android:visibility="gone"')}
+${layer('b_eyes', 'pw_eyes', '\n                android:visibility="gone"')}
+${layer('b_mouth', 'pw_mouth', '\n                android:visibility="gone"')}
+${layer('b_love', 'pw_love', '\n                android:visibility="gone"')}
+${sideAnims('them')}
+${layer('b_bottle', 'pw_bottle')}
+${layer('b_water', 'pw_water_20')}
+${layer('b_front', 'pw_front')}
+${[0, 1, 2, 3, 4].map((k) => anim(`b_sip_${k}`, `pw_sip_drink_${k}`)).join('\n')}
+${anim('b_bubbles_high', 'pw_bubbles_high')}
+${anim('b_bubbles_low', 'pw_bubbles_low')}
+${anim('b_pour', 'pw_sip')}
+        </FrameLayout>
+
+        <FrameLayout
+            android:layout_width="64dp"
+            android:layout_height="88dp"
+            android:layout_gravity="start|top">
+${GESTURES.map((g) => `
+            <ProgressBar
+                android:id="@+id/g_burst_${g}"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:indeterminate="true"
+                android:indeterminateOnly="true"
+                android:indeterminateDrawable="@drawable/pw_burst_${g}"
+                android:visibility="gone" />`).join('\n')}
+        </FrameLayout>
+
+        <ProgressBar
+            android:id="@+id/pt_live"
+            android:layout_width="10dp"
+            android:layout_height="10dp"
+            android:layout_gravity="top|end"
+            android:layout_marginTop="30dp"
+            android:layout_marginEnd="26dp"
+            android:indeterminate="true"
+            android:indeterminateOnly="true"
+            android:indeterminateDrawable="@drawable/pt_live_pulse"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/d_drink"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_gravity="bottom|end"
+            android:gravity="center"
+            android:background="@drawable/pb_drop_btn"
+            android:text="💧"
+            android:textSize="15sp"
+            android:contentDescription="@string/glance_drink" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/b_caption"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text="Alex · 1.25 L"
+        android:maxLines="1"
+        android:textColor="#FFFFFF"
+        android:textSize="13sp"
+        android:fontFamily="sans-serif-medium"
+        android:textStyle="bold"
+        android:shadowColor="#99000000"
+        android:shadowDy="1"
+        android:shadowRadius="4" />
+</LinearLayout>
+`;
+
+/** The widget shows the partner, so it is their panda: the hoodie one. */
+const WIDGET_OUTFIT = 'hoodie';
+/** Sip animations are drawn for these amounts left in the bottle (0..4 -> 0 %..100 %). */
+const SIP_BUCKETS = 4;
+
+/* One loop of a drink: lift, two gulps at the lips, lower, then rest. */
+const SIP_STEPS = [
+  { t: 0, ms: 1600 },
+  { t: 0.35, ms: 90 },
+  { t: 0.7, ms: 90 },
+  { t: 1, ms: 180, gulp: false },
+  { t: 1, ms: 200, gulp: true },
+  { t: 1, ms: 200, gulp: false },
+  { t: 1, ms: 200, gulp: true },
+  { t: 0.7, ms: 90 },
+  { t: 0.35, ms: 90 },
+];
+
+function sipFrame(level, step) {
+  const pose = art.lerpPose(art.REST, art.SIP, step.t);
+  const up = step.t >= 0.6;
+  const parts = [];
+  if (up) parts.push(...art.EYES.flatMap((e) => art.lidParts(e, 'happy')));
+  parts.push(...art.mouthParts(up ? (step.gulp ? 'gulp' : 'sip') : 'smile'));
+  parts.push(...art.bottleBackParts(pose));
+  const water = art.waterPath(level, pose, 0.8);
+  if (water) parts.push({ d: water, fill: 'grad:water', opacity: 0.9 });
+  parts.push(...art.bottleFrontParts(pose), ...art.armParts(WIDGET_OUTFIT, pose));
+  return pandaVector(parts);
+}
+
+/** The neck, where a head tilt pivots (drawing coordinates). */
+const NECK_PIVOT = [100, 0.67 * 260];
+/* The fur drift: few phases, each shown a little longer, to keep the
+   launcher's cached frames (one bitmap each) small. */
+const FUR_CYCLE = 8;
+const FUR_MS = 190;
+
+/** One head frame: ears, face, fur at a drift phase, eyes, nose, mouth. */
+function headFrame(o, { tilt = 0, sniff = 0, eyes = 'open', mouth = 'smile', fur = 0, bob = 0 } = {}) {
+  const ph = (fur / FUR_CYCLE) * Math.PI * 2;
+  const furD = art.crownFur(Math.sin(ph) * 0.45 - tilt * 0.08, bob * 0.6, fur * 0.12, art.FUR_KIND[o]);
+  const eyeParts =
+    eyes === 'open'
+      ? art.EYES.flatMap((e) => art.eyeParts(e, art.EYE_LOOK[o]))
+      : eyes === 'shut'
+        ? art.EYES.flatMap((e) => [...art.eyeWhiteParts(e), ...art.lidParts(e, 'shut')])
+        : eyes === 'happy'
+          ? art.EYES.flatMap((e) => [...art.eyeWhiteParts(e), ...art.lidParts(e, 'happy')])
+          : [];
+  return pandaVectorGroups([
+    {
+      rotation: tilt,
+      pivotX: NECK_PIVOT[0],
+      pivotY: NECK_PIVOT[1],
+      translateY: -bob * 5,
+      parts: [...art.headParts(o, { nose: false })],
+      children: [
+        { pivotX: art.NOSE[0], pivotY: art.NOSE[1], scaleX: 1 + sniff * 0.12, scaleY: 1 - sniff * 0.1, parts: art.noseParts() },
+        {
+          rotation: 0,
+          parts: [
+            ...eyeParts,
+            ...(mouth === 'none' ? [] : art.mouthParts(mouth)),
+            ...art.doodleParts(o),
+            { d: furD.replace(/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/g, (_, x, y) => `${round(+x + 1.1)},${round(+y + 1.5)}`), fill: '#A5AFC6', opacity: 0.7 },
+            { d: furD, fill: 'grad:fur' },
+          ],
+        },
+      ],
+    },
+  ]);
+}
+
+/** Feet frame: each leg swung about its hip by `kick` (-1..1). */
+function feetFrame(kick) {
+  return pandaVectorGroups([
+    { rotation: -kick * 14, pivotX: art.HIPS[0][0], pivotY: art.HIPS[0][1], parts: art.footParts(0) },
+    { rotation: kick * -10 * (kick < 0 ? -1.3 : 1), pivotX: art.HIPS[1][0], pivotY: art.HIPS[1][1], parts: art.footParts(1) },
+  ]);
+}
+
+/**
+ * The idle script: what happens, and for how long. Both timelines walk it, so
+ * they stay the same length and play in step.
+ */
+const IDLE_SCRIPT = [
+  ['calm', 3520],
+  ['sniff'],
+  ['calm', 1760],
+  ['blink'],
+  ['calm', 1760],
+  ['tilt', 1],
+  ['calm', 2640],
+  ['kick'],
+  ['calm', 880],
+  ['blink'],
+  ['calm', 1760],
+  ['blep', 1400],
+  ['calm', 1760],
+  ['bob'],
+  ['calm', 1760],
+  ['tilt', -0.7],
+  ['calm', 1320],
+  ['blink'],
+  ['kick'],
+  ['calm', 880],
+];
+
+function idleTimelines(o) {
+  const files = {};
+  const head = [];
+  const feet = [];
+  let furIdx = 0;
+  const unique = new Map();
+  /* Poses (a tilt, a blep, a blink…) hold the fur still, so each is one
+     frame rather than a whole drift cycle. */
+  const headAt = (opts, drift = false) => {
+    const all = { ...opts, fur: drift ? furIdx % FUR_CYCLE : 0 };
+    const key = JSON.stringify(all);
+    if (!unique.has(key)) {
+      const name = `pw_h_${unique.size}`;
+      unique.set(key, name);
+      files[`drawable/${name}.xml`] = headFrame(o, all);
+    }
+    return unique.get(key);
+  };
+  /* Calm: fur drifting through its cycle, one frame per step. */
+  const calm = (ms, opts = {}) => {
+    let left = ms;
+    while (left > 0) {
+      const d = Math.min(FUR_MS, left);
+      head.push([headAt(opts, true), d]);
+      furIdx++;
+      left -= d;
+    }
+  };
+  const still = (ms) => feet.push(['pw_feet', ms]);
+  for (const [kind, arg] of IDLE_SCRIPT) {
+    if (kind === 'calm') {
+      calm(arg);
+      still(arg);
+    } else if (kind === 'blink') {
+      head.push([headAt({ eyes: 'shut' }), 130]);
+      still(130);
+    } else if (kind === 'sniff') {
+      for (const [sn, ms] of [[1, 70], [0, 90], [1, 70], [0, 90]]) head.push([headAt({ sniff: sn }), ms]);
+      still(320);
+    } else if (kind === 'tilt') {
+      let total = 0;
+      for (const k of [0.3, 0.65, 1.08, 1]) {
+        head.push([headAt({ tilt: k * arg * 11 }), 70]);
+        total += 70;
+      }
+      head.push([headAt({ tilt: arg * 11 }), 1100]);
+      total += 1100;
+      for (const k of [0.7, 0.35, 0]) {
+        head.push([headAt({ tilt: k * arg * 11 }), 80]);
+        total += 80;
+      }
+      still(total);
+    } else if (kind === 'blep') {
+      head.push([headAt({ mouth: 'blep' }), arg]);
+      still(arg);
+    } else if (kind === 'bob') {
+      const bob = [-0.6, 0.4, 1, 0.6, 0.2, 0];
+      for (const b of bob) head.push([headAt({ bob: b }), 90]);
+      still(bob.length * 90);
+    } else if (kind === 'kick') {
+      const steps = [[1, 120], [-1, 140], [0.8, 130], [-0.3, 110], [0, 90]];
+      let total = 0;
+      for (const [k, ms] of steps) {
+        const name = `pw_f_${String(k).replace('-', 'm').replace('.', 'p')}`;
+        if (!files[`drawable/${name}.xml`]) files[`drawable/${name}.xml`] = feetFrame(k);
+        feet.push([name, ms]);
+        total += ms;
+      }
+      calm(total);
+    }
+  }
+  const list = (items) => `<?xml version="1.0" encoding="utf-8"?>
+<animation-list xmlns:android="http://schemas.android.com/apk/res/android" android:oneshot="false">
+${items.map(([n, ms]) => `    <item android:drawable="@drawable/${n}" android:duration="${ms}" />`).join('\n')}
+</animation-list>
+`;
+  files['drawable/pw_head_live.xml'] = list(head);
+  files['drawable/pw_feet_live.xml'] = list(feet);
+  return files;
+}
+
+/** How long a gesture plays on the widget. */
+const GESTURE_MS = 2600;
+
+/**
+ * The head frames of one side of a gesture: `[options, ms]`. `toward` is +1
+ * for my panda (on the left, leaning right) and -1 for theirs.
+ */
+function gestureSteps(gesture, role, toward) {
+  const t = (deg) => deg * toward;
+  switch (gesture) {
+    case 'hug':
+      return [
+        [{ tilt: t(5), eyes: 'happy' }, 90],
+        [{ tilt: t(11), eyes: 'happy' }, 90],
+        [{ tilt: t(15), eyes: 'happy' }, 1500],
+        [{ tilt: t(9), eyes: 'happy' }, 110],
+        [{ tilt: t(3), eyes: 'open' }, 810],
+      ];
+    case 'highfive':
+      return [
+        [{ bob: -0.5, tilt: t(3), eyes: 'happy' }, 110],
+        [{ bob: 0.6, tilt: t(7), eyes: 'happy' }, 110],
+        [{ bob: 1, tilt: t(8), eyes: 'happy' }, 400],
+        [{ bob: 0.4, tilt: t(5), eyes: 'happy' }, 120],
+        [{ bob: 0, tilt: t(2), eyes: 'happy' }, 1860],
+      ];
+    case 'cheers':
+      return [
+        [{ tilt: t(5), eyes: 'happy' }, 120],
+        [{ tilt: t(9), eyes: 'happy', mouth: 'smile' }, 500],
+        [{ tilt: t(9), eyes: 'happy', mouth: 'sip' }, 400],
+        [{ tilt: t(9), eyes: 'happy', mouth: 'gulp' }, 300],
+        [{ tilt: t(9), eyes: 'happy', mouth: 'sip' }, 300],
+        [{ tilt: t(4), eyes: 'open' }, 980],
+      ];
+    case 'boop':
+      return role === 'give'
+        ? [
+            [{ tilt: t(8), eyes: 'open' }, 90],
+            [{ tilt: t(14), eyes: 'happy' }, 220],
+            [{ tilt: t(6), eyes: 'happy' }, 140],
+            [{ tilt: 0, eyes: 'open' }, 2150],
+          ]
+        : [
+            [{ tilt: t(-6), eyes: 'shut', sniff: 1.6, mouth: 'o' }, 140],
+            [{ tilt: t(-4), eyes: 'shut', sniff: 0, mouth: 'o' }, 140],
+            [{ tilt: t(-2), eyes: 'open', sniff: 1.2, mouth: 'o' }, 140],
+            [{ tilt: 0, eyes: 'happy', sniff: 0, mouth: 'smile' }, 2180],
+          ];
+    default:
+      // tickle
+      return role === 'give'
+        ? [
+            [{ tilt: t(6), eyes: 'happy' }, 160],
+            [{ tilt: t(9), eyes: 'happy' }, 160],
+            [{ tilt: t(5), eyes: 'happy' }, 160],
+            [{ tilt: t(9), eyes: 'happy' }, 160],
+            [{ tilt: t(3), eyes: 'happy' }, 1960],
+          ]
+        : [
+            [{ tilt: 8, bob: 0.3, eyes: 'happy' }, 95],
+            [{ tilt: -8, bob: 0.6, eyes: 'happy' }, 95],
+            [{ tilt: 8, bob: 0.3, eyes: 'happy' }, 95],
+            [{ tilt: -8, bob: 0.6, eyes: 'happy' }, 95],
+            [{ tilt: 8, bob: 0.3, eyes: 'happy' }, 95],
+            [{ tilt: -8, bob: 0.6, eyes: 'happy' }, 95],
+            [{ tilt: 8, bob: 0.3, eyes: 'happy' }, 95],
+            [{ tilt: -8, bob: 0.6, eyes: 'happy' }, 95],
+            [{ tilt: 0, bob: 0, eyes: 'happy' }, 1840],
+          ];
+  }
+}
+
+/** The little burst between the pandas, per gesture. */
+function burstFrame(gesture, f, n) {
+  const k = f / (n - 1);
+  const star = (x, y, rr) =>
+    `M${round(x)},${round(y - rr)} L${round(x + rr * 0.3)},${round(y - rr * 0.3)} L${round(x + rr)},${round(y)} L${round(x + rr * 0.3)},${round(y + rr * 0.3)} L${round(x)},${round(y + rr)} L${round(x - rr * 0.3)},${round(y + rr * 0.3)} L${round(x - rr)},${round(y)} L${round(x - rr * 0.3)},${round(y - rr * 0.3)} Z`;
+  const ring = (x, y, rr) => `M${round(x - rr)},${round(y)} a${round(rr)},${round(rr)} 0 1,1 ${round(rr * 2)},0 a${round(rr)},${round(rr)} 0 1,1 ${round(-rr * 2)},0`;
+  const drop = (x, y, rr) =>
+    `M${round(x)},${round(y - rr * 1.8)} Q${round(x + rr)},${round(y - rr * 0.4)} ${round(x + rr)},${round(y)} a${round(rr)},${round(rr)} 0 1,1 ${round(-rr * 2)},0 Q${round(x - rr)},${round(y - rr * 0.4)} ${round(x)},${round(y - rr * 1.8)} Z`;
+  const fade = k < 0.75 ? 1 : round(1 - (k - 0.75) / 0.25);
+  const W2 = 100;
+  const H2 = 137;
+  const cx = W2 / 2;
+  const cy = 52;
+  let parts;
+  if (gesture === 'hug') {
+    // Warm pink sparkles drifting up, and a soft glow ring opening.
+    parts = [
+      { d: ring(cx, cy + 6, 8 + k * 26), stroke: '#FF8FB1', width: 2.4, opacity: round(0.8 * (1 - k)) },
+      { d: star(cx - 14, cy - k * 30, 5 + k * 2), fill: '#FF7FA0', opacity: fade },
+      { d: star(cx + 16, cy + 8 - k * 34, 4), fill: '#FFB3C6', opacity: fade },
+      { d: star(cx, cy - 10 - k * 24, 3.5), fill: '#FFD24A', opacity: fade },
+    ];
+  } else if (gesture === 'highfive') {
+    // A bright star-burst where the paws meet.
+    const rays = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => {
+      const ang = (i / 8) * Math.PI * 2;
+      const r0 = 6 + k * 12;
+      const r1 = r0 + 9 - k * 4;
+      return `M${round(cx + Math.cos(ang) * r0)},${round(cy + Math.sin(ang) * r0)} L${round(cx + Math.cos(ang) * r1)},${round(cy + Math.sin(ang) * r1)}`;
+    });
+    parts = [
+      { d: rays.join(' '), stroke: '#FFC93C', width: 3, opacity: fade },
+      { d: star(cx, cy, 9 - k * 4), fill: '#FFE07A', opacity: fade },
+    ];
+  } else if (gesture === 'cheers') {
+    // Droplets splashing up from the clink.
+    parts = [
+      { d: drop(cx - 6 - k * 14, cy - k * 22, 3.6), fill: '#5EB4FF', opacity: fade },
+      { d: drop(cx + 6 + k * 14, cy - k * 20, 3.2), fill: '#8AD6FF', opacity: fade },
+      { d: drop(cx, cy - 6 - k * 30, 3), fill: '#3B8CF0', opacity: fade },
+      { d: star(cx, cy + 4, 6 * (1 - k) + 2), fill: '#FFFFFF', opacity: fade },
+    ];
+  } else if (gesture === 'boop') {
+    // A little impact pop by their nose.
+    const lines = [0, 1, 2].map((i) => {
+      const ang = -Math.PI / 2 + (i - 1) * 0.6;
+      const r0 = 5 + k * 6;
+      return `M${round(cx + 18 + Math.cos(ang) * r0)},${round(cy + 22 + Math.sin(ang) * r0)} L${round(cx + 18 + Math.cos(ang) * (r0 + 7))},${round(cy + 22 + Math.sin(ang) * (r0 + 7))}`;
+    });
+    parts = [{ d: lines.join(' '), stroke: '#3B8CF0', width: 2.6, opacity: fade }, { d: star(cx + 18, cy + 22, 3 + k * 3), fill: '#FFD24A', opacity: fade }];
+  } else {
+    // Tickle: wiggle lines either side and a sparkle.
+    const wig = (x, dir) =>
+      [0, 1, 2]
+        .map((i) => {
+          const y = cy - 6 + i * 11 + (f % 2) * 3;
+          return `M${round(x)},${round(y)} Q${round(x + dir * 5)},${round(y - 4)} ${round(x + dir * 10)},${round(y + 1)}`;
+        })
+        .join(' ');
+    parts = [
+      { d: `${wig(cx - 18, -1)} ${wig(cx + 18, 1)}`, stroke: '#3B8CF0', width: 2.4, opacity: fade },
+      { d: star(cx, cy - 18 - (f % 3) * 3, 4), fill: '#FFD24A', opacity: fade },
+    ];
+  }
+  return `<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="80dp" android:height="110dp"
+    android:viewportWidth="${W2}" android:viewportHeight="${H2}">
+${parts.map((pp) => vectorPart(pp)).join('\n')}
+</vector>
+`;
+}
+
+/**
+ * Every gesture's frames for their panda (frames are shared between gestures
+ * wherever the pose is the same), and each gesture's burst.
+ */
+function gestureResources() {
+  const files = {};
+  const unique = new Map();
+  const frameFor = (outfit, opts) => {
+    const all = { mouth: 'smile', ...opts, fur: 0 };
+    const key = outfit + JSON.stringify(all);
+    if (!unique.has(key)) {
+      const name = `pw_gf_${unique.size}`;
+      unique.set(key, name);
+      files[`drawable/${name}.xml`] = headFrame(outfit, all);
+    }
+    return unique.get(key);
+  };
+  const list = (items) => `<?xml version="1.0" encoding="utf-8"?>
+<animation-list xmlns:android="http://schemas.android.com/apk/res/android" android:oneshot="false">
+${items.map(([n, ms]) => `    <item android:drawable="@drawable/${n}" android:duration="${ms}" />`).join('\n')}
+</animation-list>
+`;
+  // Their panda faces left on the widget, as it does beside mine in the app.
+  for (const [side, outfit, toward] of [['them', WIDGET_OUTFIT, -1]]) {
+    for (const g of GESTURES) {
+      for (const role of ROLED.includes(g) ? ['give', 'get'] : ['both']) {
+        const steps = gestureSteps(g, role, toward).map(([opts, ms]) => [frameFor(outfit, opts), ms]);
+        files[`drawable/pw_g_${side}_${g}_${role}.xml`] = list(steps);
+      }
+    }
+  }
+  for (const g of GESTURES) {
+    const n = 8;
+    for (let f = 0; f < n; f++) files[`drawable/pw_burst_${g}_${f}.xml`] = burstFrame(g, f, n);
+    files[`drawable/pw_burst_${g}.xml`] = animationList(`pw_burst_${g}`, n, Math.round(GESTURE_MS / n));
+  }
+  return files;
+}
+
+function bearResources() {
+  const o = WIDGET_OUTFIT;
+  const files = {
+    'layout/water_widget_bear.xml': BEAR_LAYOUT_XML,
+    'drawable/pw_body.xml': pandaVector(art.backParts(o, { feet: false })),
+    'drawable/pw_feet.xml': pandaVector([...art.footParts(0), ...art.footParts(1)]),
+    'drawable/pw_head_still.xml': headFrame(o, { eyes: 'none', mouth: 'none', fur: 0 }),
+    'drawable/pw_eyes.xml': pandaVector(art.EYES.flatMap((e) => art.eyeParts(e, art.EYE_LOOK[o]))),
+    'drawable/pw_mouth.xml': pandaVector(art.mouthParts('smile')),
+    'drawable/pw_bottle.xml': pandaVector(art.bottleBackParts(art.REST)),
+    'drawable/pw_front.xml': pandaVector([...art.bottleFrontParts(art.REST), ...art.armParts(o, art.REST)]),
+    'drawable/pw_love.xml': pandaVector(art.EYES.flatMap((e) => art.eyeParts(e, 'love'))),
+  };
+  /* Idle life, as two frame timelines of the same length that start together:
+     the head (fur drifting, blinks, a sniff, curious tilts, a blep, a happy
+     bob) and the feet (a kick-kick now and then). */
+  Object.assign(files, idleTimelines(o));
+  Object.assign(files, gestureResources());
+  /* Walking: when their step count goes up, the panda marches on the spot —
+     feet stepping left-right, head bobbing in time, a little smile. */
+  const WALK = [
+    [{ tilt: 3, bob: 0.35 }, 0.9],
+    [{ tilt: 0, bob: 0 }, 0],
+    [{ tilt: -3, bob: 0.35 }, -0.9],
+    [{ tilt: 0, bob: 0 }, 0],
+  ];
+  WALK.forEach(([head, kick], i) => {
+    files[`drawable/pw_wh_${i}.xml`] = headFrame(o, { ...head, eyes: 'open', mouth: 'smile', fur: i * 2 });
+    files[`drawable/pw_wf_${i}.xml`] = feetFrame(kick);
+  });
+  files['drawable/pw_walk_head.xml'] = animationList('pw_wh', WALK.length, 170);
+  files['drawable/pw_walk_feet.xml'] = animationList('pw_wf', WALK.length, 170);
+  /* The bottle holds what is left of their day: 21 steps from empty to full. */
+  for (let i = 0; i <= WATER_STEPS; i++) {
+    const d = art.waterPath(i / WATER_STEPS, art.REST, 0.8);
+    files[`drawable/pw_water_${i}.xml`] = pandaVector(d ? [{ d, fill: 'grad:water', opacity: 0.9 }] : []);
+  }
+  /* The drink, for each bucket of what is left. */
+  for (let bkt = 0; bkt <= SIP_BUCKETS; bkt++) {
+    const items = SIP_STEPS.map((step, f) => {
+      files[`drawable/pw_sip_${bkt}_${f}.xml`] = sipFrame(bkt / SIP_BUCKETS, step);
+      return `    <item android:drawable="@drawable/pw_sip_${bkt}_${f}" android:duration="${step.ms}" />`;
+    });
+    files[`drawable/pw_sip_drink_${bkt}.xml`] = `<?xml version="1.0" encoding="utf-8"?>
+<animation-list xmlns:android="http://schemas.android.com/apk/res/android" android:oneshot="false">
+${items.join('\n')}
+</animation-list>
+`;
+  }
+  for (const [name, reach] of [['high', 0.78], ['low', 0.3]]) {
+    for (let f = 0; f < PANDA_FRAMES; f++) files[`drawable/pw_bubbles_${name}_${f}.xml`] = pandaBubbleFrame(f, reach);
+    files[`drawable/pw_bubbles_${name}.xml`] = animationList(`pw_bubbles_${name}`, PANDA_FRAMES, 110);
+  }
+  /* A tap: pink hearts. They just drank: blue ones, like the painting's doodle. */
+  for (let f = 0; f < PANDA_FRAMES; f++) {
+    files[`drawable/pw_sip_${f}.xml`] = pandaDropFrame(f, ['#38BDF8', '#3B82F6', '#60A5FA']);
+  }
+  files['drawable/pw_sip.xml'] = animationList('pw_sip', PANDA_FRAMES, 140);
+  /* The drop button: a white disc with a soft rim, so it reads on any wallpaper. */
+  files['drawable/pb_drop_btn.xml'] = `<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <solid android:color="#F2FFFFFF" />
+    <stroke android:width="1dp" android:color="#1A000000" />
+</shape>
+`;
+  return files;
+}
+
 const WATER_INFO_XML = `<?xml version="1.0" encoding="utf-8"?>
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:initialLayout="@layout/water_widget_scene"
-    android:previewLayout="@layout/water_widget_scene"
+    android:initialLayout="@layout/water_widget_bear"
+    android:previewLayout="@layout/water_widget_bear"
     android:description="@string/water_widget_description"
     android:minWidth="280dp"
     android:minHeight="140dp"
@@ -3362,6 +4764,8 @@ const COLORS_XML = `<?xml version="1.0" encoding="utf-8"?>
     <color name="pt_reps">#E0184A</color>
     <color name="pt_live">#248A3D</color>
     <color name="pt_live_bg">#2234C759</color>
+    <color name="pc_track">#E5E5EA</color>
+    <color name="pc_accent">#0A84FF</color>
 </resources>
 `;
 
@@ -3376,12 +4780,34 @@ const COLORS_NIGHT_XML = `<?xml version="1.0" encoding="utf-8"?>
     <color name="pt_reps">#FF375F</color>
     <color name="pt_live">#30D158</color>
     <color name="pt_live_bg">#2630D158</color>
+    <color name="pc_track">#3A3A3C</color>
+    <color name="pc_accent">#0A84FF</color>
 </resources>
 `;
 
 const WATER_STRINGS = {
   water_widget_label: 'Partner today',
-  water_widget_description: 'Your bears in a tug-of-war under the real sky — water, steps and reps, live. Drink right from the widget.',
+  water_widget_description: 'Your partner’s panda, right on your wallpaper — its bottle fills live as they drink. Tap it for a little love.',
+  pc_water: 'WATER',
+  pc_steps: 'STEPS',
+  pc_reps: 'REPS',
+  pc_drink: '+ 250 ml',
+  pc_title: '%1$s & you · Today',
+  pb_tickled: '%1$s tickled you 🤭',
+  pb_walking: '%1$s is walking · +%2$s steps 👟',
+  pg_sent_tickle: 'You tickled %1$s 🤭',
+  pg_got_tickle: '%1$s tickled you 🤭',
+  pg_sent_boop: 'Boop! on %1$s 👉',
+  pg_got_boop: '%1$s booped your nose 👉',
+  pg_sent_hug: 'You hugged %1$s 🤗',
+  pg_got_hug: '%1$s sent you a hug 🤗',
+  pg_sent_highfive: 'High five, %1$s! ✋',
+  pg_got_highfive: '%1$s high-fived you ✋',
+  pg_sent_cheers: 'Cheers with %1$s 🥂',
+  pg_got_cheers: '%1$s says cheers 🥂 take a sip!',
+  pb_bear: 'Your partner’s panda, its bottle filled with what they drank today',
+  pb_preview_name: 'Alex',
+  pb_no_sips: 'No sips yet today',
   pd_title_empty: 'Partner vs you',
   pd_new_day: 'New day — first sip wins ☀️',
   pd_partner: 'Partner',
@@ -3418,6 +4844,8 @@ function waterResources() {
     'values-night/pt_colors.xml': COLORS_NIGHT_XML,
     ...THEME_DRAWABLES,
     ...duoResources(),
+    ...cleanResources(),
+    ...bearResources(),
     ...sceneResources(),
     ...glintDrawable(),
     ...twinkleDrawables(),
@@ -3433,6 +4861,31 @@ function waterResources() {
 /* Files an earlier version of this widget wrote, removed on prebuild so a
    non-clean regenerate does not carry dead resources into the APK. */
 const OBSOLETE_RESOURCES = [
+  'drawable/pw_hearts.xml',
+  ...Array.from({ length: 12 }, (_, i) => `drawable/pw_hearts_${i}.xml`),
+  'drawable/pw_me_body.xml',
+  'drawable/pw_me_front.xml',
+  'drawable/pw_me_head.xml',
+  'drawable/pw_mh_open.xml',
+  'drawable/pw_mh_shut.xml',
+  'drawable/pw_tickle_head.xml',
+  'drawable/pw_tickle_feet.xml',
+  'drawable/pw_giggle.xml',
+  ...Array.from({ length: 6 }, (_, i) => `drawable/pw_th_${i}.xml`),
+  ...Array.from({ length: 4 }, (_, i) => `drawable/pw_tf_${i}.xml`),
+  ...Array.from({ length: 6 }, (_, i) => `drawable/pw_giggle_${i}.xml`),
+  'drawable/pw_back.xml',
+  'drawable/pw_blink.xml',
+  'drawable/pw_blink_open.xml',
+  'drawable/pw_blink_shut.xml',
+  'drawable/pw_fur.xml',
+  ...Array.from({ length: 16 }, (_, i) => `drawable/pw_fur_${i}.xml`),
+  'drawable-nodpi/pw_panda_full.png',
+  'drawable-nodpi/pw_panda_empty.png',
+  'drawable/pb_hearts.xml',
+  'drawable/pb_pour.xml',
+  ...Array.from({ length: 14 }, (_, i) => `drawable/pb_hearts_${i}.xml`),
+  ...Array.from({ length: 12 }, (_, i) => `drawable/pb_pour_${i}.xml`),
   'drawable/water_widget_bg.xml',
   'drawable/water_progress.xml',
   'drawable/water_live_pill.xml',

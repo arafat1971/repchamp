@@ -2,7 +2,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import Animated, { ZoomIn } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
 
-import { Card, PressableScale } from '@/components/ui';
+import { PressableScale } from '@/components/ui';
+import { HomeCard as Card } from '@/components/ui/HomeCard';
 import { HabitIcon } from '@/components/together/HabitIcon';
 import { guideFor, isGuided, ritualLine, type HabitId, type HabitState } from '@/domain/ritual';
 import { font } from '@/theme/typography';

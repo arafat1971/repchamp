@@ -31,9 +31,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 26,
-    marginBottom: 12,
+    marginTop: 22,
+    marginBottom: 10,
     paddingHorizontal: 2,
   },
-  title: { ...font('extrabold', 18, { color: palette.ink }), letterSpacing: -0.4 },
+  title: { ...font('extrabold', 17, { color: palette.ink }), letterSpacing: -0.4 },
 });

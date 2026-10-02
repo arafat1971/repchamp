@@ -28,6 +28,8 @@ import {
 import { MAX_DAILY_GOAL_ML, MAX_DAILY_ML, MIN_DAILY_GOAL_ML } from '@/domain/hydration';
 import { reminderNotification, type ReminderKind } from '@/domain/partnerReminder';
 import { cleanPlan, cleanPoke, cleanTicks } from '@/domain/ritual';
+import { actionCode, cleanActionPoke, type PandaAction } from '@/domain/pandaActions';
+import { dayKey } from '@/domain/progression';
 import { MAX_DAILY_STEPS } from '@/domain/steps';
 import {
   assertClientRateLimit,
@@ -77,7 +79,55 @@ async function findMembershipId(uid: string): Promise<string | null> {
  * it as a blank banner — so a sender only sends one to a partner advertising
  * this. Published with the push token, the one write every build makes.
  */
-export const WIDGET_PUSH_VERSION = 1;
+export const WIDGET_PUSH_VERSION = 3;
+
+/** The first version that takes the water widget's silent push. */
+const WATER_PUSH_MIN = 1;
+/** The first version whose widget plays every panda gesture (`partner-panda`). */
+export const TICKLE_PUSH_MIN = 3;
+
+/** Whether a partner's build can be tickled. */
+export function canTickle(partner: CoupleMember | null | undefined): boolean {
+  const token = partner?.expoPushToken ?? '';
+  return (partner?.widgetPush ?? 0) >= TICKLE_PUSH_MIN && token.startsWith('ExponentPushToken');
+}
+
+let lastGestureAt = 0;
+const GESTURE_GAP_MS = 2_500;
+
+/**
+ * Send the partner's panda a gesture (tickle, boop, hug, high five, cheers).
+ *
+ * Two routes, both best-effort: the live poke slot on my own member, which
+ * their open app sees within a second; and a silent data push, which their
+ * widget (and a closed app) turns into the same animation and a little sound.
+ * Throttled to one every few seconds. Returns false when throttled.
+ */
+export function sendPandaAction(
+  coupleId: string | null | undefined,
+  uid: string | null | undefined,
+  partner: CoupleMember | null | undefined,
+  action: PandaAction,
+  fromName: string,
+): boolean {
+  if (!isFirebaseConfigured() || !coupleId || !uid || !partner) return false;
+  const now = Date.now();
+  if (now - lastGestureAt < GESTURE_GAP_MS) return false;
+  lastGestureAt = now;
+  void recordCoupleRitual(coupleId, uid, dayKey(), { poke: { e: actionCode(action), at: now } }).catch(() => {});
+  if (canTickle(partner)) {
+    void fetch(EXPO_PUSH_ENDPOINT, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({
+        to: partner.expoPushToken,
+        data: { type: 'partner-panda', action, at: now, name: fromName },
+        priority: 'high',
+      }),
+    }).catch(() => {});
+  }
+  return true;
+}
 
 /**
  * Write this athlete's Expo push token onto their own couple-member slice so the
@@ -441,7 +491,8 @@ export async function recordCoupleRitual(coupleId: string, uid: string, day: str
   const clean: RitualPatch = {};
   if (patch.habits) clean.habits = cleanTicks(patch.habits);
   if (typeof patch.hereAt === 'number' && Number.isFinite(patch.hereAt) && patch.hereAt > 0) clean.hereAt = Math.round(patch.hereAt);
-  const poke = cleanPoke(patch.poke);
+  // An emoji poke, or a panda gesture riding the same slot.
+  const poke = cleanPoke(patch.poke) ?? cleanActionPoke(patch.poke);
   if (poke) clean.poke = poke;
   if (Object.keys(clean).length === 0) return;
   await recordCoupleDaily(coupleId, uid, day, clean);
@@ -802,7 +853,7 @@ export async function pushPartnerWaterWidget(
     const me = couple.members.find((m) => m.uid === fromUid);
     const partner = couple.members.find((m) => m.uid !== fromUid);
     if (!me || !partner) return;
-    if ((partner.widgetPush ?? 0) < WIDGET_PUSH_VERSION) return;
+    if ((partner.widgetPush ?? 0) < WATER_PUSH_MIN) return;
     const token = partner.expoPushToken ?? null;
     if (!token || !token.startsWith('ExponentPushToken')) return;
 

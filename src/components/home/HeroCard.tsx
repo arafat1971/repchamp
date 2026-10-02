@@ -163,10 +163,13 @@ export function HeroCard({
   focus,
   onPress,
   progress,
+  bonus,
 }: {
   focus: HomeFocus;
   onPress: () => void;
   progress?: { value: number; target: number };
+  /** A time-boxed reason to go now ("+5 XP before 6 PM"), shown as a tag. */
+  bonus?: string | null;
 }) {
   const c = contentFor(focus);
   const showProgress = !c.image && focus.kind === 'daily-challenge' && !!progress;
@@ -220,24 +223,38 @@ export function HeroCard({
         <Text style={[styles.title, c.image ? styles.textOverPhoto : null]}>{c.title}</Text>
         {/* The supporting line would fall across the couple's faces. On a photo
             card the image does that work, so the copy stays title + CTA. */}
-        {c.image ? null : <Text style={styles.body}>{c.body}</Text>}
-        {showProgress && progress ? (
-          <View style={styles.progressBlock}>
-            <View style={styles.progressTrack}>
-              <ProgressFill fraction={Math.max(0.03, pct)} />
-            </View>
-            <Text style={styles.progressText}>
-              {Math.min(progress.value, progress.target)} / {progress.target}
+        {/* A bonus with a deadline beats a general line about rhythm, so it
+            takes the body's place when there is one. */}
+        {c.image ? null : bonus ? (
+          <View style={styles.bonus}>
+            <Text style={styles.bonusText} numberOfLines={1}>
+              ⚡ {bonus}
             </Text>
           </View>
-        ) : null}
+        ) : (
+          <Text style={styles.body} numberOfLines={2}>
+            {c.body}
+          </Text>
+        )}
+        {/* The button and the progress share one row: what to do, and how far
+            along it you already are. */}
         <View style={[styles.ctaRow, c.image ? styles.ctaRowOverPhoto : null]}>
           <View style={styles.cta}>
             <Text style={[styles.ctaText, { color: c.colors[c.colors.length - 1] }]}>{c.cta}</Text>
             <View style={[styles.ctaArrowWrap, { backgroundColor: c.colors[1] }]}>
-              <ArrowIcon size={15} color={palette.white} strokeWidth={2.4} />
+              <ArrowIcon size={14} color={palette.white} strokeWidth={2.4} />
             </View>
           </View>
+          {showProgress && progress ? (
+            <View style={styles.progressBlock}>
+              <View style={styles.progressTrack}>
+                <ProgressFill fraction={Math.max(0.03, pct)} />
+              </View>
+              <Text style={styles.progressText}>
+                {Math.min(progress.value, progress.target)}/{progress.target}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </LinearGradient>
       </View>
@@ -269,8 +286,7 @@ const styles = StyleSheet.create({
   },
   card: {
     borderRadius: radius['4xl'],
-    padding: 22,
-    minHeight: 210,
+    padding: 18,
     justifyContent: 'space-between',
     /* The photo is absolutely positioned; without this they square
        off the rounded corners the rest of Home is built on. */
@@ -281,8 +297,8 @@ const styles = StyleSheet.create({
   /* Editorial proportions for the photo variant: room for the couple to be
      people rather than a strip, with the copy in the top third where the scrim
      is strongest. */
-  cardWithPhoto: { minHeight: 360, justifyContent: 'flex-start' },
-  ctaRowOverPhoto: { marginTop: 14 },
+  cardWithPhoto: { minHeight: 290, justifyContent: 'flex-start' },
+  ctaRowOverPhoto: { marginTop: 12 },
   /* Starts below the copy rather than filling the card, so the couple's faces
      land in the clear zone of the scrim instead of under its darkest part. */
   photo: { position: 'absolute', left: 0, right: 0, bottom: 0, top: '30%' },
@@ -295,19 +311,30 @@ const styles = StyleSheet.create({
   },
   /* Sized to carry the card, not decorate it; negative margins let the 3:2
      illustration bleed into the padding so it sits flush to the corner. */
-  art: { width: 150, height: 100, marginTop: -14, marginRight: -14 },
+  art: { position: 'absolute', top: -8, right: -10, width: 120, height: 80 },
   title: {
-    ...font('extrabold', 28, { color: palette.white }),
-    marginTop: 14,
-    lineHeight: 33,
+    ...font('extrabold', 24, { color: palette.white }),
+    marginTop: 20,
+    lineHeight: 28,
     letterSpacing: -0.6,
   },
   body: {
-    ...font('medium', 13.5, { color: 'rgba(255,255,255,0.78)' }),
-    marginTop: 6,
-    lineHeight: 19,
+    ...font('medium', 12.5, { color: 'rgba(255,255,255,0.78)' }),
+    marginTop: 4,
+    lineHeight: 17,
   },
-  progressBlock: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 16 },
+  bonus: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(253,224,71,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(253,224,71,0.35)',
+  },
+  bonusText: font('bold', 11.5, { color: '#FDE68A' }),
+  progressBlock: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
   progressTrack: {
     flex: 1,
     height: 6,
@@ -320,7 +347,7 @@ const styles = StyleSheet.create({
     ...font('bold', 12, { color: 'rgba(255,255,255,0.9)' }),
     fontVariant: ['tabular-nums'],
   },
-  ctaRow: { marginTop: 18 },
+  ctaRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 14 },
   /* On a flat gradient the copy is always on a known colour; over a photograph
      it is not. A tight shadow keeps the title crisp wherever the crop puts it. */
   textOverPhoto: {
@@ -337,9 +364,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     backgroundColor: palette.white,
-    paddingVertical: 8,
-    paddingLeft: 18,
-    paddingRight: 8,
+    paddingVertical: 6,
+    paddingLeft: 16,
+    paddingRight: 6,
     borderRadius: radius.pill,
     shadowColor: '#000',
     shadowOpacity: 0.18,
@@ -347,7 +374,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   },
-  ctaText: font('bold', 14.5),
+  ctaText: font('bold', 14),
   ctaArrowWrap: {
     width: 28,
     height: 28,

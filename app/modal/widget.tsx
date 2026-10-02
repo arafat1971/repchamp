@@ -26,6 +26,8 @@ import {
 } from '@/domain/waterWidget';
 import { lightImpactHaptic, selectionHaptic } from '@/lib/feedback';
 import { isWidgetSupported, placedWidgetCount, requestPinWidget } from '@/services/partnerWidget';
+import { AthletePreview } from '@/components/widget/AthletePreview';
+import { useProfileStore } from '@/state/profileStore';
 import { usePartnerTodaySnapshot, usePartnerWeekSnapshot } from '@/state/usePartnerTodaySnapshot';
 import { useWidgetStyleStore } from '@/state/widgetStyleStore';
 import { useDuoStreakStore } from '@/state/duoStreakStore';
@@ -55,6 +57,9 @@ export default function WidgetStudioScreen() {
 
   const [placed, setPlaced] = useState<number | null>(null);
   const [pinFailed, setPinFailed] = useState(false);
+  /* The Reps widget's athlete — the user's own choice. */
+  const athlete = useProfileStore((p) => p.sex) ?? 'male';
+  const setSex = useProfileStore((p) => p.setSex);
 
   /* Re-checked while the screen is open: the answer changes the moment the
      athlete drops the widget on the home screen and comes back. */
@@ -172,13 +177,20 @@ export default function WidgetStudioScreen() {
       ) : null}
 
       <SectionLabel>LOOK</SectionLabel>
+      {style.layout === 'clean' || style.layout === 'bear' ? (
+        <Text style={styles.lookNote}>
+          {style.layout === 'bear'
+            ? 'Just the panda, straight on your wallpaper — its bottle fills as they drink. Tap it on your home screen for a little love.'
+            : 'This card follows your phone’s light and dark mode.'}
+        </Text>
+      ) : null}
       {style.layout === 'scene' ? (
         <Text style={styles.lookNote}>
           The scene follows the real sky and calendar — dawn to starlight, spring blossom to winter snow, and your
           bond’s monthly anniversary. Themes dress Duo and Rings; Glass makes them liquid glass too.
         </Text>
       ) : null}
-      <View style={styles.themes}>
+      <View style={[styles.themes, (style.layout === 'clean' || style.layout === 'bear') && { display: 'none' }]}>
         {WIDGET_THEMES.map((theme) => (
           <ThemeTile key={theme} theme={theme} selected={style.theme === theme} onPress={() => set({ theme })} />
         ))}
@@ -265,6 +277,44 @@ export default function WidgetStudioScreen() {
       {supported ? (
         <>
           <SectionLabel>ALSO FOR YOUR HOME SCREEN</SectionLabel>
+          <Card style={[styles.card, styles.glanceCard]}>
+            <View style={styles.glanceStage}>
+              <Backdrop
+                colors={['#0F172A', '#1E3A8A', '#0EA5E9']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
+              <AthletePreview sex={athlete} size={150} />
+            </View>
+            <View style={styles.glanceCopy}>
+              <Text style={styles.cardTitle}>Reps · 2×2</Text>
+              <Text style={[text.caption, styles.cardBody]}>
+                Your athlete does push-ups on your home screen. One tap and you’re straight into a set.
+              </Text>
+              <View style={styles.sexRow}>
+                {(['male', 'female'] as const).map((s) => (
+                  <PressableScale
+                    key={s}
+                    onPress={() => setSex(s)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: athlete === s }}
+                    style={[styles.sexChip, athlete === s && styles.sexChipOn]}
+                  >
+                    <Text style={[styles.sexText, athlete === s && styles.sexTextOn]}>{s === 'male' ? 'Man' : 'Woman'}</Text>
+                  </PressableScale>
+                ))}
+              </View>
+              <PressableScale
+                onPress={() => void requestPinWidget('reps').then((ok) => setPinFailed(!ok))}
+                accessibilityRole="button"
+                accessibilityLabel="Add the reps widget"
+                style={styles.glanceAdd}
+              >
+                <Text style={styles.inlineAddText}>＋ Add to home screen</Text>
+              </PressableScale>
+            </View>
+          </Card>
           <Card style={[styles.card, styles.glanceCard]}>
             <View style={styles.glanceStage}>
               <Backdrop
@@ -458,6 +508,8 @@ function SurfaceTile({ surface, selected, onPress }: { surface: WidgetSurface; s
 }
 
 const LAYOUT_LABEL: Record<WidgetLayout, { title: string; sub: string }> = {
+  bear: { title: 'Panda', sub: 'Fills as they drink' },
+  clean: { title: 'Clean', sub: 'At a glance' },
   scene: { title: 'Scene', sub: 'Under the real sky' },
   duo: { title: 'Duo', sub: 'You vs them' },
   rings: { title: 'Rings', sub: 'Their day' },
@@ -475,12 +527,27 @@ function LayoutTile({ layout, selected, onPress }: { layout: WidgetLayout; selec
       style={[styles.tile, styles.layoutTile, selected && styles.tileOn]}
     >
       <Backdrop
-        colors={layout === 'scene' ? ['#38BDF8', '#BAE6FD'] : ['#4C1D95', '#BE185D']}
+        colors={
+          layout === 'bear' ? ['#A78BFA', '#F9A8D4'] : layout === 'clean' ? ['#FFFFFF', '#F2F2F7'] : layout === 'scene' ? ['#38BDF8', '#BAE6FD'] : ['#4C1D95', '#BE185D']
+        }
         start={{ x: 0, y: 0 }}
         end={layout === 'scene' ? { x: 0, y: 1 } : { x: 1, y: 1 }}
-        style={styles.sketch}
+        style={[styles.sketch, layout === 'clean' && styles.sketchClean]}
       >
-        {layout === 'scene' ? (
+        {layout === 'bear' ? (
+          <View style={{ alignItems: 'center' }}>
+            <View style={[styles.sketchBear, { backgroundColor: '#E6E8FF', borderWidth: 1.5, borderColor: '#A5B4FC' }]} />
+          </View>
+        ) : layout === 'clean' ? (
+          <View style={styles.sketchRow}>
+            {['#0A7CC4', '#248A3D', '#E0184A'].map((c) => (
+              <View key={c} style={styles.sketchTile}>
+                <View style={[styles.sketchLine, { width: '80%', backgroundColor: '#1C1C1E', height: 5 }]} />
+                <View style={[styles.sketchLine, { width: '60%', backgroundColor: c, marginTop: 4 }]} />
+              </View>
+            ))}
+          </View>
+        ) : layout === 'scene' ? (
           <View style={{ flex: 1, justifyContent: 'flex-end' }}>
             <View style={styles.sketchSun} />
             <View style={styles.sketchRow}>
@@ -670,6 +737,8 @@ const styles = StyleSheet.create({
   },
   sketchRingInner: { width: 18, height: 18, borderRadius: 9, borderWidth: 3, borderColor: '#7DD3FC' },
   sketchLine: { height: 5, borderRadius: 3, width: '80%' },
+  sketchClean: { borderWidth: StyleSheet.hairlineWidth, borderColor: '#D1D1D6', paddingHorizontal: 5 },
+  sketchTile: { flex: 1, height: 38, marginHorizontal: 2, borderRadius: 7, backgroundColor: '#F2F2F7', justifyContent: 'center', paddingHorizontal: 5 },
   tileSub: font('semibold', 10, { color: palette.grey600 }),
   wardrobe: { flexDirection: 'row', gap: 8, marginTop: 12 },
   week: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 14, height: 110 },
@@ -733,6 +802,11 @@ const styles = StyleSheet.create({
   weekCard: { padding: 12 },
   weekStage: { borderRadius: radius.lg, overflow: 'hidden', alignItems: 'center', paddingVertical: 18 },
   weekFoot: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12, paddingHorizontal: 4 },
+  sexRow: { flexDirection: 'row', gap: 6, marginTop: 8 },
+  sexChip: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 999, backgroundColor: 'rgba(118,118,128,0.12)' },
+  sexChipOn: { backgroundColor: '#1D4ED8' },
+  sexText: { fontSize: 12.5, fontWeight: '600', color: '#3C3C43' },
+  sexTextOn: { color: '#FFFFFF' },
   glanceAdd: {
     alignSelf: 'flex-start',
     marginTop: 10,

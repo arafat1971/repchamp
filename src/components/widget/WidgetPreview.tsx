@@ -1,6 +1,6 @@
 import { LinearGradient as Backdrop } from 'expo-linear-gradient';
-import { Fragment, useEffect, type ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Fragment, useEffect, useState, type ReactNode } from 'react';
+import { StyleSheet, Text, useColorScheme, View } from 'react-native';
 import Animated, {
   Easing,
   cancelAnimation,
@@ -18,6 +18,7 @@ import Animated, {
 import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop, Text as SvgText } from 'react-native-svg';
 
 import { BearJar, type BearTheme } from '@/components/home/BearJar';
+import { PandaJar } from '@/components/home/PandaJar';
 import {
   WATER_WIDGET_LIVE_MS,
   buildWaterWidgetSnapshot,
@@ -187,6 +188,8 @@ export function WidgetPreview({
   /* The scene sits on its surface; the other layouts become glass through
      the Glass theme. */
   const scene = style.layout === 'scene';
+  if (style.layout === 'clean') return <Clean snap={snap} style={style} live={live} width={width} />;
+  if (style.layout === 'bear') return <SoloBear snap={snap} live={live} width={width} phase={phase} />;
   const glass = scene ? style.surface === 'glass' : style.theme === 'glass';
   const float = scene && style.surface === 'float';
   return (
@@ -208,6 +211,111 @@ export function WidgetPreview({
       ) : (
         <Rings {...parts} width={width} />
       )}
+    </View>
+  );
+}
+
+/** The clean card's colours — the native values/ and values-night/ ones. */
+const CLEAN = {
+  light: { bg: '#FFFFFF', text: '#000000', secondary: '#8A8A8E', tile: '#F2F2F7', track: '#E5E5EA', water: '#0A7CC4', steps: '#248A3D', reps: '#E0184A' },
+  dark: { bg: '#1C1C1E', text: '#FFFFFF', secondary: '#98989F', tile: '#2C2C2E', track: '#3A3A3C', water: '#64D2FF', steps: '#30D158', reps: '#FF375F' },
+};
+
+/**
+ * The clean card, as `water_widget_clean.xml` lays it out: a title, three
+ * tiles (their number large, mine under it, a bar toward their goal) and the
+ * drink button. It follows the system's light and dark, like the native one.
+ */
+function Clean({ snap, style, live, width }: { snap: WaterWidgetSnapshot; style: WidgetStyle; live: boolean; width: number }) {
+  const c = CLEAN[useColorScheme() === 'dark' ? 'dark' : 'light'];
+  const mine = style.showMine && snap.hasMe;
+  const tiles = [
+    { key: 'water', label: 'WATER', value: snap.amount, you: snap.meWater, pct: snap.pct, color: c.water, on: true },
+    { key: 'steps', label: 'STEPS', value: snap.steps, you: snap.meSteps, pct: snap.stepsPct, color: c.steps, on: style.showSteps },
+    { key: 'reps', label: 'REPS', value: snap.reps, you: snap.meReps, pct: snap.repsPct, color: c.reps, on: style.showReps },
+  ].filter((t) => t.on);
+  const streak = snap.hasMe ? snap.streak : 0;
+  return (
+    <View style={[styles.card, styles.clean, { width, backgroundColor: c.bg, borderColor: c.track }]}>
+      <View style={styles.cleanHead}>
+        <Text style={[font('bold', 14, { color: c.text }), { flex: 1 }]} numberOfLines={1}>
+          {snap.name} & you · Today
+        </Text>
+        {live ? <Text style={font('bold', 9, { color: c.steps, letterSpacing: 0.7 })}>● LIVE</Text> : null}
+        {streak > 0 ? (
+          <Text style={[styles.cleanChip, { backgroundColor: c.tile }, font('bold', 11, { color: c.text })]}>🔥 {streak}</Text>
+        ) : null}
+      </View>
+      <View style={styles.cleanTiles}>
+        {tiles.map((t) => (
+          <View key={t.key} style={[styles.cleanTile, { backgroundColor: c.tile }]}>
+            <Text style={font('bold', 10, { color: t.color, letterSpacing: 0.6 })}>{t.label}</Text>
+            <Text style={[font('bold', 19, { color: c.text }), styles.cleanValue]} numberOfLines={1}>
+              {t.value}
+            </Text>
+            <Text style={font('medium', 10.5, { color: c.secondary })} numberOfLines={1}>
+              {mine && t.you ? `You ${t.you}` : ' '}
+            </Text>
+            <View style={[styles.cleanTrack, { backgroundColor: c.track }]}>
+              <View style={{ width: `${Math.round(Math.min(1, Math.max(0, t.pct)) * 100)}%`, height: '100%', borderRadius: 2, backgroundColor: t.color }} />
+            </View>
+          </View>
+        ))}
+      </View>
+      <View style={styles.cleanHead}>
+        <Text style={[font('medium', 11.5, { color: c.secondary }), { flex: 1 }]} numberOfLines={1}>
+          {snap.duel || snap.footer}
+        </Text>
+        <View style={styles.cleanDrink}>
+          <Text style={font('bold', 12, { color: '#FFFFFF' })}>+ 250 ml</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * The panda layout, as `water_widget_bear.xml` lays it out: only their panda,
+ * straight on the wallpaper, its bottle filled to their day, with a small
+ * shadowed caption and a drop button. Tap it here too for a giggle.
+ */
+function SoloBear({
+  snap,
+  live,
+  width,
+  phase,
+}: {
+  snap: WaterWidgetSnapshot;
+  live: boolean;
+  width: number;
+  phase: SharedValue<number>;
+}) {
+  const [pokes, setPokes] = useState(0);
+  const pct = Math.round(Math.min(1, Math.max(0, snap.pct)) * 100);
+  return (
+    <View style={[styles.soloStage, { width }]}>
+      <View style={styles.soloBear}>
+        <PandaJar
+          id="solo-them"
+          decorations
+          remaining={100 - pct}
+          width={116}
+          outfit="hoodie"
+          mood={snap.met ? 'celebrate' : 'happy'}
+          phase={phase}
+          sipKey={live ? 1 : 0}
+          interactive
+          onPoke={() => setPokes((n) => n + 1)}
+        />
+        {live ? <View style={styles.soloLive} /> : null}
+        <View style={styles.soloDrop}>
+          <Text style={{ fontSize: 15 }}>💧</Text>
+        </View>
+      </View>
+      <Text style={styles.soloCaption} numberOfLines={1}>
+        {snap.name} · {snap.amount}
+        {pokes > 0 ? ' 🤭' : snap.met ? ' 🎉' : ''}
+      </Text>
     </View>
   );
 }
@@ -1359,6 +1467,37 @@ const styles = StyleSheet.create({
   glassCard: { borderWidth: 1.2, borderColor: 'rgba(255,255,255,0.7)', shadowOpacity: 0.12, elevation: 2 },
   sheen: { position: 'absolute', top: 0, left: 0, right: 0, height: '46%', borderTopLeftRadius: 26, borderTopRightRadius: 26 },
   caustic: { position: 'absolute', width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.14)' },
+  clean: { justifyContent: 'space-between', gap: 10, paddingVertical: 12 },
+  soloStage: { minHeight: 158, alignItems: 'center', justifyContent: 'center' },
+  soloBear: { width: 140, height: 146, alignItems: 'center', justifyContent: 'flex-end' },
+  soloLive: { position: 'absolute', top: 26, right: 20, width: 10, height: 10, borderRadius: 5, backgroundColor: '#34C759', borderWidth: 2, borderColor: '#FFFFFF' },
+  soloDrop: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(0,0,0,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  soloCaption: {
+    ...font('bold', 13, { color: '#FFFFFF' }),
+    marginTop: 2,
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  cleanHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  cleanChip: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999, overflow: 'hidden' },
+  cleanTiles: { flexDirection: 'row', gap: 6 },
+  cleanTile: { flex: 1, borderRadius: 14, paddingHorizontal: 10, paddingTop: 8, paddingBottom: 9 },
+  cleanValue: { marginTop: 6, marginBottom: 2, fontVariant: ['tabular-nums'] },
+  cleanTrack: { height: 4, borderRadius: 2, marginTop: 6, overflow: 'hidden' },
+  cleanDrink: { height: 28, paddingHorizontal: 12, borderRadius: 999, backgroundColor: '#0A84FF', justifyContent: 'center' },
   card: {
     minHeight: 158,
     borderRadius: 26,

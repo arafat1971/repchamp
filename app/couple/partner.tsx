@@ -4,7 +4,8 @@ import { ActivityIndicator, StyleSheet, Text, useWindowDimensions, View } from '
 import Animated, { FadeInDown, FadeInUp, FadeOutUp } from 'react-native-reanimated';
 
 import { ModalHeader } from '@/components/ModalHeader';
-import { Card, PressableScale, Screen, Toggle } from '@/components/ui';
+import { PressableScale, Screen, Toggle } from '@/components/ui';
+import { HomeCard as Card } from '@/components/ui/HomeCard';
 import { HabitIcon } from '@/components/together/HabitIcon';
 import { LiveStage } from '@/components/together/LiveStage';
 import { ME, RitualCard, THEM } from '@/components/together/RitualCard';

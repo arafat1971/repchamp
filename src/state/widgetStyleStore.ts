@@ -28,16 +28,18 @@ export const useWidgetStyleStore = create<WidgetStyleState>()(
       /* v2 introduced layouts, v3 the scene. Everyone moves to the scene —
          the new look is the point of the release — keeping their switches
          and theme (which the other layouts still use). */
-      version: 4,
+      version: 6,
       /* v4: liquid glass. Everyone moves onto the glass surface — the new
-         look is the point — except someone who had chosen the sky card. */
+         look is the point — except someone who had chosen the sky card.
+         v5: the clean card became everyone's layout. v6: the bear does —
+         the other layouts stay one tap away in the studio. */
       migrate: (persisted, version) => {
         const old = (persisted ?? {}) as Partial<WidgetStyle> & { backdrop?: boolean };
         const { backdrop, ...rest } = old;
         return {
           ...DEFAULT_WIDGET_STYLE,
           ...rest,
-          ...(version < 3 ? { layout: 'scene' as const } : {}),
+          ...(version < 6 ? { layout: 'bear' as const } : {}),
           ...(version < 2 ? { theme: 'sunset' as const } : {}),
           surface: backdrop ? ('sky' as const) : ('glass' as const),
         };

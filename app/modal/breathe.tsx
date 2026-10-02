@@ -1,7 +1,8 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useKeepAwake } from 'expo-keep-awake';
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { AppState, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
   cancelAnimation,
@@ -18,16 +19,18 @@ import { StatusBar } from 'expo-status-bar';
 import { PressableScale } from '@/components/ui';
 import { dayKey } from '@/domain/progression';
 import { guideFor, type HabitId } from '@/domain/ritual';
+import { PHASE_WORD, breathPhaseAt, breathResumeAt, meditation, type BreathPattern, type BreathPhase } from '@/domain/mindful';
 import { track } from '@/lib/analytics';
 import { playChimeSound, successHaptic } from '@/lib/feedback';
 import { syncRitualNow } from '@/services/ritualSync';
 import { useAuthStore } from '@/state/authStore';
 import { useRitualStore } from '@/state/ritualStore';
+import { useMindfulStore } from '@/state/mindfulStore';
 import { useCouple } from '@/state/useCouple';
 import { font } from '@/theme/typography';
 
-const IN_MS = 4000;
-const OUT_MS = 6000;
+/** The ritual guides' rhythm: four in, six out. */
+const RITUAL_PATTERN: BreathPattern = { in: 4, hold: 0, out: 6, rest: 0 };
 
 /**
  * A few quiet minutes: a circle that grows as you breathe in and settles as
@@ -37,8 +40,18 @@ const OUT_MS = 6000;
  */
 export default function BreatheScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ habit?: string }>();
-  const guide = guideFor((params.habit as HabitId) ?? 'breathe');
+  /* A guided session is minutes of not touching the phone — exactly when it
+     would otherwise dim and lock mid-pose. */
+  useKeepAwake();
+  /* Opened either for a ritual habit (`habit`) or as a meditation from Train
+     (`session`), which brings its own rhythm and may tick nothing at all. */
+  const params = useLocalSearchParams<{ habit?: string; session?: string }>();
+  const session = meditation(params.session);
+  const ritual = guideFor((params.habit as HabitId) ?? 'breathe');
+  const guide = session
+    ? { habit: session.habit, minutes: session.minutes, title: session.title, line: session.line }
+    : ritual;
+  const pattern = session?.pattern ?? RITUAL_PATTERN;
   const reduced = useReducedMotion();
   const couple = useCouple();
   const uid = useAuthStore((s) => s.user?.uid ?? null);
@@ -46,38 +59,62 @@ export default function BreatheScreen() {
 
   const total = guide.minutes * 60;
   const [left, setLeft] = useState(total);
-  const [phase, setPhase] = useState<'in' | 'out'>('in');
+  const [phase, setPhase] = useState<BreathPhase>('in');
   const [done, setDone] = useState(false);
   const finished = useRef(false);
 
+  /* The clock only runs while the app is in front: minutes spent elsewhere
+     are not minutes breathing, and must not finish the session. */
+  const [active, setActive] = useState(AppState.currentState === 'active');
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => setActive(state === 'active'));
+    return () => sub.remove();
+  }, []);
+  /* Milliseconds breathed before the current stretch in front. */
+  const banked = useRef(0);
+
   const scale = useSharedValue(0.55);
   useEffect(() => {
-    if (reduced || done) return;
+    if (reduced || done || !active) return;
+    /* Every run starts on a fresh in-breath — see `breathResumeAt`. */
+    scale.set(0.55);
+    /* Holds are the circle staying put: a timing to the value it is already at. */
+    const ease = { easing: Easing.inOut(Easing.sin) };
     scale.set(
       withRepeat(
         withSequence(
-          withTiming(1, { duration: IN_MS, easing: Easing.inOut(Easing.sin) }),
-          withTiming(0.55, { duration: OUT_MS, easing: Easing.inOut(Easing.sin) }),
+          withTiming(1, { duration: pattern.in * 1000, ...ease }),
+          withTiming(1, { duration: pattern.hold * 1000 }),
+          withTiming(0.55, { duration: pattern.out * 1000, ...ease }),
+          withTiming(0.55, { duration: pattern.rest * 1000 }),
         ),
         -1,
       ),
     );
     return () => cancelAnimation(scale);
-  }, [reduced, done, scale]);
+  }, [reduced, done, active, scale, pattern]);
 
-  /* One clock for the words and the countdown: 10 s a breath. */
   useEffect(() => {
-    if (done) return;
+    if (session) track('mindful_started', { kind: 'meditation', id: session.id });
+  }, [session]);
+
+  /* One clock for the words and the countdown. */
+  useEffect(() => {
+    if (done || !active) return;
     const started = Date.now();
-    const id = setInterval(() => {
-      const elapsed = Date.now() - started;
-      setPhase(elapsed % (IN_MS + OUT_MS) < IN_MS ? 'in' : 'out');
+    const base = breathResumeAt(pattern, banked.current);
+    const tick = () => {
+      const elapsed = base + Date.now() - started;
+      banked.current = elapsed;
+      setPhase(breathPhaseAt(pattern, elapsed).phase);
       const remaining = Math.max(0, total - Math.floor(elapsed / 1000));
       setLeft(remaining);
       if (remaining === 0) setDone(true);
-    }, 250);
+    };
+    tick();
+    const id = setInterval(tick, 250);
     return () => clearInterval(id);
-  }, [done, total]);
+  }, [done, active, total, pattern]);
 
   /* Finishing ticks the habit — once, and only if it isn't already ticked. */
   useEffect(() => {
@@ -85,13 +122,20 @@ export default function BreatheScreen() {
     finished.current = true;
     playChimeSound();
     successHaptic();
-    track('ritual_guide_done', { habit: guide.habit });
+    if (session) {
+      track('mindful_done', { kind: 'meditation', id: session.id });
+      const today = dayKey();
+      useMindfulStore.getState().record({ day: today, kind: 'meditation', id: session.id, seconds: total }, today);
+    } else track('ritual_guide_done', { habit: ritual.habit });
+    /* The one-minute reset ticks nothing — see `Meditation.habit`. */
+    if (!guide.habit) return;
+    const habit = guide.habit;
     const today = dayKey();
     const state = useRitualStore.getState();
-    const ticked = state.day === today && state.ticks.includes(guide.habit);
-    const ticks = ticked ? state.ticks : toggle(today, guide.habit);
+    const ticked = state.day === today && state.ticks.includes(habit);
+    const ticks = ticked ? state.ticks : toggle(today, habit);
     void syncRitualNow(couple.couple?.id, uid, ticks);
-  }, [done, guide.habit, toggle, couple.couple?.id, uid]);
+  }, [done, guide.habit, session, ritual.habit, total, toggle, couple.couple?.id, uid]);
 
   const circle = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
   const mm = Math.floor(left / 60);
@@ -103,12 +147,12 @@ export default function BreatheScreen() {
       <LinearGradient colors={['#0B1026', '#1E1B4B', '#3B2A6B']} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={styles.safe}>
         <Text style={styles.title}>{guide.title}</Text>
-        <Text style={styles.sub}>{done ? 'Done. Ticked for today.' : guide.line}</Text>
+        <Text style={styles.sub}>{done ? (guide.habit ? 'Done. Ticked for today.' : 'Done. Carry that with you.') : guide.line}</Text>
 
         <View style={styles.stage}>
           <Animated.View style={[styles.circle, circle]} />
           <View style={styles.core}>
-            <Text style={styles.word}>{done ? 'Well done' : phase === 'in' ? 'Breathe in' : 'Breathe out'}</Text>
+            <Text style={styles.word}>{done ? 'Well done' : PHASE_WORD[phase]}</Text>
             {!done ? (
               <Text style={styles.time}>
                 {mm}:{ss}

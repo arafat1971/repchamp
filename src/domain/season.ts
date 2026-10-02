@@ -44,7 +44,7 @@ export function occasionFor(today: Date, bond: number): Occasion {
 
 /** The line an occasion earns on the widget. */
 export function occasionLine(occasion: Occasion, bond: number): string | null {
-  if (occasion === 'bond') return bond % 12 === 0 ? `${bond / 12}-year bond today 💞` : `${bond}-month bond today 💞`;
+  if (occasion === 'bond') return bond % 12 === 0 ? `${bond / 12}-year bond today ✨` : `${bond}-month bond today ✨`;
   if (occasion === 'newyear') return 'Happy New Year 🎆 — first sip of the year?';
   if (occasion === 'valentine') return 'Happy Valentine’s 💝 — share a sip';
   return null;

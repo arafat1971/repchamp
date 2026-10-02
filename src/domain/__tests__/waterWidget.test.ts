@@ -269,7 +269,7 @@ describe('the calendar in the payload', () => {
       me: { ml: 1500, steps: null, reps: 0 },
       calendar: { season: 'winter', occasion: 'bond', bond: 3 },
     });
-    expect(s).toMatchObject({ season: 'winter', occasion: 'bond', duel: '3-month bond today 💞' });
+    expect(s).toMatchObject({ season: 'winter', occasion: 'bond', duel: '3-month bond today ✨' });
   });
 });
 
@@ -323,6 +323,16 @@ describe('the water payload matches what the native side reads', () => {
       'c',
       't',
       'type',
+      // The tickle target the app leaves for the widget (not the payload).
+      'to',
+      // The gesture the widget is playing (its own storage, not the payload).
+      'g',
+      'me',
+      'at',
+      'action',
+      // The walk memory: last step count and the step delta.
+      'n',
+      'd',
     ]);
     for (const key of new Set(read)) expect(written).toContain(key);
   });

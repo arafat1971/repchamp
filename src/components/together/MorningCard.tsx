@@ -2,7 +2,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown, FadeOutUp } from 'react-native-reanimated';
 
 import { HabitIcon } from '@/components/together/HabitIcon';
-import { Card, PressableScale } from '@/components/ui';
+import { PressableScale } from '@/components/ui';
+import { HomeCard as Card } from '@/components/ui/HomeCard';
 import type { Habit } from '@/domain/ritual';
 import { font } from '@/theme/typography';
 import { palette } from '@/theme/tokens';

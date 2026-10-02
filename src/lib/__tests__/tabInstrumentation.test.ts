@@ -76,9 +76,12 @@ describe('intent events fire from the surfaces they describe', () => {
   /* Recorded before the wall check. A tap that bounces to the paywall is still
      an athlete reaching to train, and dropping it would make the wall look
      free of demand it is actually suppressing. */
+  /* The wall itself is computed at the top of the screen, because the tiles
+     draw their locked state from it — so what must come after the event is
+     the tap's branch on it, not the `isWalled` call. */
   it('counts a walled tap as intent', () => {
     const at = trainSource.indexOf("track('train_intent'");
-    const walled = trainSource.indexOf('isWalled(');
+    const walled = trainSource.indexOf('if (soloWalled)');
     expect(at).toBeGreaterThan(-1);
     expect(walled).toBeGreaterThan(at);
   });

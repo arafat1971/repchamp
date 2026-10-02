@@ -3,7 +3,17 @@
  */
 
 import { assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
-import { deleteField, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import {
+  collection,
+  deleteField,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  query,
+  setDoc,
+  updateDoc,
+} from 'firebase/firestore';
 
 import { asAnon, asUser, clearData, profile, seed, setupEnv, teardownEnv } from './harness';
 
@@ -178,5 +188,26 @@ describe('private subtree', () => {
       });
     });
     await assertFails(getDoc(doc(asUser(BOB), 'users', ALICE, 'private', 'push')));
+  });
+});
+
+describe('listing profiles', () => {
+  it('allows a bounded query, as username lookup and recent athletes run', async () => {
+    await seedProfile(ALICE);
+    await assertSucceeds(getDocs(query(collection(asUser(BOB), 'users'), limit(20))));
+  });
+
+  it('refuses an unbounded dump of every profile', async () => {
+    await seedProfile(ALICE);
+    await assertFails(getDocs(collection(asUser(BOB), 'users')));
+  });
+
+  it('refuses a limit above the cap', async () => {
+    await seedProfile(ALICE);
+    await assertFails(getDocs(query(collection(asUser(BOB), 'users'), limit(500))));
+  });
+
+  it('refuses an unauthenticated list', async () => {
+    await assertFails(getDocs(query(collection(asAnon(), 'users'), limit(5))));
   });
 });

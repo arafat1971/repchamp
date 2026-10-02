@@ -68,7 +68,7 @@ export interface WidgetSnapshot {
  * agree, because nothing else would catch a rename — a mismatched id resolves
  * to `null` natively and silently publishes nowhere.
  */
-export const WIDGET_IDS = ['partner', 'dashboard', 'water', 'glance'] as const;
+export const WIDGET_IDS = ['partner', 'dashboard', 'water', 'glance', 'reps'] as const;
 export type WidgetId = (typeof WIDGET_IDS)[number];
 
 /**
@@ -81,7 +81,7 @@ export type WidgetId = (typeof WIDGET_IDS)[number];
  * intended behaviour rather than an oversight — but it means the id contract
  * test must know which ids to expect in the plugin.
  */
-export const ANDROID_WIDGET_IDS: readonly WidgetId[] = ['partner', 'water', 'glance'];
+export const ANDROID_WIDGET_IDS: readonly WidgetId[] = ['partner', 'water', 'glance', 'reps'];
 
 /** Storage keys, shared with the native side. Changing one breaks the bridge. */
 export const WIDGET_SNAPSHOT_KEYS: Record<WidgetId, string> = {
@@ -92,7 +92,18 @@ export const WIDGET_SNAPSHOT_KEYS: Record<WidgetId, string> = {
   water: 'repchamp.widget.water.v1',
   /* The glance reads the water payload; it is never written on its own. */
   glance: 'repchamp.widget.water.v1',
+  /* My athlete and today's reps — see `services/partnerWidget`. */
+  reps: 'repchamp.widget.reps.v1',
 };
+
+/** The Reps widget's payload: which athlete, and today's reps. */
+export interface RepsWidgetSnapshot {
+  sex: 'male' | 'female';
+  /** `YYYY-MM-DD`; another day reads as zero. */
+  day: string;
+  reps: number;
+  updatedAt: number;
+}
 
 /** The partner widget's key. Kept for the call sites that name it directly. */
 export const WIDGET_SNAPSHOT_KEY = WIDGET_SNAPSHOT_KEYS.partner;

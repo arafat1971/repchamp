@@ -40,8 +40,8 @@ describe('occasions', () => {
   });
 
   it('phrases each', () => {
-    expect(occasionLine('bond', 3)).toBe('3-month bond today 💞');
-    expect(occasionLine('bond', 12)).toBe('1-year bond today 💞');
+    expect(occasionLine('bond', 3)).toBe('3-month bond today ✨');
+    expect(occasionLine('bond', 12)).toBe('1-year bond today ✨');
     expect(occasionLine('newyear', 0)).toBe('Happy New Year 🎆 — first sip of the year?');
     expect(occasionLine('', 0)).toBeNull();
   });

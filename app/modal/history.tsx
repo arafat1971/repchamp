@@ -2,7 +2,9 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { ExerciseGlyph } from '@/components/ExerciseGlyph';
 import { ModalHeader } from '@/components/ModalHeader';
-import { Card, Eyebrow, Screen } from '@/components/ui';
+import { Screen } from '@/components/ui';
+import { HomeSectionHeader } from '@/components/home/HomeSectionHeader';
+import { HomeCard as Card } from '@/components/ui/HomeCard';
 import { dayKey } from '@/domain/progression';
 import {
   groupSessionsByDay,
@@ -13,7 +15,7 @@ import { headlineProof } from '@/domain/progressProof';
 import { selectStreak, useProfileStore } from '@/state/profileStore';
 import { getExercise } from '@/vision/exercises';
 import { font, text } from '@/theme/typography';
-import { palette, radius, shadow } from '@/theme/tokens';
+import { palette, radius, surfaceShadow } from '@/theme/tokens';
 
 /**
  * Every set, newest first.
@@ -79,7 +81,7 @@ export default function HistoryScreen() {
       {days.map((entry) => (
         <View key={entry.day}>
           <View style={styles.dayHeader}>
-            <Eyebrow>{labelForDay(entry.day, today)}</Eyebrow>
+            <HomeSectionHeader title={labelForDay(entry.day, today)} />
             <Text style={styles.dayTotal}>
               {entry.totalReps} {entry.totalReps === 1 ? 'rep' : 'reps'} · +{entry.totalXp} XP
             </Text>
@@ -140,10 +142,12 @@ const styles = StyleSheet.create({
   summaryRow: {
     flexDirection: 'row',
     backgroundColor: palette.white,
-    borderRadius: radius['2xl'],
-    paddingVertical: 14,
-    marginBottom: 20,
-    ...shadow.card,
+    borderRadius: radius['4xl'],
+    paddingVertical: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(15,31,23,0.06)',
+    ...surfaceShadow,
   },
   stat: { flex: 1, alignItems: 'center', gap: 2 },
   /* Green and quiet. This is a fact, not a celebration — overselling it would
@@ -152,9 +156,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: palette.tintGreenTop,
-    borderRadius: radius['2xl'],
-    padding: 14,
+    backgroundColor: palette.green50,
+    borderRadius: radius['4xl'],
+    padding: 16,
     marginBottom: 12,
   },
   proofMark: font('extrabold', 18, { color: palette.green600 }),

@@ -24,6 +24,10 @@ const SOURCES = {
   chime: require('../../assets/sounds/chime.wav'),
   receive: require('../../assets/sounds/receive.wav'),
   sparkle: require('../../assets/sounds/sparkle.wav'),
+  tickle: require('../../assets/sounds/tickle.wav'),
+  clink: require('../../assets/sounds/clink.wav'),
+  hug: require('../../assets/sounds/hug.wav'),
+  hifive: require('../../assets/sounds/hifive.wav'),
 } as const;
  
 
@@ -94,6 +98,12 @@ export const playChimeSound = () => play('chime');
 export const playReceiveSound = () => play('receive');
 /** A whole ritual done — or both of you. */
 export const playSparkleSound = () => play('sparkle');
+/** A giggle, for tickling the panda (and being tickled). */
+export const playTickleSound = () => play('tickle');
+/** The little sound of each panda gesture. */
+export function playGestureSound(kind: 'tickle' | 'boop' | 'hug' | 'highfive' | 'cheers'): void {
+  play(kind === 'tickle' ? 'tickle' : kind === 'boop' ? 'pop' : kind === 'hug' ? 'hug' : kind === 'highfive' ? 'hifive' : 'clink');
+}
 
 export function repHaptic(): void {
   if (!useSettingsStore.getState().haptics) return;

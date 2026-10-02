@@ -1,3 +1,4 @@
+import { isDeviceOffline } from '@/state/connectivityStore';
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Share, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
@@ -141,7 +142,11 @@ export default function AddFriendScreen() {
       }
       showDialog({
         title: 'Could not add',
-        message: err instanceof Error ? err.message : 'Please try again.',
+        message: isDeviceOffline()
+          ? "You're offline. Connect to the internet and try again."
+          : err instanceof Error
+            ? err.message
+            : 'Please try again.',
         tone: 'danger',
         actions: [{ label: 'Try again', variant: 'primary' }],
       });

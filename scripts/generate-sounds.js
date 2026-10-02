@@ -99,6 +99,33 @@ const SOUNDS = {
     { frequency: 1568, durationMs: 70, gain: 0.28, decay: 6 },
     { frequency: 2093, durationMs: 480, gain: 0.3, decay: 6 },
   ],
+  // A tickle: a bouncy little "hehehe" — rising chirps, then a falling sigh.
+  'tickle.wav': [
+    { frequency: 980, to: 1260, durationMs: 85, gain: 0.26, decay: 14 },
+    { frequency: 1, durationMs: 45, gain: 0, decay: 1 },
+    { frequency: 1060, to: 1360, durationMs: 80, gain: 0.26, decay: 14 },
+    { frequency: 1, durationMs: 45, gain: 0, decay: 1 },
+    { frequency: 1140, to: 1460, durationMs: 80, gain: 0.26, decay: 14 },
+    { frequency: 1, durationMs: 50, gain: 0, decay: 1 },
+    { frequency: 1020, to: 1320, durationMs: 75, gain: 0.24, decay: 14 },
+    { frequency: 1, durationMs: 60, gain: 0, decay: 1 },
+    { frequency: 1250, to: 880, durationMs: 170, gain: 0.24, decay: 9 },
+  ],
+  // Cheers: two glasses meeting — a bright ping and its ring.
+  'clink.wav': [
+    { frequency: 2637, durationMs: 60, gain: 0.3, decay: 18 },
+    { frequency: 3136, durationMs: 420, gain: 0.26, decay: 9 },
+  ],
+  // A hug: a warm, soft swell up a major third.
+  'hug.wav': [
+    { frequency: 523, to: 587, durationMs: 160, gain: 0.22, decay: 3 },
+    { frequency: 659, durationMs: 360, gain: 0.24, decay: 5 },
+  ],
+  // A high five: a quick bright slap up to the octave.
+  'hifive.wav': [
+    { frequency: 1568, durationMs: 50, gain: 0.3, decay: 20 },
+    { frequency: 2093, durationMs: 260, gain: 0.28, decay: 10 },
+  ],
 };
 
 const outDir = path.join(__dirname, '..', 'assets', 'sounds');

@@ -31,6 +31,7 @@ const fs = require('fs');
 const path = require('path');
 
 const water = require('./waterWidgetTemplates');
+const reps = require('./repsWidgetTemplates');
 
 /**
  * Every widget this plugin installs.
@@ -75,6 +76,15 @@ const WIDGETS = [
     layout: 'glance_widget',
     info: 'glance_widget_info',
     label: 'glance_label',
+  },
+  {
+    /* My athlete doing squats; a tap starts a rep session. */
+    id: 'reps',
+    className: 'RepsWidgetProvider',
+    prefsKey: 'repchamp.widget.reps.v1',
+    layout: 'reps_widget',
+    info: 'reps_widget_info',
+    label: 'reps_widget_label',
   },
 ];
 
@@ -294,6 +304,21 @@ ${KEY_CASES}
      * before 8, or a launcher that opts out), so the app can fall back to
      * showing the gesture instead.
      */
+    /**
+     * Where a tickle from the widget goes: the partner's push token and my
+     * name, or nothing (unpaired, or their build does not understand tickles).
+     */
+    @ReactMethod
+    fun setTickleTarget(to: String?, name: String) {
+        val prefs = reactApplicationContext.getSharedPreferences("repchamp.widget", Context.MODE_PRIVATE).edit()
+        if (to.isNullOrBlank()) {
+            prefs.remove(Tickle.TARGET_KEY)
+        } else {
+            prefs.putString(Tickle.TARGET_KEY, org.json.JSONObject().put("to", to).put("name", name).toString())
+        }
+        prefs.apply()
+    }
+
     @ReactMethod
     fun requestPin(widget: String, promise: com.facebook.react.bridge.Promise) {
         val ctx = reactApplicationContext
@@ -717,6 +742,24 @@ const withWidgetSources = (config) =>
         write(path.join(res, file), contents);
       }
       write(path.join(javaDir, 'RepChampMessagingService.kt'), water.MESSAGING_KT(pkg));
+      const repsRes = reps.repsResources(cfg.modRequest.projectRoot);
+      for (const [file, contents] of Object.entries(repsRes.files)) {
+        write(path.join(res, file), contents);
+      }
+      /* Realistic renders, when provided — see assets/athlete/README.md. */
+      for (const file of fs.existsSync(path.join(res, 'drawable-nodpi')) ? fs.readdirSync(path.join(res, 'drawable-nodpi')) : []) {
+        if (file.startsWith('rw_')) fs.rmSync(path.join(res, 'drawable-nodpi', file), { force: true });
+      }
+      for (const [file, source] of Object.entries(repsRes.binaries)) {
+        fs.mkdirSync(path.dirname(path.join(res, file)), { recursive: true });
+        fs.copyFileSync(source, path.join(res, file));
+      }
+      /* The gesture sounds the widget plays, from the generated app sounds. */
+      fs.mkdirSync(path.join(res, 'raw'), { recursive: true });
+      for (const name of ['tickle', 'hug', 'hifive', 'clink', 'pop']) {
+        const src = path.join(cfg.modRequest.projectRoot, `assets/sounds/${name}.wav`);
+        if (fs.existsSync(src)) fs.copyFileSync(src, path.join(res, `raw/${name}.wav`));
+      }
 
       /* Strings are merged rather than overwritten — `strings.xml` already
          carries the app name and Expo's own entries. */
@@ -724,7 +767,7 @@ const withWidgetSources = (config) =>
       let xml = fs.existsSync(stringsPath)
         ? fs.readFileSync(stringsPath, 'utf8')
         : '<resources></resources>';
-      for (const [name, value] of Object.entries({ ...STRINGS, ...water.WATER_STRINGS })) {
+      for (const [name, value] of Object.entries({ ...STRINGS, ...water.WATER_STRINGS, ...reps.REPS_STRINGS })) {
         const escaped = value.replace(/&/g, '&amp;').replace(/'/g, "\\'");
         const line = `<string name="${name}">${escaped}</string>`;
         const existing = new RegExp(`<string name="${name}">[^<]*</string>`);
@@ -752,6 +795,9 @@ WIDGETS[1].infoXml = water.WATER_INFO_XML;
 WIDGETS[2].provider = water.GLANCE_PROVIDER_KT;
 WIDGETS[2].layoutXml = water.GLANCE_LAYOUT_XML;
 WIDGETS[2].infoXml = water.GLANCE_INFO_XML;
+WIDGETS[3].provider = reps.PROVIDER_KT;
+WIDGETS[3].layoutXml = reps.LAYOUT_XML;
+WIDGETS[3].infoXml = reps.INFO_XML;
 
 /** Registers the provider so the launcher offers it in the widget picker. */
 const withWidgetManifest = (config) =>

@@ -16,7 +16,7 @@ import { NativeModules, Platform } from 'react-native';
 
 import type { DashboardSnapshot } from '@/domain/dashboardSnapshot';
 import type { WaterWidgetSnapshot } from '@/domain/waterWidget';
-import type { WidgetId, WidgetSnapshot } from '@/domain/widgetSnapshot';
+import type { RepsWidgetSnapshot, WidgetId, WidgetSnapshot } from '@/domain/widgetSnapshot';
 
 /**
  * Anything a widget can be handed.
@@ -30,13 +30,15 @@ import type { WidgetId, WidgetSnapshot } from '@/domain/widgetSnapshot';
  * Adding a widget means adding its type here, which is the intended friction:
  * the flat-primitives rule is enforced by each payload's own test.
  */
-export type WidgetPayload = WidgetSnapshot | DashboardSnapshot | WaterWidgetSnapshot;
+export type WidgetPayload = WidgetSnapshot | DashboardSnapshot | WaterWidgetSnapshot | RepsWidgetSnapshot;
 
 interface PartnerWidgetNative {
   setSnapshot(widget: string, json: string): void;
   count(widget: string): Promise<number>;
   /** Absent on builds made before pinning was added. */
   requestPin?(widget: string): Promise<boolean>;
+  /** Absent on builds made before tickles. */
+  setTickleTarget?(to: string | null, name: string): void;
 }
 
 function native(): PartnerWidgetNative | null {
@@ -51,6 +53,18 @@ function native(): PartnerWidgetNative | null {
 }
 
 /** True when this build can actually host the widget. */
+/**
+ * Tell the widget where a tap sends its tickle: the partner's push token (only
+ * when their build understands tickles) and my name. `null` stops it.
+ */
+export function setTickleTarget(to: string | null, name: string): void {
+  try {
+    native()?.setTickleTarget?.(to, name);
+  } catch {
+    // An older native build: tickles from the widget simply stay local.
+  }
+}
+
 export function isWidgetSupported(): boolean {
   return native() != null;
 }

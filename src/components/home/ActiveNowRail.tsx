@@ -12,7 +12,7 @@ import { track } from '@/lib/analytics';
 import { type ActiveFriend, fetchActiveFriends } from '@/services/leaderboardService';
 import { useAuthStore } from '@/state/authStore';
 import { font } from '@/theme/typography';
-import { palette } from '@/theme/tokens';
+import { palette, surfaceShadow } from '@/theme/tokens';
 
 /**
  * "Race someone now" — a stories-style row of people to duel, on Home.
@@ -26,7 +26,8 @@ import { palette } from '@/theme/tokens';
  * with AI must never read as organic social activity. Friends refresh on
  * focus, the same way the Friends tab does.
  */
-export function ActiveNowRail() {
+/** `live` is the "6 partners ready" count, shown beside the heading. */
+export function ActiveNowRail({ live }: { live?: string } = {}) {
   const router = useRouter();
   const uid = useAuthStore((s) => s.user?.uid);
   const seed = usePhantomSeed();
@@ -76,13 +77,21 @@ export function ActiveNowRail() {
       <HomeSectionHeader
         title="Race someone now"
         right={
-          <PressableScale
-            onPress={() => router.push('/(tabs)/friends')}
-            accessibilityRole="button"
-            accessibilityLabel="See all friends"
-          >
-            <Text style={homeSectionLink}>See all ›</Text>
-          </PressableScale>
+          <View style={styles.headRight}>
+            {live ? (
+              <View style={styles.livePill}>
+                <View style={styles.liveDot} />
+                <Text style={styles.liveText} numberOfLines={1}>{live}</Text>
+              </View>
+            ) : null}
+            <PressableScale
+              onPress={() => router.push('/(tabs)/friends')}
+              accessibilityRole="button"
+              accessibilityLabel="See all friends"
+            >
+              <Text style={homeSectionLink}>See all ›</Text>
+            </PressableScale>
+          </View>
         }
       />
 
@@ -91,97 +100,175 @@ export function ActiveNowRail() {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.row}
       >
+        {/* Bring a friend: the one card that grows the list. */}
         <PressableScale
           onPress={() => router.push('/modal/scan')}
           accessibilityRole="button"
-          accessibilityLabel="Scan or show a QR code"
-          style={styles.item}
+          accessibilityLabel="Scan or show a QR code to add a friend"
+          style={[styles.card, styles.addCard]}
         >
-          <FireOrbit size={58}>
+          <FireOrbit size={50}>
             <View style={styles.addCircle}>
-              <QrPlusIcon size={28} />
+              <QrPlusIcon size={24} />
             </View>
           </FireOrbit>
-          <Text style={styles.name}>Scan</Text>
+          <Text style={styles.cardName}>Add friend</Text>
+          <Text style={styles.cardMeta}>Scan a code</Text>
+          <View style={[styles.go, styles.goGhost]}>
+            <Text style={[styles.goText, { color: palette.green700 }]}>Scan</Text>
+          </View>
         </PressableScale>
 
         {friends.map((f) => (
-          <PressableScale
+          <RaceCard
             key={f.uid}
+            live
+            name={f.displayName.split(' ')[0] ?? f.displayName}
+            meta={`Lv ${f.level}`}
+            avatar={
+              <View style={styles.liveRing}>
+                <Avatar initial={(f.displayName || '?').charAt(0).toUpperCase()} uri={f.avatarUrl} size={46} online />
+              </View>
+            }
             onPress={() => raceFriend(f)}
-            accessibilityRole="button"
-            accessibilityLabel={`Race ${f.displayName}`}
-            style={styles.item}
-          >
-            <View style={styles.liveRing}>
-              <Avatar
-                initial={(f.displayName || '?').charAt(0).toUpperCase()}
-                uri={f.avatarUrl}
-                size={54}
-                online
-              />
-            </View>
-            <Text style={styles.name} numberOfLines={1}>
-              {f.displayName.split(' ')[0]}
-            </Text>
-            <Text style={styles.live}>LIVE</Text>
-          </PressableScale>
+          />
         ))}
 
         {bots.map((o) => (
-          <PressableScale
+          <RaceCard
             key={o.id}
+            name={o.name}
+            meta={`Lv ${o.level}`}
+            rpm={o.repsPerMinute}
+            avatar={<Avatar initial={o.initial} size={50} background={o.color} color={palette.white} online />}
             onPress={() => raceAi(o.id)}
-            accessibilityRole="button"
-            accessibilityLabel={`Race ${o.name}, an AI partner`}
-            style={styles.item}
-          >
-            <Avatar initial={o.initial} size={58} background={o.color} color={palette.white} online />
-            <Text style={styles.name} numberOfLines={1}>
-              {o.name}
-            </Text>
-            <View style={styles.aiTag}>
-              <Text style={styles.aiText}>AI</Text>
-            </View>
-          </PressableScale>
+          />
         ))}
 
         {seed.phantomOnline.map((p) => (
-          <PressableScale
+          <RaceCard
             key={p.id}
+            name={p.name.split(' ')[0] ?? p.name}
+            meta={`Lv ${p.level}`}
+            rpm={p.repsPerMinute}
+            avatar={
+              <Avatar initial={p.initial} emoji={p.emoji} size={50} background={p.tintBg} color={p.tintColor} online />
+            }
             onPress={() => raceAi(p.id)}
-            accessibilityRole="button"
-            accessibilityLabel={`Race ${p.name}, an AI partner`}
-            style={styles.item}
-          >
-            <Avatar
-              initial={p.initial}
-              emoji={p.emoji}
-              size={58}
-              background={p.tintBg}
-              color={p.tintColor}
-              online
-            />
-            <Text style={styles.name} numberOfLines={1}>
-              {p.name.split(' ')[0]}
-            </Text>
-            <View style={styles.aiTag}>
-              <Text style={styles.aiText}>AI</Text>
-            </View>
-          </PressableScale>
+          />
         ))}
       </ScrollView>
     </View>
   );
 }
 
+/** Pace bands for an AI partner: what a race against them will feel like. */
+function difficulty(rpm: number): { label: string; color: string; bg: string } {
+  if (rpm < 55) return { label: 'Easy', color: palette.green700, bg: palette.green50 };
+  if (rpm < 75) return { label: 'Medium', color: palette.amber800, bg: '#FFF6E5' };
+  return { label: 'Hard', color: '#B91C1C', bg: palette.tintDangerBg };
+}
+
+/**
+ * One opponent as a card: face, level, how hard they push, and the button.
+ * A real friend who is online wears LIVE; an AI partner always says AI and
+ * its pace — labelled, never passed off as a person.
+ */
+function RaceCard({
+  name,
+  meta,
+  avatar,
+  rpm,
+  live = false,
+  onPress,
+}: {
+  name: string;
+  meta: string;
+  avatar: React.ReactNode;
+  rpm?: number;
+  live?: boolean;
+  onPress: () => void;
+}) {
+  const diff = rpm != null ? difficulty(rpm) : null;
+  return (
+    <PressableScale
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Race ${name}${live ? ', live now' : ', an AI partner'}${diff ? `, ${diff.label}` : ''}`}
+      style={[styles.card, live && styles.cardLive]}
+    >
+      <View style={styles.cardTag}>
+        <Text style={[styles.tagText, live ? { color: palette.green700 } : null]}>{live ? '● LIVE' : 'AI'}</Text>
+      </View>
+      {avatar}
+      <Text style={styles.cardName} numberOfLines={1}>
+        {name}
+      </Text>
+      <View style={styles.metaRow}>
+        <Text style={styles.cardMeta}>{meta}</Text>
+        {diff ? (
+          <View style={[styles.diff, { backgroundColor: diff.bg }]}>
+            <Text style={[styles.diffText, { color: diff.color }]}>{diff.label}</Text>
+          </View>
+        ) : null}
+      </View>
+      <View style={[styles.go, live && { backgroundColor: palette.green600 }]}>
+        <Text style={styles.goText}>Race</Text>
+      </View>
+    </PressableScale>
+  );
+}
+
 const styles = StyleSheet.create({
-  row: { gap: 14, paddingRight: 8 },
-  item: { alignItems: 'center', width: 64 },
+  headRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  livePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: palette.green50,
+  },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: palette.green500 },
+  liveText: font('bold', 11, { color: palette.green700 }),
+  row: { gap: 10, paddingRight: 8, paddingVertical: 6, paddingLeft: 2 },
+  card: {
+    width: 108,
+    alignItems: 'center',
+    paddingTop: 12,
+    paddingBottom: 10,
+    paddingHorizontal: 8,
+    borderRadius: 20,
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: 'rgba(15,31,23,0.06)',
+    ...surfaceShadow,
+  },
+  cardLive: { borderColor: palette.green300, backgroundColor: '#F4FDF7' },
+  addCard: { borderStyle: 'dashed', borderColor: palette.green300, shadowOpacity: 0, elevation: 0 },
+  cardTag: { position: 'absolute', top: 7, left: 8 },
+  tagText: { ...font('extrabold', 8.5, { color: palette.grey500 }), letterSpacing: 0.6 },
+  cardName: { ...font('bold', 13, { color: palette.ink }), marginTop: 7, maxWidth: 92 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
+  cardMeta: font('semibold', 10.5, { color: palette.grey600 }),
+  diff: { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 5 },
+  diffText: font('extrabold', 9.5),
+  go: {
+    alignSelf: 'stretch',
+    marginTop: 9,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: palette.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  goGhost: { backgroundColor: palette.green50 },
+  goText: font('bold', 12, { color: palette.white }),
   addCircle: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     borderWidth: 2,
     borderStyle: 'dashed',
     borderColor: palette.green300,
@@ -189,15 +276,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: palette.white,
   },
-  liveRing: { borderWidth: 2, borderColor: palette.green500, borderRadius: 31, padding: 1 },
-  name: { ...font('bold', 12, { color: palette.ink }), marginTop: 6, maxWidth: 64 },
-  live: { ...font('extrabold', 9, { color: palette.green600 }), letterSpacing: 1, marginTop: 2 },
-  aiTag: {
-    marginTop: 3,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 6,
-    backgroundColor: palette.green50,
-  },
-  aiText: font('extrabold', 9, { color: palette.green700 }),
+  liveRing: { borderWidth: 2, borderColor: palette.green500, borderRadius: 27, padding: 1 },
 });

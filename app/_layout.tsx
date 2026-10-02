@@ -15,6 +15,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { OfflineBanner } from '@/components/OfflineBanner';
 import { DialogHost } from '@/components/ui/DialogHost';
 import { prepareAudio, releaseAudio } from '@/lib/feedback';
 import { identify, track } from '@/lib/analytics';
@@ -29,6 +30,7 @@ import {
   registerForPushNudges,
 } from '@/lib/notifications';
 import { useAuthStore } from '@/state/authStore';
+import { startConnectivityWatch } from '@/state/connectivityStore';
 import { useProStore } from '@/state/proStore';
 import { usePresenceHeartbeat } from '@/state/usePresenceHeartbeat';
 import { useChallengeInviteSync } from '@/state/useIncomingDuelCount';
@@ -317,6 +319,17 @@ export default function RootLayout() {
     };
   }, [uid, initializePro]);
 
+  // Follow connectivity for the banner and retry queued work on reconnect. The
+  // outbox is a no-op without credits waiting, and Pro is one cached read.
+  useEffect(
+    () =>
+      startConnectivityWatch(() => {
+        void flushCoupleCreditOutbox();
+        if (useAuthStore.getState().user?.uid) void refreshPro();
+      }),
+    [refreshPro],
+  );
+
   if (!fontsLoaded && !fontError) return null;
 
   return (
@@ -356,6 +369,7 @@ export default function RootLayout() {
                 routes above still win the match, so this cannot shadow them. */}
             <Stack.Screen name="[handle]" options={{ animation: 'none' }} />
           </Stack>
+          <OfflineBanner />
           <DialogHost />
         </SafeAreaProvider>
       </GestureHandlerRootView>

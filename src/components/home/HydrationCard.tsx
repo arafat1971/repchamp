@@ -20,10 +20,10 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Circle, ClipPath, Defs, Path, Rect } from 'react-native-svg';
 
-import { BearJar, type BearTheme } from '@/components/home/BearJar';
-import { Capsule, HealthCard, IOS, Metric, PersonRow } from '@/components/home/HealthCard';
+import { PandaJar } from '@/components/home/PandaJar';
+import { HealthCard, IOS, Metric } from '@/components/home/HealthCard';
 import { DropIcon } from '@/components/home/Icons';
-import { DRINK_KINDS, DRINK_META, drinkLayers, parseDrinkKind, type DrinkKind } from '@/domain/drinkKinds';
+import { DRINK_KINDS, DRINK_META, parseDrinkKind, type DrinkKind } from '@/domain/drinkKinds';
 import {
   DEFAULT_DAILY_GOAL_ML,
   DRINK_SIZES_ML,
@@ -33,16 +33,13 @@ import {
   type HydrationProgress,
   formatMl,
 } from '@/domain/hydration';
-import { lightImpactHaptic, selectionHaptic } from '@/lib/feedback';
+import { lightImpactHaptic, playGestureSound, playSparkleSound, selectionHaptic, successHaptic } from '@/lib/feedback';
+import { ACTION_META, PANDA_ACTIONS, type PandaAction } from '@/domain/pandaActions';
+import { hydrationPace } from '@/domain/hydrationPace';
+import { pandaMood } from '@/domain/pandaMood';
 import { font } from '@/theme/typography';
 
-const INK = '#0f172a';
-/* The partner wears the same hue, lighter — one metric, two people. */
-const PARTNER = 'rgba(50,173,230,0.45)';
-
 /** Mine rose, theirs lavender — two bears, two personalities. */
-const MY_BEAR: BearTheme = { body: '#ffe4ec', rim: '#f9a8c9', tint: '#fb7185' };
-const THEIR_BEAR: BearTheme = { body: '#e6e8ff', rim: '#a5b4fc', tint: '#8b5cf6' };
 
 interface Person {
   name: string;
@@ -62,7 +59,6 @@ interface Person {
  */
 export function HydrationCard({
   water,
-  drinks,
   partner,
   partnerMl,
   partnerGoalMl,
@@ -70,9 +66,14 @@ export function HydrationCard({
   onLogWater,
   onUndoWater,
   onStepWaterGoal,
+  onSplash,
+  onGesture,
+  incomingGesture,
+  suggestedGesture,
+  duoStreak = 0,
 }: {
   water: HydrationProgress;
-  /** Today's drinks, for my bear's layers. */
+  /** Today's drinks. The panda's bottle shows the total, so this is currently unused. */
   drinks: readonly DrinkEntry[];
   me: Person;
   partner: Person | null;
@@ -84,6 +85,16 @@ export function HydrationCard({
   onLogWater: (ml: number, kind: DrinkKind) => void;
   onUndoWater?: () => void;
   onStepWaterGoal: (direction: 1 | -1) => void;
+  /** Throw a live 💧 at the partner; false when throttled. */
+  onSplash?: () => boolean;
+  /** Send their panda a gesture; false when throttled. Also plays on their phone. */
+  onGesture?: (action: PandaAction) => boolean;
+  /** Their gesture, as it arrives live. */
+  incomingGesture?: { action: PandaAction; key: number } | null;
+  /** The gesture that fits the moment, highlighted in the bar. */
+  suggestedGesture?: PandaAction;
+  /** Days in a row you both filled your bears — shown by the title. */
+  duoStreak?: number;
 }) {
   const reduced = useReducedMotion();
   const [width, setWidth] = useState(0);
@@ -107,13 +118,6 @@ export function HydrationCard({
     const target = Math.max(-0.25, Math.min(0.25, gx / 9.81 / 2));
     tilt.value = tilt.value + (target - tilt.value) * 0.12;
   });
-
-  /* My layers, oldest at the bottom. */
-  const layers = useMemo(() => {
-    const list = drinkLayers(drinks);
-    const total = list.reduce((s, l) => s + l.ml, 0) || 1;
-    return list.map((l) => ({ color: DRINK_META[l.kind].color, share: l.ml / total }));
-  }, [drinks]);
 
   /* The "+": tap repeats the last choice; hold opens the picker. */
   const [choice, setChoice] = useState<{ kind: DrinkKind; ml: number }>({ kind: 'water', ml: 250 });
@@ -149,11 +153,6 @@ export function HydrationCard({
   const partnerPercent =
     partnerMl == null ? 0 : Math.min(100, Math.round((partnerMl / theirGoal) * 100));
   const partnerMet = partnerMl != null && partnerMl >= theirGoal;
-  const theirLayers = useMemo(() => {
-    const list = partnerLayers ?? [];
-    const total = list.reduce((sum, l) => sum + l.ml, 0) || 1;
-    return list.map((l) => ({ color: DRINK_META[parseDrinkKind(l.k)].color, share: l.ml / total }));
-  }, [partnerLayers]);
   /* What they just had, for the live banner: their newest layer's kind. */
   const theirLatest = parseDrinkKind(partnerLayers?.[partnerLayers.length - 1]?.k);
   const bothMet = water.met && partnerMet;
@@ -163,6 +162,60 @@ export function HydrationCard({
 
   const meta = DRINK_META[choice.kind];
   const [amount, unit] = splitMl(water.ml);
+  const [theirAmount, theirUnit] = splitMl(partnerMl ?? 0);
+  const [splashes, setSplashes] = useState(0);
+
+  /* The pace coach, on a minute clock so "next sip" and the marker move. */
+  const [clock, setClock] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setClock(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const pace = useMemo(() => hydrationPace(water.ml, water.goalMl, clock), [water.ml, water.goalMl, clock]);
+  /* The pandas' faces follow the day: thirsty when clearly behind, sleepy at
+     night, a party once the bottle is finished. */
+  const myMood = pandaMood({ met: water.met, pace: pace.status, behindMl: pace.behindMl, hour: clock.getHours() });
+  const theirPace = partnerMl == null ? null : hydrationPace(partnerMl, theirGoal, clock);
+  const theirMood = pandaMood({
+    met: partnerMet,
+    pace: theirPace?.status ?? null,
+    behindMl: theirPace?.behindMl ?? 0,
+    hour: clock.getHours(),
+  });
+
+  /* Hold the bear to pour: the amount climbs while held and the bear fills
+     with it, so you see the glass land before you let go. */
+  const hold = useHoldToPour((ml) => add(choice.kind, ml));
+  const heldPercent =
+    hold.amount > 0 ? Math.min(100, Math.round(((water.ml + hold.amount) / Math.max(1, water.goalMl)) * 100)) : water.percent;
+
+  /* Goal hit, live: once, when it flips — not on every open of a full day. */
+  const wasMet = useRef(water.met);
+  const [cheer, setCheer] = useState(0);
+  useEffect(() => {
+    if (!wasMet.current && water.met) {
+      successHaptic();
+      playSparkleSound();
+      setCheer((n) => n + 1);
+    }
+    wasMet.current = water.met;
+  }, [water.met]);
+  useEffect(() => {
+    if (!cheer) return;
+    const t = setTimeout(() => setCheer(0), 2800);
+    return () => clearTimeout(t);
+  }, [cheer]);
+
+  /* Who is ahead, by share of each one's own goal — a bigger goal is not a lead. */
+  const lead: { text: string; tone: 'me' | 'them' | 'even' } = (() => {
+    if (!partner || partnerMl == null) return { text: 'Waiting on their first sip', tone: 'even' };
+    const gap = water.percent - partnerPercent;
+    if (water.met && partnerMet) return { text: 'Both full 🎉', tone: 'even' };
+    if (gap === 0) return { text: 'Neck and neck', tone: 'even' };
+    return gap > 0
+      ? { text: `You lead by ${gap}%`, tone: 'me' }
+      : { text: `${partner.name} leads by ${-gap}%`, tone: 'them' };
+  })();
 
   /* One quiet line of news beside the number: a live pour from them wins,
      then a shared goal, then who is ahead. */
@@ -175,71 +228,244 @@ export function HydrationCard({
         ? 'You both met your goal'
         : null;
 
+  /* ---- Gestures between the pandas ---- */
+  const [myGesture, setMyGesture] = useState<{ kind: PandaAction; key: number; giving: boolean } | null>(null);
+  const [theirGesture, setTheirGesture] = useState<{ kind: PandaAction; key: number; giving: boolean } | null>(null);
+  const [burst, setBurst] = useState<{ action: PandaAction; key: number; line: string } | null>(null);
+  useEffect(() => {
+    if (!burst) return;
+    const t = setTimeout(() => setBurst(null), 2600);
+    return () => clearTimeout(t);
+  }, [burst]);
+  const gesture = (action: PandaAction, fromTap = false) => {
+    if (!partner || !onGesture || !onGesture(action)) return;
+    const key = Date.now();
+    lightImpactHaptic();
+    playGestureSound(action);
+    setMyGesture({ kind: action, key, giving: true });
+    // A tap on their panda already made it giggle.
+    if (!fromTap) setTheirGesture({ kind: action, key, giving: action !== 'boop' && action !== 'tickle' });
+    setBurst({ action, key, line: ACTION_META[action].sent(partner.name) });
+  };
+  const lastIncoming = useRef(incomingGesture?.key ?? 0);
+  useEffect(() => {
+    if (!incomingGesture || !partner || incomingGesture.key === lastIncoming.current) return;
+    lastIncoming.current = incomingGesture.key;
+    const { action, key } = incomingGesture;
+    const t = setTimeout(() => {
+      lightImpactHaptic();
+      playGestureSound(action);
+      setTheirGesture({ kind: action, key, giving: true });
+      setMyGesture({ kind: action, key, giving: action !== 'boop' && action !== 'tickle' });
+      setBurst({ action, key, line: ACTION_META[action].got(partner.name) });
+    }, 0);
+    return () => clearTimeout(t);
+    // Keyed by the gesture.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incomingGesture?.key]);
+
   return (
     <View onLayout={onLayout}>
       <HealthCard
         icon={<DropIcon size={16} color={IOS.water} />}
         title="Hydration"
         tint={IOS.water}
-        trailing={water.met ? 'Goal met' : `${formatMl(water.remainingMl)} to go`}
+        trailing={`${duoStreak > 0 ? `🔥 ${duoStreak} · ` : ''}${water.met ? 'Goal met' : `${formatMl(water.remainingMl)} to go`}`}
       >
-        <View style={styles.metricRow}>
-          <View style={{ flex: 1 }}>
-            <Metric value={amount} unit={`${unit} of ${formatMl(water.goalMl)}`} />
-            {news ? (
-              <Animated.Text
-                key={live?.id ?? 'news'}
-                entering={FadeInDown.springify().damping(14)}
-                exiting={FadeOutUp.duration(250)}
-                style={[styles.news, live ? { color: IOS.water } : null]}
-                numberOfLines={1}
-              >
-                {news}
-              </Animated.Text>
-            ) : null}
-          </View>
-          {/* The bear, small: the one piece of charm the card keeps. */}
-          {width > 0 ? (
-            <BearJar
-              id="me"
-              percent={water.percent}
-              width={46}
-              theme={MY_BEAR}
-              layers={layers}
-              tilt={tilt}
-              phase={phase}
-              pourKey={myPour}
-              met={water.met}
-            />
-          ) : null}
-        </View>
-        <Capsule fraction={water.percent / 100} color={IOS.water} />
-
         {partner ? (
-          <View style={styles.partner}>
-            <PersonRow
-              name={partner.name}
-              avatar={partner.avatar}
-              color={PARTNER}
-              fraction={partnerPercent / 100}
-              value={partnerMl == null ? 'Not shared yet' : `${formatMl(partnerMl)} of ${formatMl(theirGoal)}`}
-              muted={partnerMl == null}
-              leading={
-                <BearJar
-                  id="partner"
-                  percent={partnerPercent}
-                  width={30}
-                  theme={THEIR_BEAR}
-                  layers={theirLayers}
-                  tilt={tilt}
+          /* Face to face: two bears, two numbers, and who is ahead between
+             them — one glance says whether it is your turn to drink. */
+          <View style={styles.duel}>
+            <View style={styles.side}>
+              {width > 0 ? (
+                <HoldBear hold={hold}>
+                <PandaJar
+                  id="me"
+                  remaining={100 - heldPercent}
+                  width={116}
                   phase={phase}
-                  pourKey={theirPour}
-                  met={partnerMet}
+                  sipKey={myPour}
+                  mood={myMood}
+                  gesture={myGesture}
                 />
-              }
-            />
+                </HoldBear>
+              ) : null}
+              <Text style={styles.sideAmount} numberOfLines={1}>
+                {amount}
+                <Text style={styles.sideUnit}> {unit}</Text>
+              </Text>
+              <Text style={styles.sideName} numberOfLines={1}>You · {water.percent}%</Text>
+            </View>
+
+            <View style={styles.middle}>
+              {burst ? null : (
+                <View style={[styles.leadChip, lead.tone === 'me' && styles.leadMe, lead.tone === 'them' && styles.leadThem]}>
+                  <Text style={[styles.leadText, lead.tone === 'me' && { color: '#0369A1' }, lead.tone === 'them' && { color: '#6D28D9' }]} numberOfLines={2}>
+                    {lead.text}
+                  </Text>
+                </View>
+              )}
+              {burst ? (
+                <Animated.Text
+                  key={`l${burst.key}`}
+                  entering={FadeInDown.springify().damping(14)}
+                  exiting={FadeOutUp.duration(250)}
+                  style={[styles.news, styles.newsCenter, { color: '#6D28D9' }]}
+                  numberOfLines={2}
+                >
+                  {burst.line}
+                </Animated.Text>
+              ) : news ? (
+                <Animated.Text
+                  key={live?.id ?? 'news'}
+                  entering={FadeInDown.springify().damping(14)}
+                  exiting={FadeOutUp.duration(250)}
+                  style={[styles.news, styles.newsCenter, live ? { color: IOS.water } : null]}
+                  numberOfLines={2}
+                >
+                  {news}
+                </Animated.Text>
+              ) : null}
+            </View>
+
+            <View style={styles.side}>
+              <PandaJar
+                id="partner"
+                remaining={partnerMl == null ? 100 : 100 - partnerPercent}
+                width={116}
+                outfit="hoodie"
+                mirrored
+                interactive
+                onPoke={() => gesture('tickle', true)}
+                gesture={theirGesture}
+                phase={phase}
+                sipKey={theirPour}
+                mood={theirMood}
+              />
+              <Text style={[styles.sideAmount, partnerMl == null && { color: IOS.tertiary }]} numberOfLines={1}>
+                {partnerMl == null ? '—' : theirAmount}
+                {partnerMl == null ? null : <Text style={styles.sideUnit}> {theirUnit}</Text>}
+              </Text>
+              <Text style={styles.sideName} numberOfLines={1}>
+                {partner.name}
+                {partnerMl == null ? '' : ` · ${partnerPercent}%`}
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.metricRow}>
+            {width > 0 ? (
+              <HoldBear hold={hold}>
+              <PandaJar
+                id="me"
+                remaining={100 - heldPercent}
+                width={96}
+                phase={phase}
+                sipKey={myPour}
+                mood={myMood}
+              />
+              </HoldBear>
+            ) : null}
+            <View style={{ flex: 1 }}>
+              <Metric value={amount} unit={unit} />
+              <Text style={styles.news} numberOfLines={1}>
+                of {formatMl(water.goalMl)} · {water.percent}%
+              </Text>
+            </View>
+          </View>
+        )}
+        {partner && onGesture ? (
+          /* Gestures: tap one and both pandas play it — here and on their phone. */
+          <View style={styles.gestures}>
+            {PANDA_ACTIONS.map((a) => {
+              const on = a === suggestedGesture;
+              return (
+                <Pressable
+                  key={a}
+                  onPress={() => gesture(a)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${ACTION_META[a].label} ${partner.name}'s panda`}
+                  style={({ pressed }) => [styles.gesture, on && styles.gestureOn, pressed && { transform: [{ scale: 0.92 }] }]}
+                >
+                  <Text style={styles.gestureEmoji}>{ACTION_META[a].emoji}</Text>
+                  <Text style={[styles.gestureLabel, on && styles.gestureLabelOn]} numberOfLines={1}>
+                    {ACTION_META[a].label}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
         ) : null}
+        {/* The bar, with where you should be by now marked on it. */}
+        <PaceBar fraction={heldPercent / 100} marker={pace.status === 'done' ? null : pace.expectedFraction} />
+        <View style={styles.coach}>
+          {/* One calm line, not an alarm: orange text and a catch-up chip beside
+              the drink button read as three competing calls to act. */}
+          <Text
+            style={[styles.coachText, pace.status === 'done' && { color: '#15803D' }]}
+            numberOfLines={1}
+          >
+            {hold.amount > 0
+              ? `Release to pour ${formatMl(hold.amount)}`
+              : hold.hint
+                ? 'Hold your bear to pour'
+                : pace.line}
+          </Text>
+        </View>
+        {cheer ? (
+          <Animated.View entering={FadeInDown.springify().damping(12)} exiting={FadeOutUp.duration(250)} style={styles.goalHit}>
+            <Text style={styles.goalHitText}>🎉 Goal hit! Your bear is full</Text>
+          </Animated.View>
+        ) : null}
+
+        {/* Actions: undo · pour (hold for drinks and the goal) · splash them. */}
+        <View style={styles.controls}>
+          {onUndoWater ? (
+            <Pressable
+              onPress={() => {
+                selectionHaptic();
+                onUndoWater();
+              }}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Undo the last drink"
+              style={styles.undo}
+            >
+              <Text style={styles.undoText}>↺</Text>
+            </Pressable>
+          ) : null}
+          <PourButton
+            color={meta.color}
+            label={`${meta.label} ${formatMl(choice.ml)}`}
+            short={`Drink +${formatMl(choice.ml)}`}
+            open={picking}
+            onPress={() => (picking ? setPicking(false) : add(choice.kind, choice.ml))}
+            onLongPress={() => {
+              lightImpactHaptic();
+              setPicking(true);
+            }}
+          />
+          <View style={{ flex: 1 }} />
+          {partner && onSplash ? (
+            <Pressable
+              onPress={() => {
+                if (onSplash()) setSplashes((n) => n + 1);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`Splash ${partner.name} — a live reminder to drink`}
+              style={({ pressed }) => [styles.splash, pressed && { opacity: 0.7 }]}
+            >
+              <Text style={styles.splashText} numberOfLines={1}>
+                💧 Splash
+              </Text>
+              {splashes > 0 ? (
+                <Animated.Text key={splashes} entering={FadeInDown.duration(200)} style={styles.splashCount}>
+                  ×{splashes}
+                </Animated.Text>
+              ) : null}
+            </Pressable>
+          ) : null}
+        </View>
 
         {/* Picker, on hold of Pour. */}
         {picking ? (
@@ -279,65 +505,126 @@ export function HydrationCard({
                 );
               })}
             </View>
+            {/* The daily goal lives here now — set once, not a row every day. */}
+            <View style={styles.goalRow}>
+              <Text style={styles.goalCaption}>Daily goal</Text>
+              <Text style={styles.goalValue}>{formatMl(water.goalMl)}</Text>
+              <View style={styles.stepper}>
+                <Pressable
+                  onPress={() => onStepWaterGoal(-1)}
+                  disabled={atMin}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel="Lower the water goal"
+                  style={[styles.stepBtn, atMin && styles.off]}
+                >
+                  <Text style={styles.stepGlyph}>−</Text>
+                </Pressable>
+                <View style={styles.stepDivider} />
+                <Pressable
+                  onPress={() => onStepWaterGoal(1)}
+                  disabled={atMax}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel="Raise the water goal"
+                  style={[styles.stepBtn, atMax && styles.off]}
+                >
+                  <Text style={styles.stepGlyph}>+</Text>
+                </Pressable>
+              </View>
+            </View>
           </Animated.View>
         ) : null}
 
-        {/* Controls: goal stepper · undo · pour (hold for more drinks). */}
-        <View style={styles.controls}>
-          <Text style={styles.goalCaption}>Goal</Text>
-          <View style={styles.stepper}>
-            <Pressable
-              onPress={() => onStepWaterGoal(-1)}
-              disabled={atMin}
-              hitSlop={6}
-              accessibilityRole="button"
-              accessibilityLabel="Lower the water goal"
-              style={[styles.stepBtn, atMin && styles.off]}
-            >
-              <Text style={styles.stepGlyph}>−</Text>
-            </Pressable>
-            <View style={styles.stepDivider} />
-            <Pressable
-              onPress={() => onStepWaterGoal(1)}
-              disabled={atMax}
-              hitSlop={6}
-              accessibilityRole="button"
-              accessibilityLabel="Raise the water goal"
-              style={[styles.stepBtn, atMax && styles.off]}
-            >
-              <Text style={styles.stepGlyph}>+</Text>
-            </Pressable>
-          </View>
-
-          <View style={{ flex: 1 }} />
-
-          {onUndoWater ? (
-            <Pressable
-              onPress={() => {
-                selectionHaptic();
-                onUndoWater();
-              }}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Undo the last drink"
-              style={styles.undo}
-            >
-              <Text style={styles.undoText}>↺</Text>
-            </Pressable>
-          ) : null}
-
-          <PourButton
-            color={meta.color}
-            label={`${meta.label} ${formatMl(choice.ml)}`}
-            open={picking}
-            onPress={() => (picking ? setPicking(false) : add(choice.kind, choice.ml))}
-            onLongPress={() => {
-              lightImpactHaptic();
-              setPicking(true);
-            }}
-          />
-        </View>
       </HealthCard>
+    </View>
+  );
+}
+
+type Hold = ReturnType<typeof useHoldToPour>;
+
+/**
+ * Press and hold to pour: starts at 100 ml and climbs 50 ml at a time, with a
+ * tick at every glass (250 ml). Release pours it; a short tap only shows the
+ * hint, so scrolling past the bear never logs a drink.
+ */
+function useHoldToPour(onPour: (ml: number) => void) {
+  const [amount, setAmount] = useState(0);
+  const [hint, setHint] = useState(false);
+  const amt = useRef(0);
+  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pour = useRef(onPour);
+  useEffect(() => {
+    pour.current = onPour;
+  });
+  useEffect(() => () => {
+    if (timer.current) clearInterval(timer.current);
+  }, []);
+  useEffect(() => {
+    if (!hint) return;
+    const t = setTimeout(() => setHint(false), 1800);
+    return () => clearTimeout(t);
+  }, [hint]);
+
+  const start = () => {
+    amt.current = 100;
+    setAmount(100);
+    lightImpactHaptic();
+    timer.current = setInterval(() => {
+      amt.current = Math.min(1000, amt.current + 50);
+      setAmount(amt.current);
+      if (amt.current % 250 === 0) selectionHaptic();
+    }, 130);
+  };
+  const end = () => {
+    if (timer.current) clearInterval(timer.current);
+    timer.current = null;
+    const ml = amt.current;
+    amt.current = 0;
+    setAmount(0);
+    if (ml > 0) pour.current(ml);
+  };
+  return { amount, hint, start, end, tap: () => setHint(true) };
+}
+
+function HoldBear({ hold, children }: { hold: Hold; children: React.ReactNode }) {
+  const holding = hold.amount > 0;
+  const squish = useAnimatedStyle(() => ({
+    transform: [{ scale: withTiming(holding ? 1.08 : 1, { duration: 160 }) }],
+  }));
+  return (
+    <Pressable
+      onPress={hold.tap}
+      onLongPress={hold.start}
+      delayLongPress={220}
+      onPressOut={hold.end}
+      accessibilityRole="button"
+      accessibilityLabel="Hold to pour a drink"
+      accessibilityHint="The longer you hold, the more you pour"
+    >
+      <Animated.View style={squish}>{children}</Animated.View>
+      {holding ? (
+        <Animated.View entering={FadeIn.duration(120)} exiting={FadeOut.duration(150)} style={styles.holdBubble} pointerEvents="none">
+          <Text style={styles.holdText}>+{formatMl(hold.amount)}</Text>
+        </Animated.View>
+      ) : null}
+    </Pressable>
+  );
+}
+
+/** Progress with a "now" tick: where the pace line says you should be. */
+function PaceBar({ fraction, marker }: { fraction: number; marker: number | null }) {
+  const pct = Math.max(0, Math.min(1, fraction));
+  return (
+    <View style={styles.paceWrap}>
+      <View style={styles.paceTrack}>
+        {pct > 0 ? <View style={[styles.paceFill, { width: `${Math.max(3, pct * 100)}%` }]} /> : null}
+      </View>
+      {marker != null && marker > 0.02 && marker < 0.98 ? (
+        <View style={[styles.marker, { left: `${marker * 100}%` }]} pointerEvents="none">
+          <View style={styles.markerTick} />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -371,12 +658,15 @@ const REST_LEVEL = 0.5;
 function PourButton({
   color,
   label,
+  short,
   open,
   onPress,
   onLongPress,
 }: {
   color: string;
   label: string;
+  /** What the pill itself says: the amount a tap adds. */
+  short: string;
   open: boolean;
   onPress: () => void;
   onLongPress: () => void;
@@ -424,10 +714,10 @@ function PourButton({
       accessibilityRole="button"
       accessibilityLabel={open ? 'Close the drink picker' : `Pour ${label}. Hold for more drinks`}
     >
-      <Animated.View style={[styles.pour, { backgroundColor: `${color}24` }, pill]}>
+      <Animated.View style={[styles.pour, pill]}>
         {open ? (
           <Svg width={24} height={28} viewBox="0 0 24 28">
-            <Path d="M7 8 L17 18 M17 8 L7 18" stroke={INK} strokeWidth={2.4} strokeLinecap="round" />
+            <Path d="M7 8 L17 18 M17 8 L7 18" stroke="#ffffff" strokeWidth={2.4} strokeLinecap="round" />
           </Svg>
         ) : (
           <Svg width={24} height={28} viewBox="0 -4 24 32">
@@ -443,21 +733,18 @@ function PourButton({
             <Path d="M7.2 6.5 L8.4 21" stroke="#ffffff" strokeOpacity={0.8} strokeWidth={1.4} strokeLinecap="round" />
           </Svg>
         )}
-        <View>
-          <Text style={styles.pourTitle}>{open ? 'Close' : 'Pour'}</Text>
-          {open ? null : <Text style={styles.pourSub}>{label}</Text>}
-        </View>
+        <Text style={styles.pourTitle}>{open ? 'Close' : short}</Text>
       </Animated.View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  metricRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 12, marginTop: 4, marginBottom: 10 },
-  news: font('semibold', 12.5, { color: IOS.secondary, marginTop: 2 }),
+  metricRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, marginBottom: 10 },
+  news: font('semibold', 12, { color: IOS.secondary, marginTop: -2 }),
   partner: {
-    marginTop: 14,
-    paddingTop: 14,
+    marginTop: 12,
+    paddingTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: IOS.separator,
   },
@@ -478,7 +765,63 @@ const styles = StyleSheet.create({
   kindDot: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   kindEmoji: { fontSize: 18 },
   kindLabel: { ...font('medium', 11.5, { color: IOS.label }), marginTop: 4 },
-  controls: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 16 },
+  duel: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 10, marginBottom: 12 },
+  side: { width: 124, alignItems: 'center' },
+  sideAmount: { ...font('extrabold', 20, { color: IOS.label, marginTop: 6 }), letterSpacing: -0.5, fontVariant: ['tabular-nums'] },
+  sideUnit: font('semibold', 12, { color: IOS.secondary }),
+  sideName: font('semibold', 11.5, { color: IOS.secondary, marginTop: 1 }),
+  middle: { flex: 1, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', gap: 6 },
+  leadChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: IOS.fill },
+  leadMe: { backgroundColor: 'rgba(50,173,230,0.14)' },
+  leadThem: { backgroundColor: 'rgba(139,92,246,0.12)' },
+  leadText: { ...font('bold', 11.5, { color: IOS.secondary }), textAlign: 'center' },
+  newsCenter: { textAlign: 'center', marginTop: 0 },
+  burst: { fontSize: 38, textAlign: 'center' },
+  gestures: { flexDirection: 'row', gap: 6, marginBottom: 12 },
+  gesture: { flex: 1, alignItems: 'center', paddingVertical: 7, borderRadius: 14, backgroundColor: IOS.fill },
+  gestureOn: { backgroundColor: 'rgba(139,92,246,0.12)', borderWidth: 1, borderColor: 'rgba(139,92,246,0.35)' },
+  gestureEmoji: { fontSize: 18 },
+  gestureLabel: { ...font('semibold', 10.5, { color: IOS.secondary }), marginTop: 2 },
+  gestureLabelOn: { color: '#6D28D9' },
+  controls: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
+  splash: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    height: 38,
+    paddingHorizontal: 14,
+    borderRadius: 19,
+    backgroundColor: IOS.fill,
+  },
+  splashText: font('semibold', 13, { color: IOS.label }),
+  splashCount: font('bold', 11, { color: IOS.secondary }),
+  paceWrap: { height: 16, justifyContent: 'center', marginTop: 2 },
+  paceTrack: { height: 6, borderRadius: 3, backgroundColor: IOS.fill, overflow: 'hidden' },
+  paceFill: { height: '100%', borderRadius: 4, backgroundColor: IOS.water },
+  marker: { position: 'absolute', top: 2, alignItems: 'center', width: 30, marginLeft: -15 },
+  markerTick: { width: 2, height: 12, borderRadius: 1, backgroundColor: IOS.secondary },
+  coach: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 28 },
+  coachText: { ...font('medium', 12.5, { color: IOS.secondary }), flex: 1 },
+  goalHit: {
+    marginTop: 6,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: 'rgba(52,199,89,0.12)',
+    alignItems: 'center',
+  },
+  goalHitText: font('bold', 13, { color: '#15803D' }),
+  holdBubble: {
+    position: 'absolute',
+    top: -26,
+    alignSelf: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    backgroundColor: IOS.water,
+  },
+  holdText: { ...font('extrabold', 12, { color: '#ffffff' }), fontVariant: ['tabular-nums'] },
+  goalRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  goalValue: { ...font('bold', 13, { color: IOS.label }), flex: 1, fontVariant: ['tabular-nums'] },
   /* The iOS stepper: one grey capsule, split down the middle. */
   stepper: {
     flexDirection: 'row',
@@ -493,23 +836,23 @@ const styles = StyleSheet.create({
   goalCaption: font('medium', 12.5, { color: IOS.secondary }),
   off: { opacity: 0.3 },
   undo: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: IOS.fill,
     alignItems: 'center',
     justifyContent: 'center',
   },
   undoText: font('bold', 16, { color: IOS.secondary }),
   pour: {
-    height: 40,
+    height: 38,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
     paddingLeft: 8,
     paddingRight: 14,
-    borderRadius: 20,
+    borderRadius: 19,
+    backgroundColor: IOS.water,
   },
-  pourTitle: font('bold', 13.5, { color: IOS.label }),
-  pourSub: { ...font('medium', 10.5, { color: IOS.secondary }), marginTop: -2 },
+  pourTitle: font('bold', 13.5, { color: '#ffffff' }),
 });

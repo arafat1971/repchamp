@@ -132,7 +132,7 @@ describe('buildRitualReminder', () => {
   it('names what is left, with the partner as company', () => {
     expect(buildRitualReminder({ mine: states(['water', 'walk', 'move', 'greens']), theirs: { name: 'Sam', score: 3 } })).toEqual({
       title: '4/6 today — 2 to go',
-      body: 'Still time for stretch and wind down. Sam is at 3/6 💞',
+      body: 'Still time for stretch and wind down. Sam is at 3/6 ✨',
     });
   });
 

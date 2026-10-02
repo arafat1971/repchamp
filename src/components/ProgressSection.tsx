@@ -51,18 +51,18 @@ export function ProgressSection({ sessions }: { sessions: readonly SessionSummar
       {/* ── This week ── */}
       <Animated.View entering={FadeInDown.duration(320)}>
         <Card style={styles.card}>
-          <Text style={styles.eyebrow}>This week</Text>
-          <View style={styles.weekHead}>
-            <Text style={styles.big}>
-              {week.thisWeek.toLocaleString()}
-              <Text style={styles.bigUnit}> reps</Text>
-            </Text>
+          <View style={styles.rowBetween}>
+            <Text style={styles.eyebrow}>This week</Text>
             {delta != null && delta >= 0 ? (
               <View style={[styles.delta, styles.deltaUp]}>
                 <Text style={[styles.deltaText, { color: palette.green700 }]}>▲ {delta}%</Text>
               </View>
             ) : null}
           </View>
+          <Text style={styles.big}>
+            {week.thisWeek.toLocaleString()}
+            <Text style={styles.bigUnit}> reps</Text>
+          </Text>
           {/* Behind last week is stated as a target, never a red percentage:
               the week is still running, and "▼ 100%" on a Thursday is both
               untrue and the fastest way to make someone close the app. */}
@@ -75,16 +75,39 @@ export function ProgressSection({ sessions }: { sessions: readonly SessionSummar
                 ? `vs ${week.lastWeek.toLocaleString()} last week`
                 : `${(week.lastWeek - week.thisWeek).toLocaleString()} reps to beat last week’s ${week.lastWeek.toLocaleString()}`}
           </Text>
-          <View style={{ marginTop: 14 }}>
-            <BarChart
-              data={week.days}
-              labels={week.labels}
-              height={110}
-              color={palette.green300}
-              highlightColor={palette.green600}
-              highlightIndex={week.todayIndex}
-            />
-          </View>
+          {delta != null && delta < 0 ? (
+            /* The target as a distance closed, not a deficit. */
+            <View style={styles.chase}>
+              <View style={[styles.chaseFill, { width: `${Math.max(3, (week.thisWeek / week.lastWeek) * 100)}%` }]} />
+            </View>
+          ) : null}
+          {week.thisWeek > 0 ? (
+            <View style={{ marginTop: 12 }}>
+              <BarChart
+                data={week.days}
+                labels={week.labels}
+                height={72}
+                color={palette.green300}
+                highlightColor={palette.green600}
+                highlightIndex={week.todayIndex}
+              />
+            </View>
+          ) : (
+            /* An empty week is seven days, not an empty chart: one dot each,
+               today ringed, the past ones quietly spent. */
+            <View style={styles.dots}>
+              {week.labels.map((label, i) => {
+                const today = i === week.todayIndex;
+                const past = i < week.todayIndex;
+                return (
+                  <View key={`${label}-${i}`} style={styles.dayCol}>
+                    <View style={[styles.dot, past && styles.dotPast, today && styles.dotToday]} />
+                    <Text style={[styles.dayLabel, today && styles.dayLabelToday]}>{label}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
         </Card>
       </Animated.View>
 
@@ -163,11 +186,19 @@ export function ProgressSection({ sessions }: { sessions: readonly SessionSummar
 const styles = StyleSheet.create({
   card: { padding: 16 },
   eyebrow: font('semibold', 14, { color: palette.slate500 }),
-  weekHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 },
-  big: { ...font('extrabold', 34, { color: palette.ink }), letterSpacing: -0.8 },
+  big: { ...font('extrabold', 30, { color: palette.ink }), letterSpacing: -0.8, marginTop: 2 },
   bigUnit: font('bold', 16, { color: palette.slate500 }),
   sub: { ...font('medium', 12.5, { color: palette.slate500 }), marginTop: 2 },
   delta: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  chase: { height: 6, borderRadius: 3, backgroundColor: palette.green50, marginTop: 10, overflow: 'hidden' },
+  chaseFill: { height: '100%', borderRadius: 3, backgroundColor: palette.green500 },
+  dots: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 14 },
+  dayCol: { alignItems: 'center', gap: 6, flex: 1 },
+  dot: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#eef1ee' },
+  dotPast: { backgroundColor: '#e2e7e2' },
+  dotToday: { backgroundColor: palette.white, borderWidth: 3, borderColor: palette.green500 },
+  dayLabel: font('bold', 11, { color: palette.grey500 }),
+  dayLabelToday: { color: palette.green700 },
   deltaUp: { backgroundColor: palette.green50 },
   deltaText: font('extrabold', 12.5),
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

@@ -2,7 +2,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { Image, StyleSheet, Text, View } from 'react-native';
-import Svg, { Circle, Path } from 'react-native-svg';
+import Svg, { Circle, Defs, LinearGradient as SvgGradient, Path, Stop } from 'react-native-svg';
 
 import { ProgressSection } from '@/components/ProgressSection';
 import { PressableScale, ProgressBar, Screen } from '@/components/ui';
@@ -33,8 +33,8 @@ const STAT_ICONS = {
   streak: require('../../assets/fire-flame.png'),
 } as const;
 
-/* ── Line icons (single green accent, no emoji) ── */
-function GearIcon({ size = 19, color = palette.slate600 }: { size?: number; color?: string }) {
+/* ── Line icons (single accent, no emoji) ── */
+function GearIcon({ size = 19, color = palette.white }: { size?: number; color?: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Circle cx={12} cy={12} r={3} stroke={color} strokeWidth={2} fill="none" />
@@ -50,18 +50,44 @@ function GearIcon({ size = 19, color = palette.slate600 }: { size?: number; colo
   );
 }
 
-function CameraIcon({ size = 14, color = palette.green700 }: { size?: number; color?: string }) {
+function CameraIcon({ size = 13, color = palette.green700 }: { size?: number; color?: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path
         d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l2-3h8l2 3h3a2 2 0 0 1 2 2z"
         stroke={color}
-        strokeWidth={2}
+        strokeWidth={2.2}
         strokeLinecap="round"
         strokeLinejoin="round"
         fill="none"
       />
-      <Circle cx={12} cy={13} r={3.5} stroke={color} strokeWidth={2} fill="none" />
+      <Circle cx={12} cy={13} r={3.5} stroke={color} strokeWidth={2.2} fill="none" />
+    </Svg>
+  );
+}
+
+function PencilIcon({ size = 11, color = palette.white }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" stroke={color} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </Svg>
+  );
+}
+
+function ClockIcon({ size = 20, color = palette.green700 }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Circle cx={12} cy={12} r={9} stroke={color} strokeWidth={2.2} fill="none" />
+      <Path d="M12 7v5l3 2" stroke={color} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </Svg>
+  );
+}
+
+function MedalIcon({ size = 20, color = palette.amber800 }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Circle cx={12} cy={15} r={6} stroke={color} strokeWidth={2.2} fill="none" />
+      <Path d="M8.5 10 6 3h4l2 4 2-4h4l-2.5 7" stroke={color} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" fill="none" />
     </Svg>
   );
 }
@@ -85,14 +111,55 @@ function BadgeStatus({ earned }: { earned: boolean }) {
   );
 }
 
+/** One figure in the stats strip: icon, number, label. */
 function ProfileStat({ icon, value, label }: { icon: StatIconName; value: string | number; label: string }) {
   return (
-    <View style={styles.statCard}>
-      <View style={styles.statIconChip}>
-        <Image source={STAT_ICONS[icon]} style={styles.statIcon} resizeMode="contain" />
-      </View>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
+    <View style={styles.stat}>
+      <Image source={STAT_ICONS[icon]} style={styles.statIcon} resizeMode="contain" />
+      <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>
+        {value}
+      </Text>
+      <Text style={styles.statLabel} numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+const RING = 124;
+const RING_STROKE = 6;
+
+/**
+ * The avatar wrapped in its level ring: the arc is how far through this
+ * level the athlete is, so the photo itself carries the progress.
+ */
+function LevelRing({ percent, children }: { percent: number; children: React.ReactNode }) {
+  const r = (RING - RING_STROKE) / 2;
+  const c = 2 * Math.PI * r;
+  const p = Math.max(0, Math.min(100, percent)) / 100;
+  return (
+    <View style={styles.ring}>
+      <Svg width={RING} height={RING} style={StyleSheet.absoluteFill}>
+        <Defs>
+          <SvgGradient id="levelRing" x1="0" y1="0" x2="1" y2="1">
+            <Stop offset="0" stopColor={palette.green300} />
+            <Stop offset="1" stopColor={palette.amber300} />
+          </SvgGradient>
+        </Defs>
+        <Circle cx={RING / 2} cy={RING / 2} r={r} stroke="rgba(255,255,255,0.16)" strokeWidth={RING_STROKE} fill="none" />
+        <Circle
+          cx={RING / 2}
+          cy={RING / 2}
+          r={r}
+          stroke="url(#levelRing)"
+          strokeWidth={RING_STROKE}
+          strokeLinecap="round"
+          strokeDasharray={`${c * p} ${c}`}
+          fill="none"
+          transform={`rotate(-90 ${RING / 2} ${RING / 2})`}
+        />
+      </Svg>
+      {children}
     </View>
   );
 }
@@ -168,43 +235,48 @@ export default function ProfileScreen() {
   const featured = achievements.slice(0, 3);
   const earnedCount = achievements.filter((a) => a.earned).length;
   const initial = (profile.username || 'C').charAt(0).toUpperCase();
+  const setCount = profile.sessions.length;
 
   return (
     <Screen>
+      {/* ── Identity hero ── the athlete, their level wrapped around their
+          photo, and their numbers on a strip that overlaps the hero's foot. */}
       <StaggerIn index={0}>
-        <View style={styles.settingsRow}>
-          {/* Profile left the tab bar — it opens from the avatar on Home — so
-              it needs its own way back. */}
-          <PressableScale
-            onPress={() => (router.canGoBack() ? router.back() : router.navigate('/(tabs)'))}
-            accessibilityRole="button"
-            accessibilityLabel="Back"
-            style={styles.settingsButton}
-          >
-            <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-              <Path d="M15 5l-7 7 7 7" stroke={palette.ink} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
-            </Svg>
-          </PressableScale>
-          <PressableScale
-            onPress={() => router.push('/modal/settings')}
-            accessibilityRole="button"
-            accessibilityLabel="Settings"
-            style={styles.settingsButton}
-          >
-            <GearIcon />
-          </PressableScale>
-        </View>
-      </StaggerIn>
-
-      {/* ── Identity hero ── */}
-      <StaggerIn index={1}>
-        <View style={styles.identityCard}>
+        <View style={styles.hero}>
           <LinearGradient
             pointerEvents="none"
-            colors={['rgba(34,197,94,0.20)', 'rgba(34,197,94,0.04)', 'rgba(255,255,255,0)']}
-            locations={[0, 0.5, 1]}
+            colors={gradients.heroEmerald}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
             style={StyleSheet.absoluteFill}
           />
+          <View pointerEvents="none" style={[styles.glow, styles.glowTop]} />
+          <View pointerEvents="none" style={[styles.glow, styles.glowBottom]} />
+
+          <View style={styles.topBar}>
+            {/* Profile left the tab bar — it opens from the avatar on Home — so
+                it needs its own way back. */}
+            <PressableScale
+              onPress={() => (router.canGoBack() ? router.back() : router.navigate('/(tabs)'))}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+              style={styles.glassButton}
+            >
+              <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+                <Path d="M15 5l-7 7 7 7" stroke={palette.white} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
+              </Svg>
+            </PressableScale>
+            <Text style={styles.topTitle}>Profile</Text>
+            <PressableScale
+              onPress={() => router.push('/modal/settings')}
+              accessibilityRole="button"
+              accessibilityLabel="Settings"
+              style={styles.glassButton}
+            >
+              <GearIcon />
+            </PressableScale>
+          </View>
+
           <PressableScale
             onPress={pickAvatar}
             onLongPress={profile.avatarUri ? removeAvatar : undefined}
@@ -212,17 +284,20 @@ export default function ProfileScreen() {
             accessibilityLabel="Change profile photo"
             style={styles.avatarWrap}
           >
-            <View style={styles.avatarRing}>
+            <LevelRing percent={level.percent}>
               {profile.avatarUri ? (
                 <Image source={{ uri: profile.avatarUri }} style={styles.avatar} />
               ) : (
-                <View style={[styles.avatar, { backgroundColor: palette.green600 }]}>
-                  <Text style={font('extrabold', 34, { color: palette.white })}>{initial}</Text>
+                <View style={[styles.avatar, styles.avatarInitial]}>
+                  <Text style={font('extrabold', 38, { color: palette.white })}>{initial}</Text>
                 </View>
               )}
-            </View>
+            </LevelRing>
             <View style={styles.avatarEdit}>
               <CameraIcon />
+            </View>
+            <View style={styles.levelChip}>
+              <Text style={styles.levelChipText}>LV {level.level}</Text>
             </View>
           </PressableScale>
 
@@ -236,17 +311,24 @@ export default function ProfileScreen() {
             onPress={() => router.push('/modal/username')}
             accessibilityRole="button"
             accessibilityLabel="Change username"
+            style={styles.handleRow}
           >
             <Text style={styles.handle} numberOfLines={1}>
-              @{profile.username || 'champion'} <Text style={styles.handleEdit}>Edit</Text>
+              @{profile.username || 'champion'}
             </Text>
+            <View style={styles.handleEdit}>
+              <PencilIcon />
+            </View>
           </PressableScale>
 
           <View style={styles.rankPill}>
             <View style={styles.rankDot} />
-            <Text style={styles.rankPillText}>
-              {level.rankName} · Level {level.level}
-            </Text>
+            <Text style={styles.rankPillText}>{level.rankName}</Text>
+            {isPro ? (
+              <View style={styles.proTag}>
+                <Text style={styles.proTagText}>PRO</Text>
+              </View>
+            ) : null}
           </View>
 
           <View style={styles.xpBlock}>
@@ -256,86 +338,104 @@ export default function ProfileScreen() {
                 {level.xpToNextLevel.toLocaleString()} to Level {level.level + 1}
               </Text>
             </View>
-            <ProgressBar percent={level.percent} height={9} fillColors={gradients.brandStrong} />
+            <ProgressBar
+              percent={level.percent}
+              height={7}
+              trackColor="rgba(255,255,255,0.16)"
+              fillColors={[palette.green300, palette.amber300]}
+            />
           </View>
         </View>
       </StaggerIn>
 
       {/* ── Stats ── */}
-      <StaggerIn index={2}>
-        {profile.sessions.length === 0 ? (
+      <StaggerIn index={1}>
+        {setCount === 0 ? (
           <PressableScale
             onPress={() =>
               router.push({ pathname: '/session', params: { exercise: 'push', mode: 'practice' } })
             }
             accessibilityRole="button"
             accessibilityLabel="Start your first set"
+            style={styles.statsCard}
           >
-            <View style={[styles.card, styles.emptyStats]}>
+            <View style={styles.emptyStats}>
               <View style={styles.emptyIconChip}>
-                <Svg width={26} height={26} viewBox="0 0 24 24">
+                <Svg width={22} height={22} viewBox="0 0 24 24">
                   <Path d="M18 20V10M12 20V4M6 20v-6" stroke={palette.green700} strokeWidth={2.5} strokeLinecap="round" fill="none" />
                 </Svg>
               </View>
-              <Text style={font('extrabold', 16, { color: palette.ink, marginTop: 8 })}>
-                No stats yet
-              </Text>
-              <Text style={[text.captionMd, { textAlign: 'center', marginTop: 4 }]}>
-                Your reps, duels and streak land here after your first set.
-              </Text>
-              <View style={styles.emptyStatsCta}>
-                <Text style={font('extrabold', 13, { color: palette.green700 })}>
-                  Start your first set →
-                </Text>
+              <View style={{ flex: 1 }}>
+                <Text style={font('extrabold', 15, { color: palette.ink })}>No stats yet</Text>
+                <Text style={text.caption}>Your reps, duels and streak land here after your first set.</Text>
               </View>
+              <Text style={font('extrabold', 13, { color: palette.green700 })}>Start →</Text>
             </View>
           </PressableScale>
         ) : (
-          <View style={styles.statGrid}>
-            <View style={styles.statRow}>
-              <ProfileStat icon="reps" value={totalReps.toLocaleString()} label="Total reps" />
-              <ProfileStat icon="duels" value={duelsWon} label="Duels won" />
-            </View>
-            <View style={styles.statRow}>
-              <ProfileStat icon="rate" value={`${winRate}%`} label="Win rate" />
-              <ProfileStat icon="streak" value={bestStreak} label="Best streak" />
-            </View>
+          <View style={styles.statsCard}>
+            <ProfileStat icon="reps" value={totalReps.toLocaleString()} label="Reps" />
+            <View style={styles.statDivider} />
+            <ProfileStat icon="duels" value={duelsWon} label="Duels won" />
+            <View style={styles.statDivider} />
+            <ProfileStat icon="rate" value={`${winRate}%`} label="Win rate" />
+            <View style={styles.statDivider} />
+            <ProfileStat icon="streak" value={bestStreak} label="Best streak" />
           </View>
         )}
+      </StaggerIn>
+
+      {/* ── Shortcuts ──
+          History has been recorded since launch and never shown back; this is
+          the way in, beside the badge count, both one tap from the top. */}
+      <StaggerIn index={2}>
+        <View style={styles.tileRow}>
+          <PressableScale
+            onPress={() => router.push('/modal/history')}
+            accessibilityRole="button"
+            accessibilityLabel="See your workout history"
+            style={styles.tile}
+          >
+            <View style={[styles.tileIcon, { backgroundColor: palette.green50 }]}>
+              <ClockIcon />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.tileTitle}>History</Text>
+              <Text style={styles.tileSub} numberOfLines={1}>
+                {setCount === 0 ? 'No sets yet' : `${setCount} ${setCount === 1 ? 'set' : 'sets'}`}
+              </Text>
+            </View>
+            <Text style={styles.chevron}>›</Text>
+          </PressableScale>
+          <PressableScale
+            onPress={() => router.push('/modal/achievements')}
+            accessibilityRole="button"
+            accessibilityLabel="See all achievements"
+            style={styles.tile}
+          >
+            <View style={[styles.tileIcon, { backgroundColor: palette.amber50 }]}>
+              <MedalIcon />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.tileTitle}>Badges</Text>
+              <Text style={styles.tileSub} numberOfLines={1}>
+                {earnedCount} of {ACHIEVEMENTS.length}
+              </Text>
+            </View>
+            <Text style={styles.chevron}>›</Text>
+          </PressableScale>
+        </View>
       </StaggerIn>
 
       {/* ── Progress ── this week against last, twelve weeks of days, and
           per-exercise gains. The totals above only ever go up; this is where
           the athlete sees whether they are actually improving. */}
-      {profile.sessions.length > 0 ? (
+      {setCount > 0 ? (
         <StaggerIn index={3}>
           <HomeSectionHeader title="Progress" />
           <ProgressSection sessions={profile.sessions} />
         </StaggerIn>
       ) : null}
-
-      {/* ── History ──
-          Sessions have been recorded since launch and never shown back; this is
-          the way in. Above Achievements because what you actually did outranks
-          what you were awarded for doing it. */}
-      <StaggerIn index={3}>
-        <PressableScale
-          onPress={() => router.push('/modal/history')}
-          accessibilityRole="button"
-          accessibilityLabel="See your workout history"
-          style={styles.historyRow}
-        >
-          <View style={{ flex: 1 }}>
-            <Text style={font('extrabold', 15, { color: palette.ink })}>History</Text>
-            <Text style={font('semibold', 11, { color: palette.slate500 })}>
-              {profile.sessions.length === 0
-                ? 'Your finished sets will show up here'
-                : `${profile.sessions.length} ${profile.sessions.length === 1 ? 'set' : 'sets'} so far`}
-            </Text>
-          </View>
-          <Text style={{ color: palette.slate500, fontSize: 20 }}>›</Text>
-        </PressableScale>
-      </StaggerIn>
 
       {/* ── Achievements ── */}
       <StaggerIn index={4}>
@@ -351,7 +451,6 @@ export default function ProfileScreen() {
             </PressableScale>
           }
         />
-
         <View style={styles.badgeRow}>
           {featured.map((a) => (
             <View key={a.id} style={[styles.card, styles.badgeTile, !a.earned && styles.badgeLocked]}>
@@ -370,18 +469,26 @@ export default function ProfileScreen() {
       {/* ── Pro ── */}
       <StaggerIn index={5}>
         <View style={[styles.proCard, shadow.card]}>
+          <LinearGradient
+            pointerEvents="none"
+            colors={gradients.ink}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <View pointerEvents="none" style={styles.proGlow} />
           <View style={styles.proLogoBadge}>
             <Image source={require('../../assets/logo.png')} style={styles.proLogo} resizeMode="contain" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={font('extrabold', 14.5, { color: palette.ink })}>RepChamp Pro</Text>
-            <Text style={text.caption}>
+            <Text style={font('extrabold', 15, { color: palette.white })}>RepChamp Pro</Text>
+            <Text style={font('semibold', 12, { color: 'rgba(255,255,255,0.65)', marginTop: 2 })}>
               {isPro ? 'Active — thanks for the support' : 'Full library, programmes & form reports'}
             </Text>
           </View>
           {isPro ? (
             <View style={styles.proBadge}>
-              <Text style={font('extrabold', 12, { color: palette.green700 })}>PRO</Text>
+              <Text style={font('extrabold', 12, { color: palette.ink })}>ACTIVE</Text>
             </View>
           ) : (
             <PressableScale
@@ -390,15 +497,9 @@ export default function ProfileScreen() {
               accessibilityLabel="Upgrade to RepChamp Pro"
               style={styles.proButton}
             >
-              <Text style={font('extrabold', 12, { color: palette.white })}>Upgrade</Text>
+              <Text style={font('extrabold', 12.5, { color: palette.ink })}>Upgrade</Text>
             </PressableScale>
           )}
-        </View>
-
-        <View style={styles.badgeProgressRow}>
-          <Text style={styles.version}>
-            {earnedCount} / {ACHIEVEMENTS.length} badges unlocked
-          </Text>
         </View>
       </StaggerIn>
     </Screen>
@@ -413,153 +514,154 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(15,31,23,0.06)',
     ...surfaceShadow,
   },
-  statIcon: { width: 26, height: 26 },
-  historyRow: {
+
+  /* Hero */
+  hero: {
+    alignItems: 'center',
+    marginTop: 8,
+    paddingTop: 12,
+    paddingBottom: 52,
+    paddingHorizontal: 20,
+    borderRadius: radius['6xl'],
+    overflow: 'hidden',
+  },
+  glow: { position: 'absolute', borderRadius: 999 },
+  glowTop: { width: 260, height: 260, top: -130, right: -80, backgroundColor: 'rgba(134,239,172,0.18)' },
+  glowBottom: { width: 220, height: 220, bottom: -120, left: -70, backgroundColor: 'rgba(251,191,36,0.10)' },
+  topBar: {
+    alignSelf: 'stretch',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    backgroundColor: palette.white,
-    borderRadius: radius['4xl'],
-    padding: 16,
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(15,31,23,0.06)',
-    ...surfaceShadow,
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
-  settingsRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, marginBottom: 4 },
-  settingsButton: {
+  topTitle: font('extrabold', 15, { color: 'rgba(255,255,255,0.9)' }),
+  glassButton: {
     width: 40,
     height: 40,
     borderRadius: radius.lg,
-    backgroundColor: palette.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadow.card,
-  },
-
-  /* Identity */
-  identityCard: {
-    alignItems: 'center',
-    paddingVertical: 24,
-    paddingHorizontal: 20,
-    borderRadius: radius['6xl'],
-    backgroundColor: palette.white,
+    backgroundColor: 'rgba(255,255,255,0.14)',
     borderWidth: 1,
-    borderColor: 'rgba(15,31,23,0.06)',
-    overflow: 'hidden',
-    ...surfaceShadow,
-  },
-  avatarWrap: { marginBottom: 12 },
-  avatarRing: {
-    width: 96,
-    height: 96,
-    borderRadius: radius['6xl'],
-    padding: 4,
-    backgroundColor: palette.green50,
-    borderWidth: 2,
-    borderColor: palette.green200,
-  },
-  avatar: {
-    width: '100%',
-    height: '100%',
-    borderRadius: radius['4xl'],
+    borderColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  avatarWrap: { marginBottom: 14 },
+  ring: { width: RING, height: RING, alignItems: 'center', justifyContent: 'center' },
+  avatar: {
+    width: RING - RING_STROKE * 2 - 10,
+    height: RING - RING_STROKE * 2 - 10,
+    borderRadius: (RING - RING_STROKE * 2 - 10) / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarInitial: { backgroundColor: 'rgba(255,255,255,0.14)' },
   avatarEdit: {
     position: 'absolute',
-    bottom: -2,
-    right: -2,
+    top: 6,
+    right: 2,
     width: 30,
     height: 30,
     borderRadius: 15,
     backgroundColor: palette.white,
-    borderWidth: 1,
-    borderColor: palette.border,
     alignItems: 'center',
     justifyContent: 'center',
     ...shadow.card,
   },
-  name: { ...font('extrabold', 24, { color: palette.ink }), letterSpacing: -0.6 },
-  handle: { ...font('bold', 13, { color: palette.grey550 }), marginTop: 4 },
-  /* Quiet enough not to compete with the handle itself, green so it reads as
-     a control rather than part of the name. */
-  handleEdit: font('extrabold', 12, { color: palette.green700 }),
+  levelChip: {
+    position: 'absolute',
+    bottom: -8,
+    alignSelf: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    backgroundColor: palette.amber300,
+    borderWidth: 2,
+    borderColor: '#0B5132',
+  },
+  levelChipText: { ...font('extrabold', 11, { color: palette.ink }), letterSpacing: 0.6 },
+  name: { ...font('extrabold', 26, { color: palette.white }), letterSpacing: -0.6, marginTop: 4 },
+  handleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  handle: font('bold', 13.5, { color: 'rgba(255,255,255,0.72)' }),
+  handleEdit: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   rankPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 7,
     marginTop: 12,
-    backgroundColor: palette.green50,
+    backgroundColor: 'rgba(255,255,255,0.12)',
     borderWidth: 1,
-    borderColor: palette.green200,
+    borderColor: 'rgba(255,255,255,0.2)',
     borderRadius: radius.pill,
-    paddingVertical: 4,
-    paddingHorizontal: 12,
+    paddingVertical: 5,
+    paddingLeft: 12,
+    paddingRight: 6,
   },
-  rankDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: palette.green500 },
-  rankPillText: font('extrabold', 12.5, { color: palette.green700 }),
-  xpBlock: { alignSelf: 'stretch', marginTop: 16 },
-  xpLabelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    marginBottom: 8,
-  },
-  xpNow: font('extrabold', 12.5, { color: palette.ink }),
-  xpNext: font('bold', 11.5, { color: palette.grey550 }),
+  rankDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: palette.green300 },
+  rankPillText: { ...font('extrabold', 12.5, { color: palette.white }), marginRight: 6 },
+  proTag: { backgroundColor: palette.amber300, borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 1 },
+  proTagText: { ...font('extrabold', 10, { color: palette.ink }), letterSpacing: 0.6 },
+  xpBlock: { alignSelf: 'stretch', marginTop: 18 },
+  xpLabelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 7 },
+  xpNow: font('extrabold', 12.5, { color: palette.white }),
+  xpNext: font('bold', 11.5, { color: 'rgba(255,255,255,0.6)' }),
 
-  /* Empty stats */
-  emptyStats: { alignItems: 'center', padding: 24, marginTop: 16 },
+  /* Stats strip — overlaps the hero's foot */
+  statsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: -36,
+    marginHorizontal: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 6,
+    borderRadius: radius['4xl'],
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: 'rgba(15,31,23,0.06)',
+    ...shadow.card,
+  },
+  stat: { flex: 1, alignItems: 'center', paddingHorizontal: 2 },
+  statIcon: { width: 24, height: 24, marginBottom: 6 },
+  statValue: { ...font('extrabold', 19, { color: palette.ink }), fontVariant: ['tabular-nums'], letterSpacing: -0.5 },
+  statLabel: { ...font('bold', 10.5, { color: palette.grey550 }), marginTop: 2 },
+  statDivider: { width: 1, alignSelf: 'stretch', marginVertical: 6, backgroundColor: palette.border },
+  emptyStats: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 10 },
   emptyIconChip: {
-    width: 56,
-    height: 56,
-    borderRadius: radius.xl,
+    width: 44,
+    height: 44,
+    borderRadius: radius.lg,
     backgroundColor: palette.green50,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emptyStatsCta: {
-    marginTop: 12,
-    backgroundColor: palette.green50,
-    borderWidth: 1,
-    borderColor: '#bfeccb',
-    borderRadius: radius['2xl'],
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
 
-  /* Stat grid */
-  statGrid: { gap: 12, marginVertical: 16 },
-  statRow: { flexDirection: 'row', gap: 12 },
-  statCard: {
+  /* Shortcut tiles */
+  tileRow: { flexDirection: 'row', gap: 12, marginTop: 14 },
+  tile: {
     flex: 1,
-    padding: 16,
-    borderRadius: radius['4xl'],
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: radius['3xl'],
     backgroundColor: palette.white,
     borderWidth: 1,
     borderColor: 'rgba(15,31,23,0.06)',
     ...surfaceShadow,
   },
-  statIconChip: {
-    width: 38,
-    height: 38,
-    borderRadius: radius.md,
-    backgroundColor: palette.green50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  statValue: { ...font('extrabold', 26, { color: palette.ink }), fontVariant: ['tabular-nums'], letterSpacing: -0.8 },
-  statLabel: { ...font('bold', 12, { color: palette.grey550 }), marginTop: 4 },
+  tileIcon: { width: 38, height: 38, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  tileTitle: font('extrabold', 14, { color: palette.ink }),
+  tileSub: font('semibold', 11.5, { color: palette.slate500 }),
+  chevron: { color: palette.grey500, fontSize: 20, marginTop: -2 },
 
   /* Achievements */
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
   badgeRow: { flexDirection: 'row', gap: 12 },
   badgeTile: { flex: 1, alignItems: 'center', paddingVertical: 16, paddingHorizontal: 8 },
   badgeLocked: { opacity: 0.55 },
@@ -604,37 +706,39 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 16,
     marginTop: 20,
+    marginBottom: 8,
     borderRadius: radius['4xl'],
-    backgroundColor: palette.white,
-    borderWidth: 1,
-    borderColor: 'rgba(15,31,23,0.06)',
+    overflow: 'hidden',
+  },
+  proGlow: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    right: -60,
+    top: -90,
+    backgroundColor: 'rgba(251,191,36,0.16)',
   },
   proLogoBadge: {
     width: 42,
     height: 42,
     borderRadius: radius.md,
-    backgroundColor: palette.green50,
+    backgroundColor: 'rgba(255,255,255,0.1)',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   proLogo: { width: 27, height: 27 },
   proBadge: {
-    backgroundColor: palette.green50,
-    paddingVertical: 4,
+    backgroundColor: palette.amber300,
+    paddingVertical: 5,
     paddingHorizontal: 12,
     borderRadius: radius.md,
   },
   proButton: {
-    backgroundColor: palette.green500,
-    paddingVertical: 8,
+    backgroundColor: palette.amber300,
+    paddingVertical: 9,
     paddingHorizontal: 16,
     borderRadius: radius.lg,
-  },
-  badgeProgressRow: { marginTop: 16 },
-  version: {
-    ...text.caption,
-    color: palette.grey450,
-    textAlign: 'center',
   },
 });

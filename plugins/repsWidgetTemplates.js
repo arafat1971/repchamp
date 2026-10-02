@@ -66,21 +66,56 @@ const SQUAT = [
   [0.25, 90],
 ];
 
-function repsResources() {
+/**
+ * Realistic renders, when present, replace the drawn athlete: PNG frames in
+ * `assets/athlete/<male|female>/` (named so they sort in order, e.g. 1.png,
+ * 2.png…), one push-up from arms locked out to chest down. They play down
+ * and back up. A sex with no frames falls back to the drawing.
+ */
+function renderFrames(projectRoot, sex) {
+  if (!projectRoot) return [];
+  const fs = require('fs');
+  const path = require('path');
+  const dir = path.join(projectRoot, 'assets/athlete', sex);
+  if (!fs.existsSync(dir)) return [];
+  return fs
+    .readdirSync(dir)
+    .filter((n) => /\.png$/i.test(n))
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+    .map((n) => path.join(dir, n));
+}
+
+/** Text resources, and which PNGs to copy where (`binaries`: res path → source). */
+function repsResources(projectRoot) {
   const files = { 'layout/reps_widget.xml': LAYOUT_XML };
+  const binaries = {};
   for (const sex of ['male', 'female']) {
-    const items = SQUAT.map(([k, ms], i) => {
-      files[`drawable/rw_${sex}_${i}.xml`] = vector(athlete.figure(sex, k));
-      return `    <item android:drawable="@drawable/rw_${sex}_${i}" android:duration="${ms}" />`;
-    });
+    const pngs = renderFrames(projectRoot, sex);
+    let items;
+    if (pngs.length >= 2) {
+      pngs.forEach((src, i) => {
+        binaries[`drawable-nodpi/rw_${sex}_img_${i}.png`] = src;
+      });
+      // Down through every frame, a beat at the bottom, back up, a breath at the top.
+      const down = pngs.map((_, i) => i);
+      const order = [...down, ...down.slice(1, -1).reverse()];
+      items = order.map((i, n) => {
+        const ms = n === 0 ? 420 : i === pngs.length - 1 ? 220 : 90;
+        return `    <item android:drawable="@drawable/rw_${sex}_img_${i}" android:duration="${ms}" />`;
+      });
+    } else {
+      items = SQUAT.map(([k, ms], i) => {
+        files[`drawable/rw_${sex}_${i}.xml`] = vector(athlete.figure(sex, k));
+        return `    <item android:drawable="@drawable/rw_${sex}_${i}" android:duration="${ms}" />`;
+      });
+    }
     files[`drawable/rw_${sex}.xml`] = `<?xml version="1.0" encoding="utf-8"?>
 <animation-list xmlns:android="http://schemas.android.com/apk/res/android" android:oneshot="false">
 ${items.join('\n')}
 </animation-list>
 `;
-    files[`drawable/rw_${sex}_still.xml`] = vector(athlete.figure(sex, 0));
   }
-  return files;
+  return { files, binaries };
 }
 
 const anim = (id, src, visible) => `

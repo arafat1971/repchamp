@@ -742,8 +742,17 @@ const withWidgetSources = (config) =>
         write(path.join(res, file), contents);
       }
       write(path.join(javaDir, 'RepChampMessagingService.kt'), water.MESSAGING_KT(pkg));
-      for (const [file, contents] of Object.entries(reps.repsResources())) {
+      const repsRes = reps.repsResources(cfg.modRequest.projectRoot);
+      for (const [file, contents] of Object.entries(repsRes.files)) {
         write(path.join(res, file), contents);
+      }
+      /* Realistic renders, when provided — see assets/athlete/README.md. */
+      for (const file of fs.existsSync(path.join(res, 'drawable-nodpi')) ? fs.readdirSync(path.join(res, 'drawable-nodpi')) : []) {
+        if (file.startsWith('rw_')) fs.rmSync(path.join(res, 'drawable-nodpi', file), { force: true });
+      }
+      for (const [file, source] of Object.entries(repsRes.binaries)) {
+        fs.mkdirSync(path.dirname(path.join(res, file)), { recursive: true });
+        fs.copyFileSync(source, path.join(res, file));
       }
       /* The gesture sounds the widget plays, from the generated app sounds. */
       fs.mkdirSync(path.join(res, 'raw'), { recursive: true });

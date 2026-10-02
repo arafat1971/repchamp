@@ -5,6 +5,7 @@ import Svg, { Circle } from 'react-native-svg';
 
 import { ModalHeader } from '@/components/ModalHeader';
 import { Card, PrimaryButton, ProgressBar, Screen, SectionLabel } from '@/components/ui';
+import { getExercise } from '@/vision/exercises';
 import { challengeXpReward, dailyChallengeProgress } from '@/domain/dailyChallenge';
 import { dayKey } from '@/domain/progression';
 import { useProfileStore } from '@/state/profileStore';
@@ -24,7 +25,7 @@ export default function DailyChallengeScreen() {
   const sessions = useProfileStore((s) => s.sessions);
 
   const today = dayKey();
-  const { best: todaysBest, target, cleared, remaining, percent } = dailyChallengeProgress(
+  const { best: todaysBest, target, cleared, remaining, percent, exercise, name } = dailyChallengeProgress(
     sessions,
     today,
   );
@@ -45,11 +46,11 @@ export default function DailyChallengeScreen() {
           </Text>
         </View>
         <Text style={font('extrabold', 26, { color: palette.white, marginTop: 12 })}>
-          Beat {target} Push-ups
+          Beat {target} {getExercise(exercise).label}
         </Text>
         <Text style={styles.heroCopy}>
-          Do as many push-ups as you can before the timer runs out. Beat the target to keep your
-          streak alive.
+          {name} — one set, as many as you can. Beat the target to bank the reward; a new challenge
+          drops tomorrow.
         </Text>
         <View style={styles.heroStats}>
           <View>
@@ -87,7 +88,7 @@ export default function DailyChallengeScreen() {
         onPress={() =>
           router.replace({
             pathname: '/session',
-            params: { exercise: 'push', mode: 'solo', target: String(target) },
+            params: { exercise, mode: 'solo', target: String(target) },
           })
         }
         style={{ marginTop: 20 }}

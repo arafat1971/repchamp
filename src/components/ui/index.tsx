@@ -3,6 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { forwardRef, type ReactNode } from 'react';
 import {
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -44,11 +45,16 @@ export function Screen({
   scroll = true,
   style,
   contentStyle,
+  onRefresh,
+  refreshing = false,
 }: {
   children: ReactNode;
   scroll?: boolean;
   style?: StyleProp<ViewStyle>;
   contentStyle?: StyleProp<ViewStyle>;
+  /** Adds pull-to-refresh. Omit it and the screen scrolls exactly as before. */
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }) {
   const insets = useSafeAreaInsets();
   /*
@@ -95,6 +101,16 @@ export function Screen({
       // Lets a horizontal child (the home hero carousel) keep its own gesture
       // rather than having this vertical scroll claim it.
       directionalLockEnabled
+      refreshControl={
+        onRefresh ? (
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={palette.green600}
+            colors={[palette.green600]}
+          />
+        ) : undefined
+      }
     >
       {children}
     </ScrollView>

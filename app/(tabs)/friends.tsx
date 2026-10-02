@@ -15,6 +15,7 @@ import {
 } from '@/components/ui';
 import { StaggerIn } from '@/components/motion';
 import { loadFailureMessage } from '@/domain/connectivity';
+import { lastSeenLabel } from '@/domain/lastSeen';
 import { useOffline, useReconnectCount } from '@/state/connectivityStore';
 import { HomeSectionHeader } from '@/components/home/HomeSectionHeader';
 import { captureError } from '@/lib/crash';
@@ -108,6 +109,8 @@ export default function FriendsScreen() {
   const [cloudFriends, setCloudFriends] = useState<ActiveFriend[]>([]);
   const [recent, setRecent] = useState<RecentAthlete[]>([]);
   const [addingUid, setAddingUid] = useState<string | null>(null);
+  /* Which friend's extra actions are open. One at a time keeps the list calm. */
+  const [openUid, setOpenUid] = useState<string | null>(null);
   /**
    * Distinguish "still loading", "loaded and genuinely empty" and "the fetch
    * failed". Without this the three were pixel-identical — a dropped
@@ -193,6 +196,36 @@ export default function FriendsScreen() {
       // count `!won` as a loss (pre-draw-tracking behaviour).
       losses: duels.filter((s) => !s.won && !s.drew).length,
     };
+  };
+
+  const confirmRemove = (f: ActiveFriend) => {
+    if (!uid) return;
+    showDialog({
+      title: 'Remove friend?',
+      message: `${f.displayName} will leave your list. They can still have you on theirs.`,
+      tone: 'danger',
+      actions: [
+        { label: 'Cancel', variant: 'cancel' },
+        {
+          label: 'Remove',
+          variant: 'destructive',
+          onPress: () => {
+            setOpenUid(null);
+            void removeFriend(uid, f.uid)
+              .then(refresh)
+              .catch((error) => {
+                captureError(error);
+                showDialog({
+                  title: "Couldn't remove",
+                  message: 'Check your connection and try again.',
+                  tone: 'danger',
+                  actions: [{ label: 'Got it', variant: 'primary' }],
+                });
+              });
+          },
+        },
+      ],
+    });
   };
 
   const addRecent = async (athlete: RecentAthlete) => {
@@ -352,6 +385,170 @@ export default function FriendsScreen() {
         </ScrollView>
       </StaggerIn>
 
+      {/* Real friends lead. They used to sit below the AI partners, so the
+          people the tab exists for were the last thing on it. The section
+          always renders: a failed fetch, a search with no matches and having
+          no friends are three different states and must look different. */}
+      <StaggerIn index={2}>
+        <HomeSectionHeader
+          title="Your friends"
+          right={
+            cloudFriends.length > 0 ? (
+              <Text style={styles.sectionMeta}>{cloudFriends.length}</Text>
+            ) : undefined
+          }
+        />
+        {filteredCloud.length === 0 ? (
+          loading ? (
+            <View style={styles.card}>
+              <FriendRowSkeleton />
+            </View>
+          ) : loadFailed ? (
+            <View style={styles.card}>
+              <ErrorState
+                title="Could not load friends"
+                message={loadFailureMessage(
+                  offline,
+                  'Your list is still safe — this is just the connection.',
+                )}
+                onRetry={refresh}
+              />
+            </View>
+          ) : search.trim() ? (
+            <View style={styles.card}>
+              <EmptyState
+                title={`No matches for “${search.trim()}”`}
+                message="Try a different name, or add them by username."
+                actionLabel="Add a friend"
+                onAction={() => router.push('/modal/add-friend')}
+              />
+            </View>
+          ) : (
+            <View style={styles.inviteHero}>
+              <Text style={styles.inviteTitle}>Train harder with someone watching</Text>
+              <Text style={styles.inviteBody}>
+                Friends see your streak, race you live and keep you showing up. Add one by username
+                or scan their code.
+              </Text>
+              <View style={styles.inviteActions}>
+                <PressableScale
+                  onPress={() => router.push('/modal/add-friend')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add a friend"
+                  style={[styles.inviteButton, { backgroundColor: palette.white }]}
+                >
+                  <Text style={font('extrabold', 14, { color: palette.green700 })}>Add a friend</Text>
+                </PressableScale>
+                <PressableScale
+                  onPress={() => router.push('/modal/scan')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Scan or show a QR code"
+                  style={[styles.inviteButton, styles.inviteButtonGhost]}
+                >
+                  <Text style={font('extrabold', 14, { color: palette.white })}>Scan a code</Text>
+                </PressableScale>
+              </View>
+            </View>
+          )
+        ) : (
+          <View style={{ gap: 10 }}>
+            {filteredCloud.map((f) => {
+              const open = openUid === f.uid;
+              return (
+                <View key={f.uid} style={styles.friendCard}>
+                  <View style={styles.friendMain}>
+                    <PressableScale
+                      onPress={() =>
+                        router.push({
+                          pathname: '/modal/friend',
+                          params: {
+                            id: f.uid,
+                            name: f.displayName,
+                            level: String(f.level),
+                            ...(f.avatarUrl ? { avatar: f.avatarUrl } : {}),
+                            online: f.online ? '1' : '0',
+                          },
+                        })
+                      }
+                      accessibilityRole="button"
+                      accessibilityLabel={`View ${f.displayName}'s profile`}
+                      style={styles.friendInfo}
+                    >
+                      <Avatar
+                        initial={(f.displayName || 'A').charAt(0).toUpperCase()}
+                        uri={f.avatarUrl}
+                        size={48}
+                        online={f.online}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.friendName} numberOfLines={1}>
+                          {f.displayName}
+                        </Text>
+                        <Text
+                          style={font('semibold', 12, {
+                            color: f.online ? palette.green600 : palette.grey600,
+                          })}
+                          numberOfLines={1}
+                        >
+                          {lastSeenLabel(f.online, f.lastActiveAt)} · Lv.{f.level}
+                        </Text>
+                      </View>
+                    </PressableScale>
+                    <PressableScale
+                      onPress={() => invite(f, 'duel')}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Duel ${f.displayName}`}
+                      style={styles.duelButton}
+                    >
+                      <Text style={font('extrabold', 13, { color: palette.white })}>Duel</Text>
+                    </PressableScale>
+                    <PressableScale
+                      onPress={() => setOpenUid(open ? null : f.uid)}
+                      accessibilityRole="button"
+                      accessibilityState={{ expanded: open }}
+                      accessibilityLabel={`More for ${f.displayName}`}
+                      style={styles.moreButton}
+                    >
+                      <Text style={styles.moreGlyph}>{open ? '×' : '⋯'}</Text>
+                    </PressableScale>
+                  </View>
+
+                  {open ? (
+                    <View style={styles.moreRow}>
+                      <PressableScale
+                        onPress={() => invite(f, 'train')}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Train with ${f.displayName}`}
+                        style={styles.actionPill}
+                      >
+                        <Text style={font('extrabold', 12, { color: palette.green700 })}>Train together</Text>
+                      </PressableScale>
+                      <PressableScale
+                        onPress={() => invite(f, 'compete')}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Compete with ${f.displayName}`}
+                        style={styles.actionPill}
+                      >
+                        <Text style={font('extrabold', 12, { color: palette.green700 })}>Compete</Text>
+                      </PressableScale>
+                      <PressableScale
+                        onPress={() => confirmRemove(f)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remove ${f.displayName}`}
+                        style={[styles.actionPill, styles.actionPillMuted]}
+                      >
+                        <Text style={font('extrabold', 12, { color: palette.slate500 })}>Remove</Text>
+                      </PressableScale>
+                    </View>
+                  ) : null}
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </StaggerIn>
+
+
       {newAthletes.length > 0 ? (
         <StaggerIn index={2}>
           <HomeSectionHeader title="New on RepChamp" />
@@ -446,7 +643,7 @@ export default function FriendsScreen() {
       ) : null}
 
       <StaggerIn index={4}>
-        <HomeSectionHeader title="AI partners" />
+        <HomeSectionHeader title="Practice with AI partners" />
         <View style={styles.card}>
           {filteredOpponents.map((o, index) => {
             const { wins, losses } = record(o.id);
@@ -498,154 +695,6 @@ export default function FriendsScreen() {
         </View>
       </StaggerIn>
 
-      {/* The section always renders now. It used to disappear entirely when
-          the list was empty, so a failed fetch, a search with no matches and
-          genuinely having no friends were indistinguishable. */}
-      {filteredCloud.length === 0 ? (
-        <StaggerIn index={5}>
-          <HomeSectionHeader title="On RepChamp" />
-          <View style={styles.card}>
-            {loading ? (
-              <FriendRowSkeleton />
-            ) : loadFailed ? (
-              <ErrorState
-                title="Could not load friends"
-                message={loadFailureMessage(
-                  offline,
-                  'Your list is still safe — this is just the connection.',
-                )}
-                onRetry={refresh}
-              />
-            ) : search.trim() ? (
-              <EmptyState
-                title={`No matches for “${search.trim()}”`}
-                message="Try a different name, or add them by username."
-                actionLabel="Add a friend"
-                onAction={() => router.push('/modal/add-friend')}
-              />
-            ) : (
-              <EmptyState
-                title="No friends yet"
-                message="Add someone by username and challenge them to a duel."
-                actionLabel="Add a friend"
-                onAction={() => router.push('/modal/add-friend')}
-              />
-            )}
-          </View>
-        </StaggerIn>
-      ) : (
-        <StaggerIn index={5}>
-          <HomeSectionHeader title="On RepChamp" />
-          <View style={styles.card}>
-            {filteredCloud.map((f, index) => (
-              <View key={f.uid}>
-                {index > 0 ? <Divider style={{ marginHorizontal: 8 }} /> : null}
-                <View style={styles.cloudRow}>
-                  <PressableScale
-                    onPress={() =>
-                      router.push({
-                        pathname: '/modal/friend',
-                        params: {
-                          id: f.uid,
-                          name: f.displayName,
-                          level: String(f.level),
-                          ...(f.avatarUrl ? { avatar: f.avatarUrl } : {}),
-                          online: f.online ? '1' : '0',
-                        },
-                      })
-                    }
-                    accessibilityRole="button"
-                    accessibilityLabel={`View ${f.displayName}'s profile`}
-                    style={styles.friendInfo}
-                  >
-                    <Avatar
-                      initial={(f.displayName || 'A').charAt(0).toUpperCase()}
-                      uri={f.avatarUrl}
-                      size={44}
-                      online={f.online}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text style={text.cardTitle} numberOfLines={1}>
-                        {f.displayName}
-                      </Text>
-                      <Text
-                        style={font('semibold', 11, {
-                          color: f.online ? palette.green500 : palette.grey600,
-                        })}
-                      >
-                        {f.online ? '● Active' : 'Offline'} · Lv.{f.level}
-                      </Text>
-                    </View>
-                  </PressableScale>
-
-                  <View style={styles.actionRow}>
-                    <PressableScale
-                      onPress={() => invite(f, 'duel')}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Duel ${f.displayName}`}
-                      style={styles.actionPill}
-                    >
-                      <Text style={font('extrabold', 11, { color: palette.white })}>Duel</Text>
-                    </PressableScale>
-                    <PressableScale
-                      onPress={() => invite(f, 'train')}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Train with ${f.displayName}`}
-                      style={[styles.actionPill, styles.actionPillSoft]}
-                    >
-                      <Text style={font('extrabold', 11, { color: palette.green700 })}>Train</Text>
-                    </PressableScale>
-                    <PressableScale
-                      onPress={() => invite(f, 'compete')}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Compete with ${f.displayName}`}
-                      style={[styles.actionPill, styles.actionPillSoft]}
-                    >
-                      <Text style={font('extrabold', 11, { color: palette.green700 })}>Compete</Text>
-                    </PressableScale>
-                    <PressableScale
-                      onPress={() => {
-                        if (!uid) return;
-                        showDialog({
-                          title: 'Remove friend?',
-                          message: `${f.displayName} will leave your list. They can still have you on theirs.`,
-                          tone: 'danger',
-                          actions: [
-                            { label: 'Cancel', variant: 'cancel' },
-                            {
-                              label: 'Remove',
-                              variant: 'destructive',
-                              onPress: () => {
-                                void removeFriend(uid, f.uid)
-                                  .then(refresh)
-                                  .catch((error) => {
-                                    captureError(error);
-                                    showDialog({
-                                      title: "Couldn't remove",
-                                      message:
-                                        'Check your connection and try again.',
-                                      tone: 'danger',
-                                      actions: [{ label: 'Got it', variant: 'primary' }],
-                                    });
-                                  });
-                              },
-                            },
-                          ],
-                        });
-                      }}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Remove ${f.displayName}`}
-                      style={[styles.actionPill, styles.actionPillMuted]}
-                    >
-                      <Text style={font('extrabold', 11, { color: palette.slate500 })}>Remove</Text>
-                    </PressableScale>
-                  </View>
-                </View>
-              </View>
-            ))}
-          </View>
-        </StaggerIn>
-      )}
     </Screen>
   );
 }
@@ -670,6 +719,52 @@ const styles = StyleSheet.create({
   headerButtonPrimary: { backgroundColor: palette.green500, borderColor: palette.green500 },
   headerPlus: { ...font('extrabold', 26, { color: palette.white }), marginTop: -2 },
   bleed: { marginHorizontal: -SCREEN_GUTTER },
+  sectionMeta: font('bold', 12, { color: palette.grey600 }),
+  friendCard: {
+    borderRadius: radius['4xl'],
+    padding: 12,
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: 'rgba(15,31,23,0.06)',
+    ...surfaceShadow,
+  },
+  friendMain: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  friendName: { ...font('extrabold', 15.5, { color: palette.ink }), letterSpacing: -0.3 },
+  moreButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: palette.divider,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moreGlyph: { ...font('extrabold', 18, { color: palette.grey600 }), marginTop: -3 },
+  moreRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: palette.divider,
+  },
+  inviteHero: {
+    borderRadius: radius['6xl'],
+    padding: 20,
+    backgroundColor: '#0B5132',
+    overflow: 'hidden',
+  },
+  inviteTitle: { ...font('extrabold', 21, { color: palette.white }), letterSpacing: -0.5, lineHeight: 26 },
+  inviteBody: { ...font('medium', 13.5, { color: 'rgba(255,255,255,0.85)' }), lineHeight: 19, marginTop: 6 },
+  inviteActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  inviteButton: {
+    flex: 1,
+    height: 46,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inviteButtonGhost: { borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.5)' },
   card: {
     borderRadius: radius['4xl'],
     padding: 8,

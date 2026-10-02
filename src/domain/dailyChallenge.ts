@@ -43,6 +43,40 @@ export const DAILY_CHALLENGE_EXERCISE: ExerciseId = 'push';
 export const DAILY_CHALLENGE_TARGET = 25;
 
 /**
+ * Today's challenge rotates through the free movements.
+ *
+ * The same "25 push-ups" every day is a chore; a different ask each morning is
+ * a reason to open the app and see what today is. The rotation is a fixed
+ * seven-day cycle keyed on the calendar day, so every screen, widget and
+ * partner phone agrees without any server, and it only uses free exercises so
+ * the daily is never a paywall. The first slot is the original challenge.
+ */
+const ROTATION: readonly { exercise: ExerciseId; target: number; name: string }[] = [
+  { exercise: 'push', target: 25, name: 'Push-up test' },
+  { exercise: 'squat', target: 30, name: 'Squat burner' },
+  { exercise: 'push', target: 15, name: 'Quick fifteen' },
+  { exercise: 'squat', target: 20, name: 'Leg day lite' },
+  { exercise: 'push', target: 35, name: 'Chest builder' },
+  { exercise: 'squat', target: 40, name: 'Squat ladder' },
+  { exercise: 'push', target: 20, name: 'Steady twenty' },
+];
+
+export interface DailyChallengeSpec {
+  exercise: ExerciseId;
+  target: number;
+  name: string;
+}
+
+/** The challenge for a `YYYY-MM-DD` day key. Unparseable keys get the default. */
+export function dailyChallengeFor(day: string): DailyChallengeSpec {
+  const ms = Date.parse(`${day}T00:00:00Z`);
+  const fallback = ROTATION[0] as DailyChallengeSpec;
+  if (!Number.isFinite(ms)) return fallback;
+  const dayNumber = Math.floor(ms / 86_400_000);
+  return ROTATION[((dayNumber % ROTATION.length) + ROTATION.length) % ROTATION.length] ?? fallback;
+}
+
+/**
  * XP for clearing it, derived rather than typed.
  *
  * The challenge launches `mode: 'solo'` with the target as the goal, so
@@ -59,6 +93,8 @@ export interface DailyChallengeProgress {
   target: number;
   /** Best single set of the challenge movement today — 0 before any attempt. */
   best: number;
+  /** The day's challenge title, e.g. "Squat burner". */
+  name: string;
   /** Reps still needed; 0 once cleared. */
   remaining: number;
   /** 0–100, for `ProgressBar`. Clamped, so a 40-rep set on a 25 target is 100. */
@@ -82,18 +118,18 @@ export function dailyChallengeProgress(
   sessions: readonly { day: string; exercise: ExerciseId; reps: number }[],
   today: string,
 ): DailyChallengeProgress {
+  const spec = dailyChallengeFor(today);
   const best = sessions
-    .filter((s) => s.day === today && s.exercise === DAILY_CHALLENGE_EXERCISE)
+    .filter((s) => s.day === today && s.exercise === spec.exercise)
     .reduce((max, s) => Math.max(max, s.reps), 0);
 
-  const cleared = best >= DAILY_CHALLENGE_TARGET;
-
   return {
-    exercise: DAILY_CHALLENGE_EXERCISE,
-    target: DAILY_CHALLENGE_TARGET,
+    exercise: spec.exercise,
+    target: spec.target,
+    name: spec.name,
     best,
-    remaining: Math.max(0, DAILY_CHALLENGE_TARGET - best),
-    percent: Math.min(100, Math.round((best / DAILY_CHALLENGE_TARGET) * 100)),
-    cleared,
+    remaining: Math.max(0, spec.target - best),
+    percent: Math.min(100, Math.round((best / spec.target) * 100)),
+    cleared: best >= spec.target,
   };
 }

@@ -2,6 +2,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useShallow } from 'zustand/shallow';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
@@ -54,6 +55,7 @@ import { useWidgetStyleStore } from '@/state/widgetStyleStore';
 import { useDuoStreakStore } from '@/state/duoStreakStore';
 import { useRitualStore } from '@/state/ritualStore';
 import { MorningCard } from '@/components/together/MorningCard';
+import { useHomeClock } from '@/state/useHomeClock';
 import { useWeatherStore } from '@/state/weatherStore';
 import { refreshWeather } from '@/services/weather';
 import { meadow, weekWrap, wrapLine } from '@/domain/week';
@@ -84,7 +86,7 @@ import {
   selectWeeklyXp,
 } from '@/state/profileStore';
 import { selectTodayMl, useHydrationStore } from '@/state/hydrationStore';
-import { useEffectivePro } from '@/state/proStore';
+import { useEffectivePro, useProStore } from '@/state/proStore';
 import { isPurchasesConfigured } from '@/services/purchases';
 import { isWalled } from '@/domain/hardPaywall';
 import { useCouple } from '@/state/useCouple';
@@ -106,7 +108,21 @@ const IC_SQUAT = require('../../assets/ic-squat.png');
 
 export default function HomeScreen() {
   const router = useRouter();
-  const profile = useProfileStore();
+  /* Only the fields Home reads. A bare `useProfileStore()` re-rendered this
+     whole screen on every change to the store — an XP sync, a flag — whether
+     or not anything shown had moved. `useShallow` keeps the same object when
+     all of these are unchanged. */
+  const profile = useProfileStore(
+    useShallow((s) => ({
+      sessions: s.sessions,
+      totalXp: s.totalXp,
+      avatarUri: s.avatarUri,
+      displayName: s.displayName,
+      username: s.username,
+      sex: s.sex,
+      weeklyGoal: s.weeklyGoal,
+    })),
+  );
   const couple = useCouple();
   const self = useSelfPlayer();
 
@@ -141,10 +157,14 @@ export default function HomeScreen() {
   }, [tickleTo, firstName]);
 
   const seed = usePhantomSeed();
-  const realActive = useLiveActivityCount();
+  const [reloadKey, setReloadKey] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const realActive = useLiveActivityCount(reloadKey);
   const activity = liveActivity(realActive, seed.phantomOnline.length, seed.isSeeding);
 
-  const today = dayKey();
+  /* The minute only matters when paired (the pace hint, the morning card's
+     hour); unpaired it ticks silently and renders only on a day rollover. */
+  const { now: minute, day: today } = useHomeClock(couple.paired);
   const trainedToday = profile.sessions.some((s) => s.day === today);
   const daily = useMemo(
     () => dailyChallengeProgress(profile.sessions, today),
@@ -227,7 +247,7 @@ export default function HomeScreen() {
   /* Today's steps. Read on mount and on foreground — the count cannot move
      while the app is backgrounded, but it will have moved by the time they
      come back, which is when the ring is about to be read. */
-  const { steps: stepsToday, openSettings: openStepSettings } = useStepsToday();
+  const { steps: stepsToday, openSettings: openStepSettings, refresh: refreshSteps } = useStepsToday();
 
   /* Publish the count to the bond whenever a read lands. `syncStepsNow`
      no-ops when it has not moved, so a foreground read that finds the same
@@ -286,11 +306,6 @@ export default function HomeScreen() {
      the moment (cheers when you both just drank, a high five at their goal,
      a hug when they're behind, else a tickle). */
   const partnerGesture = usePartnerGesture(couple.partner, today);
-  const [minute, setMinute] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setMinute(Date.now()), 60_000);
-    return () => clearInterval(id);
-  }, []);
   const suggestedGesture = useMemo(() => {
     const theirMl = partnerGlass?.ml ?? 0;
     const theirGoal = partnerGlass?.goalMl ?? 0;
@@ -367,7 +382,7 @@ export default function HomeScreen() {
   /* The morning card: once a morning, paired, with yesterday as this phone saw it. */
   const ritualHistory = useRitualStore((st) => st.history);
   const morningDismissed = useRitualStore((st) => st.morningDismissed);
-  const [clockHour] = useState(() => new Date().getHours());
+  const clockHour = new Date(minute).getHours();
   const morning = useMemo(
     () => (partnerGlass ? morningCard(ritualHistory, today, clockHour, morningDismissed) : null),
     [partnerGlass, ritualHistory, today, clockHour, morningDismissed],
@@ -527,6 +542,22 @@ export default function HomeScreen() {
 
   const insets = useSafeAreaInsets();
 
+  /* Pull to refresh. The couple document is a live listener, so there is
+     nothing to re-fetch for it; what can be stale is the step count, the
+     weather, the live "who's here" number and Pro. A short floor on the
+     spinner keeps a fast cache hit from reading as "nothing happened". */
+  const refreshPro = useProStore((st) => st.refresh);
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    refreshSteps();
+    setReloadKey((k) => k + 1);
+    void Promise.allSettled([
+      refreshWeather(true),
+      refreshPro(),
+      new Promise((resolve) => setTimeout(resolve, 700)),
+    ]).finally(() => setRefreshing(false));
+  }, [refreshSteps, refreshPro]);
+
   /* A live poke from a Health card — the splash on water, the cheer on steps.
      Same channel as the live bar, so it lands on their Home within seconds. */
   const sendLivePoke = useCallback(
@@ -679,7 +710,7 @@ export default function HomeScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: palette.canvas }}>
-      <Screen style={{ backgroundColor: 'transparent' }}>
+      <Screen style={{ backgroundColor: 'transparent' }} onRefresh={onRefresh} refreshing={refreshing}>
       {/* Top bar, app-style: avatar (level on it) and a two-line greeting on
           the left, the streak flame and alerts on the right. One compact row
           instead of a third of the screen, so the hero lands above the fold. */}
@@ -785,7 +816,7 @@ export default function HomeScreen() {
       {/* The day's three loops beside the streak and league, as one bento. */}
       <StaggerIn index={1}>
         <TodayBento
-          challenge={daily}
+          challenge={{ ...daily, label: getExercise(daily.exercise).label.replace(/s$/, '') }}
           water={water}
           steps={stepsToday}
           streak={streak}

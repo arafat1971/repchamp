@@ -47,7 +47,7 @@ export function TodayBento({
   onStreak,
   onLeague,
 }: {
-  challenge: { best: number; target: number; percent: number };
+  challenge: { best: number; target: number; percent: number; label?: string };
   water: { ml: number; goalMl: number; percent: number };
   steps: StepsState;
   streak: number;
@@ -88,7 +88,7 @@ export function TodayBento({
             </View>
           </View>
           <View style={styles.legend}>
-            <Legend color={RINGS.challenge.to} label="Push" value={`${challenge.best}/${challenge.target}`} />
+            <Legend color={RINGS.challenge.to} label={challenge.label ?? "Push"} value={`${challenge.best}/${challenge.target}`} />
             <Legend color={RINGS.water.to} label="Water" value={`${litres(water.ml)}/${litres(water.goalMl)}L`} />
             {stepsReady ? (
               <Legend color={RINGS.steps.to} label="Steps" value={compact(steps.steps)} />

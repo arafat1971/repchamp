@@ -1,21 +1,20 @@
 import { QrPlusIcon } from '@/components/QrPlusIcon';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { StyleSheet, Text, View, TextInput } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, TextInput } from 'react-native';
 
 import {
   Avatar,
-  Card,
   Divider,
   EmptyState,
   ErrorState,
-  Eyebrow,
   PressableScale,
   Screen,
   Skeleton,
   SkeletonCircle,
 } from '@/components/ui';
 import { StaggerIn } from '@/components/motion';
+import { HomeSectionHeader } from '@/components/home/HomeSectionHeader';
 import { captureError } from '@/lib/crash';
 import { OPPONENTS, type Opponent } from '@/domain/opponent';
 import { track } from '@/lib/analytics';
@@ -33,7 +32,7 @@ import { useAuthStore } from '@/state/authStore';
 import { showDialog } from '@/state/useDialog';
 import { useProfileStore } from '@/state/profileStore';
 import { font, text } from '@/theme/typography';
-import { palette, radius } from '@/theme/tokens';
+import { SCREEN_GUTTER, palette, radius, surfaceShadow } from '@/theme/tokens';
 import type { InviteKind } from '@/domain/presence';
 
 /** Avatar tints, keyed by opponent id, matching the design. */
@@ -224,7 +223,36 @@ export default function FriendsScreen() {
   return (
     <Screen>
       <StaggerIn index={0}>
-        <Text style={[text.h1, { marginTop: 12, marginBottom: 16 }]}>Friends</Text>
+        <View style={styles.header}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.eyebrow} numberOfLines={1}>
+              {onlineFriends.length > 0
+                ? `${onlineFriends.length} ${onlineFriends.length === 1 ? 'friend' : 'friends'} active now`
+                : cloudFriends.length > 0
+                  ? `${cloudFriends.length} ${cloudFriends.length === 1 ? 'friend' : 'friends'}`
+                  : 'Train better together'}
+            </Text>
+            <Text style={styles.title} accessibilityRole="header">
+              Friends
+            </Text>
+          </View>
+          <PressableScale
+            onPress={() => router.push('/modal/scan')}
+            accessibilityRole="button"
+            accessibilityLabel="Scan or show a QR code"
+            style={styles.headerButton}
+          >
+            <QrPlusIcon size={22} />
+          </PressableScale>
+          <PressableScale
+            onPress={() => router.push('/modal/add-friend')}
+            accessibilityRole="button"
+            accessibilityLabel="Add friends"
+            style={[styles.headerButton, styles.headerButtonPrimary]}
+          >
+            <Text style={styles.headerPlus}>+</Text>
+          </PressableScale>
+        </View>
         <View style={styles.searchBar}>
           <View style={styles.searchIcon}>
             <View style={styles.searchGlass} />
@@ -241,32 +269,13 @@ export default function FriendsScreen() {
       </StaggerIn>
 
       <StaggerIn index={1}>
-        <Eyebrow style={[styles.sectionTitle, { marginBottom: 12, marginTop: 16 }]}>Active now</Eyebrow>
-        <View style={styles.onlineRow}>
-          <PressableScale
-            onPress={() => router.push('/modal/add-friend')}
-            accessibilityRole="button"
-            accessibilityLabel="Add friends"
-            style={styles.onlineItem}
-          >
-            <View style={styles.addCircle}>
-              <Text style={{ fontSize: 24, color: palette.green600 }}>+</Text>
-            </View>
-            <Text style={styles.onlineName}>Add</Text>
-          </PressableScale>
-
-          {/* Scan or show a QR — the fastest add when you're standing together. */}
-          <PressableScale
-            onPress={() => router.push('/modal/scan')}
-            accessibilityRole="button"
-            accessibilityLabel="Scan or show a QR code"
-            style={styles.onlineItem}
-          >
-            <View style={styles.addCircle}>
-              <QrPlusIcon size={28} />
-            </View>
-            <Text style={styles.onlineName}>Scan</Text>
-          </PressableScale>
+        <HomeSectionHeader title="Active now" />
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.bleed}
+          contentContainerStyle={styles.onlineRow}
+        >
 
           {onlineFriends.map((f) => (
             <PressableScale
@@ -333,13 +342,13 @@ export default function FriendsScreen() {
               <AiTag style={{ marginTop: 4, alignSelf: 'center' }} />
             </PressableScale>
           ))}
-        </View>
+        </ScrollView>
       </StaggerIn>
 
       {newAthletes.length > 0 ? (
         <StaggerIn index={2}>
-          <Eyebrow style={[styles.sectionTitle, { marginBottom: 12, marginTop: 8 }]}>New on RepChamp</Eyebrow>
-          <Card style={{ padding: 8 }}>
+          <HomeSectionHeader title="New on RepChamp" />
+          <View style={styles.card}>
             {newAthletes.slice(0, 8).map((a, index) => (
               <View key={a.uid}>
                 {index > 0 ? <Divider style={{ marginHorizontal: 8 }} /> : null}
@@ -373,14 +382,14 @@ export default function FriendsScreen() {
                 </View>
               </View>
             ))}
-          </Card>
+          </View>
         </StaggerIn>
       ) : null}
 
       {seed.isSeeding && seed.phantomFriends.length > 0 ? (
         <StaggerIn index={3}>
-          <Eyebrow style={[styles.sectionTitle, { marginBottom: 12, marginTop: 16 }]}>Suggested friends</Eyebrow>
-          <Card style={{ padding: 8 }}>
+          <HomeSectionHeader title="Suggested friends" />
+          <View style={styles.card}>
             {seed.phantomFriends.map((p, index) => (
               <View key={p.id}>
                 {index > 0 ? <Divider style={{ marginHorizontal: 8 }} /> : null}
@@ -425,13 +434,13 @@ export default function FriendsScreen() {
                 </View>
               </View>
             ))}
-          </Card>
+          </View>
         </StaggerIn>
       ) : null}
 
       <StaggerIn index={4}>
-        <Eyebrow style={[styles.sectionTitle, { marginBottom: 12, marginTop: 16 }]}>AI partners</Eyebrow>
-        <Card style={{ padding: 8 }}>
+        <HomeSectionHeader title="AI partners" />
+        <View style={styles.card}>
           {filteredOpponents.map((o, index) => {
             const { wins, losses } = record(o.id);
 
@@ -479,7 +488,7 @@ export default function FriendsScreen() {
               </View>
             );
           })}
-        </Card>
+        </View>
       </StaggerIn>
 
       {/* The section always renders now. It used to disappear entirely when
@@ -487,8 +496,8 @@ export default function FriendsScreen() {
           genuinely having no friends were indistinguishable. */}
       {filteredCloud.length === 0 ? (
         <StaggerIn index={5}>
-          <Eyebrow style={[styles.sectionTitle, { marginTop: 24, marginBottom: 12 }]}>On RepChamp</Eyebrow>
-          <Card style={{ padding: 8 }}>
+          <HomeSectionHeader title="On RepChamp" />
+          <View style={styles.card}>
             {loading ? (
               <FriendRowSkeleton />
             ) : loadFailed ? (
@@ -512,12 +521,12 @@ export default function FriendsScreen() {
                 onAction={() => router.push('/modal/add-friend')}
               />
             )}
-          </Card>
+          </View>
         </StaggerIn>
       ) : (
         <StaggerIn index={5}>
-          <Eyebrow style={[styles.sectionTitle, { marginTop: 24, marginBottom: 12 }]}>On RepChamp</Eyebrow>
-          <Card style={{ padding: 8 }}>
+          <HomeSectionHeader title="On RepChamp" />
+          <View style={styles.card}>
             {filteredCloud.map((f, index) => (
               <View key={f.uid}>
                 {index > 0 ? <Divider style={{ marginHorizontal: 8 }} /> : null}
@@ -624,7 +633,7 @@ export default function FriendsScreen() {
                 </View>
               </View>
             ))}
-          </Card>
+          </View>
         </StaggerIn>
       )}
     </Screen>
@@ -634,16 +643,41 @@ export default function FriendsScreen() {
 const styles = StyleSheet.create({
   /* Sentence case, one size up: tracked all-caps labels read as template. */
   sectionTitle: font('semibold', 14, { color: palette.grey600 }),
+  header: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, marginBottom: 14 },
+  eyebrow: font('semibold', 13, { color: palette.grey600 }),
+  title: { ...font('extrabold', 28, { color: palette.ink }), letterSpacing: -0.8 },
+  headerButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: 'rgba(15,31,23,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...surfaceShadow,
+  },
+  headerButtonPrimary: { backgroundColor: palette.green500, borderColor: palette.green500 },
+  headerPlus: { ...font('extrabold', 26, { color: palette.white }), marginTop: -2 },
+  bleed: { marginHorizontal: -SCREEN_GUTTER },
+  card: {
+    borderRadius: radius['4xl'],
+    padding: 8,
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: 'rgba(15,31,23,0.06)',
+    ...surfaceShadow,
+  },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: palette.white,
-    borderRadius: radius.xl,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderRadius: radius.pill,
+    paddingHorizontal: 16,
+    minHeight: 46,
     borderWidth: 1,
-    borderColor: palette.border,
-    marginBottom: 4,
+    borderColor: 'rgba(15,31,23,0.08)',
+    ...surfaceShadow,
   },
   searchIcon: { width: 16, height: 16, marginRight: 8 },
   searchGlass: {
@@ -671,7 +705,7 @@ const styles = StyleSheet.create({
     ...font('semibold', 13, { color: palette.ink }),
     padding: 0,
   },
-  onlineRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginBottom: 24 },
+  onlineRow: { flexDirection: 'row', gap: 16, paddingHorizontal: SCREEN_GUTTER, paddingVertical: 6 },
   onlineItem: { alignItems: 'center', gap: 4, width: 64 },
   addCircle: {
     width: 58,

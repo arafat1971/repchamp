@@ -11,44 +11,22 @@ import { WeeklyChallengeCard } from '@/components/WeeklyChallengeCard';
 import { track } from '@/lib/analytics';
 import { useTabView } from '@/lib/useTabView';
 import { captureError } from '@/lib/crash';
+import { leagueProgressFromWeeklyXp } from '@/domain/leagueProgress';
 import { buildLeaderboard, type LeaderboardRow } from '@/domain/leaderboard';
 import { usePhantomSeed } from '@/domain/seedPhantoms';
 import { fetchLeaderboard } from '@/services/leaderboardService';
 import { useAuthStore } from '@/state/authStore';
 import { selectLeague, selectWeeklyXp, useProfileStore } from '@/state/profileStore';
 import { font, text } from '@/theme/typography';
-import { palette, radius, shadow } from '@/theme/tokens';
+import { palette, radius, shadow, surfaceShadow } from '@/theme/tokens';
+
+const IC_TROPHY = require('../../assets/trophy-bronze.png');
+const IC_TARGET = require('../../assets/ic-target.png');
+const BADGE_VS = require('../../assets/badge-vs.png');
+const BADGE_LIVE = require('../../assets/badge-live.png');
 
 /** A leaderboard row, plus the optional AI-partner fields injected when seeding. */
 type BoardRow = LeaderboardRow & { emoji?: string; isAI?: boolean };
-
-/** Numbered rank medallion — green intensity carries the podium hierarchy. */
-function RankMedal({ rank }: { rank: number }) {
-  if (rank === 1) {
-    return (
-      <View style={[styles.medal, { backgroundColor: palette.green600 }]}>
-        <Text style={[styles.medalText, { color: palette.white }]}>1</Text>
-      </View>
-    );
-  }
-  const second = rank === 2;
-  return (
-    <View
-      style={[
-        styles.medal,
-        {
-          backgroundColor: second ? palette.green50 : palette.white,
-          borderWidth: 1.5,
-          borderColor: second ? palette.green200 : palette.border,
-        },
-      ]}
-    >
-      <Text style={[styles.medalText, { color: second ? palette.green700 : palette.slate500 }]}>
-        {rank}
-      </Text>
-    </View>
-  );
-}
 
 function TrophyIcon({ size = 17, color = palette.green700 }: { size?: number; color?: string }) {
   return (
@@ -132,6 +110,7 @@ export default function ArenaScreen() {
         .sort((a, b) => (b.xp !== a.xp ? b.xp - a.xp : a.isYou ? -1 : b.isYou ? 1 : 0))
         .map((row, idx) => ({ ...row, rank: idx + 1 }))
     : baseBoard;
+  const leagueProgress = leagueProgressFromWeeklyXp(weeklyXp);
   const you = board.find((row) => row.isYou);
   const top = board.slice(0, 3);
   const myInitial = (profile.username || 'You').charAt(0).toUpperCase();
@@ -140,19 +119,45 @@ export default function ArenaScreen() {
     <Screen>
       <StaggerIn index={0}>
         <View style={styles.header}>
-          <Text style={text.h1}>Arena</Text>
-          <View style={styles.leaguePill}>
-            <View style={styles.leagueDot} />
-            <Text style={styles.leaguePillText}>
-              {league.name}
-              {you ? ` · #${you.rank}` : ''}
+          <View style={{ flex: 1 }}>
+            <Text style={styles.eyebrow} numberOfLines={1}>
+              {you ? `Rank #${you.rank} this week` : 'Compete this week'}
             </Text>
+            <Text style={styles.title} accessibilityRole="header">
+              Arena
+            </Text>
+          </View>
+          <View style={styles.leaguePill}>
+            <Image source={IC_TROPHY} style={styles.leaguePillIcon} contentFit="contain" />
+            <Text style={styles.leaguePillText}>{league.name}</Text>
+          </View>
+        </View>
+      </StaggerIn>
+
+      {/* ── League progress: where this week's XP is taking you ── */}
+      <StaggerIn index={1} style={{ marginTop: 16 }}>
+        <View style={styles.leagueCard}>
+          <Image source={IC_TROPHY} style={styles.leagueTrophy} contentFit="contain" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.leagueTitle}>{leagueProgress.title}</Text>
+            <Text style={styles.leagueSub}>
+              {leagueProgress.nextLeague
+                ? `${leagueProgress.xpToNext.toLocaleString()} XP to ${leagueProgress.nextLeague.name}`
+                : 'Top league — hold your spot'}
+            </Text>
+            <View style={styles.leagueTrack}>
+              <View style={[styles.leagueFill, { width: `${Math.max(4, Math.round(leagueProgress.fill * 100))}%` }]} />
+            </View>
+          </View>
+          <View style={styles.leagueXp}>
+            <Text style={styles.leagueXpValue}>{weeklyXp.toLocaleString()}</Text>
+            <Text style={styles.leagueXpUnit}>XP</Text>
           </View>
         </View>
       </StaggerIn>
 
       {/* ── Hero: live 1v1 duel with a personal face-off ── */}
-      <StaggerIn index={1} style={{ marginTop: 16 }}>
+      <StaggerIn index={2} style={{ marginTop: 12 }}>
         <PressableScale
           onPress={() => {
             track('arena_opened', { destination: 'opponent-picker' });
@@ -165,7 +170,10 @@ export default function ArenaScreen() {
               gradient, brand glow and a pulsing LIVE badge read as decoration
               rather than a control. */}
           <View style={styles.heroCard}>
-            <Text style={styles.heroEyebrow}>Head to head</Text>
+            <View style={styles.heroTop}>
+              <Text style={styles.heroEyebrow}>Head to head</Text>
+              <Image source={BADGE_LIVE} style={styles.liveBadge} contentFit="contain" />
+            </View>
 
             <Text style={styles.heroTitle}>1 vs 1 duel</Text>
             <Text style={styles.heroCopy}>
@@ -184,9 +192,7 @@ export default function ArenaScreen() {
                 <Text style={styles.vsName}>You</Text>
               </View>
 
-              <View style={styles.vsChip}>
-                <Text style={styles.vsChipText}>vs</Text>
-              </View>
+              <Image source={BADGE_VS} style={styles.vsBadge} contentFit="contain" />
 
               <View style={styles.vsSide}>
                 <View style={styles.heroAvatarGhost}>
@@ -204,12 +210,12 @@ export default function ArenaScreen() {
         </PressableScale>
       </StaggerIn>
 
-      <StaggerIn index={2} style={{ marginTop: 12 }}>
+      <StaggerIn index={3} style={{ marginTop: 12 }}>
         <WeeklyChallengeCard now={now} />
       </StaggerIn>
 
       {/* ── Weekly leaderboard ── */}
-      <StaggerIn index={3}>
+      <StaggerIn index={4}>
         <PressableScale
           onPress={() => {
             track('arena_opened', { destination: 'leaderboard' });
@@ -230,35 +236,30 @@ export default function ArenaScreen() {
               <Text style={styles.seeAll}>See all ›</Text>
             </View>
 
-            {top.map((row, idx) => (
-              <View
-                key={row.id}
-                style={[styles.boardRow, idx === 0 && styles.boardRowLead]}
-              >
-                <RankMedal rank={row.rank} />
-                <Avatar
-                  initial={row.initial}
-                  emoji={'emoji' in row ? row.emoji : undefined}
-                  size={38}
-                  background={row.background}
-                  color={row.color}
-                />
-                <View style={styles.boardNameWrap}>
-                  <Text style={styles.boardName} numberOfLines={1}>
-                    {row.name}
-                  </Text>
-                  {'isAI' in row && row.isAI ? (
-                    <View style={styles.aiPill}>
-                      <Text style={font('extrabold', 9.5, { color: palette.green700 })}>AI</Text>
+            <View style={styles.podium}>
+              {[top[1], top[0], top[2]].map((row, slot) => {
+                if (!row) return <View key={slot} style={{ flex: 1 }} />;
+                const first = row.rank === 1;
+                return (
+                  <View key={row.id} style={[styles.podiumCol, first && styles.podiumColFirst]}>
+                    <Avatar
+                      initial={row.initial}
+                      emoji={'emoji' in row ? row.emoji : undefined}
+                      size={first ? 56 : 46}
+                      background={row.background}
+                      color={row.color}
+                    />
+                    <Text style={styles.podiumName} numberOfLines={1}>
+                      {row.isYou ? 'You' : row.name}
+                    </Text>
+                    <Text style={styles.podiumXp}>{row.xp.toLocaleString()} XP</Text>
+                    <View style={[styles.podiumStep, first && styles.podiumStepFirst]}>
+                      <Text style={[styles.podiumRank, first && { color: palette.white }]}>{row.rank}</Text>
                     </View>
-                  ) : null}
-                </View>
-                <Text style={styles.boardXp}>
-                  {row.xp.toLocaleString()}{' '}
-                  <Text style={font('bold', 10.5, { color: palette.grey500 })}>XP</Text>
-                </Text>
-              </View>
-            ))}
+                  </View>
+                );
+              })}
+            </View>
 
             {you && you.rank > 3 ? (
               <View style={styles.youRow}>
@@ -290,7 +291,7 @@ export default function ArenaScreen() {
       </StaggerIn>
 
       {/* ── Daily challenge ── */}
-      <StaggerIn index={4}>
+      <StaggerIn index={5}>
         <PressableScale
           onPress={() => {
             track('arena_opened', { destination: 'daily' });
@@ -302,8 +303,7 @@ export default function ArenaScreen() {
         >
           <Card style={styles.dailyCard}>
             <View style={styles.dailyIcon}>
-              <View style={styles.targetRing} />
-              <View style={styles.targetDot} />
+              <Image source={IC_TARGET} style={{ width: 30, height: 30 }} contentFit="contain" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={font('extrabold', 15, { color: palette.ink })}>Daily Challenge</Text>
@@ -320,12 +320,51 @@ export default function ArenaScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: {
-    marginTop: 12,
+  header: { marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  eyebrow: font('semibold', 13, { color: palette.grey600 }),
+  title: { ...font('extrabold', 28, { color: palette.ink }), letterSpacing: -0.8 },
+  leaguePillIcon: { width: 18, height: 18 },
+
+  leagueCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 12,
+    padding: 14,
+    borderRadius: radius['4xl'],
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: 'rgba(15,31,23,0.06)',
+    ...surfaceShadow,
   },
+  leagueTrophy: { width: 52, height: 52 },
+  leagueTitle: { ...font('extrabold', 17, { color: palette.ink }), letterSpacing: -0.4 },
+  leagueSub: { ...font('medium', 12.5, { color: palette.grey600 }), marginTop: 1 },
+  leagueTrack: { height: 8, borderRadius: 4, backgroundColor: palette.divider, marginTop: 8, overflow: 'hidden' },
+  leagueFill: { height: 8, borderRadius: 4, backgroundColor: palette.green500 },
+  leagueXp: { alignItems: 'flex-end' },
+  leagueXpValue: { ...font('extrabold', 22, { color: palette.ink }), fontVariant: ['tabular-nums'], letterSpacing: -0.6 },
+  leagueXpUnit: font('bold', 11, { color: palette.grey500 }),
+
+  heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  liveBadge: { width: 52, height: 22 },
+  vsBadge: { width: 44, height: 44 },
+
+  podium: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginTop: 4 },
+  podiumCol: { flex: 1, alignItems: 'center' },
+  podiumColFirst: { marginBottom: 0 },
+  podiumName: { ...font('extrabold', 13, { color: palette.ink }), marginTop: 6, maxWidth: '100%' },
+  podiumXp: { ...font('bold', 11, { color: palette.grey600 }), fontVariant: ['tabular-nums'], marginBottom: 6 },
+  podiumStep: {
+    width: '100%',
+    height: 34,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    backgroundColor: palette.green50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  podiumStepFirst: { height: 56, backgroundColor: palette.green600 },
+  podiumRank: font('extrabold', 18, { color: palette.green700 }),
   leaguePill: {
     flexDirection: 'row',
     alignItems: 'center',

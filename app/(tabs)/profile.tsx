@@ -1,10 +1,12 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { ProgressSection } from '@/components/ProgressSection';
-import { Card, PressableScale, ProgressBar, Screen, SectionLabel } from '@/components/ui';
+import { PressableScale, ProgressBar, Screen } from '@/components/ui';
+import { HomeSectionHeader, homeSectionLink } from '@/components/home/HomeSectionHeader';
 import { StaggerIn } from '@/components/motion';
 import { ACHIEVEMENTS, evaluateAchievements } from '@/domain/achievements';
 import {
@@ -22,7 +24,14 @@ import { useAuthStore } from '@/state/authStore';
 import { showDialog } from '@/state/useDialog';
 import { deleteAvatar } from '@/services/userService';
 import { font, text } from '@/theme/typography';
-import { gradients, palette, radius, shadow } from '@/theme/tokens';
+import { gradients, palette, radius, shadow, surfaceShadow } from '@/theme/tokens';
+
+const STAT_ICONS = {
+  reps: require('../../assets/ic-pushup.png'),
+  duels: require('../../assets/trophy-bronze.png'),
+  rate: require('../../assets/ic-target.png'),
+  streak: require('../../assets/fire-flame.png'),
+} as const;
 
 /* ── Line icons (single green accent, no emoji) ── */
 function GearIcon({ size = 19, color = palette.slate600 }: { size?: number; color?: string }) {
@@ -57,39 +66,7 @@ function CameraIcon({ size = 14, color = palette.green700 }: { size?: number; co
   );
 }
 
-type StatIconName = 'reps' | 'duels' | 'rate' | 'streak';
-function StatIcon({ name }: { name: StatIconName }) {
-  const c = palette.green700;
-  if (name === 'reps') {
-    return (
-      <Svg width={19} height={19} viewBox="0 0 24 24">
-        <Path d="M3 12h3.4l2.3 6 3.4-12 2.3 9H21" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      </Svg>
-    );
-  }
-  if (name === 'duels') {
-    return (
-      <Svg width={18} height={18} viewBox="0 0 24 24">
-        <Path d="M8 21h8M12 17.5V21M6 4h12v4.5a6 6 0 0 1-12 0V4z" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-        <Path d="M6 6H3.5v1A3.5 3.5 0 0 0 6 10.4M18 6h2.5v1A3.5 3.5 0 0 1 18 10.4" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      </Svg>
-    );
-  }
-  if (name === 'rate') {
-    return (
-      <Svg width={19} height={19} viewBox="0 0 24 24">
-        <Circle cx={12} cy={12} r={9} stroke={c} strokeWidth={2} fill="none" />
-        <Circle cx={12} cy={12} r={4.5} stroke={c} strokeWidth={2} fill="none" />
-        <Circle cx={12} cy={12} r={1.4} fill={c} />
-      </Svg>
-    );
-  }
-  return (
-    <Svg width={18} height={18} viewBox="0 0 24 24">
-      <Path d="M13 2 4 13h6l-1 9 9-12h-6l1-8z" fill={c} />
-    </Svg>
-  );
-}
+type StatIconName = keyof typeof STAT_ICONS;
 
 function BadgeStatus({ earned }: { earned: boolean }) {
   return (
@@ -110,13 +87,13 @@ function BadgeStatus({ earned }: { earned: boolean }) {
 
 function ProfileStat({ icon, value, label }: { icon: StatIconName; value: string | number; label: string }) {
   return (
-    <Card style={styles.statCard}>
+    <View style={styles.statCard}>
       <View style={styles.statIconChip}>
-        <StatIcon name={icon} />
+        <Image source={STAT_ICONS[icon]} style={styles.statIcon} resizeMode="contain" />
       </View>
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
-    </Card>
+    </View>
   );
 }
 
@@ -221,7 +198,13 @@ export default function ProfileScreen() {
 
       {/* ── Identity hero ── */}
       <StaggerIn index={1}>
-        <Card style={styles.identityCard}>
+        <View style={styles.identityCard}>
+          <LinearGradient
+            pointerEvents="none"
+            colors={['rgba(34,197,94,0.20)', 'rgba(34,197,94,0.04)', 'rgba(255,255,255,0)']}
+            locations={[0, 0.5, 1]}
+            style={StyleSheet.absoluteFill}
+          />
           <PressableScale
             onPress={pickAvatar}
             onLongPress={profile.avatarUri ? removeAvatar : undefined}
@@ -275,7 +258,7 @@ export default function ProfileScreen() {
             </View>
             <ProgressBar percent={level.percent} height={9} fillColors={gradients.brandStrong} />
           </View>
-        </Card>
+        </View>
       </StaggerIn>
 
       {/* ── Stats ── */}
@@ -288,7 +271,7 @@ export default function ProfileScreen() {
             accessibilityRole="button"
             accessibilityLabel="Start your first set"
           >
-            <Card style={styles.emptyStats}>
+            <View style={[styles.card, styles.emptyStats]}>
               <View style={styles.emptyIconChip}>
                 <Svg width={26} height={26} viewBox="0 0 24 24">
                   <Path d="M18 20V10M12 20V4M6 20v-6" stroke={palette.green700} strokeWidth={2.5} strokeLinecap="round" fill="none" />
@@ -305,7 +288,7 @@ export default function ProfileScreen() {
                   Start your first set →
                 </Text>
               </View>
-            </Card>
+            </View>
           </PressableScale>
         ) : (
           <View style={styles.statGrid}>
@@ -326,7 +309,7 @@ export default function ProfileScreen() {
           the athlete sees whether they are actually improving. */}
       {profile.sessions.length > 0 ? (
         <StaggerIn index={3}>
-          <SectionLabel>Progress</SectionLabel>
+          <HomeSectionHeader title="Progress" />
           <ProgressSection sessions={profile.sessions} />
         </StaggerIn>
       ) : null}
@@ -356,20 +339,22 @@ export default function ProfileScreen() {
 
       {/* ── Achievements ── */}
       <StaggerIn index={4}>
-        <View style={styles.sectionHeader}>
-          <SectionLabel>Achievements</SectionLabel>
-          <PressableScale
-            onPress={() => router.push('/modal/achievements')}
-            accessibilityRole="button"
-            accessibilityLabel="See all achievements"
-          >
-            <Text style={font('extrabold', 12, { color: palette.green600 })}>See all ›</Text>
-          </PressableScale>
-        </View>
+        <HomeSectionHeader
+          title="Achievements"
+          right={
+            <PressableScale
+              onPress={() => router.push('/modal/achievements')}
+              accessibilityRole="button"
+              accessibilityLabel="See all achievements"
+            >
+              <Text style={homeSectionLink}>See all ›</Text>
+            </PressableScale>
+          }
+        />
 
         <View style={styles.badgeRow}>
           {featured.map((a) => (
-            <Card key={a.id} style={[styles.badgeTile, !a.earned && styles.badgeLocked]}>
+            <View key={a.id} style={[styles.card, styles.badgeTile, !a.earned && styles.badgeLocked]}>
               <View style={[styles.badgeIconWrap, a.earned && styles.badgeEarnedWrap]}>
                 <Text style={{ fontSize: 26 }}>{a.emoji}</Text>
                 <BadgeStatus earned={a.earned} />
@@ -377,7 +362,7 @@ export default function ProfileScreen() {
               <Text style={styles.badgeLabel} numberOfLines={1}>
                 {a.title}
               </Text>
-            </Card>
+            </View>
           ))}
         </View>
       </StaggerIn>
@@ -421,15 +406,25 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  card: {
+    borderRadius: radius['4xl'],
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: 'rgba(15,31,23,0.06)',
+    ...surfaceShadow,
+  },
+  statIcon: { width: 26, height: 26 },
   historyRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     backgroundColor: palette.white,
-    borderRadius: radius['2xl'],
-    padding: 14,
-    marginBottom: 20,
-    ...shadow.card,
+    borderRadius: radius['4xl'],
+    padding: 16,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(15,31,23,0.06)',
+    ...surfaceShadow,
   },
   settingsRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, marginBottom: 4 },
   settingsButton: {
@@ -443,7 +438,17 @@ const styles = StyleSheet.create({
   },
 
   /* Identity */
-  identityCard: { alignItems: 'center', paddingVertical: 24, paddingHorizontal: 20 },
+  identityCard: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    borderRadius: radius['6xl'],
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: 'rgba(15,31,23,0.06)',
+    overflow: 'hidden',
+    ...surfaceShadow,
+  },
   avatarWrap: { marginBottom: 12 },
   avatarRing: {
     width: 96,
@@ -475,7 +480,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     ...shadow.card,
   },
-  name: { ...font('extrabold', 22, { color: palette.ink }) },
+  name: { ...font('extrabold', 24, { color: palette.ink }), letterSpacing: -0.6 },
   handle: { ...font('bold', 13, { color: palette.grey550 }), marginTop: 4 },
   /* Quiet enough not to compete with the handle itself, green so it reads as
      a control rather than part of the name. */
@@ -527,7 +532,15 @@ const styles = StyleSheet.create({
   /* Stat grid */
   statGrid: { gap: 12, marginVertical: 16 },
   statRow: { flexDirection: 'row', gap: 12 },
-  statCard: { flex: 1, padding: 16 },
+  statCard: {
+    flex: 1,
+    padding: 16,
+    borderRadius: radius['4xl'],
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: 'rgba(15,31,23,0.06)',
+    ...surfaceShadow,
+  },
   statIconChip: {
     width: 38,
     height: 38,
@@ -537,7 +550,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 12,
   },
-  statValue: { ...font('extrabold', 24, { color: palette.ink }) },
+  statValue: { ...font('extrabold', 26, { color: palette.ink }), fontVariant: ['tabular-nums'], letterSpacing: -0.8 },
   statLabel: { ...font('bold', 12, { color: palette.grey550 }), marginTop: 4 },
 
   /* Achievements */
@@ -591,10 +604,10 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 16,
     marginTop: 20,
-    borderRadius: radius['2xl'],
+    borderRadius: radius['4xl'],
     backgroundColor: palette.white,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: 'rgba(15,31,23,0.06)',
   },
   proLogoBadge: {
     width: 42,

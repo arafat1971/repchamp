@@ -1,4 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
@@ -12,6 +13,8 @@ import { ExerciseGlyph } from '@/components/ExerciseGlyph';
 import { ExerciseLibrary } from '@/components/ExerciseLibrary';
 import { YogaGlyph } from '@/components/YogaGlyph';
 import { ProgrammeCard } from '@/components/ProgrammeCard';
+import { WeekRepsCard } from '@/components/train/WeekRepsCard';
+import { weekReps } from '@/domain/weekReps';
 import { HomeSectionHeader } from '@/components/home/HomeSectionHeader';
 import { ArrowIcon, CheckIcon, FlameIcon, LockIcon } from '@/components/home/Icons';
 import { PressableScale, Screen } from '@/components/ui';
@@ -20,7 +23,7 @@ import { createDuel } from '@/services/duelService';
 import { useMindfulStore } from '@/state/mindfulStore';
 import { useCouple } from '@/state/useCouple';
 import { showDialog } from '@/state/useDialog';
-import { selectDaysTrainedThisWeek, selectTotalReps, useProfileStore } from '@/state/profileStore';
+import { selectDaysTrainedThisWeek, selectStreak, selectTotalReps, useProfileStore } from '@/state/profileStore';
 import { useEffectivePro } from '@/state/proStore';
 import { isWalled } from '@/domain/hardPaywall';
 import { exerciseHomeStats } from '@/domain/exerciseHomeStats';
@@ -50,6 +53,8 @@ const MILESTONES = [5, 10, 15, 25, 40] as const;
 /* The two free staples keep the accents Home's Quick Start gives them, so a
    push-up is the same green on both tabs. */
 const PUSH = palette.green600;
+const IC_PUSHUP = require('../../assets/ic-pushup.png');
+const IC_SQUAT = require('../../assets/ic-squat.png');
 const SQUAT = palette.purple600;
 
 export default function TrainScreen() {
@@ -72,6 +77,8 @@ export default function TrainScreen() {
 
   const totalReps = selectTotalReps(profile);
   const daysTrained = selectDaysTrainedThisWeek(profile);
+  const streakDays = selectStreak(profile);
+  const thisWeek = useMemo(() => weekReps(profile.sessions), [profile.sessions]);
   const today = dayKey();
   const pushStats = useMemo(
     () => exerciseHomeStats(profile.sessions, 'push', today),
@@ -183,8 +190,17 @@ export default function TrainScreen() {
           </View>
         </View>
 
-        {/* The training programme leads: it's the guided path, above free practice. */}
         <StaggerIn index={0} style={{ marginTop: 16 }}>
+          <WeekRepsCard
+            week={thisWeek}
+            daysTrained={daysTrained}
+            goal={profile.weeklyGoal}
+            streak={streakDays}
+          />
+        </StaggerIn>
+
+        {/* The training programme leads: it's the guided path, above free practice. */}
+        <StaggerIn index={1} style={{ marginTop: 16 }}>
           <ProgrammeCard />
         </StaggerIn>
 
@@ -197,7 +213,7 @@ export default function TrainScreen() {
             </View>
           }
         />
-        <StaggerIn index={1} style={styles.tileRow}>
+        <StaggerIn index={2} style={styles.tileRow}>
           <PracticeTile
             title="Push-Ups"
             exercise="push"
@@ -432,7 +448,11 @@ function PracticeTile({
       >
         <View style={styles.practiceTop}>
           <View style={styles.practiceGlyph}>
-            <ExerciseGlyph exercise={exercise} size={34} color={accent} />
+            <Image
+              source={exercise === 'squat' ? IC_SQUAT : IC_PUSHUP}
+              style={{ width: 38, height: 38 }}
+              contentFit="contain"
+            />
           </View>
           <View style={[styles.pbPill, locked && { backgroundColor: palette.divider }]}>
             <Text

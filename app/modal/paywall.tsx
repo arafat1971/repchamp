@@ -39,7 +39,9 @@ import { useProStore } from '@/state/proStore';
 import { showDialog } from '@/state/useDialog';
 import { headlineProof } from '@/domain/progressProof';
 import { orderBenefits, type BenefitId } from '@/domain/paywallBenefits';
-import { selectStreak, useProfileStore } from '@/state/profileStore';
+import { selectStreak, selectTotalReps, useProfileStore } from '@/state/profileStore';
+import { FREE_REP_LIMIT } from '@/domain/hardPaywall';
+import { ProgressRing } from '@/components/session/ProgressRing';
 import {
   commitmentLine,
   granularPrice,
@@ -49,7 +51,7 @@ import {
   type PlanPrice,
 } from '@/domain/paywallFraming';
 import { font, text } from '@/theme/typography';
-import { gradients, palette, radius, shadow } from '@/theme/tokens';
+import { gradients, palette, radius, surfaceShadow } from '@/theme/tokens';
 
 /**
  * Compact value props — not card chrome. Push-ups & squats stay free.
@@ -325,6 +327,7 @@ export default function PaywallScreen() {
   const sessions = useProfileStore((st) => st.sessions);
   const streak = useProfileStore(selectStreak);
   const ownProof = headlineProof(sessions, streak);
+  const totalReps = useProfileStore(selectTotalReps);
 
   return (
     <Screen scroll={false} style={styles.root} contentStyle={styles.rootContent}>
@@ -344,8 +347,34 @@ export default function PaywallScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
+          {/* The rep wall, said plainly: what they did with the free reps, not
+              a lock icon. It is a statement of fact — their own count — and the
+              exit stays one tap away in the footer. */}
+          {fromRepWall ? (
+            <Animated.View entering={FadeInDown.duration(380)} style={styles.wallCard}>
+              <View style={styles.wallRing}>
+                <ProgressRing
+                  size={72}
+                  strokeWidth={8}
+                  percent={Math.min(100, Math.round((totalReps / FREE_REP_LIMIT) * 100))}
+                  color={palette.green500}
+                  trackColor={palette.divider}
+                >
+                  <Text style={styles.wallRingValue}>{Math.min(totalReps, FREE_REP_LIMIT)}</Text>
+                </ProgressRing>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.wallTitle}>Your free reps are used</Text>
+                <Text style={styles.wallBody}>
+                  {totalReps.toLocaleString()} reps counted so far. Pro keeps you going — duels and
+                  couple mode stay free either way.
+                </Text>
+              </View>
+            </Animated.View>
+          ) : null}
+
           <Animated.View entering={FadeInDown.duration(380).springify()}>
-            <LinearGradient colors={gradients.brandDeep} style={[styles.hero, shadow.brand]}>
+            <LinearGradient colors={gradients.brandDeep} style={[styles.hero, surfaceShadow]}>
               <View style={styles.heroTop}>
                 <View style={styles.heroBadge}>
                   <Image
@@ -357,8 +386,13 @@ export default function PaywallScreen() {
                 <View style={styles.heroProTag}>
                   <Text style={styles.heroProTagText}>PRO</Text>
                 </View>
+                <Image
+                  source={require('../../assets/trophy-gold.png')}
+                  style={styles.heroTrophy}
+                  contentFit="contain"
+                />
               </View>
-              <Text style={styles.heroTitle}>Train without limits</Text>
+              <Text style={styles.heroTitle}>{fromRepWall ? 'Keep your momentum' : 'Train without limits'}</Text>
               <Text style={styles.heroCopy}>
                 Full library, programmes, and form reports — cancel anytime.
               </Text>
@@ -387,7 +421,7 @@ export default function PaywallScreen() {
             </LinearGradient>
           </Animated.View>
 
-          <View style={styles.benefits}>
+          <View style={[styles.benefits, styles.benefitsCard]}>
             {/* Ordered by what this source blocked, so the promise that answers
                 the refusal is read first. See `domain/paywallBenefits`. */}
             {orderBenefits(params.source).map((id, i) => {
@@ -410,7 +444,7 @@ export default function PaywallScreen() {
             })}
           </View>
 
-          <Text style={styles.plansLabel}>CHOOSE YOUR PLAN</Text>
+          <Text style={styles.plansLabel}>Choose your plan</Text>
 
           <View style={styles.plans}>
             {/* No billing key on this build. Unlike the entitlement dialog
@@ -703,7 +737,7 @@ const styles = StyleSheet.create({
   hero: {
     borderRadius: radius['6xl'],
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 16,
     paddingBottom: 20,
     overflow: 'hidden',
   },
@@ -730,8 +764,9 @@ const styles = StyleSheet.create({
     letterSpacing: 2.5,
   },
   heroTitle: {
-    ...font('extrabold', 26, { color: palette.white }),
-    marginTop: 16,
+    ...font('extrabold', 28, { color: palette.white }),
+    letterSpacing: -0.8,
+    marginTop: 12,
   },
   heroCopy: {
     ...font('semibold', 13.5, { color: 'rgba(255,255,255,0.9)' }),
@@ -770,6 +805,31 @@ const styles = StyleSheet.create({
   trustDot: font('semibold', 12, { color: 'rgba(255,255,255,0.45)' }),
 
   benefits: { marginTop: 16, gap: 12 },
+  benefitsCard: {
+    padding: 16,
+    borderRadius: radius['4xl'],
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: 'rgba(15,31,23,0.06)',
+    ...surfaceShadow,
+  },
+  wallCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    padding: 16,
+    marginBottom: 12,
+    borderRadius: radius['4xl'],
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: 'rgba(15,31,23,0.06)',
+    ...surfaceShadow,
+  },
+  wallRing: { width: 72, height: 72, alignItems: 'center', justifyContent: 'center' },
+  wallRingValue: { ...font('extrabold', 20, { color: palette.ink }), fontVariant: ['tabular-nums'] },
+  wallTitle: { ...font('extrabold', 17, { color: palette.ink }), letterSpacing: -0.4 },
+  wallBody: { ...font('medium', 13, { color: palette.grey600 }), marginTop: 3, lineHeight: 18 },
+  heroTrophy: { width: 64, height: 64, marginLeft: 'auto' },
   benefit: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   benefitIcon: {
     width: 28,
@@ -789,8 +849,8 @@ const styles = StyleSheet.create({
   },
 
   plansLabel: {
-    ...font('extrabold', 11, { color: palette.grey550 }),
-    letterSpacing: 1.2,
+    ...font('extrabold', 17, { color: palette.ink }),
+    letterSpacing: -0.4,
     marginTop: 20,
     marginBottom: 8,
   },
@@ -801,12 +861,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     borderWidth: 2,
-    borderColor: palette.border,
-    borderRadius: radius['2xl'],
+    borderColor: 'rgba(15,31,23,0.08)',
+    borderRadius: radius['4xl'],
     paddingVertical: 16,
     paddingHorizontal: 16,
     backgroundColor: palette.white,
     overflow: 'visible',
+    ...surfaceShadow,
   },
   planSelected: {
     borderColor: palette.green500,
@@ -814,7 +875,6 @@ const styles = StyleSheet.create({
   },
   planFeatured: {
     borderColor: palette.green600,
-    ...shadow.card,
   },
   planBadge: {
     position: 'absolute',
@@ -851,10 +911,10 @@ const styles = StyleSheet.create({
   },
 
   statusCard: {
-    borderRadius: radius['2xl'],
+    borderRadius: radius['4xl'],
     backgroundColor: palette.white,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: 'rgba(15,31,23,0.06)',
     padding: 16,
     gap: 4,
   },

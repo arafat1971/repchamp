@@ -26,11 +26,35 @@ import { deleteAvatar } from '@/services/userService';
 import { font, text } from '@/theme/typography';
 import { gradients, palette, radius, shadow, surfaceShadow } from '@/theme/tokens';
 
+/**
+ * The stats strip's icons: line glyphs in the same weight as History and
+ * Badges, each on its own tint so the four numbers are told apart at a glance.
+ */
 const STAT_ICONS = {
-  reps: require('../../assets/ic-pushup.png'),
-  duels: require('../../assets/trophy-bronze.png'),
-  rate: require('../../assets/ic-target.png'),
-  streak: require('../../assets/fire-flame.png'),
+  // Reps: a dumbbell.
+  reps: {
+    color: palette.green700,
+    tint: palette.green50,
+    paths: ['M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11'],
+  },
+  // Duels won: a trophy.
+  duels: {
+    color: palette.amber800,
+    tint: palette.amber50,
+    paths: ['M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20h7M10 17h4v3h-4z'],
+  },
+  // Win rate: a target.
+  rate: {
+    color: palette.blue600,
+    tint: palette.blue150,
+    paths: ['M12 3a9 9 0 1 0 9 9', 'M12 7.5a4.5 4.5 0 1 0 4.5 4.5', 'M12 12l7-7M16 5h3v3'],
+  },
+  // Best streak: a flame.
+  streak: {
+    color: palette.amber600,
+    tint: '#FFF1E6',
+    paths: ['M12 21a6 6 0 0 0 6-6c0-3.5-2.5-5.5-3.5-8.5C13 8 12.5 9.5 11 10c-.5-2-1.5-3.5-3-5 .3 3.5-2 5.5-2 10a6 6 0 0 0 6 6z', 'M12 21a2.5 2.5 0 0 0 2.5-2.5c0-1.6-1.2-2.4-1.8-3.8-.6 1-1.4 1.3-2.2 1.6-.6.6-1 1.3-1 2.2A2.5 2.5 0 0 0 12 21z'],
+  },
 } as const;
 
 /* ── Line icons (single accent, no emoji) ── */
@@ -115,7 +139,13 @@ function BadgeStatus({ earned }: { earned: boolean }) {
 function ProfileStat({ icon, value, label }: { icon: StatIconName; value: string | number; label: string }) {
   return (
     <View style={styles.stat}>
-      <Image source={STAT_ICONS[icon]} style={styles.statIcon} resizeMode="contain" />
+      <View style={[styles.statIcon, { backgroundColor: STAT_ICONS[icon].tint }]}>
+        <Svg width={18} height={18} viewBox="0 0 24 24">
+          {STAT_ICONS[icon].paths.map((d) => (
+            <Path key={d} d={d} stroke={STAT_ICONS[icon].color} strokeWidth={2.1} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          ))}
+        </Svg>
+      </View>
       <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>
         {value}
       </Text>
@@ -628,7 +658,7 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   stat: { flex: 1, alignItems: 'center', paddingHorizontal: 2 },
-  statIcon: { width: 24, height: 24, marginBottom: 6 },
+  statIcon: { width: 34, height: 34, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', marginBottom: 7 },
   statValue: { ...font('extrabold', 19, { color: palette.ink }), fontVariant: ['tabular-nums'], letterSpacing: -0.5 },
   statLabel: { ...font('bold', 10.5, { color: palette.grey550 }), marginTop: 2 },
   statDivider: { width: 1, alignSelf: 'stretch', marginVertical: 6, backgroundColor: palette.border },

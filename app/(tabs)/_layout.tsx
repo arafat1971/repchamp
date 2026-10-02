@@ -30,7 +30,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 
 import { reservedControlHeight } from '@/theme/fontScale';
 import { ExerciseGlyph } from '@/components/ExerciseGlyph';
-import { selectTotalReps, useProfileStore } from '@/state/profileStore';
+import { selectStreak, selectTotalReps, useProfileStore } from '@/state/profileStore';
 import { useIncomingDuelCount } from '@/state/useIncomingDuelCount';
 import { buildFabModel } from '@/domain/fabActions';
 import { dayKey } from '@/domain/progression';
@@ -162,26 +162,71 @@ function FriendsIcon({ color, focused }: IconProps) {
   );
 }
 
-function ProfileIcon({ color, focused }: IconProps) {
+/**
+ * Train — a dumbbell that carries today's status, so the tab itself is the
+ * reminder: an amber pulse while a streak waits on today's set, a quiet green
+ * dot on a fresh day, and a check once the day is trained.
+ */
+function TrainIcon({ color, focused }: IconProps) {
   const c = String(color);
+  const today = dayKey();
+  const trainedToday = useProfileStore((s) => s.sessions.some((x) => x.day === today));
+  const streak = useProfileStore(selectStreak);
+  const status: 'done' | 'risk' | 'fresh' = trainedToday ? 'done' : streak > 0 ? 'risk' : 'fresh';
   return (
     <IconShell focused={focused}>
       <Svg width={26} height={26} viewBox="0 0 24 24" fill="none">
         {focused ? (
           <>
-            <Circle cx={12} cy={12} r={9.3} fill={c} />
-            <Circle cx={12} cy={9.6} r={2.9} fill={palette.white} />
-            <Path d="M6.8 18.9c0-2.9 2.3-4.8 5.2-4.8s5.2 1.9 5.2 4.8z" fill={palette.white} />
+            <Path d="M8.2 12h7.6" stroke={c} strokeWidth={2.4} strokeLinecap="round" />
+            <Path d="M4.3 7.6h2.6a1 1 0 0 1 1 1v6.8a1 1 0 0 1-1 1H4.3a1 1 0 0 1-1-1V8.6a1 1 0 0 1 1-1z" fill={c} />
+            <Path d="M17.1 7.6h2.6a1 1 0 0 1 1 1v6.8a1 1 0 0 1-1 1h-2.6a1 1 0 0 1-1-1V8.6a1 1 0 0 1 1-1z" fill={c} />
+            <Path d="M1.6 10.4v3.2M22.4 10.4v3.2" stroke={c} strokeWidth={2.2} strokeLinecap="round" />
           </>
         ) : (
           <>
-            <Circle cx={12} cy={12} r={9.3} stroke={c} strokeWidth={1.9} />
-            <Circle cx={12} cy={9.6} r={2.9} stroke={c} strokeWidth={1.9} />
-            <Path d="M6.8 18.9c0-2.9 2.3-4.8 5.2-4.8s5.2 1.9 5.2 4.8" stroke={c} strokeWidth={1.9} strokeLinecap="round" />
+            <Path d="M8.2 12h7.6" stroke={c} strokeWidth={1.9} strokeLinecap="round" />
+            <Path d="M4.4 8.1h2.4a.9.9 0 0 1 .9.9v6a.9.9 0 0 1-.9.9H4.4a.9.9 0 0 1-.9-.9V9a.9.9 0 0 1 .9-.9z" stroke={c} strokeWidth={1.9} />
+            <Path d="M17.2 8.1h2.4a.9.9 0 0 1 .9.9v6a.9.9 0 0 1-.9.9h-2.4a.9.9 0 0 1-.9-.9V9a.9.9 0 0 1 .9-.9z" stroke={c} strokeWidth={1.9} />
+            <Path d="M1.6 10.6v2.8M22.4 10.6v2.8" stroke={c} strokeWidth={1.9} strokeLinecap="round" />
           </>
         )}
       </Svg>
+      <TrainBadge status={status} />
     </IconShell>
+  );
+}
+
+function TrainBadge({ status }: { status: 'done' | 'risk' | 'fresh' }) {
+  const reduced = useReducedMotion();
+  const pulse = useSharedValue(0);
+  useEffect(() => {
+    if (status !== 'risk' || reduced) {
+      pulse.value = 0;
+      return;
+    }
+    pulse.value = withRepeat(withTiming(1, { duration: 1300, easing: Easing.out(Easing.quad) }), -1, false);
+  }, [status, reduced, pulse]);
+  const ring = useAnimatedStyle(() => ({
+    opacity: 0.55 * (1 - pulse.value),
+    transform: [{ scale: 1 + pulse.value * 1.3 }],
+  }));
+
+  if (status === 'done') {
+    return (
+      <View style={[styles.trainBadge, styles.trainBadgeDone]} accessibilityLabel="Trained today">
+        <Svg width={8} height={8} viewBox="0 0 24 24">
+          <Path d="M5 12.5l4.5 4.5L19 7.5" stroke={palette.white} strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        </Svg>
+      </View>
+    );
+  }
+  const tone = status === 'risk' ? palette.amber600 : palette.green500;
+  return (
+    <View style={styles.trainDotSlot} pointerEvents="none">
+      {status === 'risk' ? <Animated.View style={[styles.trainDot, { backgroundColor: tone }, ring]} /> : null}
+      <View style={[styles.trainDot, styles.trainDotCore, { backgroundColor: tone }]} />
+    </View>
   );
 }
 
@@ -722,16 +767,12 @@ export default function TabsLayout() {
         }}
       >
         <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: HomeIcon }} />
+        <Tabs.Screen name="train" options={{ title: 'Train', tabBarIcon: TrainIcon }} />
         <Tabs.Screen name="arena" options={{ title: 'Arena', tabBarIcon: ArenaIcon }} />
         <Tabs.Screen name="friends" options={{ title: 'Friends', tabBarIcon: FriendsIcon }} />
-        <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ProfileIcon }} />
-        <Tabs.Screen
-          name="train"
-          options={{
-            title: 'Train',
-            href: null,
-          }}
-        />
+        {/* Profile is off the bar — the avatar on Home opens it — but the
+            route stays, so every link to it still lands. */}
+        <Tabs.Screen name="profile" options={{ title: 'Profile', href: null }} />
       </Tabs>
       {/* +25 rather than +10 — lifts the FAB 15pt clear of the tab bar so it
           reads as floating above it rather than sitting on its edge. */}
@@ -774,6 +815,30 @@ const styles = StyleSheet.create({
     height: 30,
     width: 36,
   },
+  trainDotSlot: {
+    position: 'absolute',
+    top: 1,
+    right: 1,
+    width: 9,
+    height: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trainDot: { position: 'absolute', width: 9, height: 9, borderRadius: 5 },
+  trainDotCore: { borderWidth: 1.5, borderColor: palette.white },
+  trainBadge: {
+    position: 'absolute',
+    top: -1,
+    right: -1,
+    width: 13,
+    height: 13,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: palette.white,
+  },
+  trainBadgeDone: { backgroundColor: palette.green500 },
   iconFocused: {
     shadowColor: palette.green600,
     shadowOffset: { width: 0, height: 4 },

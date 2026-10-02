@@ -56,10 +56,14 @@ export interface AnalyticsEvents {
   couple_partner_dashboard: Record<string, never>;
   couple_sharing_changed: { metric: 'steps' | 'water'; on: boolean };
   ritual_tick: { habit: string; on: boolean };
-  couple_poke: { emoji: string; here: boolean };
+  /** `source`: where it was thrown from — Today together (absent), Home's live bar, a splash or a cheer. */
+  couple_poke: { emoji: string; here?: boolean; source?: 'home' | 'splash' | 'cheer' };
   ritual_perfect_day: Record<string, never>;
   ritual_plan_saved: { picks: string; walkGoal: number };
   ritual_guide_done: { habit: string };
+  /** A yoga flow or guided meditation opened from Train, and one finished. */
+  mindful_started: { kind: 'yoga' | 'meditation'; id: string };
+  mindful_done: { kind: 'yoga' | 'meditation'; id: string };
   qr_scanned: { kind: 'couple' | 'duel' | 'friend' };
 
   /** Mirrors `couple_paired` so both invite surfaces are measured the same way. */

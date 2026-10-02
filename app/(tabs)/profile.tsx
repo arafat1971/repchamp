@@ -196,6 +196,18 @@ export default function ProfileScreen() {
     <Screen>
       <StaggerIn index={0}>
         <View style={styles.settingsRow}>
+          {/* Profile left the tab bar — it opens from the avatar on Home — so
+              it needs its own way back. */}
+          <PressableScale
+            onPress={() => (router.canGoBack() ? router.back() : router.navigate('/(tabs)'))}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            style={styles.settingsButton}
+          >
+            <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+              <Path d="M15 5l-7 7 7 7" stroke={palette.ink} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
+          </PressableScale>
           <PressableScale
             onPress={() => router.push('/modal/settings')}
             accessibilityRole="button"
@@ -419,7 +431,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     ...shadow.card,
   },
-  settingsRow: { alignItems: 'flex-end', marginTop: 8, marginBottom: 4 },
+  settingsRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, marginBottom: 4 },
   settingsButton: {
     width: 40,
     height: 40,

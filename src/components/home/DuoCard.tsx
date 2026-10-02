@@ -92,10 +92,10 @@ export function DuoCard({
       <View style={styles.who}>
         <View style={styles.pair}>
           <View style={styles.faceRing}>
-            <Face uri={myAvatar} name={myName} color={ME} size={40} />
+            <Face uri={myAvatar} name={myName} color={ME} size={34} />
           </View>
           <View style={[styles.faceRing, styles.overlap]}>
-            <Face uri={partnerAvatar} name={partnerName} color={THEM} size={40} />
+            <Face uri={partnerAvatar} name={partnerName} color={THEM} size={34} />
           </View>
         </View>
         <View style={{ flex: 1 }}>
@@ -103,15 +103,16 @@ export function DuoCard({
             You & {partnerFirst}
           </Text>
           <Text style={styles.subtitle} numberOfLines={1}>
-            {streak}-day streak{score ? ` · ${score}` : ''}
+            {/* A zero streak is not news; the rivalry, when there is one, is. */}
+            {[streak > 0 ? `${streak}-day streak` : null, score].filter(Boolean).join(' · ') || 'Start your streak'}
           </Text>
         </View>
-      </View>
-
-      <View style={styles.week}>
-        {week.map((d) => (
-          <Day key={d.day} {...d} />
-        ))}
+        {/* The shared week, inline: each dot split — your half, theirs. */}
+        <View style={styles.week} accessibilityElementsHidden>
+          {week.map((d) => (
+            <Day key={d.day} {...d} />
+          ))}
+        </View>
       </View>
 
       <Text style={[styles.headline, risk && { color: '#C2410C' }]} numberOfLines={2}>
@@ -201,67 +202,60 @@ function Day({
   );
 }
 
-const DOT = 26;
+const DOT = 11;
 
 const styles = StyleSheet.create({
-  who: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12 },
+  who: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10 },
   pair: { flexDirection: 'row' },
-  faceRing: { borderRadius: 22, borderWidth: 2, borderColor: palette.white },
-  overlap: { marginLeft: -12 },
-  title: { ...font('bold', 17, { color: IOS.label }), letterSpacing: -0.3 },
-  subtitle: font('medium', 13, { color: IOS.secondary, marginTop: 1 }),
+  faceRing: { borderRadius: 19, borderWidth: 2, borderColor: palette.white },
+  overlap: { marginLeft: -10 },
+  title: { ...font('bold', 15.5, { color: IOS.label }), letterSpacing: -0.3 },
+  subtitle: font('medium', 12, { color: IOS.secondary, marginTop: 1 }),
 
-  week: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 14,
-    paddingTop: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: IOS.separator,
-  },
-  day: { alignItems: 'center', gap: 6 },
-  dayLetter: font('semibold', 11, { color: IOS.secondary }),
-  dayLetterToday: font('bold', 11, { color: IOS.label }),
+  week: { flexDirection: 'row', gap: 2 },
+  day: { alignItems: 'center', gap: 3 },
+  dayLetter: font('semibold', 8.5, { color: IOS.secondary }),
+  dayLetterToday: font('bold', 8.5, { color: IOS.label }),
   dot: { width: DOT, height: DOT, borderRadius: DOT / 2, overflow: 'hidden', backgroundColor: IOS.fill },
-  dotToday: { borderWidth: 2, borderColor: IOS.label },
+  dotToday: { borderWidth: 1.5, borderColor: IOS.label },
   halves: { flex: 1, flexDirection: 'row' },
   half: { flex: 1 },
 
-  headline: { ...font('medium', 13.5, { color: IOS.secondary }), marginTop: 12, lineHeight: 18 },
+  headline: { ...font('medium', 12.5, { color: IOS.secondary }), marginTop: 10, lineHeight: 17 },
 
   ritual: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginTop: 12,
-    paddingTop: 12,
+    marginTop: 10,
+    paddingTop: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: IOS.separator,
   },
-  ritualTitle: font('semibold', 13.5, { color: IOS.label }),
-  ritualBars: { gap: 4, marginTop: 6 },
+  ritualTitle: font('semibold', 12.5, { color: IOS.label }),
+  ritualBars: { gap: 3, marginTop: 5 },
   bar: { flexDirection: 'row', gap: 3 },
-  seg: { flex: 1, height: 5, borderRadius: 3, backgroundColor: IOS.fill },
-  ritualScore: font('semibold', 13, { color: IOS.secondary }),
+  seg: { flex: 1, height: 4, borderRadius: 3, backgroundColor: IOS.fill },
+  ritualScore: font('semibold', 12, { color: IOS.secondary }),
   chevron: font('semibold', 20, { color: IOS.secondary }),
 
-  actions: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  actions: { flexDirection: 'row', gap: 8, marginTop: 12 },
   primary: {
     flex: 1,
-    height: 42,
+    height: 38,
     borderRadius: 12,
     backgroundColor: IOS.green,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  primaryText: font('bold', 15, { color: palette.white }),
+  primaryText: font('bold', 14, { color: palette.white }),
   secondary: {
-    height: 42,
+    height: 38,
     paddingHorizontal: 24,
     borderRadius: 12,
     backgroundColor: 'rgba(255,45,85,0.10)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  secondaryText: font('bold', 15, { color: THEM }),
+  secondaryText: font('bold', 14, { color: THEM }),
 });

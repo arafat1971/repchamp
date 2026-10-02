@@ -89,6 +89,45 @@ export function ExerciseGlyph({
           <Path d="M24 19 L36 19" {...common} />
           <Line x1={10} y1={40} x2={38} y2={40} {...common} strokeWidth={2} opacity={0.35} />
         </>
+      ) : exercise === 'glute-bridge' ? (
+        <>
+          {/* On the back, hips driven up: shoulders to knees in one line. */}
+          <Circle cx={9} cy={33} r={3.6} fill={stroke} />
+          <Path d="M13 34 L26 25" {...common} />
+          <Path d="M26 25 L34 28 L37 38" {...common} />
+          <Path d="M13 36 L20 38" {...common} />
+          <Line x1={4} y1={40} x2={44} y2={40} {...common} strokeWidth={2} opacity={0.35} />
+        </>
+      ) : exercise === 'pike-push' ? (
+        <>
+          {/* An inverted V: hips high, head dropped between the hands. */}
+          <Circle cx={14} cy={31} r={3.6} fill={stroke} />
+          <Path d="M17 29 L26 14" {...common} />
+          <Path d="M26 14 L38 39" {...common} />
+          <Path d="M18 31 L13 39" {...common} />
+          <Line x1={6} y1={40} x2={42} y2={40} {...common} strokeWidth={2} opacity={0.35} />
+        </>
+      ) : exercise === 'shoulder' ? (
+        <>
+          {/* Standing tall, one arm sweeping a circle around the shoulder. */}
+          <Circle cx={24} cy={10} r={3.6} fill={stroke} />
+          <Path d="M24 14 L24 28" {...common} />
+          <Path d="M24 28 L19 40" {...common} />
+          <Path d="M24 28 L29 40" {...common} />
+          <Path d="M24 18 L17 26" {...common} />
+          <Path d="M24 18 L33 12" {...common} />
+          <Path d="M30 21 A 8 8 0 1 0 36 9" {...common} strokeWidth={1.8} opacity={0.5} />
+        </>
+      ) : exercise === 'stretch' ? (
+        <>
+          {/* A side reach: both arms overhead, the torso bowed to one side. */}
+          <Circle cx={28} cy={11} r={3.6} fill={stroke} />
+          <Path d="M27 15 Q 24 22 24 28" {...common} />
+          <Path d="M24 28 L18 40" {...common} />
+          <Path d="M24 28 L30 40" {...common} />
+          <Path d="M26 17 L33 7" {...common} />
+          <Path d="M26 17 L37 11" {...common} />
+        </>
       ) : (
         <>
           {/* Push-up: body in a plank, elbow bent at the bottom of the rep. */}

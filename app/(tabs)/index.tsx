@@ -860,6 +860,20 @@ export default function HomeScreen() {
         />
       </StaggerIn>
 
+      {/* Your day as a swipeable, full-screen feed — see `app/modal/feed.tsx`. */}
+      <PressableScale
+        onPress={() => {
+          track('feed_opened');
+          router.push('/modal/feed');
+        }}
+        accessibilityRole="button"
+        accessibilityLabel="Open your day feed"
+        style={styles.feedEntry}
+      >
+        <Text style={font('extrabold', 15, { color: palette.white })}>▶  Your day</Text>
+        <Text style={font('semibold', 13, { color: 'rgba(255,255,255,0.8)' })}>Swipe through it</Text>
+      </PressableScale>
+
       {/* The action people open the app for, straight under the hero rather
           than below every scoreboard. */}
       <HomeSectionHeader
@@ -1217,6 +1231,16 @@ const styles = StyleSheet.create({
   greetingName: {
     ...font('extrabold', 22, { color: palette.ink }),
     letterSpacing: -0.6,
+  },
+  feedEntry: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 18,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderRadius: 18,
+    backgroundColor: palette.green600,
   },
   streakPill: {
     flexDirection: 'row',

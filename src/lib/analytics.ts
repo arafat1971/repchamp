@@ -48,6 +48,9 @@ export interface AnalyticsEvents {
   home_hero_shown: { kind: string };
   home_hero_tapped: { kind: string };
   home_couple_strip: { action: 'train' | 'nudge' | 'open' };
+  feed_opened: Record<string, never>;
+  feed_card_viewed: { card: string; position: number };
+  feed_cta: { card: string };
   invite_card_shown: Record<string, never>;
   invite_card_tapped: Record<string, never>;
   invite_card_dismissed: Record<string, never>;

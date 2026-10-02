@@ -7,6 +7,7 @@ import { PressableScale, Screen } from '@/components/ui';
 import { canJoinByLink, isOwnDuelInvite, parseDuelInvite } from '@/domain/duelInvite';
 import { fetchDuel } from '@/services/duelService';
 import { useAuthStore } from '@/state/authStore';
+import { useDeferInvite } from '@/state/useDeferInvite';
 import { reservedControlHeight } from '@/theme/fontScale';
 import { font, scaleForRole, text } from '@/theme/typography';
 import { palette, radius } from '@/theme/tokens';
@@ -34,9 +35,11 @@ export default function DuelJoinScreen() {
   const duelId = parseDuelInvite(params.id ?? '');
   const [error, setError] = useState<string | null>(null);
   const handled = useRef(false);
+  // Not onboarded yet: park the link and onboard first (replayed afterwards).
+  const deferred = useDeferInvite(duelId ? { pathname: '/duel/join', params: { id: duelId } } : null);
 
   useEffect(() => {
-    if (handled.current || !duelId || !uid) return;
+    if (deferred || handled.current || !duelId || !uid) return;
     handled.current = true;
 
     void (async () => {
@@ -69,18 +72,20 @@ export default function DuelJoinScreen() {
         setError(e instanceof Error ? e.message : 'That duel link did not work.');
       }
     })();
-  }, [duelId, uid, router]);
+  }, [deferred, duelId, uid, router]);
 
   // Auth can be slow — don't spin forever with no escape.
   useEffect(() => {
-    if (uid || error) return;
+    if (deferred || uid || error) return;
     const id = setTimeout(() => {
       setError('Still signing you in. Open the Arena and try the code again.');
     }, 8_000);
     return () => clearTimeout(id);
-  }, [uid, error]);
+  }, [deferred, uid, error]);
 
   // A link with no usable id is nonsense — send them somewhere they can act.
+  if (deferred) return null;
+
   if (!duelId) return <Redirect href="/(tabs)/arena" />;
 
   return (

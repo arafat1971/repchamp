@@ -90,6 +90,12 @@ const PRIVACY_TOGGLES: ToggleRow[] = [
     subtitle: 'Friends see “Active now” and when you were last around',
   },
   {
+    key: 'shareAnalytics',
+
+    title: 'Share usage analytics',
+    subtitle: 'Which screens you use, tied to an anonymous ID — never your name or email',
+  },
+  {
     key: 'privateProfile',
    
     title: 'Private profile',

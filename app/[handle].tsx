@@ -1,6 +1,7 @@
 import { Redirect, useLocalSearchParams } from 'expo-router';
 
 import { isValidUsername, normalizeUsername } from '@/domain/input';
+import { useDeferInvite } from '@/state/useDeferInvite';
 
 /**
  * Deep-link landing for a friend invite — `https://repchamp.web.app/@username`.
@@ -27,6 +28,13 @@ export default function FriendHandleScreen() {
   const raw = typeof handle === 'string' ? handle : '';
   // Only `@name` is a friend invite. A bare segment is some other stray link.
   const username = raw.startsWith('@') ? normalizeUsername(raw) : '';
+
+  // Not onboarded yet: the tab gate would bounce this to onboarding and lose the
+  // link, so park it and replay after onboarding.
+  const deferred = useDeferInvite(
+    isValidUsername(username) ? { pathname: '/modal/add-friend', params: { u: username } } : null,
+  );
+  if (deferred) return null;
 
   // Validate here rather than handing a doomed query to the search box: a
   // malformed handle would otherwise land on add-friend and fail there, which

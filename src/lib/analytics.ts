@@ -2,6 +2,7 @@ import { AppState } from 'react-native';
 
 import { posthogKey } from '@/lib/config';
 import { assertHttps } from '@/lib/https';
+import { useSettingsStore } from '@/state/settingsStore';
 
 /**
  * Product analytics — a thin, provider-agnostic wrapper.
@@ -48,6 +49,12 @@ export interface AnalyticsEvents {
   home_hero_shown: { kind: string };
   home_hero_tapped: { kind: string };
   home_couple_strip: { action: 'train' | 'nudge' | 'open' };
+  feed_opened: Record<string, never>;
+  feed_card_viewed: { card: string; position: number };
+  feed_cta: { card: string };
+  invite_card_shown: Record<string, never>;
+  invite_card_tapped: Record<string, never>;
+  invite_card_dismissed: Record<string, never>;
 
   couple_invite_created: Record<string, never>;
   couple_paired: { via: 'code' | 'qr' | 'link' };
@@ -206,6 +213,11 @@ function apiKey(): string | undefined {
   return posthogKey();
 }
 
+/** The athlete's own switch: Settings → Privacy → Share usage analytics. */
+function analyticsAllowed(): boolean {
+  return useSettingsStore.getState().shareAnalytics;
+}
+
 let distinctId: string | null = null;
 let queue: QueuedEvent[] = [];
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -233,7 +245,7 @@ export function track<E extends EventName>(
   event: E,
   ...args: AnalyticsEvents[E] extends Record<string, never> ? [] : [props: AnalyticsEvents[E]]
 ): void {
-  if (!apiKey()) return;
+  if (!apiKey() || !analyticsAllowed()) return;
   const properties = (args[0] ?? {}) as Record<string, unknown>;
   queue.push({ event, properties, timestamp: new Date().toISOString() });
   // Drop oldest when offline backlog balloons — keeps memory bounded.
@@ -255,6 +267,12 @@ function ensureTimer(): void {
 export async function flush(): Promise<void> {
   const key = apiKey();
   if (!key || queue.length === 0) return;
+  // Switched off after events were queued: drop them unsent rather than
+  // letting a toggle that says "off" still send what was already waiting.
+  if (!analyticsAllowed()) {
+    queue = [];
+    return;
+  }
 
   const batch = queue.slice(0, MAX_BATCH);
   const payload = {

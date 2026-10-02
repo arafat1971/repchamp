@@ -5,8 +5,9 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { ModalHeader } from '@/components/ModalHeader';
-import { Avatar, GradientCard, PressableScale, PrimaryButton, Screen } from '@/components/ui';
+import { GradientCard, PressableScale, PrimaryButton, Screen } from '@/components/ui';
 import { HomeCard as Card } from '@/components/ui/HomeCard';
+import { LinkedAvatars } from '@/components/connected/LinkedAvatars';
 import { JourneyCard } from '@/components/together/JourneyCard';
 import { ME, THEM } from '@/components/together/RitualCard';
 import { HABITS, journey } from '@/domain/ritual';
@@ -210,28 +211,23 @@ export default function CoupleTrackerScreen() {
     <Screen>
       <ModalHeader title="Your bond" subtitle={`You and ${partnerName}`} />
 
-      {/* The bond at a glance: who, how long in a row, and what it adds up to. */}
+      {/* The bond at a glance: who, how long in a row, and what it adds up to.
+          The link between the two avatars lights up on a day you both trained,
+          so the hero answers "are we good today?" before any number does. */}
       <Animated.View entering={FadeInDown.duration(340)}>
-        <Card style={styles.hero}>
-          <View style={styles.heroTop}>
-            <View style={styles.pair}>
-              <View style={styles.pairRing}>
-                <Avatar initial={myName.charAt(0).toUpperCase()} uri={avatarUri} size={44} background={ME} color={palette.white} />
-              </View>
-              <View style={[styles.pairRing, styles.pairSecond]}>
-                <Avatar initial={partnerName.charAt(0).toUpperCase()} uri={partner.avatarUrl} size={44} background={THEM} color={palette.white} />
-              </View>
-            </View>
-            <View style={styles.heroCopy}>
-              <Text style={styles.heroStreak}>
-                {streak}
-                <Text style={styles.heroUnit}> {streak === 1 ? 'day' : 'days'} in a row</Text>
-              </Text>
-              <Text style={styles.heroSub}>
-                Best run {summary.bestRun} · Level {level.level}, {level.name}
-              </Text>
-            </View>
-          </View>
+        <GradientCard colors={gradients.brandDeep} glow="brand" style={styles.hero}>
+          <LinkedAvatars
+            lit={bondDay.get(today) === 'both'}
+            me={{ initial: myName.charAt(0).toUpperCase(), uri: avatarUri, color: ME }}
+            them={{ initial: partnerName.charAt(0).toUpperCase(), uri: partner.avatarUrl, color: THEM }}
+          />
+          <Text style={styles.heroStreak}>
+            {streak}
+            <Text style={styles.heroUnit}> {streak === 1 ? 'day' : 'days'} in a row</Text>
+          </Text>
+          <Text style={styles.heroSub}>
+            Best run {summary.bestRun} · Level {level.level}, {level.name}
+          </Text>
           <View style={styles.levelTrack}>
             <View style={[styles.levelFill, { width: `${Math.max(2, Math.round(level.progress))}%` }]} />
           </View>
@@ -253,7 +249,7 @@ export default function CoupleTrackerScreen() {
           >
             <Text style={styles.heroShareText}>Share your bond card</Text>
           </PressableScale>
-        </Card>
+        </GradientCard>
       </Animated.View>
 
       {/* Today lives on its own screen: this one is the bond's history. */}
@@ -266,6 +262,19 @@ export default function CoupleTrackerScreen() {
         <View style={styles.todayCopy}>
           <Text style={styles.todayTitle}>Today, together</Text>
           <Text style={styles.todaySub}>The live stage, your daily ritual, and what happened today</Text>
+        </View>
+        <Text style={styles.chevron}>›</Text>
+      </PressableScale>
+
+      <PressableScale
+        onPress={() => router.push('/modal/daily')}
+        accessibilityRole="button"
+        accessibilityLabel="Open the daily challenge"
+        style={styles.todayRow}
+      >
+        <View style={styles.todayCopy}>
+          <Text style={styles.todayTitle}>Daily challenge</Text>
+          <Text style={styles.todaySub}>Today&rsquo;s set to beat — and whether you both did it</Text>
         </View>
         <Text style={styles.chevron}>›</Text>
       </PressableScale>
@@ -623,24 +632,40 @@ const styles = StyleSheet.create({
   emptySkipText: font('bold', 13.5, { color: palette.grey600 }),
 
   pad: { padding: 18 },
-  hero: { padding: 18 },
-  heroTop: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  pair: { flexDirection: 'row' },
-  pairRing: { borderRadius: 26, borderWidth: 3, borderColor: palette.white },
-  pairSecond: { marginLeft: -14 },
-  heroCopy: { flex: 1 },
-  heroStreak: font('extrabold', 30, { color: palette.ink }),
-  heroUnit: font('semibold', 15, { color: palette.slate500 }),
-  heroSub: { ...font('medium', 13, { color: palette.slate500 }), marginTop: 2 },
-  levelTrack: { height: 4, borderRadius: 2, backgroundColor: palette.track, overflow: 'hidden', marginTop: 16 },
-  levelFill: { height: 4, borderRadius: 2, backgroundColor: palette.ink },
-  figures: { flexDirection: 'row', alignItems: 'center', marginTop: 16 },
+  hero: { padding: 22, alignItems: 'center' },
+  heroStreak: font('extrabold', 40, { color: palette.white, marginTop: 18 }),
+  heroUnit: font('semibold', 16, { color: 'rgba(255,255,255,0.75)' }),
+  heroSub: { ...font('medium', 13, { color: 'rgba(255,255,255,0.75)' }), marginTop: 2 },
+  levelTrack: {
+    alignSelf: 'stretch',
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    overflow: 'hidden',
+    marginTop: 16,
+  },
+  levelFill: { height: 6, borderRadius: 3, backgroundColor: palette.green400 },
+  figures: {
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    padding: 14,
+    borderRadius: radius.lg,
+    backgroundColor: 'rgba(0,0,0,0.22)',
+  },
   figure: { flex: 1 },
-  figureValue: font('extrabold', 20, { color: palette.ink }),
-  figureLabel: { ...font('medium', 12, { color: palette.slate500 }), marginTop: 1 },
-  figureRule: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', backgroundColor: palette.divider, marginHorizontal: 12 },
-  heroShare: { marginTop: 16, alignSelf: 'flex-start' },
-  heroShareText: font('semibold', 14, { color: palette.ink }),
+  figureValue: font('extrabold', 20, { color: palette.white }),
+  figureLabel: { ...font('medium', 12, { color: 'rgba(255,255,255,0.7)' }), marginTop: 1 },
+  figureRule: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', backgroundColor: 'rgba(255,255,255,0.3)', marginHorizontal: 12 },
+  heroShare: {
+    marginTop: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+  },
+  heroShareText: font('bold', 14, { color: palette.white }),
 
   todayRow: {
     flexDirection: 'row',

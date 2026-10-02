@@ -28,6 +28,7 @@ import {
 import { emitRetention, retentionSnapshot } from '@/services/recordSessionWithRetention';
 import { shareWorthyLine } from '@/domain/progressProof';
 import { setHighlight } from '@/domain/setHighlight';
+import { HighlightCard } from '@/components/session/HighlightCard';
 import { useProfileStore, selectLeague, selectStreak } from '@/state/profileStore';
 import { useIsPro } from '@/state/proStore';
 import { useAuthStore } from '@/state/authStore';
@@ -548,19 +549,7 @@ export default function ResultScreen() {
           ) : null}
         </Animated.View>
 
-        {highlight ? (
-          <Animated.View
-            entering={ZoomIn.springify().delay(900)}
-            style={[styles.highlightCard, highlight.tier === 'epic' && styles.highlightEpic]}
-            accessibilityRole="summary"
-          >
-            <Text style={styles.highlightEmoji}>{highlight.emoji}</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.highlightTitle}>{highlight.title}</Text>
-              <Text style={styles.highlightBody}>{highlight.body}</Text>
-            </View>
-          </Animated.View>
-        ) : null}
+        {highlight ? <HighlightCard highlight={highlight} /> : null}
 
         {/* The reveal: both scores counting up together, then the crown. */}
         {mode === 'versus' || mode === 'together' ? (
@@ -726,21 +715,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 999,
   },
-  highlightCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 14,
-    padding: 14,
-    borderRadius: 18,
-    backgroundColor: palette.amber50,
-    borderWidth: 1,
-    borderColor: palette.amber500,
-  },
-  highlightEpic: { borderWidth: 2 },
-  highlightEmoji: { fontSize: 30 },
-  highlightTitle: font('extrabold', 16, { color: palette.amber800 }),
-  highlightBody: font('medium', 13, { color: palette.grey600 }),
   rewardChipGold: {
     backgroundColor: palette.amber50,
     borderWidth: 1,

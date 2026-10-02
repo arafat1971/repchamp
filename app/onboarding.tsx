@@ -1,10 +1,11 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
+  BackHandler,
   Pressable,
   ScrollView,
   type StyleProp,
@@ -43,6 +44,23 @@ import { pluralise } from '@/domain/plural';
 import { OPPONENTS } from '@/domain/opponent';
 import { track } from '@/lib/analytics';
 import { onboardingProgressPercent, onboardingStepName } from '@/domain/onboardingFunnel';
+import {
+  ONBOARDING_DRAFT_KEY,
+  parseDraft,
+  serializeDraft,
+} from '@/domain/onboardingDraft';
+import {
+  AFTER_PAYWALL_STEP,
+  BUILD_STEP,
+  PAYWALL_STEP,
+  afterSignInStep,
+  barPercent,
+  nextStep,
+  previousStep,
+  resumeStep,
+} from '@/domain/onboardingNav';
+import { PENDING_INVITE_KEY, parseInvite } from '@/domain/pendingInvite';
+import { storage } from '@/lib/storage';
 import { HomeWidgetStep } from '@/components/onboarding/HomeWidgetStep';
 import { TogetherStep } from '@/components/onboarding/TogetherStep';
 import { checkHandleAtSignIn, mayPassUncheckedHandle } from '@/domain/signInHandle';
@@ -92,16 +110,6 @@ import { gradients, palette, radius, shadow, surfaceShadow } from '@/theme/token
  * bar, and must not be re-enterable from history, so a single screen with an
  * index is simpler and avoids a stack of dead routes behind the tabs.
  */
-/**
- * Steps the progress bar measures against.
- *
- * Must match the highest step the bar is shown for. It read 20 after four
- * screens were added, which filled the bar to 100% with four still to go —
- * the one part of onboarding whose whole job is not lying about how much is
- * left.
- */
-const TOTAL_PROGRESS_STEPS = 24;
-
 // Onboarding media — the in-app demo clip and the illustrated value-screen art.
 const DEMO_VIDEO = require('../assets/remove_text_bro_thought_202607272319.mp4');
 const HERO_COUPLE = require('../assets/couple-hero.png');
@@ -157,7 +165,13 @@ export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const completeOnboarding = useProfileStore((s) => s.completeOnboarding);
 
-  const [step, setStep] = useState(0);
+  /* A first-time run saves its progress and resumes after a kill; a replay
+     from Settings (already onboarded) must do neither. Read once, at mount. */
+  const [firstRun] = useState(() => !useProfileStore.getState().onboarded);
+  const [draft] = useState(() =>
+    firstRun ? parseDraft(storage.getString(ONBOARDING_DRAFT_KEY), Date.now()) : null,
+  );
+  const [step, setStep] = useState(() => (draft ? resumeStep(draft.step) : 0));
   /* True when sign-in was reached by the "Already have an account?" link rather
      than by walking the flow. Someone who jumped forward has not answered the
      goal, frequency or reminder questions yet, so completing sign-in has to
@@ -166,25 +180,69 @@ export default function OnboardingScreen() {
   /** The handle sign-in could not confirm, if any. Scopes the username step's
       leniency so the same unverifiable name cannot be waved through twice. */
   const [refusedAtSignIn, setRefusedAtSignIn] = useState<string | null>(null);
-  const [username, setUsername] = useState('');
+  const [username, setUsername] = useState(draft?.username ?? '');
   const [usernameError, setUsernameError] = useState<string | null>(null);
-  const [avatarUri, setAvatarUri] = useState<string | null>(null);
-  const [goal, setGoal] = useState<string | null>(null);
-  const [level, setLevel] = useState<FitnessLevel | null>(null);
-  const [blocker, setBlocker] = useState<Blocker | null>(null);
-  const [weeklyGoal, setWeeklyGoal] = useState(4);
+  const [avatarUri, setAvatarUri] = useState<string | null>(draft?.avatarUri ?? null);
+  const [goal, setGoal] = useState<string | null>(draft?.goal ?? null);
+  const [level, setLevel] = useState<FitnessLevel | null>((draft?.level as FitnessLevel | null) ?? null);
+  const [blocker, setBlocker] = useState<Blocker | null>((draft?.blocker as Blocker | null) ?? null);
+  const [weeklyGoal, setWeeklyGoal] = useState(draft?.weeklyGoal ?? 4);
   const [buildPercent, setBuildPercent] = useState(0);
-  const [plan, setPlan] = useState<'year' | 'month'>('year');
+  const [plan, setPlan] = useState<'year' | 'month'>(draft?.plan ?? 'year');
 
-  const next = useCallback(() => setStep((s) => s + 1), []);
+  /* `next` is bound to the step it was rendered for. An option tap calls it
+     right after setting its answer, and a second quick tap — or a slow
+     username check finishing twice — used to advance two screens, skipping one
+     the athlete never saw. Only the first call for a given step moves. */
+  const next = useCallback(
+    () => setStep((s) => (s === step ? nextStep(s) : s)),
+    [step],
+  );
   /* Steps 12 (AI coach) and 13 (couple mode) restate what screens 1 and 3
      already showed, and sit between the athlete's answers and the plan they
-     were promised. Dropping them takes two taps out of the way before the
-     payoff; the screens stay in the file so the funnel names still line up. */
-  const back = useCallback(
-    () => setStep((s) => (s === 14 ? 11 : Math.max(0, s - 1))),
+     were promised. They stay in the file so the funnel names line up, and
+     navigation steps over them in both directions. */
+  const back = useCallback(() => setStep((s) => previousStep(s)), []);
+  const afterSignIn = useCallback(
+    () => setStep((s) => (s === 20 ? afterSignInStep(useProStore.getState().isPro) : s)),
     [],
   );
+
+  /* Save progress on every step so a kill mid-flow (a Google sign-in that
+     leaves the app, a permission dialog, a phone call) does not send the
+     athlete back to the welcome screen with their answers gone. */
+  useEffect(() => {
+    if (!firstRun || step < 1) return;
+    storage.set(
+      ONBOARDING_DRAFT_KEY,
+      serializeDraft({ step, username, avatarUri, goal, level, blocker, weeklyGoal, plan }, Date.now()),
+    );
+  }, [firstRun, step, username, avatarUri, goal, level, blocker, weeklyGoal, plan]);
+
+  /* A subscriber signing in on a new phone should not be offered the paywall:
+     Pro can land a moment after sign-in, so skip it if it arrives while the
+     paywall is showing. */
+  const isPro = useProStore((st) => st.isPro);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (step === PAYWALL_STEP && isPro) setStep(AFTER_PAYWALL_STEP);
+  }, [step, isPro]);
+
+  /* Android's back button used to leave the app mid-flow. Where the on-screen
+     back arrow shows, it steps back; once the plan is built there is nothing
+     to go back to, so it is swallowed rather than dropping the athlete out.
+     A replay from Settings is free to leave. */
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (!firstRun || step === 0) return false;
+      if (step < BUILD_STEP) {
+        back();
+        return true;
+      }
+      return true;
+    });
+    return () => sub.remove();
+  }, [firstRun, step, back]);
 
   /* One event per step. Onboarding reported only that it had finished, so a
      drop at the username screen and a drop at the paywall were indistinguishable
@@ -210,22 +268,40 @@ export default function OnboardingScreen() {
       blocker,
     });
     track('onboarding_completed', { weeklyGoal });
+    storage.remove(ONBOARDING_DRAFT_KEY);
     // Upload local photo first — pushProfile strips non-HTTPS URLs, so a bare
     // file:// avatar never reached friends/duel seats.
+    //
+    // Caught and reported: this runs detached, so a failed upload or sync used
+    // to surface as an unhandled rejection with nothing recording it. The local
+    // profile is already complete; the next sync retries the cloud copy.
     void (async () => {
-      const auth = useAuthStore.getState();
-      if (avatarUri) {
-        const remote = await auth.syncAvatar(avatarUri);
-        useProfileStore.getState().setAvatar(remote);
+      try {
+        const auth = useAuthStore.getState();
+        if (avatarUri) {
+          const remote = await auth.syncAvatar(avatarUri);
+          useProfileStore.getState().setAvatar(remote);
+        }
+        await auth.pushProfile();
+      } catch (error) {
+        captureError(error);
       }
-      await auth.pushProfile();
     })();
+    router.replace('/(tabs)');
+    /* An invite link opened before onboarding was finished (see
+       `useDeferInvite`) is the athlete's real reason for being here: replay it
+       now that their profile exists, instead of the first practice set. */
+    const pending = parseInvite(storage.getString(PENDING_INVITE_KEY), Date.now());
+    storage.remove(PENDING_INVITE_KEY);
+    if (pending) {
+      router.push({ pathname: pending.pathname, params: pending.params } as Href);
+      return;
+    }
     // Drop straight into a first practice set — the last tap of onboarding *is*
     // the start of the workout. Getting to a counted rep fast is the single
     // biggest lever on activation; landing on Home and hunting for a button is
     // exactly the friction we're removing. The Home tabs sit under it, so the
     // back-swipe from the session lands the athlete on their home as normal.
-    router.replace('/(tabs)');
     router.push({ pathname: '/session', params: { exercise: 'push', mode: 'practice' } });
   }, [completeOnboarding, username, weeklyGoal, avatarUri, level, blocker, router]);
 
@@ -262,8 +338,8 @@ export default function OnboardingScreen() {
 
   // Hidden once the profile build takes over (13) — from there the flow is
   // automated and the paywall owns the screen.
-  const showProgressBar = step > 0 && step < 18;
-  const progressPercent = Math.round((Math.min(step, TOTAL_PROGRESS_STEPS) / TOTAL_PROGRESS_STEPS) * 100);
+  const showProgressBar = step > 0 && step < BUILD_STEP;
+  const progressPercent = barPercent(step);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -442,7 +518,7 @@ export default function OnboardingScreen() {
           />
         ) : null}
         {/* The answer to what they just told us blocks them. */}
-        {step === 11 ? <YourAntidote blocker={blocker} onNext={() => setStep(14)} /> : null}
+        {step === 11 ? <YourAntidote blocker={blocker} onNext={next} /> : null}
         {step === 12 ? <AiCoach onNext={next} /> : null}
         {step === 13 ? <CoupleMode onNext={next} /> : null}
         {/* Personalised trio — each reflects the answers just given, turning
@@ -499,7 +575,7 @@ export default function OnboardingScreen() {
                 /* `checkHandleAtSignIn` proceeds on either of these too; this
                    guard is here to skip the Firestore round-trip, not to
                    decide anything. */
-                if (!username || !uid) return next();
+                if (!username || !uid) return afterSignIn();
                 /* Stricter than the username step, which passes an
                    unverifiable lookup; `checkHandleAtSignIn` documents and
                    tests why. */
@@ -510,7 +586,7 @@ export default function OnboardingScreen() {
                 );
                 if (check.kind === 'proceed') {
                   setRefusedAtSignIn(null);
-                  return next();
+                  return afterSignIn();
                 }
                 setRefusedAtSignIn(username);
                 setUsernameError(check.reason);
@@ -626,7 +702,7 @@ function Welcome({ onNext }: { onNext: () => void }) {
       </View>
 
       <Text style={styles.legal}>
-        By continuing, you agree to RepChamp&apos;s{' '}
+        By continuing, you confirm you are 16 or older and agree to RepChamp&apos;s{' '}
         <Text
           style={styles.legalLink}
           onPress={() => router.push('/modal/legal?tab=terms')}

@@ -64,11 +64,20 @@ export default function LegalScreen() {
           <Para>
             Account and progress data is stored in Google Firebase (Firestore
             and Authentication) — your profile picture is saved with the rest of
-            your profile, not as a separate file. Anonymous product
-            analytics — which screens are used, not who you are — is processed by
-            PostHog. Subscriptions are handled by RevenueCat and the Apple App
-            Store or Google Play. Crash diagnostics, when enabled, are processed by
+            your profile, not as a separate file. Product analytics — which
+            screens are used, tied to an anonymous account ID and never your name
+            or email — is processed by PostHog, and you can turn it off in
+            Settings → Privacy. Subscriptions are handled by RevenueCat and the
+            Apple App Store or Google Play. Crash diagnostics are processed by
             Sentry. We do not sell your data, and we do not use it for advertising.
+          </Para>
+        </Section>
+
+        <Section title="Who it's for">
+          <Para>
+            RepChamp is for people aged 16 and over. We don&apos;t knowingly collect
+            data from anyone younger — if you think a child has an account, email{' '}
+            {SUPPORT_EMAIL} and we&apos;ll remove it.
           </Para>
         </Section>
 
@@ -109,6 +118,12 @@ export default function LegalScreen() {
             dizziness. Consult a professional before starting a new exercise
             programme if you have an injury or medical condition. You are
             responsible for your own safety.
+          </Para>
+        </Section>
+
+        <Section title="Who can use it">
+          <Para>
+            You must be at least 16 years old to use Fitness Duel: RepChamp.
           </Para>
         </Section>
 

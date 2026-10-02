@@ -1,128 +1,31 @@
-import { LinearGradient } from 'expo-linear-gradient';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 import { useShallow } from 'zustand/shallow';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
-  withSequence,
-  Easing,
-} from 'react-native-reanimated';
-import { useEffect } from 'react';
 
-import { PressableScale, ProgressBar } from '@/components/ui';
+import { ArrowIcon, CheckIcon } from '@/components/home/Icons';
+import { PressableScale } from '@/components/ui';
+import { HomeCard } from '@/components/ui/HomeCard';
 import { canUse } from '@/domain/pro';
-import { PUSHUP_LADDER } from '@/domain/programme';
+import { PUSHUP_LADDER, type Programme } from '@/domain/programme';
 import { getExercise } from '@/vision/exercises';
 import { isPurchasesConfigured } from '@/services/purchases';
 import { selectProgramme, useProfileStore } from '@/state/profileStore';
 import { useEffectivePro } from '@/state/proStore';
 import { font } from '@/theme/typography';
-import { palette, shadow, radius } from '@/theme/tokens';
+import { palette, radius } from '@/theme/tokens';
 
-/* ── Animated sub-components ─────────────────────────────────────────── */
-
-/** A breathing CTA pill that gently scales to draw the eye. */
-function AnimatedCTA({ text, isPro = false }: { text: string; isPro?: boolean }) {
-  const scale = useSharedValue(1);
-
-  useEffect(() => {
-    scale.value = withRepeat(
-      withSequence(
-        withTiming(1.04, { duration: 1400, easing: Easing.inOut(Easing.ease) }),
-        withTiming(1, { duration: 1400, easing: Easing.inOut(Easing.ease) }),
-      ),
-      -1,
-      true,
-    );
-  }, [scale]);
-
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
-  return (
-    <Animated.View
-      style={[styles.ctaPill, animStyle, isPro && styles.ctaPillPro]}
-    >
-      <Text style={[styles.ctaText, isPro && { color: palette.amber900 }]}>
-        {text}
-      </Text>
-      <View style={[styles.ctaArrow, isPro && { backgroundColor: palette.amber800 }]}>
-        <Text style={font('extrabold', 13, { color: palette.white })}>→</Text>
-      </View>
-    </Animated.View>
-  );
-}
-
-/** Floating emoji that bobs up and down. */
-function FloatingEmoji({ emoji, delay = 0 }: { emoji: string; delay?: number }) {
-  const y = useSharedValue(0);
-
-  useEffect(() => {
-    const d = delay;
-    setTimeout(() => {
-      y.value = withRepeat(
-        withSequence(
-          withTiming(-6, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
-          withTiming(6, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
-        ),
-        -1,
-        true,
-      );
-    }, d);
-  }, [y, delay]);
-
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: y.value }],
-  }));
-
-  return (
-    <Animated.Text style={[{ fontSize: 28 }, animStyle]}>{emoji}</Animated.Text>
-  );
-}
-
-/** Glowing ring progress indicator. */
-function GlowRing({
-  percent,
-  size = 68,
-  color = palette.green700,
-}: {
-  percent: number;
-  size?: number;
-  color?: string;
-}) {
-  return (
-    <View
-      style={[
-        styles.glowRing,
-        {
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          borderColor: color,
-          shadowColor: color,
-        },
-      ]}
-    >
-      <Text style={font('extrabold', 18, { color: palette.white })}>
-        {percent}%
-      </Text>
-    </View>
-  );
-}
-
-/* ── Main component ──────────────────────────────────────────────────── */
+const IC_PUSHUP = require('../../assets/ic-pushup.png');
+const TROPHY = require('../../assets/trophy-gold.png');
 
 /**
  * The training-programme surface on the Train tab.
  *
- * Enrolled → shows today's programme day (exercise + target) with a progress bar
- * across the whole ladder, and starts that exact session on tap. Not enrolled →
- * a start CTA for the flagship push-up ladder. All the maths lives in the pure
- * `programme.ts`; this only renders and routes.
+ * Enrolled → today's programme day, with the whole ladder drawn beneath it so
+ * "where am I, and how far is left" is one glance: a row per week, a dot per
+ * day (done, today, rest, ahead). Not enrolled → the same ladder as a preview,
+ * so the commitment being asked for is visible before it is made. All the maths
+ * lives in the pure `programme.ts`; this only renders and routes.
  */
 export function ProgrammeCard() {
   const router = useRouter();
@@ -153,63 +56,17 @@ export function ProgrammeCard() {
         accessibilityRole="button"
         accessibilityLabel={`Start the programme: ${PUSHUP_LADDER.title}`}
       >
-        <LinearGradient
-          colors={[palette.green700, palette.green600, palette.green500]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.card}
-        >
-          {/* Warm orange accent glow at top-right */}
-          <View style={styles.cornerGlow} />
-
-          <View style={styles.headerRow}>
-            <View style={styles.badgePill}>
-              <View style={styles.badgeDot} />
-              <Text style={styles.badgeText}>NEW · 4-WEEK PROGRAMME</Text>
-            </View>
-            {gated ? (
-              <LinearGradient
-                colors={[palette.amber500, palette.amber600]}
-                style={styles.proTag}
-              >
-                <Text style={font('extrabold', 9.5, { color: palette.white })}>PRO</Text>
-              </LinearGradient>
-            ) : null}
-          </View>
-
-          <View style={styles.contentRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.title}>{PUSHUP_LADDER.title}</Text>
-              <Text style={styles.body}>{PUSHUP_LADDER.description}</Text>
-              <AnimatedCTA
-                text={gated ? 'Unlock with Pro' : 'Start challenge'}
-                isPro={gated}
-              />
-            </View>
-            <View style={styles.emojiStack}>
-              <FloatingEmoji emoji="💪" delay={0} />
-              <FloatingEmoji emoji="🔥" delay={600} />
-            </View>
-          </View>
-
-          {/* Stats chips at bottom */}
-          <View style={styles.statsRow}>
-            <View style={styles.statChip}>
-              <Text style={styles.statValue}>4</Text>
-              <Text style={styles.statLabel}>Weeks</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statChip}>
-              <Text style={styles.statValue}>20</Text>
-              <Text style={styles.statLabel}>Days</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statChip}>
-              <Text style={styles.statValue}>2×</Text>
-              <Text style={styles.statLabel}>XP Boost</Text>
-            </View>
-          </View>
-        </LinearGradient>
+        <HomeCard style={styles.card}>
+          <Header
+            icon={IC_PUSHUP}
+            eyebrow={`NEW · ${PUSHUP_LADDER.weeks}-WEEK PROGRAMME`}
+            title={PUSHUP_LADDER.title}
+            pro={gated}
+          />
+          <Text style={styles.body}>{PUSHUP_LADDER.description}</Text>
+          <Ladder programme={PUSHUP_LADDER} completed={0} showCurrent={false} />
+          <Cta label={gated ? 'Unlock with Pro' : 'Start challenge'} muted={gated} />
+        </HomeCard>
       </PressableScale>
     );
   }
@@ -222,26 +79,19 @@ export function ProgrammeCard() {
         accessibilityRole="button"
         accessibilityLabel="Restart a programme"
       >
-        <LinearGradient
-          colors={['#ea580c', '#f59e0b', '#fbbf24']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.card}
-        >
-          <View style={styles.headerRow}>
-            <View style={[styles.badgePill, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-              <Text style={{ fontSize: 10 }}>🏆</Text>
-              <Text style={[styles.badgeText, { color: palette.white }]}>PROGRAMME COMPLETE</Text>
-            </View>
-          </View>
-          <Text style={styles.title}>
-            {state.programme.title} — done 🎉
-          </Text>
+        <HomeCard style={[styles.card, styles.cardDone]}>
+          <Header
+            icon={TROPHY}
+            eyebrow="PROGRAMME COMPLETE"
+            title={state.programme.title}
+            count={`${state.totalDays}/${state.totalDays}`}
+          />
           <Text style={styles.body}>
             You finished all {state.totalDays} days. Start another to keep climbing.
           </Text>
-          <AnimatedCTA text="Start again" />
-        </LinearGradient>
+          <Ladder programme={state.programme} completed={state.totalDays} showCurrent={false} />
+          <Cta label="Start again" />
+        </HomeCard>
       </PressableScale>
     );
   }
@@ -249,7 +99,6 @@ export function ProgrammeCard() {
   // ---- Active: today's day ----
   const day = state.currentDay;
   const def = getExercise(day.exercise);
-  const progressPercent = Math.round(state.percent * 100);
 
   const onStart = () => {
     if (day.rest) {
@@ -272,225 +121,211 @@ export function ProgrammeCard() {
           : `Programme day ${day.index}: ${day.target} ${def.label}`
       }
     >
-      <LinearGradient
-        colors={[palette.green700, palette.green600, palette.green500]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.card}
-      >
-        <View style={styles.cornerGlow} />
-
-        <View style={styles.headerRow}>
-          <View style={styles.badgePill}>
-            <View style={styles.badgeDot} />
-            <Text style={styles.badgeText}>
-              {state.programme.title.toUpperCase()} · WK {day.week} DAY {day.dayOfWeek}
-            </Text>
-          </View>
-          <Text style={styles.dayCount}>
-            {state.completedDays}/{state.totalDays}
-          </Text>
-        </View>
+      <HomeCard style={styles.card}>
+        <Header
+          icon={IC_PUSHUP}
+          eyebrow={`WEEK ${day.week} · DAY ${day.dayOfWeek}`}
+          title={state.programme.title}
+          count={`${state.completedDays}/${state.totalDays}`}
+        />
 
         {day.rest ? (
-          <View style={styles.contentRow}>
+          <View style={styles.todayRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.title}>Rest day 🧘</Text>
+              <Text style={styles.restTitle}>Rest day</Text>
               <Text style={styles.body}>
                 Recovery is part of the plan. Tap when you&apos;re ready for the next day.
               </Text>
-              <AnimatedCTA text="Mark rest complete" />
             </View>
           </View>
         ) : (
-          <View style={styles.contentRow}>
+          <View style={styles.todayRow}>
+            <Text style={styles.target}>{day.target}</Text>
             <View style={{ flex: 1 }}>
-              <Text style={styles.targetNumber}>{day.target}</Text>
-              <Text style={styles.targetLabel}>{def.label}</Text>
-              <Text style={styles.body}>
-                Clear today&apos;s target to advance the ladder.
-              </Text>
-              <AnimatedCTA text={`Start day ${day.index}`} />
+              <Text style={styles.targetLabel}>{def.label} today</Text>
+              <Text style={styles.body}>Clear today&apos;s target to advance the ladder.</Text>
             </View>
-            <GlowRing percent={progressPercent} />
           </View>
         )}
 
-        <View style={{ marginTop: 16 }}>
-          <ProgressBar
-            percent={progressPercent}
-            trackColor="rgba(255,255,255,0.25)"
-            fillColor={palette.white}
-          />
-        </View>
-      </LinearGradient>
+        <Ladder programme={state.programme} completed={state.completedDays} showCurrent />
+        <Cta label={day.rest ? 'Mark rest complete' : `Start day ${day.index}`} />
+      </HomeCard>
     </PressableScale>
   );
 }
 
-/* ── Styles ───────────────────────────────────────────────────────────── */
+function Header({
+  icon,
+  eyebrow,
+  title,
+  count,
+  pro,
+}: {
+  icon: number;
+  eyebrow: string;
+  title: string;
+  count?: string;
+  pro?: boolean;
+}) {
+  return (
+    <View style={styles.header}>
+      <View style={styles.iconWrap}>
+        <Image source={icon} style={styles.icon} contentFit="contain" />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.eyebrow} numberOfLines={1}>
+          {eyebrow}
+        </Text>
+        <Text style={styles.title} numberOfLines={1}>
+          {title}
+        </Text>
+      </View>
+      {pro ? (
+        <View style={styles.proTag}>
+          <Text style={styles.proText}>PRO</Text>
+        </View>
+      ) : count ? (
+        <Text style={styles.count}>{count}</Text>
+      ) : null}
+    </View>
+  );
+}
+
+/** A row per week, a dot per day: done, today, rest, or still ahead. */
+function Ladder({
+  programme,
+  completed,
+  showCurrent,
+}: {
+  programme: Programme;
+  completed: number;
+  showCurrent: boolean;
+}) {
+  const weeks = Array.from({ length: programme.weeks }, (_, w) =>
+    programme.days.filter((d) => d.week === w + 1),
+  );
+  return (
+    <View style={styles.ladder}>
+      {weeks.map((days, w) => (
+        <View key={w} style={styles.weekRow}>
+          <Text style={styles.weekLabel}>Wk {w + 1}</Text>
+          <View style={styles.dots}>
+            {days.map((d) => {
+              const done = d.index <= completed;
+              const current = showCurrent && d.index === completed + 1;
+              return (
+                <View
+                  key={d.index}
+                  style={[
+                    styles.dot,
+                    d.rest && styles.dotRest,
+                    done && styles.dotDone,
+                    current && styles.dotCurrent,
+                  ]}
+                >
+                  {done ? (
+                    <CheckIcon size={12} color={palette.white} strokeWidth={3} />
+                  ) : d.rest ? (
+                    <View style={styles.restBar} />
+                  ) : (
+                    <Text style={[styles.dotTarget, current && { color: palette.green700 }]}>
+                      {d.target}
+                    </Text>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function Cta({ label, muted }: { label: string; muted?: boolean }) {
+  return (
+    <View style={[styles.cta, muted && styles.ctaMuted]}>
+      <Text style={styles.ctaText}>{label}</Text>
+      <ArrowIcon size={16} color={palette.white} strokeWidth={2.4} />
+    </View>
+  );
+}
 
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: radius['4xl'],
-    padding: 20,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-    ...shadow.brand,
-  },
-  cornerGlow: {
-    position: 'absolute',
-    top: -40,
-    right: -40,
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(249,115,22,0.25)',
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  card: { padding: 16 },
+  cardDone: { borderColor: palette.amber200, backgroundColor: palette.amber50 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  iconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: palette.green50,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  badgePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: radius.md,
-  },
-  badgeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: palette.white,
-    shadowColor: palette.white,
-    shadowOpacity: 0.9,
-    shadowRadius: 4,
-  },
-  badgeText: {
-    ...font('extrabold', 10, { color: palette.white }),
-    letterSpacing: 1.2,
-  },
+  icon: { width: 32, height: 32 },
+  eyebrow: { ...font('extrabold', 11, { color: palette.green700 }), letterSpacing: 1.2 },
+  title: { ...font('extrabold', 17, { color: palette.ink }), letterSpacing: -0.4, marginTop: 1 },
+  count: { ...font('extrabold', 14, { color: palette.grey600 }), fontVariant: ['tabular-nums'] },
   proTag: {
-    borderRadius: radius.sm,
-    paddingHorizontal: 8,
+    backgroundColor: palette.amber50,
+    borderRadius: radius.pill,
+    paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  dayCount: {
-    ...font('extrabold', 13, { color: 'rgba(255,255,255,0.85)' }),
-  },
-  contentRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 12,
-    gap: 16,
-  },
-  title: {
-    ...font('extrabold', 22, { color: palette.white }),
-    lineHeight: 26,
-  },
-  body: {
-    ...font('semibold', 12, { color: 'rgba(255,255,255,0.8)' }),
-    marginTop: 4,
-    lineHeight: 17,
-  },
-  targetNumber: {
-    ...font('extrabold', 48, { color: palette.white }),
-    lineHeight: 52,
-    textShadowColor: 'rgba(0,0,0,0.15)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 8,
-  },
-  targetLabel: {
-    ...font('extrabold', 15, { color: 'rgba(255,255,255,0.9)' }),
-    marginTop: -2,
-    letterSpacing: 0.5,
-  },
-  emojiStack: {
-    alignItems: 'center',
-    gap: 4,
-  },
+  proText: { ...font('extrabold', 10.5, { color: palette.amber800 }), letterSpacing: 1 },
+  body: { ...font('medium', 13, { color: palette.grey600 }), lineHeight: 18, marginTop: 8 },
 
-  // CTA
-  ctaPill: {
-    flexDirection: 'row',
-    alignSelf: 'flex-start',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    paddingLeft: 16,
-    paddingRight: 4,
-    paddingVertical: 8,
-    borderRadius: 24,
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
-    shadowColor: 'rgba(0,0,0,0.2)',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 12,
-    elevation: 4,
+  todayRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 14 },
+  target: {
+    ...font('extrabold', 56, { color: palette.ink }),
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -2,
+    lineHeight: 60,
   },
-  ctaPillPro: {
-    backgroundColor: palette.amber400,
-    borderColor: palette.amber300,
-    shadowColor: palette.amber500,
-  },
-  ctaText: font('extrabold', 14, { color: palette.white }),
-  ctaArrow: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  targetLabel: { ...font('extrabold', 16, { color: palette.ink }), letterSpacing: -0.3 },
+  restTitle: { ...font('extrabold', 22, { color: palette.ink }), letterSpacing: -0.5 },
 
-  // Stats row (not-enrolled card)
-  statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 16,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.18)',
-    gap: 0,
-  },
-  statChip: {
+  ladder: { marginTop: 16, gap: 8 },
+  weekRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  weekLabel: { ...font('bold', 11.5, { color: palette.grey500 }), width: 34 },
+  dots: { flex: 1, flexDirection: 'row', justifyContent: 'space-between', gap: 6 },
+  dot: {
     flex: 1,
-    alignItems: 'center',
-  },
-  statValue: font('extrabold', 18, { color: palette.white }),
-  statLabel: font('semibold', 10, { color: 'rgba(255,255,255,0.65)' }),
-  statDivider: {
-    width: 1,
-    height: 28,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
-
-  // Glow ring
-  glowRing: {
-    borderWidth: 3,
+    maxWidth: 44,
+    height: 30,
+    borderRadius: 10,
+    backgroundColor: palette.divider,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 0 },
   },
+  dotRest: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: palette.border,
+  },
+  dotDone: { backgroundColor: palette.green500, borderWidth: 0 },
+  dotCurrent: {
+    backgroundColor: palette.white,
+    borderWidth: 2.5,
+    borderStyle: 'solid',
+    borderColor: palette.green500,
+  },
+  dotTarget: { ...font('extrabold', 11.5, { color: palette.grey600 }), fontVariant: ['tabular-nums'] },
+  restBar: { width: 10, height: 2.5, borderRadius: 2, backgroundColor: palette.grey500 },
 
-  ghostPill: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: radius['2xl'],
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+  cta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 16,
+    height: 50,
+    borderRadius: radius.pill,
+    backgroundColor: palette.green500,
   },
+  ctaMuted: { backgroundColor: palette.ink },
+  ctaText: font('extrabold', 15, { color: palette.white }),
 });

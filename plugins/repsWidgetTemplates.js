@@ -4,7 +4,7 @@
  * straight into a rep session (`repchamp://reps`, which applies the same
  * free-rep allowance as Home).
  *
- * The squat is a frame animation (the one way a widget moves without the
+ * The push-up is a frame animation (the one way a widget moves without the
  * app), drawn from `athleteArt.js`.
  */
 
@@ -40,7 +40,7 @@ function vector(parts) {
   return `<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
-    android:width="140dp" android:height="92dp"
+    android:width="${athlete.W * 1.5}dp" android:height="${athlete.H * 1.5}dp"
     android:viewportWidth="${athlete.W}" android:viewportHeight="${athlete.H}">
 ${parts.map(part).join('\n')}
 </vector>
@@ -131,8 +131,8 @@ const LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
     android:contentDescription="@string/rw_description">
 
     <FrameLayout
-        android:layout_width="150dp"
-        android:layout_height="99dp">
+        android:layout_width="${athlete.W * 1.5}dp"
+        android:layout_height="${athlete.H * 1.5}dp">
 ${anim('rw_male', 'rw_male', true)}
 ${anim('rw_female', 'rw_female', false)}
     </FrameLayout>
@@ -183,7 +183,7 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * The Reps widget: my athlete squatting, today's reps, and a tap that opens
+ * The Reps widget: my athlete doing push-ups, today's reps, and a tap that opens
  * a rep session. The app writes { sex, day, reps } whenever they change.
  */
 class RepsWidgetProvider : AppWidgetProvider() {

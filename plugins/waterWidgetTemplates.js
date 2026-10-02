@@ -561,11 +561,19 @@ class WaterWidgetProvider : AppWidgetProvider() {
             // and which one. Taps here and pushes from the partner both land here.
             val gesture = Gesture.current(context, now)
             val gesturing = gesture != null
+            // Their steps: when the count goes up, the panda walks for a moment
+            // and the caption says how many they just took.
+            val stepsN = snap?.optLong("stepsN", -1L) ?: -1L
+            val stepsText = snap?.optString("steps")?.takeIf { stepsN >= 0L && it.isNotBlank() }
+            val walk = Walk.update(context, snap?.optString("day") ?: "", stepsN, now)
+            val walking = motion && walk != null && !gesturing
             views.setTextViewText(
                 R.id.b_caption,
                 when {
                     stored == null -> context.getString(R.string.pt_empty)
                     gesture != null -> Gesture.caption(context, gesture.first, gesture.second, name)
+                    walking -> context.getString(R.string.pb_walking, name, walk!!)
+                    stepsText != null -> "$name · 💧 $amount · 👟 $stepsText" + if (met) " 🎉" else ""
                     met -> "$name · $amount 🎉"
                     else -> "$name · $amount"
                 }
@@ -597,13 +605,17 @@ class WaterWidgetProvider : AppWidgetProvider() {
             show(views, R.id.b_front, !sipping)
             // Idle life plays on its own timeline; a tap, the goal or a sip
             // takes over the face, so the head holds still for those.
-            val live = motion && !sipping && !met && !gesturing
+            val marching = walking && !sipping
+            val live = motion && !sipping && !met && !gesturing && !marching
             show(views, R.id.b_head_live, live)
-            show(views, R.id.b_head_still, !live && !gesturing)
-            show(views, R.id.b_eyes, !live && !gesturing && !met)
-            show(views, R.id.b_mouth, !live && !gesturing && !sipping)
-            show(views, R.id.b_feet_live, motion)
+            show(views, R.id.b_walk_head, marching)
+            show(views, R.id.b_walk_feet, marching)
+            show(views, R.id.b_head_still, !live && !gesturing && !marching)
+            show(views, R.id.b_eyes, !live && !gesturing && !met && !marching)
+            show(views, R.id.b_mouth, !live && !gesturing && !sipping && !marching)
+            show(views, R.id.b_feet_live, motion && !marching)
             show(views, R.id.b_feet_still, !motion)
+            if (marching) scheduleCalm(context, Walk.until(context) + 1_000L)
 
             // The gesture's frames on their panda, and its burst by its head.
             for (g in Gesture.ALL) {
@@ -2298,6 +2310,47 @@ object Gesture {
             (if (byMe) "pg_sent_" else "pg_got_") + gesture, "string", context.packageName
         )
         return if (res != 0) context.getString(res, name) else name
+    }
+}
+
+/**
+ * Notices their steps going up between redraws. Remembers the last count
+ * (per day); when it rises, the panda walks for WALK_MS and the caption
+ * shows the steps just taken.
+ */
+object Walk {
+    private const val KEY = "repchamp.widget.walk"
+    private const val WALK_MS = 90_000L
+
+    /** The steps just taken (formatted) while the walk window is open, else null. */
+    fun update(context: Context, day: String, steps: Long, now: Long): String? {
+        val prefs = WaterWidgetProvider.prefs(context)
+        val old = try {
+            JSONObject(prefs.getString(KEY, null) ?: "{}")
+        } catch (e: Exception) {
+            JSONObject()
+        }
+        val sameDay = old.optString("day") == day && day.isNotBlank()
+        val last = if (sameDay) old.optLong("n", -1L) else -1L
+        var at = if (sameDay) old.optLong("at", 0L) else 0L
+        var delta = if (sameDay) old.optLong("d", 0L) else 0L
+        if (steps >= 0L && last >= 0L && steps > last) {
+            at = now
+            delta = steps - last
+        }
+        if (steps >= 0L && (steps != last || !sameDay)) {
+            prefs.edit().putString(
+                KEY,
+                JSONObject().put("day", day).put("n", steps).put("at", at).put("d", delta).toString()
+            ).apply()
+        }
+        return if (at > 0L && now - at in 0L..WALK_MS && delta > 0L) String.format("%,d", delta) else null
+    }
+
+    fun until(context: Context): Long = try {
+        JSONObject(WaterWidgetProvider.prefs(context).getString(KEY, null) ?: "{}").optLong("at", 0L) + WALK_MS
+    } catch (e: Exception) {
+        0L
     }
 }
 
@@ -4088,6 +4141,8 @@ ${layer('b_body', 'pw_body')}
 ${layer('b_feet_still', 'pw_feet', '\n                android:visibility="gone"')}
 ${anim('b_feet_live', 'pw_feet_live', true)}
 ${anim('b_head_live', 'pw_head_live', true)}
+${anim('b_walk_feet', 'pw_walk_feet')}
+${anim('b_walk_head', 'pw_walk_head')}
 ${layer('b_head_still', 'pw_head_still', '\n                android:visibility="gone"')}
 ${layer('b_eyes', 'pw_eyes', '\n                android:visibility="gone"')}
 ${layer('b_mouth', 'pw_mouth', '\n                android:visibility="gone"')}
@@ -4551,6 +4606,20 @@ function bearResources() {
      bob) and the feet (a kick-kick now and then). */
   Object.assign(files, idleTimelines(o));
   Object.assign(files, gestureResources());
+  /* Walking: when their step count goes up, the panda marches on the spot —
+     feet stepping left-right, head bobbing in time, a little smile. */
+  const WALK = [
+    [{ tilt: 3, bob: 0.35 }, 0.9],
+    [{ tilt: 0, bob: 0 }, 0],
+    [{ tilt: -3, bob: 0.35 }, -0.9],
+    [{ tilt: 0, bob: 0 }, 0],
+  ];
+  WALK.forEach(([head, kick], i) => {
+    files[`drawable/pw_wh_${i}.xml`] = headFrame(o, { ...head, eyes: 'open', mouth: 'smile', fur: i * 2 });
+    files[`drawable/pw_wf_${i}.xml`] = feetFrame(kick);
+  });
+  files['drawable/pw_walk_head.xml'] = animationList('pw_wh', WALK.length, 170);
+  files['drawable/pw_walk_feet.xml'] = animationList('pw_wf', WALK.length, 170);
   /* The bottle holds what is left of their day: 21 steps from empty to full. */
   for (let i = 0; i <= WATER_STEPS; i++) {
     const d = art.waterPath(i / WATER_STEPS, art.REST, 0.8);
@@ -4725,6 +4794,7 @@ const WATER_STRINGS = {
   pc_drink: '+ 250 ml',
   pc_title: '%1$s & you · Today',
   pb_tickled: '%1$s tickled you 🤭',
+  pb_walking: '%1$s is walking · +%2$s steps 👟',
   pg_sent_tickle: 'You tickled %1$s 🤭',
   pg_got_tickle: '%1$s tickled you 🤭',
   pg_sent_boop: 'Boop! on %1$s 👉',

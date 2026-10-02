@@ -4,9 +4,11 @@ import Animated, { Easing, FadeInDown, FadeOutUp, useAnimatedStyle, useSharedVal
 
 import { HealthCard, IOS, Metric } from '@/components/home/HealthCard';
 import { StepsIcon } from '@/components/home/Icons';
+import { StepsTogether } from '@/components/home/StepsTogether';
 import { PressableScale } from '@/components/ui';
 import {
   type StepsState,
+  DEFAULT_STEP_GOAL,
   formatSteps,
   isFixableByAthlete,
   stepsProgress,
@@ -41,7 +43,6 @@ export function StepsCard({
   /** Present when paired; `steps` null until they share a count today. */
   partner?: { name: string; avatar?: string | null; steps: number | null } | null;
 }) {
-  const [cheers, setCheers] = useState(0);
   const read = steps.status === 'ready' ? stepsProgress(steps.steps, steps.goal) : null;
 
   /* The pace coach, on a minute clock. */
@@ -90,6 +91,37 @@ export function StepsCard({
         ? 'Goal reached'
         : `${formatSteps(read.goal - read.steps)} to go`;
 
+  /* Paired: steps together — both rings face to face, live. */
+  if (partner) {
+    return (
+      <HealthCard icon={<StepsIcon size={16} color={IOS.steps} />} title="Steps together" tint={IOS.steps} trailing={read ? `Goal ${formatSteps(read.goal)}` : undefined}>
+        <StepsTogether
+          mine={read ? read.steps : null}
+          myGoal={read?.goal ?? DEFAULT_STEP_GOAL}
+          me={{ name: me?.name ?? 'You', avatar: me?.avatar ?? null }}
+          partner={partner}
+          theirGoal={DEFAULT_STEP_GOAL}
+          onCheer={onCheer}
+        />
+        {milestone ? (
+          <Animated.View entering={FadeInDown.springify().damping(12)} exiting={FadeOutUp.duration(250)} style={styles.milestone}>
+            <Text style={styles.milestoneText}>{milestone}</Text>
+          </Animated.View>
+        ) : null}
+        {!read && note ? (
+          <View style={styles.empty}>
+            <Text style={styles.note}>{note}</Text>
+            {canFix ? (
+              <PressableScale onPress={onFixSteps} accessibilityRole="button" accessibilityLabel="Turn on step counting" style={styles.fix}>
+                <Text style={styles.fixText}>Turn On</Text>
+              </PressableScale>
+            ) : null}
+          </View>
+        ) : null}
+      </HealthCard>
+    );
+  }
+
   return (
     <HealthCard icon={<StepsIcon size={16} color={IOS.steps} />} title="Steps" tint={IOS.steps} trailing={read ? `Goal ${formatSteps(read.goal)}` : undefined}>
       {read ? (
@@ -113,7 +145,7 @@ export function StepsCard({
             goal={read.goal}
             marker={pace && pace.status !== 'done' ? pace.expectedFraction : null}
             me={{ name: me?.name ?? 'You', avatar: me?.avatar ?? null, steps: read.steps }}
-            them={partner ? { name: partner.name, avatar: partner.avatar ?? null, steps: partner.steps } : null}
+            them={null}
           />
           {pace ? (
             <Text style={[styles.coach, pace.status === 'done' && { color: '#15803D' }]} numberOfLines={1}>
@@ -124,27 +156,6 @@ export function StepsCard({
             <Animated.View entering={FadeInDown.springify().damping(12)} exiting={FadeOutUp.duration(250)} style={styles.milestone}>
               <Text style={styles.milestoneText}>{milestone}</Text>
             </Animated.View>
-          ) : null}
-          {partner ? (
-            <>
-              {onCheer ? (
-                <View style={styles.cheerRow}>
-                  <Text style={styles.cheerHint} numberOfLines={1}>
-                    {partner.steps == null ? `${partner.name} hasn't shared steps yet` : 'Keep each other moving'}
-                  </Text>
-                  <PressableScale
-                    onPress={() => {
-                      if (onCheer()) setCheers((n) => n + 1);
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Cheer ${partner.name} on — they see it live`}
-                    style={styles.cheer}
-                  >
-                    <Text style={styles.cheerText}>🔥 Cheer {cheers > 0 ? `×${cheers}` : ''}</Text>
-                  </PressableScale>
-                </View>
-              ) : null}
-            </>
           ) : null}
         </>
       ) : (

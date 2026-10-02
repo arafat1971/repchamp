@@ -330,6 +330,9 @@ describe('the water payload matches what the native side reads', () => {
       'me',
       'at',
       'action',
+      // The walk memory: last step count and the step delta.
+      'n',
+      'd',
     ]);
     for (const key of new Set(read)) expect(written).toContain(key);
   });

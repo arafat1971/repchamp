@@ -741,13 +741,6 @@ export function PandaJar({
           <Parts scope={`${scope}a`} art={art.arms} />
         </Layer>
       </Animated.View>
-      {mood === 'celebrate' && !reduced ? (
-        <>
-          <Sparkle left={width * 0.02} top={height * 0.46} size={width * 0.12} delay={0} />
-          <Sparkle left={width * 0.86} top={height * 0.6} size={width * 0.1} delay={700} />
-        </>
-      ) : null}
-      {mood === 'sleepy' && !reduced ? <Zzz left={width * 0.78} top={height * 0.08} size={width * 0.11} /> : null}
     </Animated.View>
     </Animated.View>
   );
@@ -835,36 +828,7 @@ function Pop({ text, width, height }: { text: string; width: number; height: num
   );
 }
 
-function Sparkle({ left, top, size, delay }: { left: number; top: number; size: number; delay: number }) {
-  const t = useSharedValue(0);
-  useEffect(() => {
-    t.value = withDelay(delay, withRepeat(withTiming(1, { duration: 1400, easing: Easing.inOut(Easing.sin) }), -1, true));
-    return () => cancelAnimation(t);
-  }, [delay, t]);
-  const anim = useAnimatedStyle(() => ({ opacity: 0.3 + t.value * 0.7, transform: [{ scale: 0.7 + t.value * 0.5 }] }));
-  return (
-    <Animated.Text pointerEvents="none" style={[styles.sparkle, { left, top, fontSize: size }, anim]}>
-      ✨
-    </Animated.Text>
-  );
-}
 
-function Zzz({ left, top, size }: { left: number; top: number; size: number }) {
-  const t = useSharedValue(0);
-  useEffect(() => {
-    t.value = withRepeat(withTiming(1, { duration: 2400, easing: Easing.out(Easing.quad) }), -1, false);
-    return () => cancelAnimation(t);
-  }, [t]);
-  const anim = useAnimatedStyle(() => ({
-    opacity: t.value < 0.2 ? t.value * 5 : 1 - (t.value - 0.2) / 0.8,
-    transform: [{ translateY: -t.value * size * 1.4 }, { translateX: t.value * size * 0.4 }],
-  }));
-  return (
-    <Animated.Text pointerEvents="none" style={[styles.pop, { left, top, fontSize: size, color: '#7C8DB5' }, anim]}>
-      z
-    </Animated.Text>
-  );
-}
 
 const styles = StyleSheet.create({
   bubble: {

@@ -5,7 +5,6 @@ import Animated, {
   FadeIn,
   FadeInDown,
   FadeOut,
-  ZoomIn,
   FadeOutUp,
   SensorType,
   cancelAnimation,
@@ -299,11 +298,6 @@ export function HydrationCard({
             </View>
 
             <View style={styles.middle}>
-              {burst ? (
-                <Animated.Text key={`b${burst.key}`} entering={ZoomIn.springify().damping(9)} exiting={FadeOut.duration(250)} style={styles.burst}>
-                  {ACTION_META[burst.action].burst}
-                </Animated.Text>
-              ) : null}
               {burst ? null : (
                 <View style={[styles.leadChip, lead.tone === 'me' && styles.leadMe, lead.tone === 'them' && styles.leadThem]}>
                   <Text style={[styles.leadText, lead.tone === 'me' && { color: '#0369A1' }, lead.tone === 'them' && { color: '#6D28D9' }]} numberOfLines={2}>

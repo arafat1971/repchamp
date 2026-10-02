@@ -2,7 +2,7 @@ import { Redirect, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Share, StyleSheet, Text, useWindowDimensions, View, ScrollView } from 'react-native';
 import Animated, { FadeInDown, FadeInUp, ZoomIn } from 'react-native-reanimated';
 import { captureRef } from 'react-native-view-shot';
@@ -19,7 +19,7 @@ import { track } from '@/lib/analytics';
 import { LEAGUES } from '@/domain/progression';
 import { leagueMove, streakOutcome } from '@/domain/retention';
 import { captureError } from '@/lib/crash';
-import { playLoseSound, playWinSound } from '@/lib/feedback';
+import { playLoseSound, playSparkleSound, playWinSound, successHaptic } from '@/lib/feedback';
 import {
   armLiveResultSettle,
   isLiveSettleArmed,
@@ -27,6 +27,7 @@ import {
 } from '@/services/liveResultSettle';
 import { emitRetention, retentionSnapshot } from '@/services/recordSessionWithRetention';
 import { shareWorthyLine } from '@/domain/progressProof';
+import { setHighlight } from '@/domain/setHighlight';
 import { useProfileStore, selectLeague, selectStreak } from '@/state/profileStore';
 import { useIsPro } from '@/state/proStore';
 import { useAuthStore } from '@/state/authStore';
@@ -55,6 +56,7 @@ export default function ResultScreen() {
   const avatarUri = useProfileStore((s) => s.avatarUri);
   const streak = useProfileStore(selectStreak);
   const isPro = useIsPro();
+  const history = useProfileStore((s) => s.sessions);
   const authUid = useAuthStore((s) => s.user?.uid ?? null);
   const authReady = useAuthStore((s) => s.ready);
 
@@ -326,6 +328,27 @@ export default function ResultScreen() {
     // to omit here — it never closes over stale values.
   }, [router]);
 
+  const [openedAt] = useState(() => Date.now());
+  const exerciseLabel = session.config ? getExercise(session.config.exercise).label : '';
+  /* The unpredictable payoff: the rarest true thing about this set. Guarded so
+     a still-unsettled live duel (history not yet written) never shows the
+     previous set's win as this one's. */
+  const highlight = useMemo(() => {
+    const latest = history[0];
+    if (!latest || latest.reps !== session.reps) return null;
+    if (openedAt - Date.parse(latest.completedAt) > 5 * 60_000) return null;
+    return setHighlight(history, streak, exerciseLabel);
+  }, [history, streak, session.reps, exerciseLabel, openedAt]);
+  const highlightTitle = highlight?.title;
+  useEffect(() => {
+    if (!highlightTitle) return;
+    const id = setTimeout(() => {
+      successHaptic();
+      playSparkleSound();
+    }, 900);
+    return () => clearTimeout(id);
+  }, [highlightTitle]);
+
   if (!session.config) {
     return <Redirect href="/(tabs)" />;
   }
@@ -525,6 +548,20 @@ export default function ResultScreen() {
           ) : null}
         </Animated.View>
 
+        {highlight ? (
+          <Animated.View
+            entering={ZoomIn.springify().delay(900)}
+            style={[styles.highlightCard, highlight.tier === 'epic' && styles.highlightEpic]}
+            accessibilityRole="summary"
+          >
+            <Text style={styles.highlightEmoji}>{highlight.emoji}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.highlightTitle}>{highlight.title}</Text>
+              <Text style={styles.highlightBody}>{highlight.body}</Text>
+            </View>
+          </Animated.View>
+        ) : null}
+
         {/* The reveal: both scores counting up together, then the crown. */}
         {mode === 'versus' || mode === 'together' ? (
           <Animated.View entering={FadeInDown.duration(450).delay(150)}>
@@ -689,6 +726,21 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 999,
   },
+  highlightCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 14,
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: palette.amber50,
+    borderWidth: 1,
+    borderColor: palette.amber500,
+  },
+  highlightEpic: { borderWidth: 2 },
+  highlightEmoji: { fontSize: 30 },
+  highlightTitle: font('extrabold', 16, { color: palette.amber800 }),
+  highlightBody: font('medium', 13, { color: palette.grey600 }),
   rewardChipGold: {
     backgroundColor: palette.amber50,
     borderWidth: 1,

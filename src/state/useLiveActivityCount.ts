@@ -8,7 +8,10 @@ import { fetchActiveFriends } from '@/services/leaderboardService';
 import { countWaitingTickets } from '@/services/matchmakingService';
 import { useAuthStore } from '@/state/authStore';
 
-export function useLiveActivityCount(): number {
+/**
+ * @param reloadKey Change it to force an immediate re-read (pull-to-refresh).
+ */
+export function useLiveActivityCount(reloadKey = 0): number {
   const uid = useAuthStore((s) => s.user?.uid);
   const [count, setCount] = useState(0);
 
@@ -34,7 +37,7 @@ export function useLiveActivityCount(): number {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [uid]);
+  }, [uid, reloadKey]);
 
   /* Signed out shows nothing without an effect having to zero the state.
      Clearing it in the effect meant a render with the previous athlete's

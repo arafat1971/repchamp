@@ -2,6 +2,7 @@ import {
   DAILY_CHALLENGE_EXERCISE,
   DAILY_CHALLENGE_TARGET,
   challengeXpReward,
+  dailyChallengeFor,
   dailyChallengeProgress,
 } from '@/domain/dailyChallenge';
 import { xpForSession } from '@/domain/progression';
@@ -10,8 +11,8 @@ import type { ExerciseId } from '@/vision/exercises';
 /** Minimal record — only the fields the rule actually reads carry meaning. */
 const set = (day: string, exercise: ExerciseId, reps: number) => ({ day, exercise, reps });
 
-const TODAY = '2026-09-14';
-const YESTERDAY = '2026-09-13';
+const TODAY = '2026-09-17'; // slot 0 of the rotation: push-ups, 25
+const YESTERDAY = '2026-09-16';
 
 describe('dailyChallengeProgress', () => {
   it('reads the best single set of the challenge movement today', () => {
@@ -107,5 +108,30 @@ describe('challengeXpReward', () => {
 
   it('is the 300 the modal used to hardcode', () => {
     expect(challengeXpReward()).toBe(300);
+  });
+});
+
+describe('dailyChallengeFor', () => {
+  it('is stable for a given day', () => {
+    expect(dailyChallengeFor(TODAY)).toEqual(dailyChallengeFor(TODAY));
+  });
+
+  it('changes from one day to the next across a week', () => {
+    const days = Array.from({ length: 7 }, (_, i) =>
+      new Date(Date.parse(`${TODAY}T00:00:00Z`) + i * 86_400_000).toISOString().slice(0, 10),
+    );
+    const specs = days.map((d) => `${dailyChallengeFor(d).exercise}:${dailyChallengeFor(d).target}`);
+    expect(new Set(specs).size).toBe(7);
+  });
+
+  it('only ever asks for free exercises', () => {
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(Date.parse(`${TODAY}T00:00:00Z`) + i * 86_400_000).toISOString().slice(0, 10);
+      expect(['push', 'squat']).toContain(dailyChallengeFor(d).exercise);
+    }
+  });
+
+  it('falls back safely on a bad key', () => {
+    expect(dailyChallengeFor('nope').exercise).toBe('push');
   });
 });

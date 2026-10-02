@@ -177,7 +177,14 @@ export default function OnboardingScreen() {
   const [plan, setPlan] = useState<'year' | 'month'>('year');
 
   const next = useCallback(() => setStep((s) => s + 1), []);
-  const back = useCallback(() => setStep((s) => Math.max(0, s - 1)), []);
+  /* Steps 12 (AI coach) and 13 (couple mode) restate what screens 1 and 3
+     already showed, and sit between the athlete's answers and the plan they
+     were promised. Dropping them takes two taps out of the way before the
+     payoff; the screens stay in the file so the funnel names still line up. */
+  const back = useCallback(
+    () => setStep((s) => (s === 14 ? 11 : Math.max(0, s - 1))),
+    [],
+  );
 
   /* One event per step. Onboarding reported only that it had finished, so a
      drop at the username screen and a drop at the paywall were indistinguishable
@@ -435,7 +442,7 @@ export default function OnboardingScreen() {
           />
         ) : null}
         {/* The answer to what they just told us blocks them. */}
-        {step === 11 ? <YourAntidote blocker={blocker} onNext={next} /> : null}
+        {step === 11 ? <YourAntidote blocker={blocker} onNext={() => setStep(14)} /> : null}
         {step === 12 ? <AiCoach onNext={next} /> : null}
         {step === 13 ? <CoupleMode onNext={next} /> : null}
         {/* Personalised trio — each reflects the answers just given, turning

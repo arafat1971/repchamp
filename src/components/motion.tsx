@@ -4,6 +4,7 @@ import Animated, {
   Easing,
   FadeInDown,
   useAnimatedStyle,
+  useReducedMotion,
   useSharedValue,
   withDelay,
   withRepeat,
@@ -155,9 +156,15 @@ export function CountUp({
   format?: (n: number) => string;
   style?: StyleProp<TextStyle>;
 }) {
+  /* Reanimated animations honour the OS reduced-motion setting by default, but
+     this one is driven from JS, so it has to ask. With the setting on, the
+     figure is simply shown — a number that climbs for a second is exactly the
+     kind of motion the setting exists to remove. */
+  const reduced = useReducedMotion();
   const [shown, setShown] = useState(0);
 
   useEffect(() => {
+    if (reduced) return;
     let raf = 0;
     let start = 0;
     let cancelled = false;
@@ -183,9 +190,9 @@ export function CountUp({
       clearTimeout(timer);
       cancelAnimationFrame(raf);
     };
-  }, [value, duration, delay]);
+  }, [value, duration, delay, reduced]);
 
-  return <Animated.Text style={style}>{format(shown)}</Animated.Text>;
+  return <Animated.Text style={style}>{format(reduced ? value : shown)}</Animated.Text>;
 }
 
 /**

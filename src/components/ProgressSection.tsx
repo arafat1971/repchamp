@@ -1,24 +1,17 @@
 import { useMemo } from 'react';
-import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { BarChart } from '@/components/charts/BarChart';
+import { ConsistencyCard } from '@/components/ConsistencyCard';
 import { ExerciseGlyph } from '@/components/ExerciseGlyph';
-import { Card } from '@/components/ui';
+import { HomeCard as Card } from '@/components/ui/HomeCard';
 import { exerciseProgress } from '@/domain/progressProof';
-import { consistencyGrid, weekComparison, type GridCell } from '@/domain/progressSummary';
+import { weekComparison } from '@/domain/progressSummary';
 import type { SessionSummary } from '@/state/profileStore';
 import { getExercise } from '@/vision/exercises';
 import { font } from '@/theme/typography';
-import { palette, radius, SCREEN_GUTTER } from '@/theme/tokens';
-
-const SHADE: Record<GridCell['level'], string> = {
-  0: '#eef1ee',
-  1: '#bbf7d0',
-  2: '#86efac',
-  3: '#22c55e',
-  4: '#15803d',
-};
+import { palette, radius } from '@/theme/tokens';
 
 /**
  * Progress over time, on the Profile tab.
@@ -34,15 +27,9 @@ const SHADE: Record<GridCell['level'], string> = {
  *   improvement over at least three sessions.
  */
 export function ProgressSection({ sessions }: { sessions: readonly SessionSummary[] }) {
-  const { width } = useWindowDimensions();
   const week = useMemo(() => weekComparison(sessions), [sessions]);
-  const grid = useMemo(() => consistencyGrid(sessions), [sessions]);
   const gains = useMemo(() => exerciseProgress(sessions).slice(0, 3), [sessions]);
 
-  const activeDays = grid.flat().filter((c) => c.level > 0).length;
-  /* Twelve columns across the card's inner width, with 4pt gaps. */
-  const inner = width - SCREEN_GUTTER * 2 - 32;
-  const cell = Math.floor((inner - 11 * 4) / 12);
 
   const delta = week.deltaPct;
 
@@ -113,38 +100,7 @@ export function ProgressSection({ sessions }: { sessions: readonly SessionSummar
 
       {/* ── Consistency ── */}
       <Animated.View entering={FadeInDown.delay(80).duration(320)}>
-        <Card style={styles.card}>
-          <View style={styles.rowBetween}>
-            <Text style={styles.eyebrow}>Consistency</Text>
-            <Text style={styles.meta}>
-              {activeDays} active {activeDays === 1 ? 'day' : 'days'} · 12 weeks
-            </Text>
-          </View>
-          <View style={[styles.grid, { gap: 4 }]}>
-            {grid.map((col, w) => (
-              <View key={w} style={{ gap: 4 }}>
-                {col.map((c) => (
-                  <View
-                    key={c.day}
-                    style={[
-                      { width: cell, height: cell, borderRadius: Math.max(3, cell * 0.28) },
-                      c.isFuture
-                        ? styles.future
-                        : { backgroundColor: SHADE[c.level] },
-                    ]}
-                  />
-                ))}
-              </View>
-            ))}
-          </View>
-          <View style={styles.legend}>
-            <Text style={styles.meta}>Less</Text>
-            {([0, 1, 2, 3, 4] as const).map((l) => (
-              <View key={l} style={[styles.legendCell, { backgroundColor: SHADE[l] }]} />
-            ))}
-            <Text style={styles.meta}>More</Text>
-          </View>
-        </Card>
+        <ConsistencyCard sessions={sessions} />
       </Animated.View>
 
       {/* ── Getting stronger ── */}

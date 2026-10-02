@@ -297,6 +297,7 @@ function SoloBear({
       <View style={styles.soloBear}>
         <PandaJar
           id="solo-them"
+          decorations
           remaining={100 - pct}
           width={116}
           outfit="hoodie"

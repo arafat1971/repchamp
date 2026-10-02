@@ -747,9 +747,22 @@ function armParts(outfit = 'classic', pose = REST) {
 }
 
 /** The doodles around the panda, per outfit. */
-/** No doodles around the panda: it stands on its own. Kept as a hook. */
-function doodleParts() {
-  return [];
+function doodleParts(outfit = 'classic') {
+  if (outfit === 'hoodie') {
+    return [
+      /* A speech bubble with a water drop, two yellow sparkles and a couple of dashes. */
+      { d: pts('M12,70 Q12,56 26,56 Q40,56 40,70 Q40,84 26,84 L22,84 L16,90 L17,83 Q12,80 12,70 Z'), fill: '#FFFFFF', stroke: C.heart, width: 2.2 },
+      { d: `M${at(26, 61.5)} Q${at(31, 68)} ${at(31, 71.5)} ${arc(5, 5, 1, 1, 21, 71.5)} Q${at(21, 68)} ${at(26, 61.5)} Z`, fill: C.heart },
+      { d: pts('M22,100 L24,106 L30,108 L24,110 L22,116 L20,110 L14,108 L20,106 Z'), fill: C.sparkle },
+      { d: pts('M180,150 L182,155 L187,157 L182,159 L180,164 L178,159 L173,157 L178,155 Z'), fill: C.sparkle },
+      { d: pts('M8,48 L3,44 M14,44 L12,38'), stroke: C.heart, width: 2.6 },
+    ];
+  }
+  return [
+    /* A sparkle doodle by the head. */
+    { d: pts('M23,56 L25.6,65 L34,67.5 L25.6,70 L23,79 L20.4,70 L12,67.5 L20.4,65 Z'), stroke: C.heart, width: 2.6 },
+    { d: pts('M10,90 L4,92 M12,97 L7,101'), stroke: C.heart, width: 3 },
+  ];
 }
 
 /** A little sweat drop by the head — the thirsty tell. */

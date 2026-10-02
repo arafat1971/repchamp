@@ -573,8 +573,8 @@ class WaterWidgetProvider : AppWidgetProvider() {
                     stored == null -> context.getString(R.string.pt_empty)
                     gesture != null -> Gesture.caption(context, gesture.first, gesture.second, name)
                     walking -> context.getString(R.string.pb_walking, name, walk!!)
-                    stepsText != null -> "$name · $amount · $stepsText steps"
-                    met -> "$name · $amount · goal reached"
+                    stepsText != null -> "$name · 💧 $amount · 👟 $stepsText" + if (met) " 🎉" else ""
+                    met -> "$name · $amount 🎉"
                     else -> "$name · $amount"
                 }
             )
@@ -643,6 +643,17 @@ class WaterWidgetProvider : AppWidgetProvider() {
                 R.id.b_tap,
                 PendingIntent.getBroadcast(
                     context, 7305, poke,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            )
+
+            val drink = Intent(Intent.ACTION_VIEW, Uri.parse("repchamp://drink?ml=250"))
+                .setPackage(context.packageName)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            views.setOnClickPendingIntent(
+                R.id.d_drink,
+                PendingIntent.getActivity(
+                    context, 7302, drink,
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                 )
             )
@@ -4172,6 +4183,17 @@ ${GESTURES.map((g) => `
             android:indeterminateOnly="true"
             android:indeterminateDrawable="@drawable/pt_live_pulse"
             android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/d_drink"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_gravity="bottom|end"
+            android:gravity="center"
+            android:background="@drawable/pb_drop_btn"
+            android:text="💧"
+            android:textSize="15sp"
+            android:contentDescription="@string/glance_drink" />
     </FrameLayout>
 
     <TextView
@@ -4771,18 +4793,18 @@ const WATER_STRINGS = {
   pc_reps: 'REPS',
   pc_drink: '+ 250 ml',
   pc_title: '%1$s & you · Today',
-  pb_tickled: '%1$s tickled you',
-  pb_walking: '%1$s is walking · +%2$s steps',
-  pg_sent_tickle: 'You tickled %1$s',
-  pg_got_tickle: '%1$s tickled you',
-  pg_sent_boop: 'Boop! on %1$s',
-  pg_got_boop: '%1$s booped your nose',
-  pg_sent_hug: 'You hugged %1$s',
-  pg_got_hug: '%1$s sent you a hug',
-  pg_sent_highfive: 'High five, %1$s!',
-  pg_got_highfive: '%1$s high-fived you',
-  pg_sent_cheers: 'Cheers with %1$s',
-  pg_got_cheers: '%1$s says cheers — take a sip!',
+  pb_tickled: '%1$s tickled you 🤭',
+  pb_walking: '%1$s is walking · +%2$s steps 👟',
+  pg_sent_tickle: 'You tickled %1$s 🤭',
+  pg_got_tickle: '%1$s tickled you 🤭',
+  pg_sent_boop: 'Boop! on %1$s 👉',
+  pg_got_boop: '%1$s booped your nose 👉',
+  pg_sent_hug: 'You hugged %1$s 🤗',
+  pg_got_hug: '%1$s sent you a hug 🤗',
+  pg_sent_highfive: 'High five, %1$s! ✋',
+  pg_got_highfive: '%1$s high-fived you ✋',
+  pg_sent_cheers: 'Cheers with %1$s 🥂',
+  pg_got_cheers: '%1$s says cheers 🥂 take a sip!',
   pb_bear: 'Your partner’s panda, its bottle filled with what they drank today',
   pb_preview_name: 'Alex',
   pb_no_sips: 'No sips yet today',

@@ -1,17 +1,21 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
+import { ProgressRing } from '@/components/connected/ProgressRing';
+import { ExerciseGlyph } from '@/components/ExerciseGlyph';
 import { ModalHeader } from '@/components/ModalHeader';
-import { Card, PrimaryButton, ProgressBar, Screen, SectionLabel } from '@/components/ui';
-import { getExercise } from '@/vision/exercises';
+import { PressableScale, PrimaryButton, Screen } from '@/components/ui';
 import { challengeXpReward, dailyChallengeProgress } from '@/domain/dailyChallenge';
+import { trackerHistory } from '@/domain/coupleTracker';
 import { dayKey } from '@/domain/progression';
+import { useAuthStore } from '@/state/authStore';
+import { useCouple } from '@/state/useCouple';
 import { useProfileStore } from '@/state/profileStore';
+import { getExercise } from '@/vision/exercises';
 import { font } from '@/theme/typography';
-import { gradients, palette, radius, shadow } from '@/theme/tokens';
-
+import { gradients, palette, radius, shadow, surfaceShadow } from '@/theme/tokens';
 
 /** Hours until the challenge resets at local midnight. */
 function hoursUntilReset(now = new Date()): number {
@@ -20,107 +24,201 @@ function hoursUntilReset(now = new Date()): number {
   return Math.max(1, Math.round((midnight.getTime() - now.getTime()) / 3_600_000));
 }
 
+/**
+ * Today's challenge: one big ring, one number to beat, one button.
+ *
+ * Connected to the bond below the hero — when paired, it says whether your
+ * partner has trained today and opens Today, together; when not, it offers the
+ * pairing flow, so the daily is never a dead end for someone training alone.
+ */
 export default function DailyChallengeScreen() {
   const router = useRouter();
   const sessions = useProfileStore((s) => s.sessions);
+  const uid = useAuthStore((s) => s.user?.uid ?? '');
+  const { couple, paired, partner } = useCouple();
 
   const today = dayKey();
-  const { best: todaysBest, target, cleared, remaining, percent, exercise, name } = dailyChallengeProgress(
+  const { best, target, cleared, remaining, percent, exercise, name } = dailyChallengeProgress(
     sessions,
     today,
   );
+  const label = getExercise(exercise).label;
+
+  const bondToday = paired ? (trackerHistory(couple, uid, today, 1)[0]?.status ?? 'none') : null;
+  const partnerName = partner?.displayName?.trim() || 'Your partner';
+
+  const start = () =>
+    router.replace({
+      pathname: '/session',
+      params: { exercise, mode: 'solo', target: String(target) },
+    });
 
   return (
     <Screen>
-      <ModalHeader title="Daily Challenge" />
+      <ModalHeader title="Daily challenge" />
 
-      <LinearGradient colors={gradients.brandStrong} style={[styles.hero, shadow.brand]}>
-        <Svg width={150} height={150} viewBox="0 0 100 100" style={styles.heroWatermark}>
-          <Circle cx={50} cy={50} r={44} stroke={palette.white} strokeWidth={4} fill="none" opacity={0.16} />
-          <Circle cx={50} cy={50} r={28} stroke={palette.white} strokeWidth={4} fill="none" opacity={0.16} />
-          <Circle cx={50} cy={50} r={12} fill={palette.white} opacity={0.16} />
-        </Svg>
-        <View style={styles.heroChip}>
-          <Text style={font('extrabold', 10, { color: palette.white, letterSpacing: 0.5 })}>
-            RESETS IN {hoursUntilReset()}H
-          </Text>
-        </View>
-        <Text style={font('extrabold', 26, { color: palette.white, marginTop: 12 })}>
-          Beat {target} {getExercise(exercise).label}
-        </Text>
-        <Text style={styles.heroCopy}>
-          {name} — one set, as many as you can. Beat the target to bank the reward; a new challenge
-          drops tomorrow.
-        </Text>
-        <View style={styles.heroStats}>
-          <View>
-            {/* Derived, not typed: `challengeXpReward` reads the same
-                `xpForSession` that actually grants it, so the advertised
-                number cannot drift from the paid one. */}
-            <Text style={font('extrabold', 22, { color: palette.white })}>
-              +{challengeXpReward()}
-            </Text>
-            <Text style={styles.heroStatLabel}>XP REWARD</Text>
+      <Animated.View entering={FadeInDown.duration(340)}>
+        <LinearGradient
+          colors={gradients.heroEmerald}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.hero, shadow.brand]}
+        >
+          <View style={styles.topRow}>
+            <View style={styles.chip}>
+              <Text style={styles.chipText}>{name.toUpperCase()}</Text>
+            </View>
+            <View style={styles.chip}>
+              <Text style={styles.chipText}>RESETS IN {hoursUntilReset()}H</Text>
+            </View>
           </View>
-        </View>
-      </LinearGradient>
 
-      <Card style={styles.progressCard}>
-        <View style={styles.progressHeader}>
-          <SectionLabel>Your best today</SectionLabel>
-          <Text style={font('extrabold', 12, { color: palette.grey600 })}>
-            {todaysBest} / {target}
+          <View style={styles.ringWrap}>
+            <ProgressRing percent={percent} size={176} stroke={14} color={cleared ? palette.amber300 : palette.green400}>
+              <ExerciseGlyph exercise={exercise} size={34} color="rgba(255,255,255,0.85)" />
+              <Text style={styles.ringValue}>
+                {best}
+                <Text style={styles.ringOf}> / {target}</Text>
+              </Text>
+              <Text style={styles.ringCaption}>{cleared ? 'CLEARED' : 'YOUR BEST SET'}</Text>
+            </ProgressRing>
+          </View>
+
+          <Text style={styles.title}>
+            {cleared ? `You beat ${target} ${label.toLowerCase()}` : `Beat ${target} ${label.toLowerCase()}`}
           </Text>
-        </View>
-        <ProgressBar percent={percent} height={12} fillColors={gradients.brand} />
-        <Text style={font('bold', 12, { color: palette.green600, marginTop: 8 })}>
-          {cleared
-            ? 'Cleared today — nice work'
-            : todaysBest === 0
-              ? 'Not started yet — go claim it'
-              : `Just ${remaining} more to clear it`}
-        </Text>
-      </Card>
+          <Text style={styles.sub}>
+            {cleared
+              ? 'Reward banked. Go for a higher score — or come back tomorrow.'
+              : best === 0
+                ? 'One set, as many as you can. A new challenge drops tomorrow.'
+                : `Just ${remaining} more to clear it.`}
+          </Text>
+
+          {/* Derived, not typed: `challengeXpReward` reads the same
+              `xpForSession` that actually grants it, so the advertised number
+              cannot drift from the paid one. */}
+          <View style={styles.reward}>
+            <Text style={styles.rewardValue}>+{challengeXpReward()} XP</Text>
+            <Text style={styles.rewardLabel}>{cleared ? 'earned today' : 'for clearing it'}</Text>
+          </View>
+        </LinearGradient>
+      </Animated.View>
 
       <PrimaryButton
-        label={cleared ? 'Beat your score' : 'Start Challenge'}
+        label={cleared ? 'Beat your score' : best > 0 ? 'Try again' : 'Start challenge'}
         colors={gradients.brandStrong}
-        onPress={() =>
-          router.replace({
-            pathname: '/session',
-            params: { exercise, mode: 'solo', target: String(target) },
-          })
-        }
-        style={{ marginTop: 20 }}
+        onPress={start}
+        style={{ marginTop: 16 }}
       />
+
+      <Animated.View entering={FadeInDown.delay(90).duration(320)}>
+        {paired && partner ? (
+          <PressableScale
+            onPress={() => router.push('/couple/partner')}
+            accessibilityRole="button"
+            accessibilityLabel={`Open today with ${partnerName}`}
+            style={styles.bondRow}
+          >
+            <View style={[styles.bondDot, bondToday === 'both' && styles.bondDotBoth]}>
+              <Text style={styles.bondGlyph}>♥</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.bondTitle}>{bondLine(bondToday, partnerName)}</Text>
+              <Text style={styles.bondSub}>Open today, together</Text>
+            </View>
+            <Text style={styles.chevron}>›</Text>
+          </PressableScale>
+        ) : (
+          <PressableScale
+            onPress={() => router.push('/couple')}
+            accessibilityRole="button"
+            accessibilityLabel="Train with someone"
+            style={styles.bondRow}
+          >
+            <View style={styles.bondDot}>
+              <Text style={styles.bondGlyph}>♥</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.bondTitle}>Do it with someone</Text>
+              <Text style={styles.bondSub}>Scan or share a code to build a streak together</Text>
+            </View>
+            <Text style={styles.chevron}>›</Text>
+          </PressableScale>
+        )}
+      </Animated.View>
     </Screen>
   );
 }
 
+function bondLine(status: string | null, partnerName: string): string {
+  switch (status) {
+    case 'both':
+      return `You and ${partnerName} both trained today`;
+    case 'mine':
+      return `You’re in — waiting on ${partnerName}`;
+    case 'theirs':
+      return `${partnerName} trained — your turn`;
+    default:
+      return `Your bond streak needs you both today`;
+  }
+}
+
 const styles = StyleSheet.create({
-  hero: { borderRadius: radius['6xl'], padding: 24, overflow: 'hidden' },
-  heroWatermark: { position: 'absolute', right: -18, top: -16 },
-  heroChip: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    paddingVertical: 4,
+  hero: { borderRadius: radius['6xl'], padding: 22, alignItems: 'center', overflow: 'hidden' },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignSelf: 'stretch' },
+  chip: {
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    paddingVertical: 5,
     paddingHorizontal: 12,
-    borderRadius: radius['2xl'],
+    borderRadius: radius.pill,
   },
-  heroCopy: {
-    ...font('semibold', 13, { color: 'rgba(255,255,255,0.92)' }),
-    maxWidth: 230,
-    marginTop: 4,
+  chipText: font('extrabold', 10, { color: palette.white, letterSpacing: 0.6 }),
+  ringWrap: { marginTop: 22 },
+  ringValue: font('extrabold', 40, { color: palette.white, marginTop: 2 }),
+  ringOf: font('bold', 18, { color: 'rgba(255,255,255,0.65)' }),
+  ringCaption: font('extrabold', 10, { color: 'rgba(255,255,255,0.7)', letterSpacing: 0.8 }),
+  title: font('extrabold', 22, { color: palette.white, marginTop: 20, textAlign: 'center' }),
+  sub: {
+    ...font('semibold', 13.5, { color: 'rgba(255,255,255,0.85)' }),
+    textAlign: 'center',
+    marginTop: 6,
+    maxWidth: 270,
   },
-  heroStats: { flexDirection: 'row', gap: 20, marginTop: 16 },
-  heroStatLabel: {
-    ...font('bold', 10, { color: 'rgba(255,255,255,0.85)' }),
+  reward: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+    marginTop: 18,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(0,0,0,0.22)',
   },
-  progressCard: { padding: 16, marginTop: 16 },
-  progressHeader: {
+  rewardValue: font('extrabold', 16, { color: palette.amber300 }),
+  rewardLabel: font('semibold', 12, { color: 'rgba(255,255,255,0.8)' }),
+
+  bondRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
+    gap: 14,
+    marginTop: 14,
+    padding: 16,
+    borderRadius: radius.lg,
+    backgroundColor: palette.white,
+    ...surfaceShadow,
   },
+  bondDot: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: palette.green50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bondDotBoth: { backgroundColor: palette.green100 },
+  bondGlyph: { fontSize: 18, color: palette.red500 },
+  bondTitle: font('bold', 15, { color: palette.ink }),
+  bondSub: { ...font('medium', 12.5, { color: palette.slate500 }), marginTop: 1 },
+  chevron: font('semibold', 22, { color: palette.grey500 }),
 });

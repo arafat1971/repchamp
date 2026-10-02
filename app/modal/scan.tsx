@@ -34,6 +34,13 @@ const FOUND_LABEL: Record<ScanTarget['kind'], string> = {
   friend: 'Friend code',
 };
 
+/** The three things a code can open, shown as chips under the camera. */
+const KIND_CHIP: Record<ScanTarget['kind'], string> = {
+  couple: '♥ Partner',
+  duel: '⚔ Duel',
+  friend: '＋ Friend',
+};
+
 /**
  * One QR surface for the whole app: scan anything RepChamp prints, or show
  * your own code.
@@ -52,7 +59,7 @@ export default function ScanScreen() {
 
   return (
     <Screen scroll={false}>
-      <ModalHeader title="Scan & connect" />
+      <ModalHeader title="Scan & connect" subtitle="Partner, duel or friend — one camera" />
       <View style={styles.tabs} accessibilityRole="tablist">
         <TabButton label="Scan a code" active={tab === 'scan'} onPress={() => setTab('scan')} />
         <TabButton label="My code" active={tab === 'mine'} onPress={() => setTab('mine')} />
@@ -155,8 +162,15 @@ function Scanner({ onShowMine }: { onShowMine: () => void }) {
           </View>
         )}
 
+        {/* Dimmed surround with a clear window: the eye goes to the square. */}
         <View pointerEvents="none" style={styles.reticleWrap}>
-          <View style={[styles.reticle, found && styles.reticleFound]}>
+          <View style={styles.reticle}>
+            {(['tl', 'tr', 'bl', 'br'] as const).map((corner) => (
+              <View
+                key={corner}
+                style={[styles.corner, styles[corner], found && styles.cornerFound]}
+              />
+            ))}
             {found ? null : <Animated.View style={[styles.sweep, sweepStyle]} />}
           </View>
         </View>
@@ -170,9 +184,20 @@ function Scanner({ onShowMine }: { onShowMine: () => void }) {
         ) : null}
       </View>
 
-      <Text style={[text.caption, styles.hint]}>
-        Partner invite, duel lobby or friend code — point at any RepChamp QR.
-      </Text>
+      <View style={styles.kinds}>
+        {(['couple', 'duel', 'friend'] as const).map((k) => (
+          <View key={k} style={[styles.kind, found?.kind === k && styles.kindOn]}>
+            <Text
+              style={font('extrabold', 12, {
+                color: found?.kind === k ? palette.white : palette.slate600,
+              })}
+            >
+              {KIND_CHIP[k]}
+            </Text>
+          </View>
+        ))}
+      </View>
+      <Text style={[text.caption, styles.hint]}>Point at any RepChamp QR — it finds the right place.</Text>
 
       <PressableScale
         onPress={onShowMine}
@@ -271,7 +296,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: radius.xl },
-  tabActive: { backgroundColor: palette.ink },
+  tabActive: { backgroundColor: palette.green600 },
   stage: { flex: 1, borderRadius: radius['3xl'], overflow: 'hidden', backgroundColor: palette.ink },
   center: { alignItems: 'center', justifyContent: 'center' },
   placeholder: {
@@ -281,15 +306,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
   reticleWrap: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
-  reticle: {
-    width: RETICLE,
-    height: RETICLE,
-    borderRadius: radius['4xl'],
-    borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.85)',
-    overflow: 'hidden',
+  reticle: { width: RETICLE, height: RETICLE },
+  corner: {
+    position: 'absolute',
+    width: 44,
+    height: 44,
+    borderColor: palette.white,
   },
-  reticleFound: { borderColor: palette.green400 },
+  cornerFound: { borderColor: palette.green400 },
+  tl: { top: 0, left: 0, borderTopWidth: 5, borderLeftWidth: 5, borderTopLeftRadius: 22 },
+  tr: { top: 0, right: 0, borderTopWidth: 5, borderRightWidth: 5, borderTopRightRadius: 22 },
+  bl: { bottom: 0, left: 0, borderBottomWidth: 5, borderLeftWidth: 5, borderBottomLeftRadius: 22 },
+  br: { bottom: 0, right: 0, borderBottomWidth: 5, borderRightWidth: 5, borderBottomRightRadius: 22 },
+  kinds: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 14 },
+  kind: {
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: radius.pill,
+    backgroundColor: palette.divider,
+  },
+  kindOn: { backgroundColor: palette.green600 },
   sweep: {
     height: 3,
     marginHorizontal: 14,

@@ -28,6 +28,7 @@ import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 
 import { seatOf, type Duel } from '@/domain/duel';
+import { captureError } from '@/lib/crash';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { cancelDuel, finishDuel } from '@/services/duelService';
 
@@ -70,38 +71,43 @@ export async function exportAccountData(uid: string): Promise<Record<string, unk
   };
 }
 
+/** Most open duels one athlete can realistically hold; a per-query ceiling. */
+const OPEN_DUEL_QUERY_LIMIT = 100;
+
 /**
- * Cancel pending invites and forfeit active seats so a deleting athlete does
- * not leave partners stuck in a live set against a ghost uid.
+ * Cancel pending invites and forfeit active seats, reporting how many could not
+ * be closed. Account deletion needs the count: a deleted athlete left holding a
+ * live seat strands the opponent against a ghost uid, and swallowing the error
+ * told the athlete everything had been erased when it had not.
  */
-/** Cancel pending invites and forfeit active seats for this uid. */
-export async function closeOpenDuels(uid: string): Promise<void> {
+async function closeOpenDuelsCounted(uid: string): Promise<number> {
   const db = firestore();
+  let failures = 0;
   try {
     const [pendingHost, pendingTarget, activeHost, activeGuest] = await Promise.all([
       db
         .collection('duels')
         .where('hostUid', '==', uid)
         .where('status', '==', 'pending')
-        .limit(25)
+        .limit(OPEN_DUEL_QUERY_LIMIT)
         .get(),
       db
         .collection('duels')
         .where('targetUid', '==', uid)
         .where('status', '==', 'pending')
-        .limit(25)
+        .limit(OPEN_DUEL_QUERY_LIMIT)
         .get(),
       db
         .collection('duels')
         .where('hostUid', '==', uid)
         .where('status', '==', 'active')
-        .limit(25)
+        .limit(OPEN_DUEL_QUERY_LIMIT)
         .get(),
       db
         .collection('duels')
         .where('guestUid', '==', uid)
         .where('status', '==', 'active')
-        .limit(25)
+        .limit(OPEN_DUEL_QUERY_LIMIT)
         .get(),
     ]);
 
@@ -109,7 +115,8 @@ export async function closeOpenDuels(uid: string): Promise<void> {
     for (const snap of [pendingHost, pendingTarget]) {
       for (const doc of snap.docs) pendingIds.add(doc.id);
     }
-    await Promise.all([...pendingIds].map((id) => cancelDuel(id)));
+    const cancelled = await Promise.allSettled([...pendingIds].map((id) => cancelDuel(id)));
+    failures += cancelled.filter((r) => r.status === 'rejected').length;
 
     const activeSeen = new Set<string>();
     for (const snap of [activeHost, activeGuest]) {
@@ -121,16 +128,27 @@ export async function closeOpenDuels(uid: string): Promise<void> {
         if (!seat) continue;
         const mine = duel[seat];
         // Forfeit our seat — partner keeps playing and settles when they finish.
-        await finishDuel(doc.id, seat, {
-          reps: mine?.reps ?? 0,
-          formScore: mine?.formScore ?? 0,
-          forfeited: true,
-        });
+        try {
+          await finishDuel(doc.id, seat, {
+            reps: mine?.reps ?? 0,
+            formScore: mine?.formScore ?? 0,
+            forfeited: true,
+          });
+        } catch {
+          failures += 1;
+        }
       }
     }
   } catch {
-    // Missing index / offline — profile wipe still proceeds.
+    // The queries themselves failed (offline / missing index): nothing was closed.
+    failures += 1;
   }
+  return failures;
+}
+
+/** Cancel pending invites and forfeit active seats for this uid. Best-effort. */
+export async function closeOpenDuels(uid: string): Promise<void> {
+  await closeOpenDuelsCounted(uid);
 }
 
 /**
@@ -162,7 +180,7 @@ export async function deleteAccount(uid: string): Promise<void> {
     userRef.collection('blocks').get(),
   ]);
 
-  await closeOpenDuels(uid);
+  const openDuelFailures = await closeOpenDuelsCounted(uid);
 
   /**
    * Track which erasures actually landed.
@@ -176,6 +194,12 @@ export async function deleteAccount(uid: string): Promise<void> {
    * truth and let the athlete retry.
    */
   const failed: string[] = [];
+  // Reported, not blocking: a duel that cannot be closed (already settled by
+  // the opponent, say) must not trap an athlete in an account they asked to
+  // delete. The profile and every other record below are still erased.
+  if (openDuelFailures > 0) {
+    captureError(new Error(`deleteAccount: ${openDuelFailures} open duel(s) not closed`));
+  }
   const attempt = (label: string, work: Promise<unknown>): Promise<unknown> =>
     work.catch(() => {
       failed.push(label);

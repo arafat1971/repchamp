@@ -63,6 +63,8 @@ function mockCollection(path: string) {
   return { ...q, doc: (id: string) => mockDoc(`${path}/${id}`) };
 }
 
+jest.mock('@/lib/crash', () => ({ captureError: jest.fn() }));
+
 jest.mock('@/lib/firebase', () => ({
   isFirebaseConfigured: () => mockState.configured,
 }));
@@ -166,6 +168,26 @@ describe('closeOpenDuels', () => {
   it('does not throw when the athlete has no open duels', async () => {
     await expect(closeOpenDuels('u1')).resolves.toBeUndefined();
     expect(mockCancelDuel).not.toHaveBeenCalled();
+  });
+});
+
+describe('closeOpenDuels failure handling', () => {
+  it('still resolves when a cancel is rejected — logout must not hang on it', async () => {
+    mockRows['duels'] = [{ id: 'd-pending', data: { status: 'pending', hostUid: 'u1' } }];
+    mockCancelDuel.mockRejectedValueOnce(new Error('denied'));
+
+    await expect(closeOpenDuels('u1')).resolves.toBeUndefined();
+  });
+
+  it('does not stop deleteAccount erasing the login when a duel cannot be closed', async () => {
+    mockRows['duels'] = [{ id: 'd-pending', data: { status: 'pending', hostUid: 'u1' } }];
+    mockCancelDuel.mockRejectedValueOnce(new Error('denied'));
+    const del = jest.fn(async () => {});
+    mockState.currentUser = { uid: 'u1', delete: del };
+
+    await deleteAccount('u1');
+
+    expect(del).toHaveBeenCalledTimes(1);
   });
 });
 

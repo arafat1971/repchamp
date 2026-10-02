@@ -29,7 +29,17 @@ service cloud.firestore {
     match /users/{uid} {
       // Public profile lookup (username / add-friend). Push tokens live under
       // /private — never on this document.
-      allow read: if isAuthed();
+      allow get: if isAuthed();
+
+      // Listing is capped, not removed: username lookup and "recent athletes"
+      // are real features and both run with a small `limit`. A query with no
+      // limit leaves `request.query.limit` unset, which errors and so denies,
+      // meaning a signed-in (even anonymous) client can no longer dump the
+      // whole collection in one call. Paging through it is still possible;
+      // the cap makes it slow and visible in App Check metrics, not
+      // impossible. Keep this >= the largest limit in leaderboardService.ts
+      // (fetchRecentAthletes asks for limit + 8, default 20).
+      allow list: if isAuthed() && request.query.limit <= 20;
 
       function isProfileWrite() {
         return request.resource.data.uid == uid
@@ -127,10 +137,20 @@ service cloud.firestore {
     match /reports/{reportId} {
       allow create: if isAuthed()
         && request.resource.data.reporterUid == request.auth.uid
+        && request.resource.data.keys().hasOnly(
+             ['reporterUid', 'targetUid', 'reason', 'note', 'context',
+              'createdAt', 'clientAt'])
         && request.resource.data.targetUid is string
+        && request.resource.data.targetUid.size() <= 128
         && request.resource.data.targetUid != request.auth.uid
         && request.resource.data.reason is string
         && request.resource.data.reason.size() <= 40
+        // Mirrors REPORT_REASONS in domain/safety.ts.
+        && request.resource.data.reason in
+             ['inappropriate_avatar', 'harassment', 'spam', 'impersonation', 'other']
+        // Server-stamped when present, so a report cannot be back-dated.
+        && (!('createdAt' in request.resource.data)
+            || request.resource.data.createdAt == request.time)
         && (!('note' in request.resource.data)
             || (request.resource.data.note is string
                 && request.resource.data.note.size() <= 400))

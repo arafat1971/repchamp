@@ -49,6 +49,8 @@ function mockCollection(path: string) {
   return { ...q, doc: (id: string) => mockDoc(`${path}/${id}`) };
 }
 
+jest.mock('@/lib/crash', () => ({ captureError: jest.fn() }));
+
 jest.mock('@/lib/firebase', () => ({
   isFirebaseConfigured: () => mockState.configured,
 }));

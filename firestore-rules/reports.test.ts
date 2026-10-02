@@ -130,3 +130,23 @@ describe('reports are write-only to every client', () => {
     await assertFails(deleteDoc(doc(asUser(REPORTER), 'reports', REPORT_ID)));
   });
 });
+
+describe('report shape is pinned', () => {
+  it('refuses a reason outside the ones the app offers', async () => {
+    await assertFails(
+      addDoc(collection(asUser(REPORTER), 'reports'), report({ reason: 'made_up' })),
+    );
+  });
+
+  it('refuses extra fields smuggled onto the document', async () => {
+    await assertFails(
+      addDoc(collection(asUser(REPORTER), 'reports'), report({ payload: 'x'.repeat(5000) })),
+    );
+  });
+
+  it('refuses a back-dated createdAt', async () => {
+    await assertFails(
+      addDoc(collection(asUser(REPORTER), 'reports'), report({ createdAt: new Date(0) })),
+    );
+  });
+});

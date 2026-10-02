@@ -8,6 +8,7 @@ import { normalizePairCode } from '@/domain/couple';
 import { successHaptic } from '@/lib/feedback';
 import { joinCoupleByCode } from '@/services/coupleService';
 import { useAuthStore } from '@/state/authStore';
+import { useDeferInvite } from '@/state/useDeferInvite';
 import { useProfileStore } from '@/state/profileStore';
 import { reservedControlHeight } from '@/theme/fontScale';
 import { font, scaleForRole, text } from '@/theme/typography';
@@ -34,9 +35,12 @@ export default function CoupleJoinScreen() {
   const code = normalizePairCode(params.code ?? '');
   const [error, setError] = useState<string | null>(null);
   const handled = useRef(false);
+  /* Not onboarded yet: park the link and onboard first, so the join happens
+     with the athlete's real name rather than the placeholder profile. */
+  const deferred = useDeferInvite(code ? { pathname: '/couple/join', params: { code } } : null);
 
   useEffect(() => {
-    if (handled.current || !code || !uid) return;
+    if (deferred || handled.current || !code || !uid) return;
     handled.current = true;
 
     void (async () => {
@@ -49,16 +53,18 @@ export default function CoupleJoinScreen() {
         setError(e instanceof Error ? e.message : 'That invite link did not work.');
       }
     })();
-  }, [code, uid, displayName, avatarUri, router]);
+  }, [deferred, code, uid, displayName, avatarUri, router]);
 
   // Auth can be slow — don't spin forever with no escape.
   useEffect(() => {
-    if (uid || error) return;
+    if (deferred || uid || error) return;
     const id = setTimeout(() => {
       setError('Still signing you in. Pair by hand instead, or try the link again.');
     }, 8_000);
     return () => clearTimeout(id);
-  }, [uid, error]);
+  }, [deferred, uid, error]);
+
+  if (deferred) return null;
 
   // A link with no usable code is nonsense — send them to pair by hand.
   if (!code) return <Redirect href="/modal/couple-invite" />;

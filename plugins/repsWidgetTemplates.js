@@ -15,25 +15,18 @@ const round = (n) => Math.round(n * 100) / 100;
 function part(p) {
   const attrs = [`android:pathData="${p.d}"`];
   let inner = '';
-  const fill = p.fill ?? 'none';
-  if (fill.startsWith('grad:')) {
-    const g = athlete.GRADIENTS[fill.slice(5)];
-    const [cx, cy, r] = g.relative && p.box ? [p.box[0] - p.box[2] * 0.3, p.box[1] - p.box[2] * 0.35, p.box[2] * 1.35] : [g.cx, g.cy, g.r];
-    const items = g.stops
-      .map(([o, c, a]) => {
-        const color = a == null ? c : `#${Math.round(a * 255).toString(16).padStart(2, '0').toUpperCase()}${c.slice(1)}`;
-        return `                <item android:offset="${o}" android:color="${color}" />`;
-      })
-      .join('\n');
+  if (p.gradient) {
+    const g = p.gradient;
+    const items = g.stops.map(([o, c]) => `                <item android:offset="${o}" android:color="${c}" />`).join('\n');
     inner = `
         <aapt:attr name="android:fillColor">
-            <gradient android:type="radial" android:centerX="${round(cx)}" android:centerY="${round(cy)}" android:gradientRadius="${round(r)}">
+            <gradient android:type="linear" android:startX="${round(g.x1)}" android:startY="${round(g.y1)}" android:endX="${round(g.x2)}" android:endY="${round(g.y2)}">
 ${items}
             </gradient>
         </aapt:attr>
     `;
-  } else if (fill !== 'none') {
-    attrs.push(`android:fillColor="${fill}"`);
+  } else if (p.fill && p.fill !== 'none') {
+    attrs.push(`android:fillColor="${p.fill}"`);
   }
   if (p.stroke) attrs.push(`android:strokeColor="${p.stroke}"`, `android:strokeWidth="${p.width}"`, 'android:strokeLineCap="round"', 'android:strokeLineJoin="round"');
   if (p.opacity != null) {

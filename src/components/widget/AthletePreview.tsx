@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useReducedMotion } from 'react-native-reanimated';
-import Svg, { Defs, Path, RadialGradient, Stop } from 'react-native-svg';
+import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
 import * as Athlete from '../../../plugins/athleteArt';
 
@@ -23,36 +23,34 @@ export function AthletePreview({ sex, size }: { sex: 'male' | 'female'; size: nu
   const parts = useMemo(() => Athlete.figure(sex, k), [sex, k]);
   const height = (size * Athlete.H) / Athlete.W;
 
-  let gid = 0;
   const defs: React.ReactNode[] = [];
-  const fillOf = (fill: string | undefined, box?: readonly [number, number, number]) => {
-    if (!fill) return 'none';
-    if (!fill.startsWith('grad:')) return fill;
-    const g = Athlete.GRADIENTS[fill.slice(5)];
-    if (!g) return 'none';
-    const id = `ath-${sex}-${gid++}`;
-    const [cx, cy, r] = g.relative && box ? [box[0] - box[2] * 0.3, box[1] - box[2] * 0.35, box[2] * 1.35] : [g.cx, g.cy, g.r];
-    defs.push(
-      <RadialGradient key={id} id={id} gradientUnits="userSpaceOnUse" cx={cx} cy={cy} r={r}>
-        {g.stops.map(([o, c, a]) => (
-          <Stop key={o} offset={o} stopColor={c} stopOpacity={a ?? 1} />
-        ))}
-      </RadialGradient>,
+  const paths = parts.map((p, n) => {
+    let fill = p.fill ?? 'none';
+    if (p.gradient) {
+      const id = `ath-${sex}-${n}`;
+      const g = p.gradient;
+      defs.push(
+        <LinearGradient key={id} id={id} gradientUnits="userSpaceOnUse" x1={g.x1} y1={g.y1} x2={g.x2} y2={g.y2}>
+          {g.stops.map(([o, c]) => (
+            <Stop key={o} offset={o} stopColor={c} />
+          ))}
+        </LinearGradient>,
+      );
+      fill = `url(#${id})`;
+    }
+    return (
+      <Path
+        key={n}
+        d={p.d}
+        fill={fill}
+        stroke={p.stroke}
+        strokeWidth={p.width}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity={p.opacity}
+      />
     );
-    return `url(#${id})`;
-  };
-  const paths = parts.map((p, n) => (
-    <Path
-      key={n}
-      d={p.d}
-      fill={fillOf(p.fill, p.box)}
-      stroke={p.stroke}
-      strokeWidth={p.width}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      opacity={p.opacity}
-    />
-  ));
+  });
   return (
     <Svg width={size} height={height} viewBox={`0 0 ${Athlete.W} ${Athlete.H}`}>
       <Defs>{defs}</Defs>

@@ -285,7 +285,7 @@ export default function WidgetStudioScreen() {
                 end={{ x: 1, y: 1 }}
                 style={StyleSheet.absoluteFill}
               />
-              <AthletePreview sex={athlete} size={128} />
+              <AthletePreview sex={athlete} size={150} />
             </View>
             <View style={styles.glanceCopy}>
               <Text style={styles.cardTitle}>Reps · 2×2</Text>

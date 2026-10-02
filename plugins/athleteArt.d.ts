@@ -1,4 +1,4 @@
-/** Types for `athleteArt.js` — the Reps widget's squatting athlete. */
+/** Types for `athleteArt.js` — the Reps widget's push-up athlete. */
 
 export interface AthletePart {
   d: string;
@@ -6,19 +6,10 @@ export interface AthletePart {
   stroke?: string;
   width?: number;
   opacity?: number;
-  box?: readonly [number, number, number];
-}
-
-export interface AthleteGradient {
-  type: 'radial';
-  cx?: number;
-  cy?: number;
-  r?: number;
-  stops: readonly (readonly [number, string, number?])[];
-  relative?: boolean;
+  /** A linear gradient in box coordinates. */
+  gradient?: { x1: number; y1: number; x2: number; y2: number; stops: readonly (readonly [number, string])[] };
 }
 
 export const W: number;
 export const H: number;
-export const GRADIENTS: Record<string, AthleteGradient>;
 export function figure(sex?: 'male' | 'female', k?: number): AthletePart[];

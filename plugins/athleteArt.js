@@ -1,17 +1,21 @@
 /**
- * The Reps widget's athlete: a Gen Z chibi doing push-ups, side view, facing
- * left — as a man or a woman. Plain path data in a 140 x 92 box, in the same
- * part format as `pandaArt.js` ({ d, fill | stroke, width, opacity, box }).
+ * The Reps widget's athlete: a realistic, adult-proportioned figure doing a
+ * push-up, side view, facing left — a man or a woman. Path data in a 140 x 92
+ * box, in the part format the widget and app writers share:
+ * { d, fill | stroke, width, opacity, gradient? } where `gradient` is a linear
+ * gradient in box coordinates ({ x1, y1, x2, y2, stops }).
+ *
+ * The body is one anatomical silhouette built along the spine-to-heel line:
+ * at each station (ankle, calf, knee, thigh, glute, waist, ribs, chest,
+ * shoulder) it has its own thickness above and below the line, so calves,
+ * glutes, back and chest read as real forms. Clothing is the same silhouette
+ * over a span, a little inflated. Everything is lit from above: each shape
+ * is shaded light-on-top to dark-underneath, with soft contact shadows where
+ * hands and toes meet the floor.
  *
  * `figure(sex, k)` poses one rep at depth `k` (0 arms locked out, 1 chest
- * down): the body stays a straight plank from heels to shoulders and pivots
- * at the toes, the elbows fold back, the head dips with the chest.
- *
- * Him: fluffy textured curls, an oversized black tee, beige cargo joggers,
- * chunky sneakers and a thin silver chain. Her: a sleek high ponytail with a
- * scrunchie, gold hoops, a lilac crop tank, black biker shorts and chunky
- * sneakers. Limbs are layered strokes (shade, colour, highlight) so they read
- * as rounded 3D forms.
+ * down): the plank pivots at the toes, the elbows fold back, the head stays
+ * in line with the spine.
  */
 
 const W = 140;
@@ -32,158 +36,316 @@ function ellipse(cx, cy, rx, ry, rot = 0) {
   return `M${f(x1)},${f(y1)} A${f(rx)},${f(ry)} ${f(rot)} 1,1 ${f(x2)},${f(y2)} A${f(rx)},${f(ry)} ${f(rot)} 1,1 ${f(x1)},${f(y1)} Z`;
 }
 
-const line = (pts) => pts.map(([x, y], i) => `${i ? 'L' : 'M'}${f(x)},${f(y)}`).join(' ');
-const curve = (a, c, b) => `M${f(a[0])},${f(a[1])} Q${f(c[0])},${f(c[1])} ${f(b[0])},${f(b[1])}`;
+/** A smooth closed shape through points (quadratic curves via midpoints). */
+function smooth(points) {
+  const n = points.length;
+  const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  let d = `M${f(mid(points[n - 1], points[0])[0])},${f(mid(points[n - 1], points[0])[1])} `;
+  for (let i = 0; i < n; i++) {
+    const p = points[i];
+    const m = mid(p, points[(i + 1) % n]);
+    d += `Q${f(p[0])},${f(p[1])} ${f(m[0])},${f(m[1])} `;
+  }
+  return `${d}Z`;
+}
 
-function limb(d, width, color, shade, light) {
-  return [
-    { d, stroke: shade, width: width + 1.6 },
-    { d, stroke: color, width },
-    { d, stroke: light, width: Math.max(1, width * 0.2), opacity: 0.5 },
-  ];
+/** A vertical light: lighter on top, base colour, shadow underneath. */
+function lit(y1, y2, top, base, bottom) {
+  return { x1: 0, y1, x2: 0, y2, stops: [[0, top], [0.45, base], [1, bottom]] };
 }
 
 const LOOK = {
   male: {
-    skin: '#E9B48E',
-    skinShade: '#C98E68',
-    skinLight: '#FFD9BC',
-    hair: '#1F1A1C',
-    hairLight: '#4A3F44',
-    top: '#17171C',
-    topShade: '#0B0B0E',
-    topLight: '#3A3A44',
-    bottom: '#D8C3A0',
-    bottomShade: '#B49E7A',
-    bottomLight: '#F1E3C8',
-    shoe: '#FAFAFA',
-    shoeAccent: '#FF5A36',
-    sole: '#E6E6EC',
+    skin: ['#F0C39F', '#D9A07A', '#A86E4C'],
+    hair: ['#3A3134', '#1C1719', '#0C0A0B'],
+    top: ['#3A3A42', '#1C1C21', '#08080A'],
+    bottom: ['#E2D2B2', '#C2AD86', '#8E7A58'],
+    shoe: ['#FFFFFF', '#ECECF0', '#B9B9C2'],
+    accent: '#FF5A36',
   },
   female: {
-    skin: '#F2C0A0',
-    skinShade: '#D59C7C',
-    skinLight: '#FFE1CE',
-    hair: '#3A2420',
-    hairLight: '#6E463C',
-    top: '#B79CFF',
-    topShade: '#8F72E8',
-    topLight: '#DCCDFF',
-    bottom: '#1B1B22',
-    bottomShade: '#0D0D12',
-    bottomLight: '#3C3C48',
-    shoe: '#FAFAFA',
-    shoeAccent: '#B79CFF',
-    sole: '#E6E6EC',
+    skin: ['#F6CDB1', '#E2AA88', '#B57A5A'],
+    hair: ['#6A4436', '#3A2420', '#1C1110'],
+    top: ['#D9CBFF', '#B49CFA', '#7C61D9'],
+    bottom: ['#3A3A46', '#18181F', '#060608'],
+    shoe: ['#FFFFFF', '#ECECF0', '#B9B9C2'],
+    accent: '#B49CFA',
   },
 };
 
-const GRADIENTS = {
-  skin: { type: 'radial', stops: [[0, '#FFE3D0'], [0.65, '#F0BC97'], [1, '#CF9470']], relative: true },
-  shadow: { type: 'radial', cx: 78, cy: FLOOR + 3, r: 56, stops: [[0, '#0B1020', 0.32], [1, '#0B1020', 0]] },
+/*
+ * The silhouette: [u, above, below] — u runs 0 (toes) to 1 (shoulder) along
+ * the body line; above/below are thicknesses on the back side and the front
+ * (floor) side.
+ */
+const BODY = {
+  male: [
+    [0.0, 1.6, 1.6],
+    [0.06, 2.1, 2.0],
+    [0.17, 3.6, 2.4],
+    [0.29, 2.5, 2.6],
+    [0.41, 3.6, 4.2],
+    [0.52, 4.6, 4.0],
+    [0.64, 3.9, 3.8],
+    [0.78, 4.4, 5.6],
+    [0.9, 4.8, 6.0],
+    [0.98, 4.6, 4.4],
+    [1.0, 3.2, 3.2],
+  ],
+  female: [
+    [0.0, 1.5, 1.5],
+    [0.06, 1.9, 1.8],
+    [0.17, 3.2, 2.2],
+    [0.29, 2.3, 2.4],
+    [0.41, 3.4, 3.9],
+    [0.52, 5.0, 3.8],
+    [0.64, 3.4, 3.2],
+    [0.78, 3.8, 4.8],
+    [0.9, 4.2, 5.4],
+    [0.98, 4.0, 3.8],
+    [1.0, 2.8, 2.8],
+  ],
 };
 
+function profileAt(profile, u) {
+  for (let i = 0; i < profile.length - 1; i++) {
+    const [u0, a0, b0] = profile[i];
+    const [u1, a1, b1] = profile[i + 1];
+    if (u >= u0 && u <= u1) {
+      const t = (u - u0) / (u1 - u0 || 1);
+      const s = t * t * (3 - 2 * t);
+      return [a0 + (a1 - a0) * s, b0 + (b1 - b0) * s];
+    }
+  }
+  const last = profile[profile.length - 1];
+  return [last[1], last[2]];
+}
+
 function figure(sex = 'male', k = 0) {
-  const p = LOOK[sex === 'female' ? 'female' : 'male'];
   const female = sex === 'female';
+  const p = LOOK[female ? 'female' : 'male'];
+  const profile = BODY[female ? 'female' : 'male'];
   const t = Math.max(0, Math.min(1, k));
 
-  // The plank: toes fixed, shoulders rise and fall.
-  const toe = [120, FLOOR - 2];
-  const shoulder = [46, 50 + t * 18];
-  const along = (u) => [toe[0] + (shoulder[0] - toe[0]) * u, toe[1] + (shoulder[1] - toe[1]) * u];
-  const ankle = along(0.06);
-  const knee = along(0.3);
-  const hip = along(0.52);
-  const chest = along(0.86);
-  const hand = [44, FLOOR - 1];
-  // Elbow: straight under the shoulder at the top, folded back at the bottom.
-  const elbow = [shoulder[0] + 3 + t * 13, shoulder[1] + (hand[1] - shoulder[1]) * 0.5 - t * 6];
-  const head = [shoulder[0] - 15, shoulder[1] - 9 + t * 2];
+  const toe = [121, FLOOR - 2.2];
+  const shoulder = [46, 49 + t * 19];
+  const dx = shoulder[0] - toe[0];
+  const dy = shoulder[1] - toe[1];
+  const len = Math.hypot(dx, dy);
+  const ax = dx / len;
+  const ay = dy / len;
+  // "Up" (the back side) is the normal pointing away from the floor.
+  const nx = ay;
+  const ny = -ax;
+  const at = (u, off = 0) => [toe[0] + dx * u + nx * off, toe[1] + dy * u + ny * off];
+  const slope = (Math.atan2(dy, dx) * 180) / Math.PI;
+
+  /** The silhouette between u0 and u1, inflated by `grow` (clothing). */
+  const span = (u0, u1, grow = 0, sag = 0) => {
+    const top = [];
+    const bot = [];
+    const steps = Math.max(4, Math.round((u1 - u0) * 30));
+    for (let i = 0; i <= steps; i++) {
+      const u = u0 + ((u1 - u0) * i) / steps;
+      const [a, b] = profileAt(profile, u);
+      const hang = sag * Math.sin(((u - u0) / (u1 - u0 || 1)) * Math.PI);
+      top.push(at(u, a + grow));
+      bot.push(at(u, -(b + grow + hang)));
+    }
+    lastBounds = [...top, ...bot].reduce((m, q) => [Math.min(m[0], q[1]), Math.max(m[1], q[1])], [Infinity, -Infinity]);
+    return smooth([...top, ...bot.reverse()]);
+  };
+  let lastBounds = [0, 0];
+  /** A span, lit from above across its real height. */
+  const lit3d = (u0, u1, grow, sag, colors) => {
+    const d = span(u0, u1, grow, sag);
+    return { d, fill: 'none', gradient: lit(lastBounds[0], lastBounds[1], colors[0], colors[1], colors[2]) };
+  };
   const parts = [];
 
-  parts.push({ d: ellipse(80, FLOOR + 3, 50, 4.5), fill: 'grad:shadow' });
+  // Floor: a long soft shadow, darker contact patches under hands and toes.
+  parts.push({ d: ellipse(82, FLOOR + 2.4, 46, 3.2), fill: '#0B1020', opacity: 0.18 });
+  parts.push({ d: ellipse(toe[0], FLOOR + 0.6, 6, 1.4), fill: '#0B1020', opacity: 0.35 });
+  parts.push({ d: ellipse(44, FLOOR + 0.6, 5.5, 1.3), fill: '#0B1020', opacity: 0.35 });
 
-  // Her ponytail flows back from the crown, behind everything else.
+  // Arm geometry, shared by both arms.
+  const shoulderJoint = at(0.985, -1.5);
+  const hand = [43.5, FLOOR - 1.6];
+  const elbow = [shoulderJoint[0] + 2 + t * 9, shoulderJoint[1] + (hand[1] - shoulderJoint[1]) * 0.52 - t * 4];
+
+  /** A tapered limb from a to b, widths wa → wb, lit from above. */
+  const taper = (a, b, wa, wb, colors) => {
+    const lx = b[0] - a[0];
+    const ly = b[1] - a[1];
+    const l = Math.hypot(lx, ly) || 1;
+    const px = -ly / l;
+    const py = lx / l;
+    const pts = [
+      [a[0] + px * wa, a[1] + py * wa],
+      [(a[0] + b[0]) / 2 + px * (wa + wb) * 0.56, (a[1] + b[1]) / 2 + py * (wa + wb) * 0.56],
+      [b[0] + px * wb, b[1] + py * wb],
+      [b[0] - px * wb, b[1] - py * wb],
+      [(a[0] + b[0]) / 2 - px * (wa + wb) * 0.56, (a[1] + b[1]) / 2 - py * (wa + wb) * 0.56],
+      [a[0] - px * wa, a[1] - py * wa],
+    ];
+    const yMin = Math.min(a[1], b[1]) - Math.max(wa, wb);
+    const yMax = Math.max(a[1], b[1]) + Math.max(wa, wb);
+    return { d: smooth(pts), fill: 'none', gradient: lit(yMin, yMax, colors[0], colors[1], colors[2]) };
+  };
+
+  // Far arm, behind the body, in shadow.
+  const farShift = [3.5, -0.6];
+  const fs = (q) => [q[0] + farShift[0], q[1] + farShift[1]];
+  const farSkin = [p.skin[1], p.skin[2], '#7E4E36'];
+  parts.push(taper(fs(shoulderJoint), fs(elbow), 3.4, 2.7, farSkin));
+  parts.push(taper(fs(elbow), fs(hand), 2.7, 1.9, farSkin));
+
+  // Her ponytail falls from the crown towards the floor.
+  const neck = at(1.0, 0.6);
+  const head = [neck[0] - 6.5 + ax * 2, neck[1] - 4.6];
+
+  // The body: skin first, then clothing over it.
+  parts.push(lit3d(0.0, 1.0, 0, 0, p.skin));
   if (female) {
-    const sw = t * 3;
-    parts.push({ d: curve([head[0] + 6, head[1] - 12], [head[0] + 24, head[1] - 18 + sw], [head[0] + 30, head[1] - 4 + sw]), stroke: p.hair, width: 7.5 });
-    parts.push({ d: curve([head[0] + 6, head[1] - 12], [head[0] + 23, head[1] - 17 + sw], [head[0] + 28, head[1] - 6 + sw]), stroke: p.hairLight, width: 2, opacity: 0.6 });
-    parts.push({ d: ellipse(head[0] + 8, head[1] - 12.5, 3.2, 2.6, 20), fill: '#FF7AA8' });
-  }
-
-  // Far arm (behind the body), a touch darker.
-  parts.push(...limb(line([shoulder, elbow, [hand[0] + 4, hand[1]]]), 7, p.skinShade, p.skinShade, p.skinLight));
-
-  // Legs: joggers (him) or biker shorts over skin (her).
-  if (female) {
-    parts.push(...limb(line([ankle, knee]), 8.5, p.skin, p.skinShade, p.skinLight));
-    parts.push(...limb(line([knee, hip]), 11, p.bottom, p.bottomShade, p.bottomLight));
+    parts.push(lit3d(0.36, 0.565, 0.35, 0, p.bottom));
+    parts.push(lit3d(0.73, 1.0, 0.45, 0, p.top));
+    // Waistband and the crop tank's hem, a seam of light along the top.
+    parts.push({ d: `M${f(at(0.555, 4.6)[0])},${f(at(0.555, 4.6)[1])} L${f(at(0.555, -4)[0])},${f(at(0.555, -4)[1])}`, stroke: '#2C2C36', width: 1.1 });
+    parts.push({ d: `M${f(at(0.75, 4.2)[0])},${f(at(0.75, 4.2)[1])} Q${f(at(0.86, 5.4)[0])},${f(at(0.86, 5.4)[1])} ${f(at(0.97, 4.6)[0])},${f(at(0.97, 4.6)[1])}`, stroke: '#EEE6FF', width: 0.7, opacity: 0.8 });
   } else {
-    parts.push(...limb(line([ankle, knee, hip]), 11, p.bottom, p.bottomShade, p.bottomLight));
-    // A cargo pocket on the thigh.
-    const mid = along(0.4);
-    parts.push({ d: ellipse(mid[0], mid[1] + 1.5, 4, 2.6, -Math.atan2(shoulder[1] - toe[1], toe[0] - shoulder[0]) * 57.3), fill: p.bottomShade, opacity: 0.8 });
+    // Cargo joggers: loose, cuffed at the ankle, a side pocket and fold lines.
+    parts.push(lit3d(0.04, 0.575, 0.8, 0, p.bottom));
+    parts.push({ d: `M${f(at(0.06, 2.6)[0])},${f(at(0.06, 2.6)[1])} L${f(at(0.06, -2.6)[0])},${f(at(0.06, -2.6)[1])}`, stroke: '#8E7A58', width: 1.6 });
+    const pk = at(0.4, 0.4);
+    parts.push({ d: ellipse(pk[0], pk[1], 4.2, 2.6, slope), fill: '#A9946E', opacity: 0.9 });
+    parts.push({ d: `M${f(pk[0] - 4)},${f(pk[1] - 1.6)} L${f(pk[0] + 4)},${f(pk[1] - 1.2)}`, stroke: '#8E7A58', width: 0.6 });
+    for (const u of [0.22, 0.31, 0.47]) {
+      const a = at(u, 2.2);
+      const b = at(u - 0.025, -2.8);
+      parts.push({ d: `M${f(a[0])},${f(a[1])} Q${f((a[0] + b[0]) / 2 + 1)},${f((a[1] + b[1]) / 2)} ${f(b[0])},${f(b[1])}`, stroke: '#A08B66', width: 0.55, opacity: 0.8 });
+    }
+    // Oversized tee: loose, hanging off the chest under gravity.
+    parts.push(lit3d(0.5, 1.0, 1.2, 2.6, p.top));
+    for (const u of [0.66, 0.8]) {
+      const a = at(u, -1);
+      const b = at(u + 0.03, -6.5);
+      parts.push({ d: `M${f(a[0])},${f(a[1])} Q${f(a[0] - 1)},${f((a[1] + b[1]) / 2)} ${f(b[0])},${f(b[1])}`, stroke: '#000000', width: 0.6, opacity: 0.6 });
+    }
+    // The chain hanging down from the neck.
+    const c0 = at(0.97, -2);
+    parts.push({ d: `M${f(c0[0])},${f(c0[1])} Q${f(c0[0] + 1.6)},${f(c0[1] + 5 + t)} ${f(c0[0] + 4.6)},${f(c0[1] + 1)}`, stroke: '#D6DCE6', width: 0.7 });
   }
 
   // Chunky sneaker.
-  parts.push({ d: `M${f(toe[0] - 9)},${f(toe[1] - 3)} Q${f(toe[0])},${f(toe[1] - 9)} ${f(toe[0] + 7)},${f(toe[1] - 2)} L${f(toe[0] + 7)},${f(toe[1] + 2)} L${f(toe[0] - 9)},${f(toe[1] + 2)} Z`, fill: p.shoe });
-  parts.push({ d: line([[toe[0] - 9, toe[1] + 2], [toe[0] + 7, toe[1] + 2]]), stroke: p.sole, width: 2.6 });
-  parts.push({ d: curve([toe[0] - 6, toe[1] - 3], [toe[0] - 1, toe[1] - 6], [toe[0] + 4, toe[1] - 2.5]), stroke: p.shoeAccent, width: 1.6 });
+  parts.push({
+    d: smooth([
+      [toe[0] - 7.5, toe[1] - 2.2],
+      [toe[0] - 2, toe[1] - 6.2],
+      [toe[0] + 4.5, toe[1] - 3],
+      [toe[0] + 6, toe[1] + 1.4],
+      [toe[0] - 8, toe[1] + 1.6],
+    ]),
+    fill: 'none',
+    gradient: lit(toe[1] - 6, toe[1] + 2, p.shoe[0], p.shoe[1], p.shoe[2]),
+  });
+  parts.push({ d: `M${f(toe[0] - 8)},${f(toe[1] + 1.4)} L${f(toe[0] + 6)},${f(toe[1] + 1.4)}`, stroke: '#D4D4DC', width: 1.6 });
+  parts.push({ d: `M${f(toe[0] - 5)},${f(toe[1] - 2.4)} Q${f(toe[0] - 1)},${f(toe[1] - 4.6)} ${f(toe[0] + 3.4)},${f(toe[1] - 1.6)}`, stroke: p.accent, width: 0.9 });
 
-  // Torso.
-  if (female) {
-    // Bare midriff, then the crop tank over the chest.
-    parts.push(...limb(line([hip, along(0.68)]), 11, p.skin, p.skinShade, p.skinLight));
-    parts.push(...limb(line([along(0.68), chest, shoulder]), 13, p.top, p.topShade, p.topLight));
-  } else {
-    // Oversized tee: wide and loose, hanging a little below the line.
-    parts.push(...limb(line([hip, chest, shoulder]), 15, p.top, p.topShade, p.topLight));
-    const loose = along(0.7);
-    parts.push({ d: ellipse(loose[0], loose[1] + 6, 7, 3.4), fill: p.top });
-    // A small graphic on the tee.
-    const g = along(0.78);
-    parts.push({ d: ellipse(g[0], g[1] + 1, 2.6, 2.6), stroke: '#FF5A36', width: 1.2 });
-    // The chain, swinging down from the neck.
-    parts.push({ d: curve([shoulder[0] + 1, shoulder[1] + 2], [shoulder[0] + 4, shoulder[1] + 9 + t * 2], [shoulder[0] + 8, shoulder[1] + 3]), stroke: '#D7DDE6', width: 1.1 });
+  // Near arm: deltoid, upper arm, forearm, hand.
+  parts.push(taper(shoulderJoint, elbow, 3.9, 3.0, p.skin));
+  parts.push(taper(elbow, hand, 3.0, 2.1, p.skin));
+  parts.push({ d: ellipse(shoulderJoint[0] + 0.5, shoulderJoint[1] + 0.8, 4.4, 3.8, slope), fill: 'none', gradient: lit(shoulderJoint[1] - 4, shoulderJoint[1] + 5, p.skin[0], p.skin[1], p.skin[2]) });
+  if (!female) {
+    // Sleeve over the deltoid.
+    parts.push({ d: ellipse(shoulderJoint[0] + 1.6, shoulderJoint[1] + 1, 5.6, 4.6, slope + 10), fill: 'none', gradient: lit(shoulderJoint[1] - 5, shoulderJoint[1] + 6, p.top[0], p.top[1], p.top[2]) });
   }
+  parts.push({ d: smooth([[hand[0] - 4.6, hand[1] + 1.4], [hand[0] - 3.4, hand[1] - 1.4], [hand[0] + 1.8, hand[1] - 1.8], [hand[0] + 2.4, hand[1] + 1.4]]), fill: 'none', gradient: lit(hand[1] - 2, hand[1] + 1.6, p.skin[0], p.skin[1], p.skin[2]) });
 
-  // Near arm: shoulder to elbow to hand, with a sleeve on him.
-  parts.push(...limb(line([shoulder, elbow, hand]), 7.5, p.skin, p.skinShade, p.skinLight));
-  parts.push({ d: ellipse(hand[0] - 1, hand[1] - 0.5, 4.6, 2.6), fill: p.skin });
-  if (!female) parts.push({ d: ellipse(shoulder[0] + 2.5, shoulder[1] + 3, 6, 5.2), fill: p.top });
-
-  // Head: big chibi head, three-quarter towards us.
-  parts.push({ d: line([head, shoulder]), stroke: p.skinShade, width: 6 });
-  parts.push({ d: ellipse(head[0], head[1], 15.5, 15), fill: 'grad:skin', box: [head[0], head[1], 15.5] });
+  // Neck and head, in line with the spine, a profile facing the floor ahead.
+  parts.push(taper(at(0.985, 0.2), [head[0] + 3.2, head[1] + 2.8], 2.6, 2.4, p.skin));
+  if (female) {
+    const tie = [head[0] + 4.8, head[1] - 6.4];
+    parts.push({
+      d: smooth([
+        [tie[0], tie[1] - 1.2],
+        [tie[0] + 7, tie[1] - 1],
+        [tie[0] + 11, tie[1] + 5 + t * 2],
+        [tie[0] + 10, tie[1] + 12 + t * 2],
+        [tie[0] + 7.5, tie[1] + 5 + t * 2],
+        [tie[0] + 1, tie[1] + 1.4],
+      ]),
+      fill: 'none',
+      gradient: lit(tie[1] - 2, tie[1] + 13, p.hair[0], p.hair[1], p.hair[2]),
+    });
+    parts.push({ d: ellipse(tie[0] + 0.6, tie[1], 1.7, 1.5, 30), fill: '#F27AA7' });
+  }
+  // Skull and face profile.
+  parts.push({
+    d: smooth([
+      [head[0] + 6.4, head[1] - 2],
+      [head[0] + 4.6, head[1] - 7.4],
+      [head[0] - 1.6, head[1] - 7.8],
+      [head[0] - 6, head[1] - 4],
+      [head[0] - 7.2, head[1] - 0.6],
+      [head[0] - 8.6, head[1] + 1.4],
+      [head[0] - 7, head[1] + 2.4],
+      [head[0] - 6.6, head[1] + 4.6],
+      [head[0] - 3, head[1] + 7],
+      [head[0] + 2.6, head[1] + 6.4],
+      [head[0] + 6.2, head[1] + 3.6],
+    ]),
+    fill: 'none',
+    gradient: lit(head[1] - 8, head[1] + 7, p.skin[0], p.skin[1], p.skin[2]),
+  });
+  // Ear.
+  parts.push({ d: ellipse(head[0] + 2.6, head[1] + 0.6, 1.5, 2.1, -10), fill: p.skin[2], opacity: 0.7 });
+  // Eye, brow, mouth line.
+  parts.push({ d: `M${f(head[0] - 5.4)},${f(head[1] - 0.4)} Q${f(head[0] - 4.4)},${f(head[1] - 1.2)} ${f(head[0] - 3.4)},${f(head[1] - 0.5)}`, stroke: '#2A1C18', width: 0.8 });
+  parts.push({ d: `M${f(head[0] - 6)},${f(head[1] - 2.6)} Q${f(head[0] - 4.4)},${f(head[1] - 3.4)} ${f(head[0] - 2.8)},${f(head[1] - 2.6)}`, stroke: p.hair[1], width: 0.9 });
+  parts.push({ d: `M${f(head[0] - 6.4)},${f(head[1] + 4)} Q${f(head[0] - 5.4)},${f(head[1] + 4.4 - t * 0.6)} ${f(head[0] - 4.4)},${f(head[1] + 4)}`, stroke: '#9A5B48', width: 0.6 });
 
   if (female) {
-    // Sleek pulled-back hair with a centre part and baby hairs.
-    parts.push({ d: `M${f(head[0] - 15)},${f(head[1] - 1)} Q${f(head[0] - 14)},${f(head[1] - 17)} ${f(head[0] + 1)},${f(head[1] - 16.5)} Q${f(head[0] + 15)},${f(head[1] - 16)} ${f(head[0] + 15.5)},${f(head[1] - 2)} Q${f(head[0] + 10)},${f(head[1] - 10)} ${f(head[0])},${f(head[1] - 9)} Q${f(head[0] - 9)},${f(head[1] - 10)} ${f(head[0] - 15)},${f(head[1] - 1)} Z`, fill: p.hair });
-    parts.push({ d: curve([head[0] - 2, head[1] - 15], [head[0] + 5, head[1] - 15.5], [head[0] + 11, head[1] - 12]), stroke: p.hairLight, width: 1.6, opacity: 0.7 });
-    parts.push({ d: curve([head[0] - 12, head[1] - 4], [head[0] - 10, head[1] - 6], [head[0] - 9, head[1] - 3.5]), stroke: p.hair, width: 1 });
-    // Gold hoop.
-    parts.push({ d: ellipse(head[0] + 11, head[1] + 7, 2.8, 3.4), stroke: '#F2C14E', width: 1.3 });
+    // Sleek pulled-back hair, a soft hairline, a gold hoop.
+    parts.push({
+      d: smooth([
+        [head[0] - 5.6, head[1] - 3.4],
+        [head[0] - 1.6, head[1] - 8.2],
+        [head[0] + 4.8, head[1] - 7.8],
+        [head[0] + 6.8, head[1] - 2.4],
+        [head[0] + 5.6, head[1] + 1.6],
+        [head[0] + 3.6, head[1] - 2.4],
+        [head[0] - 0.4, head[1] - 4.6],
+      ]),
+      fill: 'none',
+      gradient: lit(head[1] - 8, head[1] + 2, p.hair[0], p.hair[1], p.hair[2]),
+    });
+    parts.push({ d: `M${f(head[0] - 3)},${f(head[1] - 6.6)} Q${f(head[0] + 1.6)},${f(head[1] - 8)} ${f(head[0] + 5)},${f(head[1] - 5.4)}`, stroke: '#9C6A56', width: 0.5, opacity: 0.8 });
+    parts.push({ d: ellipse(head[0] + 2.4, head[1] + 4.4, 1.3, 1.7), stroke: '#E8B84A', width: 0.6 });
   } else {
-    // Fluffy textured curls on top, a soft fringe over the forehead.
-    const curls = [[-12, -9, 5], [-6, -14, 6], [1, -16, 6.5], [8, -14, 6], [13, -9, 5], [-9, -5, 4.2], [4, -9, 5]];
-    for (const [dx, dy, r] of curls) parts.push({ d: ellipse(head[0] + dx, head[1] + dy, r, r * 0.92), fill: p.hair });
-    for (const [dx, dy, r] of [[-5, -15, 2], [3, -17, 2.2], [10, -13, 1.8]]) {
-      parts.push({ d: ellipse(head[0] + dx, head[1] + dy, r, r * 0.8), fill: p.hairLight, opacity: 0.7 });
+    // Textured curls on top, faded short at the sides.
+    parts.push({
+      d: smooth([
+        [head[0] - 6.4, head[1] - 3],
+        [head[0] - 4.6, head[1] - 8.6],
+        [head[0] + 1, head[1] - 10],
+        [head[0] + 6.2, head[1] - 7.2],
+        [head[0] + 6.8, head[1] - 2.6],
+        [head[0] + 4.4, head[1] - 3.2],
+        [head[0] + 1, head[1] - 5.4],
+        [head[0] - 3, head[1] - 4.8],
+      ]),
+      fill: 'none',
+      gradient: lit(head[1] - 10, head[1] - 2, p.hair[0], p.hair[1], p.hair[2]),
+    });
+    for (const [cx, cy, r] of [[-4, -8, 1.6], [-1, -9.4, 1.8], [2.4, -9.2, 1.7], [5, -7.4, 1.5], [-5.6, -5.6, 1.3], [0.6, -7, 1.4]]) {
+      parts.push({ d: ellipse(head[0] + cx, head[1] + cy, r, r * 0.9), fill: p.hair[1] });
+      parts.push({ d: ellipse(head[0] + cx - 0.4, head[1] + cy - 0.5, r * 0.45, r * 0.35), fill: p.hair[0], opacity: 0.8 });
     }
-    parts.push({ d: curve([head[0] - 11, head[1] - 4], [head[0] - 7, head[1] - 1], [head[0] - 3, head[1] - 5]), stroke: p.hair, width: 3 });
+    // Fade at the side, under the curls.
+    parts.push({ d: smooth([[head[0] + 0.6, head[1] - 4.4], [head[0] + 5.6, head[1] - 3.6], [head[0] + 5.2, head[1] + 0.6], [head[0] + 1.2, head[1] - 1.4]]), fill: p.hair[1], opacity: 0.45 });
   }
-
-  // Face, turned a little towards us: focused at the bottom, a grin at the top.
-  for (const [dx] of [[-7], [1.5]]) {
-    parts.push({ d: ellipse(head[0] + dx, head[1] + 2.5, 1.9, t > 0.8 ? 0.6 : 2.3), fill: '#22181A' });
-    if (t <= 0.8) parts.push({ d: ellipse(head[0] + dx - 0.6, head[1] + 1.7, 0.6, 0.6), fill: '#FFFFFF' });
-  }
-  parts.push({ d: ellipse(head[0] - 10.5, head[1] + 7.5, 2.8, 1.6), fill: '#FF8FA3', opacity: 0.45 });
-  parts.push({ d: ellipse(head[0] + 5, head[1] + 7.5, 2.6, 1.5), fill: '#FF8FA3', opacity: 0.45 });
-  parts.push({ d: curve([head[0] - 6.5, head[1] + 8.5], [head[0] - 2.5, head[1] + 11 - t * 2.5], [head[0] + 1.5, head[1] + 8.5]), stroke: '#8C3B2E', width: 1.3 });
 
   return parts;
 }
 
-module.exports = { W, H, GRADIENTS, figure };
+module.exports = { W, H, figure };

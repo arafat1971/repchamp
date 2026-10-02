@@ -35,6 +35,12 @@ export interface SettingsState {
    * `lastActiveAt` as 0, which every reader treats as "Offline".
    */
   shareActivity: boolean;
+  /**
+   * Send product analytics. On by default; off stops every event leaving the
+   * device (see `lib/analytics`). Crash diagnostics are separate and described
+   * in the privacy policy.
+   */
+  shareAnalytics: boolean;
   /** The live-camera "how to get a good read" tutorial has been dismissed once. */
   cameraTutorialSeen: boolean;
 
@@ -53,7 +59,8 @@ export type SettingsToggle =
   | 'ritualReminder'
   | 'stepCounting'
   | 'privateProfile'
-  | 'shareActivity';
+  | 'shareActivity'
+  | 'shareAnalytics';
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
@@ -68,6 +75,7 @@ export const useSettingsStore = create<SettingsState>()(
       stepCounting: true,
       privateProfile: false,
       shareActivity: true,
+      shareAnalytics: true,
       cameraTutorialSeen: false,
 
       toggle: (key) => set((state) => ({ [key]: !state[key] }) as Pick<SettingsState, SettingsToggle>),

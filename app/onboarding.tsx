@@ -702,7 +702,7 @@ function Welcome({ onNext }: { onNext: () => void }) {
       </View>
 
       <Text style={styles.legal}>
-        By continuing, you agree to RepChamp&apos;s{' '}
+        By continuing, you confirm you are 16 or older and agree to RepChamp&apos;s{' '}
         <Text
           style={styles.legalLink}
           onPress={() => router.push('/modal/legal?tab=terms')}

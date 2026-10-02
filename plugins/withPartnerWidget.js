@@ -31,6 +31,7 @@ const fs = require('fs');
 const path = require('path');
 
 const water = require('./waterWidgetTemplates');
+const reps = require('./repsWidgetTemplates');
 
 /**
  * Every widget this plugin installs.
@@ -75,6 +76,15 @@ const WIDGETS = [
     layout: 'glance_widget',
     info: 'glance_widget_info',
     label: 'glance_label',
+  },
+  {
+    /* My athlete doing squats; a tap starts a rep session. */
+    id: 'reps',
+    className: 'RepsWidgetProvider',
+    prefsKey: 'repchamp.widget.reps.v1',
+    layout: 'reps_widget',
+    info: 'reps_widget_info',
+    label: 'reps_widget_label',
   },
 ];
 
@@ -732,6 +742,9 @@ const withWidgetSources = (config) =>
         write(path.join(res, file), contents);
       }
       write(path.join(javaDir, 'RepChampMessagingService.kt'), water.MESSAGING_KT(pkg));
+      for (const [file, contents] of Object.entries(reps.repsResources())) {
+        write(path.join(res, file), contents);
+      }
       /* The gesture sounds the widget plays, from the generated app sounds. */
       fs.mkdirSync(path.join(res, 'raw'), { recursive: true });
       for (const name of ['tickle', 'hug', 'hifive', 'clink', 'pop']) {
@@ -745,7 +758,7 @@ const withWidgetSources = (config) =>
       let xml = fs.existsSync(stringsPath)
         ? fs.readFileSync(stringsPath, 'utf8')
         : '<resources></resources>';
-      for (const [name, value] of Object.entries({ ...STRINGS, ...water.WATER_STRINGS })) {
+      for (const [name, value] of Object.entries({ ...STRINGS, ...water.WATER_STRINGS, ...reps.REPS_STRINGS })) {
         const escaped = value.replace(/&/g, '&amp;').replace(/'/g, "\\'");
         const line = `<string name="${name}">${escaped}</string>`;
         const existing = new RegExp(`<string name="${name}">[^<]*</string>`);
@@ -773,6 +786,9 @@ WIDGETS[1].infoXml = water.WATER_INFO_XML;
 WIDGETS[2].provider = water.GLANCE_PROVIDER_KT;
 WIDGETS[2].layoutXml = water.GLANCE_LAYOUT_XML;
 WIDGETS[2].infoXml = water.GLANCE_INFO_XML;
+WIDGETS[3].provider = reps.PROVIDER_KT;
+WIDGETS[3].layoutXml = reps.LAYOUT_XML;
+WIDGETS[3].infoXml = reps.INFO_XML;
 
 /** Registers the provider so the launcher offers it in the widget picker. */
 const withWidgetManifest = (config) =>

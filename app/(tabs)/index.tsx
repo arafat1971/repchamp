@@ -240,6 +240,14 @@ export default function HomeScreen() {
   /* My reps today, for my partner's rings. Re-published whenever the session
      log changes, which is the moment a set finishes and Home comes back. */
   const myReps = useMemo(() => repsOnDay(profile.sessions, today), [profile.sessions, today]);
+
+  /* The Reps widget: my athlete and today's reps. */
+  const repsToday = myReps.reps;
+  const athlete = profile.sex ?? 'male';
+  useEffect(() => {
+    publishWidgetSnapshot({ sex: athlete, day: today, reps: repsToday, updatedAt: Date.now() }, 'reps');
+  }, [athlete, today, repsToday]);
+
   useEffect(() => {
     void syncRepsNow(coupleId, myUid, {
       reps: myReps.reps,

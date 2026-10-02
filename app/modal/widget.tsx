@@ -26,6 +26,8 @@ import {
 } from '@/domain/waterWidget';
 import { lightImpactHaptic, selectionHaptic } from '@/lib/feedback';
 import { isWidgetSupported, placedWidgetCount, requestPinWidget } from '@/services/partnerWidget';
+import { AthletePreview } from '@/components/widget/AthletePreview';
+import { useProfileStore } from '@/state/profileStore';
 import { usePartnerTodaySnapshot, usePartnerWeekSnapshot } from '@/state/usePartnerTodaySnapshot';
 import { useWidgetStyleStore } from '@/state/widgetStyleStore';
 import { useDuoStreakStore } from '@/state/duoStreakStore';
@@ -55,6 +57,9 @@ export default function WidgetStudioScreen() {
 
   const [placed, setPlaced] = useState<number | null>(null);
   const [pinFailed, setPinFailed] = useState(false);
+  /* The Reps widget's athlete — the user's own choice. */
+  const athlete = useProfileStore((p) => p.sex) ?? 'male';
+  const setSex = useProfileStore((p) => p.setSex);
 
   /* Re-checked while the screen is open: the answer changes the moment the
      athlete drops the widget on the home screen and comes back. */
@@ -272,6 +277,44 @@ export default function WidgetStudioScreen() {
       {supported ? (
         <>
           <SectionLabel>ALSO FOR YOUR HOME SCREEN</SectionLabel>
+          <Card style={[styles.card, styles.glanceCard]}>
+            <View style={styles.glanceStage}>
+              <Backdrop
+                colors={['#0F172A', '#1E3A8A', '#0EA5E9']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
+              <AthletePreview sex={athlete} size={96} />
+            </View>
+            <View style={styles.glanceCopy}>
+              <Text style={styles.cardTitle}>Reps · 2×2</Text>
+              <Text style={[text.caption, styles.cardBody]}>
+                Your athlete squats on your home screen. One tap and you’re straight into a set.
+              </Text>
+              <View style={styles.sexRow}>
+                {(['male', 'female'] as const).map((s) => (
+                  <PressableScale
+                    key={s}
+                    onPress={() => setSex(s)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: athlete === s }}
+                    style={[styles.sexChip, athlete === s && styles.sexChipOn]}
+                  >
+                    <Text style={[styles.sexText, athlete === s && styles.sexTextOn]}>{s === 'male' ? 'Man' : 'Woman'}</Text>
+                  </PressableScale>
+                ))}
+              </View>
+              <PressableScale
+                onPress={() => void requestPinWidget('reps').then((ok) => setPinFailed(!ok))}
+                accessibilityRole="button"
+                accessibilityLabel="Add the reps widget"
+                style={styles.glanceAdd}
+              >
+                <Text style={styles.inlineAddText}>＋ Add to home screen</Text>
+              </PressableScale>
+            </View>
+          </Card>
           <Card style={[styles.card, styles.glanceCard]}>
             <View style={styles.glanceStage}>
               <Backdrop
@@ -759,6 +802,11 @@ const styles = StyleSheet.create({
   weekCard: { padding: 12 },
   weekStage: { borderRadius: radius.lg, overflow: 'hidden', alignItems: 'center', paddingVertical: 18 },
   weekFoot: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12, paddingHorizontal: 4 },
+  sexRow: { flexDirection: 'row', gap: 6, marginTop: 8 },
+  sexChip: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 999, backgroundColor: 'rgba(118,118,128,0.12)' },
+  sexChipOn: { backgroundColor: '#1D4ED8' },
+  sexText: { fontSize: 12.5, fontWeight: '600', color: '#3C3C43' },
+  sexTextOn: { color: '#FFFFFF' },
   glanceAdd: {
     alignSelf: 'flex-start',
     marginTop: 10,

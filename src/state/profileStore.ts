@@ -65,6 +65,8 @@ export interface ProfileState {
    */
   fitnessLevel: FitnessLevel | null;
   blocker: Blocker | null;
+  /** Which athlete the Reps widget shows. Chosen by the user; never inferred. */
+  sex: 'male' | 'female' | null;
   totalXp: number;
   sessions: SessionSummary[];
   /** Best single-set rep count per exercise, for the Train roadmap. */
@@ -93,6 +95,7 @@ export interface ProfileState {
   }) => void;
   setUsername: (username: string) => void;
   setAvatar: (uri: string | null) => void;
+  setSex: (sex: 'male' | 'female') => void;
   setWeeklyGoal: (days: number) => void;
   recordSession: (summary: Omit<SessionSummary, 'id' | 'completedAt' | 'day'>) => SessionSummary;
   /** Enrol in a programme (or switch), starting from day 1. */
@@ -113,6 +116,7 @@ const initialState = {
   avatarUri: null as string | null,
   weeklyGoal: 4,
   fitnessLevel: null as FitnessLevel | null,
+  sex: null as 'male' | 'female' | null,
   blocker: null as Blocker | null,
   totalXp: 0,
   sessions: [] as SessionSummary[],
@@ -149,6 +153,7 @@ export const useProfileStore = create<ProfileState>()(
         set({ username: u, displayName: sanitizeDisplayName(u) });
       },
       setAvatar: (avatarUri) => set({ avatarUri }),
+      setSex: (sex) => set({ sex }),
       setWeeklyGoal: (weeklyGoal) => set({ weeklyGoal }),
 
       recordSession: (input) => {

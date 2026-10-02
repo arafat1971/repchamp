@@ -38,7 +38,8 @@ const STEP_NAMES: Readonly<Record<number, string>> = {
   22: 'how-reps-count',
   23: 'set-up-your-space',
   24: 'home-widget',
-  25: 'offer',
+  25: 'together-preview',
+  26: 'offer',
 };
 
 /**

@@ -2,14 +2,16 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
   ScrollView,
+  type StyleProp,
   StyleSheet,
   Text,
   TextInput,
+  type ViewStyle,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -35,13 +37,14 @@ import { GoogleMark } from '@/components/GoogleMark';
 import { BarChart } from '@/components/charts/BarChart';
 import { GrowthChart } from '@/components/charts/GrowthChart';
 import { ProgressRing } from '@/components/session/ProgressRing';
-import { Card, PressableScale, PrimaryButton, ProgressBar } from '@/components/ui';
+import { Card as BaseCard, PressableScale, PrimaryButton, ProgressBar } from '@/components/ui';
 import { captureError } from '@/lib/crash';
 import { pluralise } from '@/domain/plural';
 import { OPPONENTS } from '@/domain/opponent';
 import { track } from '@/lib/analytics';
 import { onboardingProgressPercent, onboardingStepName } from '@/domain/onboardingFunnel';
 import { HomeWidgetStep } from '@/components/onboarding/HomeWidgetStep';
+import { TogetherStep } from '@/components/onboarding/TogetherStep';
 import { checkHandleAtSignIn, mayPassUncheckedHandle } from '@/domain/signInHandle';
 import { fetchOffering, isPurchasesConfigured, purchase, sortPackagesForPaywall } from '@/services/purchases';
 import { checkUsername, fetchProfile } from '@/services/userService';
@@ -80,7 +83,7 @@ import { useProfileStore } from '@/state/profileStore';
 import { matchedPace } from '@/domain/adaptivePace';
 import { reservedControlHeight } from '@/theme/fontScale';
 import { font, scaleForRole, text } from '@/theme/typography';
-import { gradients, palette, radius, shadow } from '@/theme/tokens';
+import { gradients, palette, radius, shadow, surfaceShadow } from '@/theme/tokens';
 
 /**
  * Twelve-step onboarding, mirroring the design prototype.
@@ -257,6 +260,12 @@ export default function OnboardingScreen() {
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
+      <LinearGradient
+        pointerEvents="none"
+        colors={['rgba(34,197,94,0.16)', 'rgba(34,197,94,0.05)', 'rgba(246,247,245,0)']}
+        locations={[0, 0.35, 0.7]}
+        style={StyleSheet.absoluteFill}
+      />
       {showProgressBar ? (
         <View style={styles.progressRow}>
           <PressableScale
@@ -270,7 +279,7 @@ export default function OnboardingScreen() {
             <Text style={styles.backGlyph}>‹</Text>
           </PressableScale>
           <View style={{ flex: 1 }}>
-            <ProgressBar percent={progressPercent} height={6} />
+            <ProgressBar percent={progressPercent} height={8} />
           </View>
         </View>
       ) : null}
@@ -520,10 +529,18 @@ export default function OnboardingScreen() {
             is the reason to come back, so this is when a home-screen spot
             for them makes the most sense. Skips itself where unsupported. */}
         {step === 24 ? <HomeWidgetStep onNext={next} /> : null}
-        {step === 25 ? <Offer onDone={finish} /> : null}
+        {/* The partner features are the reason to stay, so the offer follows a
+            moment of feeling them rather than a description of them. */}
+        {step === 25 ? <TogetherStep onNext={next} /> : null}
+        {step === 26 ? <Offer onDone={finish} /> : null}
       </Animated.View>
     </View>
   );
+}
+
+/** Onboarding's card: Home's surface — large radius, hairline border, long faint shadow. */
+function Card({ style, children }: { style?: StyleProp<ViewStyle>; children: ReactNode }) {
+  return <BaseCard style={[styles.homeCard, style]}>{children}</BaseCard>;
 }
 
 /* ------------------------------------------------------------------ *
@@ -562,7 +579,7 @@ function Welcome({ onNext }: { onNext: () => void }) {
 
         <Floating delay={120} style={styles.heroBadgeLeft}>
           <View style={styles.heroBadge}>
-            <Text style={{ fontSize: 16 }}>🔥</Text>
+            <Image source={require('../assets/fire-flame.png')} style={{ width: 22, height: 22 }} contentFit="contain" />
             <View>
               <Text style={font('extrabold', 14, { color: palette.ink })}>12</Text>
               <Text style={styles.heroBadgeLabel}>DAY STREAK</Text>
@@ -572,7 +589,7 @@ function Welcome({ onNext }: { onNext: () => void }) {
 
         <Floating delay={800} style={styles.heroBadgeRight}>
           <View style={styles.heroBadge}>
-            <Text style={{ fontSize: 16 }}>🏆</Text>
+            <Image source={require('../assets/trophy-gold.png')} style={{ width: 24, height: 24 }} contentFit="contain" />
             <View>
               <Text style={font('extrabold', 14, { color: palette.ink })}>Gold</Text>
               <Text style={styles.heroBadgeLabel}>LEAGUE</Text>
@@ -1356,7 +1373,11 @@ function QuestionStep<T extends string>({
                       backgroundColor: palette.green600,
                     },
                   ]}
-                />
+                >
+                  {selected === option.id ? (
+                    <Text style={font('extrabold', 13, { color: palette.white })}>✓</Text>
+                  ) : null}
+                </View>
               </Card>
             </PressableScale>
           </StaggerIn>
@@ -2849,16 +2870,24 @@ const styles = StyleSheet.create({
     zIndex: 5,
   },
   backButton: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.sm,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: 'rgba(15,31,23,0.08)',
     alignItems: 'center',
     justifyContent: 'center',
-    ...shadow.card,
+    ...surfaceShadow,
   },
-  backGlyph: { fontSize: 15, color: palette.ink, lineHeight: 18 },
+  backGlyph: { fontSize: 22, color: palette.ink, lineHeight: 24, marginTop: -2 },
   stepWrap: { flex: 1 },
+  homeCard: {
+    borderRadius: radius['4xl'],
+    borderWidth: 1,
+    borderColor: 'rgba(15,31,23,0.06)',
+    ...surfaceShadow,
+  },
   step: { flex: 1, paddingHorizontal: 20, paddingBottom: 24 },
   stepPadded: { paddingTop: 40 },
   brandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
@@ -2874,9 +2903,10 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
     borderRadius: radius['6xl'],
-    marginTop: 12,
+    marginTop: 14,
     backgroundColor: palette.inkSoft,
     overflow: 'hidden',
+    ...surfaceShadow,
   },
   heroImage: { width: '100%', height: '100%' },
   heroBadgeLeft: { position: 'absolute', top: 16, left: 16, zIndex: 2 },
@@ -2945,10 +2975,12 @@ const styles = StyleSheet.create({
 
   // Value screens
   valueEyebrow: {
-    borderRadius: radius['2xl'],
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    marginBottom: 12,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(15,31,23,0.06)',
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    marginBottom: 14,
   },
   valueEyebrowText: {
     ...font('extrabold', 10.5, { color: palette.green700 }),
@@ -3083,7 +3115,7 @@ const styles = StyleSheet.create({
   },
   // Question steps
   questionRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 },
-  questionRowActive: { borderColor: palette.green500, borderWidth: 1.5 },
+  questionRowActive: { borderColor: palette.green500, borderWidth: 2, backgroundColor: palette.green50 },
   questionIcon: {
     width: 46,
     height: 46,
@@ -3200,9 +3232,10 @@ const styles = StyleSheet.create({
     backgroundColor: palette.white,
     borderRadius: radius['4xl'],
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: 'rgba(15,31,23,0.06)',
     padding: 16,
     marginTop: 16,
+    ...surfaceShadow,
   },
   weekRow: {
     flexDirection: 'row',
@@ -3254,11 +3287,12 @@ const styles = StyleSheet.create({
   projectionCard: {
     width: '100%',
     backgroundColor: palette.white,
-    borderRadius: radius['3xl'],
+    borderRadius: radius['4xl'],
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: 'rgba(15,31,23,0.06)',
     padding: 16,
     marginTop: 16,
+    ...surfaceShadow,
   },
   projectionHeader: {
     flexDirection: 'row',

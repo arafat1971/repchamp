@@ -4,12 +4,13 @@
 # that all pass in a few seconds — and no workflow running any of it, so a green
 # PR meant "someone said it passed locally" rather than something the PR asserts.
 #
+# `rules` is a separate job for the reason it was once left out: it needs JDK 21+
+# and the Firestore emulator and must run serially, so folding it into `check`
+# would make every typo wait on an emulator boot. As its own job it runs in
+# parallel with `check` and fails independently.
+#
 # Deliberately not here:
 #
-#   * `npm run test:rules` — needs JDK 21+ and the Firestore emulator, and must
-#     run serially. That is a different job with different setup; folding it in
-#     would make every PR wait on an emulator boot to learn that a typo is a
-#     typo. Worth adding separately.
 #   * Any build/prebuild step — an EAS native build is minutes and credentials,
 #     not a per-push check.
 name: CI
@@ -74,3 +75,44 @@ jobs:
       - name: Test
         if: '!cancelled()'
         run: npm test -- --ci
+
+  rules:
+    name: Firestore security rules
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      # firebase-tools refuses to start the emulator on anything older than
+      # JDK 21. The runner's default Java is not guaranteed to be new enough.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      # `scripts/run-rules-tests.sh` prefers a `firebase` on PATH and otherwise
+      # falls back to an unpinned `npx firebase-tools`. Pin it so a new CLI
+      # release cannot change the answer on an unrelated PR. 15.9.0 is what the
+      # rules were last verified against locally.
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools@15.9.0
+
+      # The emulator JAR is downloaded on first use; cache it so the job does
+      # not depend on that download succeeding every time.
+      - name: Cache Firestore emulator
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firestore-emulator-${{ runner.os }}-firebase-tools-15.9.0
+
+      - name: Test rules
+        run: npm run test:rules -- --ci

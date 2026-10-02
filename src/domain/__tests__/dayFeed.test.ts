@@ -1,4 +1,4 @@
-import { dayFeed, type DayFeedInput } from '@/domain/dayFeed';
+import { dailyTip, dayFeed, type DayFeedInput } from '@/domain/dayFeed';
 
 const base: DayFeedInput = {
   firstName: 'Sam', streak: 0, trainedToday: false, repsToday: 0, totalReps: 0,
@@ -35,5 +35,21 @@ describe('dayFeed', () => {
   it('never claims the weekly goal is short once met', () => {
     const w = dayFeed({ ...base, daysThisWeek: 4 }).find((c) => c.id === 'week');
     expect(w?.body).toContain('hit');
+  });
+});
+
+describe('dailyTip', () => {
+  const src = [{ label: 'Push-Ups', tips: ['a', 'b'] }, { label: 'Squats', tips: ['c'] }];
+  it('is stable within a day and covers the pool across days', () => {
+    expect(dailyTip('2026-10-03', src)).toEqual(dailyTip('2026-10-03', src));
+    const seen = new Set(['2026-10-03', '2026-10-04', '2026-10-05'].map((d) => dailyTip(d, src)?.text));
+    expect(seen.size).toBe(3);
+  });
+  it('returns null with nothing to say', () => {
+    expect(dailyTip('2026-10-03', [])).toBeNull();
+  });
+  it('adds a tip card to the feed when given one', () => {
+    const cards = dayFeed({ ...base, tip: { exercise: 'Push-Ups', text: 'Keep your core tight' } });
+    expect(cards.find((c) => c.id === 'tip')?.body).toBe('Keep your core tight');
   });
 });

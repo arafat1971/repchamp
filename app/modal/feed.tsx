@@ -6,7 +6,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { dailyChallengeProgress } from '@/domain/dailyChallenge';
-import { dayFeed, type FeedAction, type FeedCard } from '@/domain/dayFeed';
+import { dailyTip, dayFeed, type FeedAction, type FeedCard } from '@/domain/dayFeed';
 import { firstNameOf } from '@/domain/homeGreeting';
 import { dayKey } from '@/domain/progression';
 import { partnerRepsToday } from '@/domain/couple';
@@ -52,6 +52,13 @@ export default function FeedScreen() {
         best: daily.best,
         cleared: daily.cleared,
       },
+      tip: dailyTip(
+        today,
+        (['push', 'squat', 'lunge', 'shoulder', 'stretch'] as const).map((id) => {
+          const d = getExercise(id);
+          return { label: d.label, tips: [d.coachingTip] };
+        }),
+      ),
       partner: partner
         ? { name: partner.displayName ?? 'Your partner', trainedToday: partnerRepsToday(partner, today).reps > 0 }
         : null,

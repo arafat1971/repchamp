@@ -31,6 +31,8 @@ export interface DayFeedInput {
   weeklyGoal: number;
   challenge: { name: string; label: string; target: number; best: number; cleared: boolean };
   partner: { name: string; trainedToday: boolean } | null;
+  /** Today's form tip, from the exercise's own coaching data. */
+  tip?: { exercise: string; text: string } | null;
 }
 
 const GREEN: [string, string] = ['#16A34A', '#064E3B'];
@@ -132,6 +134,19 @@ export function dayFeed(i: DayFeedInput): FeedCard[] {
     });
   }
 
+  if (i.tip) {
+    cards.push({
+      id: 'tip',
+      emoji: '💡',
+      kicker: `FORM TIP · ${i.tip.exercise.toUpperCase()}`,
+      headline: 'Today’s cue',
+      body: i.tip.text,
+      cta: null,
+      action: null,
+      colors: BLUE,
+    });
+  }
+
   if (!i.trainedToday) {
     cards.push({
       id: 'go',
@@ -157,4 +172,20 @@ export function dayFeed(i: DayFeedInput): FeedCard[] {
   }
 
   return cards;
+}
+
+/**
+ * One form tip a day, rotating through the free movements' own cues, so the feed
+ * has something new each morning that is also true — the tips are the same ones
+ * the app speaks during a set.
+ */
+export function dailyTip(
+  day: string,
+  sources: readonly { label: string; tips: readonly string[] }[],
+): { exercise: string; text: string } | null {
+  const pool = sources.flatMap((s) => s.tips.map((text) => ({ exercise: s.label, text })));
+  if (pool.length === 0) return null;
+  const ms = Date.parse(`${day}T00:00:00Z`);
+  const n = Number.isFinite(ms) ? Math.floor(ms / 86_400_000) : 0;
+  return pool[((n % pool.length) + pool.length) % pool.length] ?? null;
 }

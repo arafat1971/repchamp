@@ -13,6 +13,7 @@ import { usePhantomSeed } from '@/domain/seedPhantoms';
 import { fetchLeaderboard, fetchFriends } from '@/services/leaderboardService';
 import { selectLeague, selectWeeklyXp, useProfileStore } from '@/state/profileStore';
 import { useAuthStore } from '@/state/authStore';
+import { useOffline } from '@/state/connectivityStore';
 import { useSettingsStore } from '@/state/settingsStore';
 import { font, text } from '@/theme/typography';
 import { gradients, palette, radius, shadow, surfaceShadow } from '@/theme/tokens';
@@ -34,6 +35,7 @@ export default function LeaderboardScreen() {
   const username = profile.username || 'You';
 
   const seed = usePhantomSeed();
+  const offline = useOffline();
 
   /**
    * The board starts on the local, always-available rival board so the screen
@@ -129,6 +131,12 @@ export default function LeaderboardScreen() {
           </Pressable>
         ))}
       </View>
+
+      {offline ? (
+        <Text style={font('semibold', 12, { color: palette.amber800, marginBottom: 8 })}>
+          Offline — showing the last board this device could build. Ranks update when you reconnect.
+        </Text>
+      ) : null}
 
       <View style={styles.leagueBanner}>
         <Image source={require('../../assets/trophy-bronze.png')} style={styles.leagueTrophy} contentFit="contain" />

@@ -14,6 +14,8 @@ import {
   SkeletonCircle,
 } from '@/components/ui';
 import { StaggerIn } from '@/components/motion';
+import { loadFailureMessage } from '@/domain/connectivity';
+import { useOffline, useReconnectCount } from '@/state/connectivityStore';
 import { HomeSectionHeader } from '@/components/home/HomeSectionHeader';
 import { captureError } from '@/lib/crash';
 import { OPPONENTS, type Opponent } from '@/domain/opponent';
@@ -113,6 +115,8 @@ export default function FriendsScreen() {
    */
   const [loading, setLoading] = useState(!!uid);
   const [loadFailed, setLoadFailed] = useState(false);
+  const offline = useOffline();
+  const reconnects = useReconnectCount();
 
   const refresh = useCallback(() => {
     if (!uid) {
@@ -133,9 +137,12 @@ export default function FriendsScreen() {
   }, [uid]);
 
   useFocusEffect(
+    // `reconnects` is a dependency on purpose: coming back online re-runs the
+    // load, so a list that failed while offline heals without a manual retry.
     useCallback(() => {
       refresh();
-    }, [refresh]),
+      void reconnects;
+    }, [refresh, reconnects]),
   );
 
   const onlineFriends = cloudFriends.filter((f) => f.online);
@@ -503,7 +510,10 @@ export default function FriendsScreen() {
             ) : loadFailed ? (
               <ErrorState
                 title="Could not load friends"
-                message="Your list is still safe — this is just the connection."
+                message={loadFailureMessage(
+                  offline,
+                  'Your list is still safe — this is just the connection.',
+                )}
                 onRetry={refresh}
               />
             ) : search.trim() ? (

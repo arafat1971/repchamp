@@ -29,6 +29,7 @@ import {
   upsertProfile,
   type CloudProfile,
 } from '../userService';
+import { useSettingsStore } from '@/state/settingsStore';
 
 const mockState = { configured: true, queryThrows: false };
 
@@ -362,6 +363,32 @@ describe('touchPresence', () => {
   it('does not create a profile from a heartbeat alone', async () => {
     await touchPresence('ghost');
     expect(mockStore.users.has('ghost')).toBe(false);
+  });
+});
+
+describe('"Show when I\'m active" off', () => {
+  beforeEach(() => useSettingsStore.setState({ shareActivity: false }));
+  afterEach(() => useSettingsStore.setState({ shareActivity: true }));
+
+  /* 0, not a missing field: a number stays on the rules' presence-only branch,
+     and every reader (`lastSeenLabel`, `isRecentlyActive`) treats a falsy stamp
+     as offline. */
+  it('heartbeats publish 0 instead of the time', async () => {
+    mockStore.users.set('u1', { displayName: 'Hana', uid: 'u1', lastActiveAt: 123 });
+    await touchPresence('u1');
+    expect(mockStore.users.get('u1')!.lastActiveAt).toBe(0);
+  });
+
+  it('profile syncs do not re-stamp the athlete as active', async () => {
+    await upsertProfile(PROFILE);
+    expect(mockStore.users.get('u1')!.lastActiveAt).toBe(0);
+  });
+
+  it('stamps the real time again once sharing is back on', async () => {
+    useSettingsStore.setState({ shareActivity: true });
+    mockStore.users.set('u1', { displayName: 'Hana', uid: 'u1', lastActiveAt: 0 });
+    await touchPresence('u1');
+    expect(mockStore.users.get('u1')!.lastActiveAt).toBeGreaterThan(0);
   });
 });
 

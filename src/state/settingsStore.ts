@@ -30,6 +30,11 @@ export interface SettingsState {
   stepCounting: boolean;
   /** Hide from the global leaderboard. */
   privateProfile: boolean;
+  /**
+   * Let friends see "Active now" and when you were last around. Off stamps
+   * `lastActiveAt` as 0, which every reader treats as "Offline".
+   */
+  shareActivity: boolean;
   /** The live-camera "how to get a good read" tutorial has been dismissed once. */
   cameraTutorialSeen: boolean;
 
@@ -47,7 +52,8 @@ export type SettingsToggle =
   | 'hydrationReminder'
   | 'ritualReminder'
   | 'stepCounting'
-  | 'privateProfile';
+  | 'privateProfile'
+  | 'shareActivity';
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
@@ -61,6 +67,7 @@ export const useSettingsStore = create<SettingsState>()(
       ritualReminder: true,
       stepCounting: true,
       privateProfile: false,
+      shareActivity: true,
       cameraTutorialSeen: false,
 
       toggle: (key) => set((state) => ({ [key]: !state[key] }) as Pick<SettingsState, SettingsToggle>),

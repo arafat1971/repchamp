@@ -211,3 +211,10 @@ describe('listing profiles', () => {
     await assertFails(getDocs(query(collection(asAnon(), 'users'), limit(5))));
   });
 });
+
+describe('hiding activity', () => {
+  it('lets an owner publish lastActiveAt 0 on a heartbeat — the "not sharing" stamp', async () => {
+    await seedProfile(ALICE, { lastActiveAt: 1000 });
+    await assertSucceeds(updateDoc(doc(asUser(ALICE), 'users', ALICE), { lastActiveAt: 0 }));
+  });
+});

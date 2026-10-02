@@ -11,6 +11,7 @@
  * so calling code never has to branch.
  */
 
+import { useSettingsStore } from '@/state/settingsStore';
 import firestore from '@react-native-firebase/firestore';
 
 import { isFirebaseConfigured } from '@/lib/firebase';
@@ -292,7 +293,7 @@ export async function upsertProfile(
         weekExerciseReps: progress.weekExerciseReps,
         programme: progress.programme,
         updatedAt: firestore.FieldValue.serverTimestamp(),
-        lastActiveAt: now,
+        lastActiveAt: activityStamp(now),
         ...(existing.exists() ? {} : { createdAt: now }),
         // Never leave a harvestable token on the public profile after sync.
         expoPushToken: firestore.FieldValue.delete(),
@@ -317,10 +318,21 @@ export async function touchPresence(uid: string): Promise<void> {
     const snap = await ref.get();
     // Never create a half-empty profile — wait until upsertProfile has run once.
     if (!snap.exists()) return;
-    await ref.set({ lastActiveAt: Date.now() }, { merge: true });
+    await ref.set({ lastActiveAt: activityStamp(Date.now()) }, { merge: true });
   } catch {
     // Offline — presence is best-effort.
   }
+}
+
+/**
+ * The value to publish as `lastActiveAt`. When the athlete has turned off
+ * "Show when I'm active" it is 0 rather than a missing field. A number keeps a
+ * heartbeat on the narrow presence-only rule (`lastActiveAt is number`); a
+ * deleted field would fall through to the full-profile rule instead. Every
+ * reader (`lastSeenLabel`, `isRecentlyActive`) treats a falsy stamp as offline.
+ */
+export function activityStamp(now: number): number {
+  return useSettingsStore.getState().shareActivity ? now : 0;
 }
 
 /**

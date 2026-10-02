@@ -24,7 +24,7 @@ import { track } from '@/lib/analytics';
 import { useTabView } from '@/lib/useTabView';
 import { usePhantomSeed } from '@/domain/seedPhantoms';
 import {
-  addFriendByUsername,
+  addFriendByUid,
   fetchActiveFriends,
   fetchRecentAthletes,
   removeFriend,
@@ -33,7 +33,10 @@ import {
 } from '@/services/leaderboardService';
 import { useAuthStore } from '@/state/authStore';
 import { showDialog } from '@/state/useDialog';
-import { useProfileStore } from '@/state/profileStore';
+import { selectTotalReps, useProfileStore } from '@/state/profileStore';
+import { useEffectivePro } from '@/state/proStore';
+import { isPurchasesConfigured } from '@/services/purchases';
+import { isWalled } from '@/domain/hardPaywall';
 import { font, text } from '@/theme/typography';
 import { SCREEN_GUTTER, palette, radius, surfaceShadow } from '@/theme/tokens';
 import type { InviteKind } from '@/domain/presence';
@@ -102,6 +105,7 @@ export default function FriendsScreen() {
   useTabView('friends');
   const router = useRouter();
   const sessions = useProfileStore((s) => s.sessions);
+  const isPro = useEffectivePro();
   const uid = useAuthStore((s) => s.user?.uid);
   const [search, setSearch] = useState('');
   const seed = usePhantomSeed();
@@ -150,10 +154,8 @@ export default function FriendsScreen() {
 
   const onlineFriends = cloudFriends.filter((f) => f.online);
   const onlineBots = OPPONENTS.filter((o) => o.online);
-  const filteredOpponents = OPPONENTS.filter((o) =>
-    o.name.toLowerCase().includes(search.toLowerCase()),
-  );
   const q = search.trim().toLowerCase().replace(/^@+/, '');
+  const filteredOpponents = OPPONENTS.filter((o) => !q || o.name.toLowerCase().includes(q));
   const filteredCloud = cloudFriends.filter((f) => {
     if (!q) return true;
     return (
@@ -178,15 +180,30 @@ export default function FriendsScreen() {
     router.push(inviteParams(f, kind));
   };
 
-  /* Bots and phantoms are the labelled-AI roster. Marked as such so a roster
-     padded with AI never reads back as organic social activity. */
-  const duel = (opponent: Opponent) => {
+  /* Every route into a set against an AI partner goes through here. The
+     session redirects a walled athlete to the paywall on its own, but only
+     after mounting and unmounting — the same bounce Home's `startSolo` exists
+     to avoid. Asking first sends them straight to the paywall instead. */
+  const walled = isWalled({
+    isPro,
+    repsSoFar: selectTotalReps({ sessions }),
+    billingReady: isPurchasesConfigured(),
+  });
+  const startAiDuel = (opponentId: string) => {
     track('friend_invited', { kind: 'duel', isAI: true });
+    if (walled) {
+      router.push({ pathname: '/modal/paywall', params: { source: 'rep-limit', hard: '1' } });
+      return;
+    }
     router.push({
       pathname: '/session',
-      params: { exercise: 'push', mode: 'versus', opponent: opponent.id },
+      params: { exercise: 'push', mode: 'versus', opponent: opponentId },
     });
   };
+
+  /* Bots and phantoms are the labelled-AI roster. Marked as such so a roster
+     padded with AI never reads back as organic social activity. */
+  const duel = (opponent: Opponent) => startAiDuel(opponent.id);
 
   const record = (id: string) => {
     const duels = sessions.filter((s) => s.mode === 'versus' && s.opponentId === id);
@@ -228,22 +245,17 @@ export default function FriendsScreen() {
     });
   };
 
+  /* By uid, not username: the athlete on this row is already identified, so
+     a missing username no longer blocks the add and two accounts sharing a
+     handle can no longer collide ("Several athletes share that username"). */
   const addRecent = async (athlete: RecentAthlete) => {
-    if (!uid || !athlete.username) {
-      showDialog({
-        title: 'Missing username',
-        message: 'This athlete hasn’t set a username yet — ask them to share it.',
-        tone: 'info',
-        actions: [{ label: 'Got it', variant: 'primary' }],
-      });
-      return;
-    }
+    if (!uid) return;
     setAddingUid(athlete.uid);
     try {
-      await addFriendByUsername(uid, athlete.username);
+      await addFriendByUid(uid, athlete.uid);
       showDialog({
         title: 'Friend added',
-        message: `@${athlete.username} is on your list. They can add you back by your username.`,
+        message: `${athlete.displayName} is on your list. They can add you back from their Friends tab.`,
         tone: 'success',
         actions: [{ label: 'Got it', variant: 'primary' }],
       });
@@ -251,7 +263,11 @@ export default function FriendsScreen() {
     } catch (err) {
       showDialog({
         title: 'Could not add',
-        message: err instanceof Error ? err.message : 'Please try again.',
+        message: offline
+          ? "You're offline. Connect to the internet and try again."
+          : err instanceof Error
+            ? err.message
+            : 'Please try again.',
         tone: 'danger',
         actions: [{ label: 'Got it', variant: 'primary' }],
       });
@@ -360,12 +376,7 @@ export default function FriendsScreen() {
           {seed.phantomOnline.map((p) => (
             <PressableScale
               key={p.id}
-              onPress={() =>
-                router.push({
-                  pathname: '/session',
-                  params: { exercise: 'push', mode: 'versus', opponent: p.id },
-                })
-              }
+              onPress={() => startAiDuel(p.id)}
               accessibilityRole="button"
               accessibilityLabel={`Duel ${p.name}`}
               style={styles.onlineItem}
@@ -557,7 +568,23 @@ export default function FriendsScreen() {
               <View key={a.uid}>
                 {index > 0 ? <Divider style={{ marginHorizontal: 8 }} /> : null}
                 <View style={styles.friendRow}>
-                  <View style={styles.friendInfo}>
+                  <PressableScale
+                    onPress={() =>
+                      router.push({
+                        pathname: '/modal/friend',
+                        params: {
+                          id: a.uid,
+                          name: a.displayName,
+                          level: String(a.level),
+                          ...(a.avatarUrl ? { avatar: a.avatarUrl } : {}),
+                          online: '0',
+                        },
+                      })
+                    }
+                    accessibilityRole="button"
+                    accessibilityLabel={`View ${a.displayName}'s profile`}
+                    style={styles.friendInfo}
+                  >
                     <Avatar
                       initial={(a.displayName || 'A').charAt(0).toUpperCase()}
                       uri={a.avatarUrl}
@@ -571,7 +598,7 @@ export default function FriendsScreen() {
                         {a.username ? `@${a.username}` : 'Just joined'}
                       </Text>
                     </View>
-                  </View>
+                  </PressableScale>
                   <PressableScale
                     onPress={() => void addRecent(a)}
                     disabled={addingUid === a.uid}
@@ -622,13 +649,7 @@ export default function FriendsScreen() {
                   </View>
 
                   <PressableScale
-                    onPress={() => {
-                      track('friend_invited', { kind: 'duel', isAI: true });
-                      router.push({
-                        pathname: '/session',
-                        params: { exercise: 'push', mode: 'versus', opponent: p.id },
-                      });
-                    }}
+                    onPress={() => startAiDuel(p.id)}
                     accessibilityRole="button"
                     accessibilityLabel={`Duel ${p.name}`}
                     style={styles.duelButton}
@@ -642,6 +663,7 @@ export default function FriendsScreen() {
         </StaggerIn>
       ) : null}
 
+      {filteredOpponents.length > 0 ? (
       <StaggerIn index={4}>
         <HomeSectionHeader title="Practice with AI partners" />
         <View style={styles.card}>
@@ -694,6 +716,7 @@ export default function FriendsScreen() {
           })}
         </View>
       </StaggerIn>
+      ) : null}
 
     </Screen>
   );

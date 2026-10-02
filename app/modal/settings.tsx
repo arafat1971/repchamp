@@ -84,6 +84,12 @@ const PRIVACY_TOGGLES: ToggleRow[] = [
     subtitle: 'One evening nudge with what’s left of your routine',
   },
   {
+    key: 'shareActivity',
+
+    title: 'Show when I’m active',
+    subtitle: 'Friends see “Active now” and when you were last around',
+  },
+  {
     key: 'privateProfile',
    
     title: 'Private profile',

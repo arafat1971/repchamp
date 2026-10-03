@@ -176,6 +176,7 @@ export default function FriendProfileScreen() {
         <Avatar
           initial={(displayName || 'A').charAt(0).toUpperCase()}
           uri={!bot ? (cloudAvatar ?? undefined) : undefined}
+          ai={bot ? friend.id : undefined}
           size={88}
           square
           background={tint.background}

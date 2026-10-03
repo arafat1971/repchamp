@@ -73,6 +73,17 @@ export default function LegalScreen() {
           </Para>
         </Section>
 
+        <Section title="Steps and location (both optional)">
+          <Para>
+            If you allow physical-activity access, your daily step count is read
+            on your device; it leaves your phone only if you choose to share it
+            with your partner. If you turn on Real weather for the widget, your
+            approximate location (rounded to about 10 km) is sent to Open-Meteo
+            to fetch current conditions. It is not stored in your account and
+            you can turn it off at any time.
+          </Para>
+        </Section>
+
         <Section title="Who it's for">
           <Para>
             RepChamp is for people aged 16 and over. We don&apos;t knowingly collect
@@ -87,7 +98,8 @@ export default function LegalScreen() {
             delete your account and all associated data, at any time from
             Settings → Account. Deleting your account erases your profile —
             including your picture, which is stored on it — along with your
-            leaderboard entry, matchmaking ticket, and shared couple record.
+            leaderboard entry, matchmaking ticket, shared couple record, and your
+            duel history.
           </Para>
         </Section>
 

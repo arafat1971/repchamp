@@ -8,7 +8,7 @@
 /** Screens that stay in the file (so funnel names line up) but are never shown. */
 export const SKIPPED_STEPS: ReadonlySet<number> = new Set([12, 13]);
 
-export const LAST_STEP = 26;
+export const LAST_STEP = 27;
 /** The last step the progress bar is shown for; the build screen takes over after it. */
 export const LAST_BAR_STEP = 17;
 export const BUILD_STEP = 18;

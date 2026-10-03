@@ -13,7 +13,7 @@
  *   - `users/{uid}/blocks/{id}`       block list
  *   - `leaderboard/{uid}`             weekly-XP row
  *   - `matchmaking/{uid}`             open-queue ticket (may not exist)
- *   - `duels/{id}`                    pending / active matches
+ *   - `duels/{id}`                    pending / active / finished matches (name, uid, score)
  *   - `couples/{coupleId}`            the shared bond — deleted whole
  *
  * Nothing lives in Firebase Storage: that needs a paid plan, so the avatar is a
@@ -46,7 +46,17 @@ export async function exportAccountData(uid: string): Promise<Record<string, unk
 
   const db = firestore();
   const userRef = db.collection('users').doc(uid);
-  const [profile, leaderboard, matchmaking, coupleSnap, friendsSnap, blocksSnap, pushSnap] =
+  const [
+    profile,
+    leaderboard,
+    matchmaking,
+    coupleSnap,
+    friendsSnap,
+    blocksSnap,
+    pushSnap,
+    hostedDuels,
+    guestDuels,
+  ] =
     await Promise.all([
       userRef.get(),
       db.collection('leaderboard').doc(uid).get(),
@@ -55,7 +65,14 @@ export async function exportAccountData(uid: string): Promise<Record<string, unk
       userRef.collection('friends').get(),
       userRef.collection('blocks').get(),
       userRef.collection('private').doc('push').get(),
+      db.collection('duels').where('hostUid', '==', uid).limit(EXPORT_DUEL_LIMIT).get(),
+      db.collection('duels').where('guestUid', '==', uid).limit(EXPORT_DUEL_LIMIT).get(),
     ]);
+
+  const duels = new Map<string, Record<string, unknown>>();
+  for (const snap of [hostedDuels, guestDuels]) {
+    for (const d of snap.docs) duels.set(d.id, { id: d.id, ...d.data() });
+  }
 
   const couple = coupleSnap.docs[0];
   return {
@@ -68,8 +85,12 @@ export async function exportAccountData(uid: string): Promise<Record<string, unk
     leaderboard: leaderboard.exists() ? leaderboard.data() : null,
     matchmaking: matchmaking.exists() ? matchmaking.data() : null,
     couple: couple ? { id: couple.id, ...couple.data() } : null,
+    duels: [...duels.values()],
   };
 }
+
+/** Per-side ceiling on duels included in a data export. */
+const EXPORT_DUEL_LIMIT = 500;
 
 /** Most open duels one athlete can realistically hold; a per-query ceiling. */
 const OPEN_DUEL_QUERY_LIMIT = 100;
@@ -146,6 +167,51 @@ async function closeOpenDuelsCounted(uid: string): Promise<number> {
   return failures;
 }
 
+/** Page size for the finished-duel sweep. */
+const ERASE_DUEL_PAGE = 100;
+/** Safety bound on sweep rounds so a stuck delete cannot loop forever. */
+const ERASE_DUEL_MAX_ROUNDS = 50;
+
+/**
+ * Delete every *finished* duel this athlete played, on either side.
+ *
+ * A settled duel keeps the athlete's name, uid and score on a document the
+ * opponent also reads, and nothing else ever removes it — so account deletion
+ * used to leave their match history behind while telling them it was erased.
+ * The rules let either player delete a finished duel for exactly this reason.
+ *
+ * Each round deletes what it found and queries again, so an athlete with more
+ * than one page of history is fully cleared. Rejects if any delete fails, so
+ * the caller reports it rather than claiming a clean erase.
+ */
+export async function eraseFinishedDuels(uid: string): Promise<void> {
+  const db = firestore();
+  for (let round = 0; round < ERASE_DUEL_MAX_ROUNDS; round++) {
+    const [asHost, asGuest] = await Promise.all([
+      db
+        .collection('duels')
+        .where('hostUid', '==', uid)
+        .where('status', '==', 'finished')
+        .limit(ERASE_DUEL_PAGE)
+        .get(),
+      db
+        .collection('duels')
+        .where('guestUid', '==', uid)
+        .where('status', '==', 'finished')
+        .limit(ERASE_DUEL_PAGE)
+        .get(),
+    ]);
+    const refs = new Map<string, (typeof asHost.docs)[number]['ref']>();
+    for (const snap of [asHost, asGuest]) {
+      for (const d of snap.docs) refs.set(d.id, d.ref);
+    }
+    if (refs.size === 0) return;
+    const results = await Promise.allSettled([...refs.values()].map((r) => r.delete()));
+    const failed = results.filter((r) => r.status === 'rejected').length;
+    if (failed > 0) throw new Error(`${failed} finished duel(s) could not be deleted`);
+  }
+}
+
 /** Cancel pending invites and forfeit active seats for this uid. Best-effort. */
 export async function closeOpenDuels(uid: string): Promise<void> {
   await closeOpenDuelsCounted(uid);
@@ -212,6 +278,9 @@ export async function deleteAccount(uid: string): Promise<void> {
     ...blocksSnap.docs.map((d) => attempt('blocks', d.ref.delete())),
     attempt('leaderboard row', db.collection('leaderboard').doc(uid).delete()),
     attempt('matchmaking ticket', db.collection('matchmaking').doc(uid).delete()),
+    // After `closeOpenDuelsCounted`, so duels forfeited above are now finished
+    // and fall inside the sweep.
+    attempt('duel history', eraseFinishedDuels(uid)),
   ];
   for (const couple of coupleSnap.docs) {
     deletions.push(attempt('couple record', couple.ref.delete()));

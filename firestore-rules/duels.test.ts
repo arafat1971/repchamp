@@ -8,7 +8,7 @@
  */
 
 import { assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { deleteDoc, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 
 import { asUser, clearData, seat, seed, setupEnv, teardownEnv } from './harness';
 
@@ -176,6 +176,97 @@ describe('join', () => {
         guest: seat(GUEST, { reps: 100 }),
         status: 'active',
       }),
+    );
+  });
+});
+
+describe('deleting a duel', () => {
+  async function seedPending(over: Record<string, unknown> = {}) {
+    await seed(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'duels', DUEL), {
+        hostUid: HOST,
+        guestUid: null,
+        targetUid: null,
+        status: 'pending',
+        host: seat(HOST),
+        guest: null,
+        createdAt: 1,
+        ...over,
+      });
+    });
+  }
+
+  it('lets the host withdraw a pending invite', async () => {
+    await seedPending();
+    await assertSucceeds(deleteDoc(doc(asUser(HOST), 'duels', DUEL)));
+  });
+
+  /* A host who is losing must not be able to erase the match, which would
+     take the guest's result with it. */
+  it('refuses the host deleting a live duel', async () => {
+    await seedActive();
+    await assertFails(deleteDoc(doc(asUser(HOST), 'duels', DUEL)));
+  });
+
+  it('lets either player delete a finished duel (account erasure)', async () => {
+    await seedActive({ status: 'finished' });
+    await assertSucceeds(deleteDoc(doc(asUser(GUEST), 'duels', DUEL)));
+    await seedActive({ status: 'finished' });
+    await assertSucceeds(deleteDoc(doc(asUser(HOST), 'duels', DUEL)));
+  });
+
+  it('refuses a stranger deleting a finished duel', async () => {
+    await seedActive({ status: 'finished' });
+    await assertFails(deleteDoc(doc(asUser('mallory'), 'duels', DUEL)));
+  });
+
+  it('lets the target decline an unjoined invite', async () => {
+    await seedPending({ targetUid: GUEST });
+    await assertSucceeds(deleteDoc(doc(asUser(GUEST), 'duels', DUEL)));
+  });
+});
+
+describe('creating a duel', () => {
+  it('refuses an unknown invite kind', async () => {
+    await assertFails(
+      setDoc(doc(asUser(HOST), 'duels', DUEL), {
+        hostUid: HOST,
+        guestUid: null,
+        targetUid: null,
+        status: 'pending',
+        kind: 'bogus',
+        host: seat(HOST),
+        guest: null,
+      }),
+    );
+  });
+
+  it('refuses inviting yourself', async () => {
+    await assertFails(
+      setDoc(doc(asUser(HOST), 'duels', DUEL), {
+        hostUid: HOST,
+        guestUid: null,
+        targetUid: HOST,
+        status: 'pending',
+        host: seat(HOST),
+        guest: null,
+      }),
+    );
+  });
+});
+
+describe('live writes to a settled duel', () => {
+  it('refuses a live tick once the duel is finished', async () => {
+    await seedActive({ status: 'finished' });
+    await assertFails(
+      updateDoc(doc(asUser(HOST), 'duels', DUEL), { host: seat(HOST, { reps: 12 }) }),
+    );
+  });
+
+  it('refuses a live tick on a seat that has already finished', async () => {
+    await seedActive({ host: seat(HOST, { reps: 10, done: true }) });
+    await assertFails(
+      updateDoc(doc(asUser(HOST), 'duels', DUEL), { host: seat(HOST, { reps: 14, done: true }) }),
     );
   });
 });

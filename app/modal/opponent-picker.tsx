@@ -180,6 +180,7 @@ export default function OpponentPickerScreen() {
             >
               <Avatar
                 initial={opponent.initial}
+                ai={opponent.id}
                 emoji={(opponent as any).emoji}
                 size={48}
                 background={tint.background}

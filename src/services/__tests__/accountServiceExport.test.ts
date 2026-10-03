@@ -145,6 +145,19 @@ describe('exportAccountData', () => {
   });
 });
 
+describe('exportAccountData — duel history', () => {
+  it('includes the athlete\'s duels once, even when they appear on both sides', async () => {
+    mockRows['duels'] = [{ id: 'd1', data: { hostUid: 'u1', status: 'finished' } }];
+    const out = await exportAccountData('u1');
+    expect(out?.duels).toEqual([{ id: 'd1', hostUid: 'u1', status: 'finished' }]);
+  });
+
+  it('exports an empty list for an athlete with no duels', async () => {
+    const out = await exportAccountData('u1');
+    expect(out?.duels).toEqual([]);
+  });
+});
+
 describe('closeOpenDuels', () => {
   it('cancels pending invites so nobody is left holding a dead code', async () => {
     mockRows['duels'] = [{ id: 'd-pending', data: { status: 'pending', hostUid: 'u1' } }];

@@ -150,7 +150,7 @@ export function TodayBento({
             </View>
             <View style={[styles.bigRow, { marginTop: 4 }]}>
               <CountUp value={league.weeklyXp} style={[styles.bigNumber, { fontSize: 22 }]} />
-              <Text style={styles.bigUnit}>XP</Text>
+              <Text style={styles.bigUnit}>XP this week</Text>
             </View>
             <XpBar fill={league.fill} />
             <Text style={styles.tileFoot} numberOfLines={1}>
@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  bigRow: { flexDirection: 'row', alignItems: 'baseline', gap: 5 },
+  bigRow: { flexDirection: 'row', alignItems: 'baseline', gap: 5, flexWrap: 'wrap' },
   bigNumber: {
     ...font('extrabold', 28, { color: palette.ink }),
     fontVariant: ['tabular-nums'],

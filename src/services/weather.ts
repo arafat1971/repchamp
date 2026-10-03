@@ -12,11 +12,31 @@
 import * as Location from 'expo-location';
 
 import { weatherKind } from '@/domain/weather';
+import { fetchWithTimeout } from '@/lib/fetchWithTimeout';
 import { useWeatherStore } from '@/state/weatherStore';
 import { useWidgetStyleStore } from '@/state/widgetStyleStore';
 
 const REFRESH_MS = 30 * 60 * 1000;
+/** A location fix that has not arrived by now is not going to help the widget. */
+const LOCATION_TIMEOUT_MS = 10_000;
 let inFlight = false;
+
+/** Resolve to null instead of hanging when `work` never settles. */
+function orNullAfter<T>(work: Promise<T>, ms: number): Promise<T | null> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), ms);
+    work.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(null);
+      },
+    );
+  });
+}
 
 /** Ask for approximate location — called when the switch is turned on. */
 export async function enableRealWeather(): Promise<boolean> {
@@ -38,11 +58,14 @@ export async function refreshWeather(force = false): Promise<void> {
     if (perm.status !== 'granted') return;
     const pos =
       (await Location.getLastKnownPositionAsync({ maxAge: 6 * 60 * 60 * 1000 })) ??
-      (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Lowest }));
+      (await orNullAfter(
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Lowest }),
+        LOCATION_TIMEOUT_MS,
+      ));
     if (!pos) return;
     const lat = Math.round(pos.coords.latitude * 10) / 10;
     const lon = Math.round(pos.coords.longitude * 10) / 10;
-    const res = await fetch(
+    const res = await fetchWithTimeout(
       `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code`,
     );
     if (!res.ok) return;

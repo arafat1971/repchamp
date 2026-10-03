@@ -69,9 +69,9 @@ export default function HistoryScreen() {
       ) : null}
 
       <View style={styles.summaryRow}>
-        <Stat label="SETS" value={String(summary.totalSessions)} />
-        <Stat label="TOTAL REPS" value={String(summary.totalReps)} />
-        <Stat label="DAYS" value={String(summary.daysTrained)} />
+        <Stat label={summary.totalSessions === 1 ? 'SET' : 'SETS'} value={String(summary.totalSessions)} />
+        <Stat label={summary.totalReps === 1 ? 'TOTAL REP' : 'TOTAL REPS'} value={String(summary.totalReps)} />
+        <Stat label={summary.daysTrained === 1 ? 'DAY' : 'DAYS'} value={String(summary.daysTrained)} />
         <Stat
           label="AVG FORM"
           value={summary.averageForm === null ? '—' : `${summary.averageForm}%`}
@@ -97,28 +97,45 @@ export default function HistoryScreen() {
                 </View>
 
                 <View style={{ flex: 1 }}>
-                  <Text style={font('extrabold', 15, { color: palette.ink })} numberOfLines={1}>
-                    {definition.label}
-                  </Text>
-                  <Text style={font('semibold', 11, { color: palette.slate500 })}>
-                    {session.durationSec}s
-                    {session.formScore ? ` · ${session.formScore}% form` : ''}
+                  <View style={styles.titleRow}>
+                    <Text
+                      style={[font('extrabold', 15, { color: palette.ink }), { flexShrink: 1 }]}
+                      numberOfLines={1}
+                    >
+                      {definition.label}
+                    </Text>
                     {/* Only a real head-to-head gets an outcome. A solo set has
                         no opponent, and `won: false` on one of those would read
                         as a loss it never was. */}
-                    {versus && session.opponentReps !== null
-                      ? session.drew
-                        ? ' · drew'
-                        : session.won
-                          ? ' · won'
-                          : ' · lost'
-                      : ''}
+                    {versus && session.opponentReps !== null ? (
+                      <View
+                        style={[
+                          styles.outcome,
+                          session.won && !session.drew ? styles.outcomeWon : styles.outcomeOther,
+                        ]}
+                      >
+                        <Text
+                          style={font('extrabold', 10, {
+                            color: session.won && !session.drew ? palette.green700 : palette.slate500,
+                          })}
+                        >
+                          {session.drew ? 'Drew' : session.won ? 'Won' : 'Lost'}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <Text style={font('semibold', 11, { color: palette.slate500 })}>
+                    {session.durationSec}s
+                    {session.formScore ? ` · ${session.formScore}% form` : ''}
+                    {versus && session.opponentReps !== null ? ` · vs ${session.opponentReps}` : ''}
                   </Text>
                 </View>
 
                 <View style={styles.repsColumn}>
                   <Text style={font('extrabold', 19, { color: palette.ink })}>{session.reps}</Text>
-                  <Text style={font('bold', 10, { color: palette.slate500 })}>reps</Text>
+                  <Text style={font('bold', 10, { color: palette.slate500 })}>
+                    {session.reps === 1 ? 'rep' : 'reps'}
+                  </Text>
                 </View>
               </Card>
             );
@@ -191,6 +208,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   repsColumn: { alignItems: 'flex-end' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  outcome: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: radius.pill },
+  outcomeWon: { backgroundColor: palette.green50 },
+  outcomeOther: { backgroundColor: palette.divider },
   empty: { alignItems: 'center', paddingTop: 80, paddingHorizontal: 24 },
   emptyMark: { ...font('bold', 40, { color: palette.divider }), marginBottom: 8 },
   emptyTitle: { textAlign: 'center' },

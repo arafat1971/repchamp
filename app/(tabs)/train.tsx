@@ -14,6 +14,9 @@ import { ExerciseLibrary } from '@/components/ExerciseLibrary';
 import { YogaGlyph } from '@/components/YogaGlyph';
 import { ProgrammeCard } from '@/components/ProgrammeCard';
 import { WeekRepsCard } from '@/components/train/WeekRepsCard';
+import { TrainSegments } from '@/components/train/TrainSegments';
+import { UpNextCard } from '@/components/train/UpNextCard';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { weekReps } from '@/domain/weekReps';
 import { HomeSectionHeader } from '@/components/home/HomeSectionHeader';
 import { ArrowIcon, CheckIcon, FlameIcon, LockIcon } from '@/components/home/Icons';
@@ -47,6 +50,14 @@ import { reservedControlHeight } from '@/theme/fontScale';
 import { font, scaleForRole } from '@/theme/typography';
 import { SCREEN_GUTTER, palette, radius, surfaceShadow } from '@/theme/tokens';
 
+type Section = 'strength' | 'yoga' | 'mind' | 'together';
+const SECTIONS: readonly { id: Section; label: string }[] = [
+  { id: 'strength', label: 'Strength' },
+  { id: 'yoga', label: 'Yoga' },
+  { id: 'mind', label: 'Mind' },
+  { id: 'together', label: 'Together' },
+];
+
 /** Rep milestones on the roadmap, in order. */
 const MILESTONES = [5, 10, 15, 25, 40] as const;
 
@@ -68,6 +79,7 @@ export default function TrainScreen() {
   const self = useSelfPlayer();
   const { paired, partner, streak, combined } = useCouple();
   const [starting, setStarting] = useState(false);
+  const [section, setSection] = useState<Section>('strength');
   const mindfulLog = useMindfulStore((s) => s.log);
   const week = lastNDayKeys(7);
   const yogaWeek = minutesOn(mindfulLog, 'yoga', week);
@@ -96,6 +108,12 @@ export default function TrainScreen() {
     repsSoFar: totalReps,
     billingReady: isPurchasesConfigured(),
   });
+
+  /* What to do next: whichever staple has not been done today, push-ups first.
+     Both done → a bonus set, still pointed at the lighter day. */
+  const trainedToday = pushStats.todayBest > 0 || squatStats.todayBest > 0;
+  const upNext: ExerciseId =
+    pushStats.todayBest === 0 ? 'push' : squatStats.todayBest === 0 ? 'squat' : 'push';
 
   const nextMilestone = MILESTONES.find((m) => m > best) ?? MILESTONES[MILESTONES.length - 1]!;
 
@@ -199,6 +217,25 @@ export default function TrainScreen() {
           />
         </StaggerIn>
 
+        <StaggerIn index={1} style={{ marginTop: 14 }}>
+          <UpNextCard
+            exercise={upNext === 'squat' ? 'squat' : 'push'}
+            streak={streakDays}
+            trainedToday={trainedToday}
+            locked={soloWalled}
+            onStart={() => practice(upNext)}
+          />
+        </StaggerIn>
+
+        <StaggerIn index={2} style={{ marginTop: 18 }}>
+          <TrainSegments options={SECTIONS} value={section} onChange={setSection} />
+        </StaggerIn>
+
+        {/* Keyed so each switch replays the fade — the page reads as changing,
+            not as one section silently swapping for another. */}
+        <Animated.View key={section} entering={FadeIn.duration(220)}>
+          {section === 'strength' ? (
+            <>
         {/* The training programme leads: it's the guided path, above free practice. */}
         <StaggerIn index={1} style={{ marginTop: 16 }}>
           <ProgrammeCard />
@@ -236,6 +273,58 @@ export default function TrainScreen() {
           />
         </StaggerIn>
 
+        <HomeSectionHeader title="Personal bests" />
+        <StaggerIn index={3}>
+          <View style={styles.card}>
+            <View style={styles.bestHead}>
+              <View style={[styles.bestGlyph, { backgroundColor: `${PUSH}14` }]}>
+                <ExerciseGlyph exercise="push" size={28} color={PUSH} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.bestLabel}>Push-ups in a row</Text>
+                <Text style={styles.bestCaption} numberOfLines={2}>
+                  {best === 0
+                    ? 'Finish a set to log your first max'
+                    : best >= nextMilestone
+                      ? 'Top milestone cleared — keep pushing'
+                      : `${pluralise(nextMilestone - best, 'rep')} to ${nextMilestone}`}
+                </Text>
+              </View>
+              <CountUp value={best} style={[styles.bestNumber, { color: PUSH }]} />
+            </View>
+
+            <Roadmap best={best} next={nextMilestone} />
+
+            <View style={styles.divider} />
+
+            <View style={styles.bestHead}>
+              <View style={[styles.bestGlyph, { backgroundColor: `${SQUAT}14` }]}>
+                <ExerciseGlyph exercise="squat" size={28} color={SQUAT} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.bestLabel}>Squats in a row</Text>
+                <Text style={styles.bestCaption} numberOfLines={2}>
+                  {squatBest === 0
+                    ? 'Finish a squat set to log your max'
+                    : 'Keep chasing a deeper, cleaner rep'}
+                </Text>
+              </View>
+              <CountUp value={squatBest} style={[styles.bestNumber, { color: SQUAT }]} />
+            </View>
+          </View>
+        </StaggerIn>
+
+        <HomeSectionHeader
+          title="Library"
+          right={<Text style={styles.sectionMeta}>{isPro ? 'All unlocked' : 'Pro'}</Text>}
+        />
+        <StaggerIn index={4}>
+          <ExerciseLibrary />
+        </StaggerIn>
+            </>
+          ) : null}
+          {section === 'yoga' ? (
+            <>
         {/* Yoga and meditation: timed and guided rather than camera-counted,
             and finishing one ticks the matching ritual habit. */}
         <HomeSectionHeader
@@ -264,6 +353,10 @@ export default function TrainScreen() {
           </ScrollView>
         </StaggerIn>
 
+            </>
+          ) : null}
+          {section === 'mind' ? (
+            <>
         <HomeSectionHeader
           title="Meditate"
           right={
@@ -283,6 +376,10 @@ export default function TrainScreen() {
           ))}
         </StaggerIn>
 
+            </>
+          ) : null}
+          {section === 'together' ? (
+            <>
         <HomeSectionHeader title="Together" />
         {/* The one dark surface on the tab, like the streak tile on Home: the
             couple set is the thing only this app does. */}
@@ -347,54 +444,9 @@ export default function TrainScreen() {
           </View>
         </StaggerIn>
 
-        <HomeSectionHeader title="Personal bests" />
-        <StaggerIn index={3}>
-          <View style={styles.card}>
-            <View style={styles.bestHead}>
-              <View style={[styles.bestGlyph, { backgroundColor: `${PUSH}14` }]}>
-                <ExerciseGlyph exercise="push" size={28} color={PUSH} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.bestLabel}>Push-ups in a row</Text>
-                <Text style={styles.bestCaption} numberOfLines={2}>
-                  {best === 0
-                    ? 'Finish a set to log your first max'
-                    : best >= nextMilestone
-                      ? 'Top milestone cleared — keep pushing'
-                      : `${pluralise(nextMilestone - best, 'rep')} to ${nextMilestone}`}
-                </Text>
-              </View>
-              <CountUp value={best} style={[styles.bestNumber, { color: PUSH }]} />
-            </View>
-
-            <Roadmap best={best} next={nextMilestone} />
-
-            <View style={styles.divider} />
-
-            <View style={styles.bestHead}>
-              <View style={[styles.bestGlyph, { backgroundColor: `${SQUAT}14` }]}>
-                <ExerciseGlyph exercise="squat" size={28} color={SQUAT} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.bestLabel}>Squats in a row</Text>
-                <Text style={styles.bestCaption} numberOfLines={2}>
-                  {squatBest === 0
-                    ? 'Finish a squat set to log your max'
-                    : 'Keep chasing a deeper, cleaner rep'}
-                </Text>
-              </View>
-              <CountUp value={squatBest} style={[styles.bestNumber, { color: SQUAT }]} />
-            </View>
-          </View>
-        </StaggerIn>
-
-        <HomeSectionHeader
-          title="Library"
-          right={<Text style={styles.sectionMeta}>{isPro ? 'All unlocked' : 'Pro'}</Text>}
-        />
-        <StaggerIn index={4}>
-          <ExerciseLibrary />
-        </StaggerIn>
+            </>
+          ) : null}
+        </Animated.View>
       </Screen>
       {/* Same status-bar fade as Home, so cards slip under the clock. */}
       <LinearGradient
@@ -437,69 +489,46 @@ function PracticeTile({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={locked ? `${title} — free reps used, see Pro` : `Practice ${title}`}
-      style={{ flex: 1 }}
     >
-      <LinearGradient
-        colors={[`${accent}24`, `${accent}0A`, palette.white]}
-        locations={[0, 0.55, 1]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0.4, y: 1 }}
-        style={styles.practiceTile}
-      >
-        <View style={styles.practiceTop}>
-          <View style={styles.practiceGlyph}>
-            <Image
-              source={exercise === 'squat' ? IC_SQUAT : IC_PUSHUP}
-              style={{ width: 38, height: 38 }}
-              contentFit="contain"
-            />
-          </View>
-          <View style={[styles.pbPill, locked && { backgroundColor: palette.divider }]}>
-            <Text
-              style={font('bold', 10.5, {
-                color: locked ? palette.grey600 : accent,
-              })}
-            >
-              {locked ? 'Free reps used' : pb > 0 ? `PB ${pb}` : 'No PB yet'}
+      <View style={styles.practiceRow}>
+        <View style={[styles.practiceGlyph, { backgroundColor: `${accent}1A` }]}>
+          <Image
+            source={exercise === 'squat' ? IC_SQUAT : IC_PUSHUP}
+            style={{ width: 40, height: 40 }}
+            contentFit="contain"
+          />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.practiceTitle} numberOfLines={1}>
+            {title}
+          </Text>
+          <Text style={[styles.practiceArea, { color: accent }]} numberOfLines={1}>
+            {area}
+          </Text>
+          <View style={styles.statRow}>
+            <View style={[styles.pbPill, { backgroundColor: locked ? palette.divider : `${accent}14` }]}>
+              <Text style={font('bold', 11, { color: locked ? palette.grey600 : accent })}>
+                {locked ? 'Free reps used' : pb > 0 ? `PB ${pb}` : 'No PB yet'}
+              </Text>
+            </View>
+            <Text style={font('semibold', 12, { color: palette.grey600 })}>
+              {todayBest > 0 ? `${todayBest} today` : 'Not yet today'}
             </Text>
           </View>
         </View>
-
-        <Text style={styles.practiceTitle} numberOfLines={1}>
-          {title}
-        </Text>
-        <Text style={[styles.practiceArea, { color: accent }]} numberOfLines={1}>
-          {area}
-        </Text>
-
-        <View style={styles.practiceFoot}>
-          <View style={{ flex: 1 }}>
-            <View style={styles.todayRow}>
-              <CountUp
-                value={todayBest}
-                duration={800}
-                style={[font('extrabold', 22, { color: palette.ink }), styles.tabular]}
-              />
-              <Text style={font('semibold', 11.5, { color: palette.grey500 })}>today</Text>
-            </View>
-          </View>
-          <View
-            style={[
-              styles.goButton,
-              {
-                backgroundColor: locked ? palette.grey500 : accent,
-                shadowColor: accent,
-              },
-            ]}
-          >
-            {locked ? (
-              <LockIcon size={15} color={palette.white} />
-            ) : (
-              <ArrowIcon size={15} color={palette.white} strokeWidth={2.4} />
-            )}
-          </View>
+        <View
+          style={[
+            styles.goButton,
+            { backgroundColor: locked ? palette.grey500 : accent, shadowColor: accent },
+          ]}
+        >
+          {locked ? (
+            <LockIcon size={16} color={palette.white} />
+          ) : (
+            <ArrowIcon size={16} color={palette.white} strokeWidth={2.4} />
+          )}
         </View>
-      </LinearGradient>
+      </View>
     </PressableScale>
   );
 }
@@ -817,52 +846,33 @@ const styles = StyleSheet.create({
   aiChipText: font('bold', 11.5, { color: palette.green700 }),
 
   // Practice tiles
-  tileRow: { flexDirection: 'row', gap: 12 },
-  practiceTile: {
+  tileRow: { gap: 10 },
+  practiceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    padding: 14,
     borderRadius: radius['4xl'],
-    padding: 12,
+    backgroundColor: palette.white,
     borderWidth: 1,
     borderColor: 'rgba(15,31,23,0.06)',
-    overflow: 'hidden',
-    backgroundColor: palette.white,
     ...surfaceShadow,
   },
-  practiceTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
   practiceGlyph: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    backgroundColor: palette.white,
+    width: 60,
+    height: 60,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pbPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: radius.pill,
-    backgroundColor: palette.white,
-  },
-  practiceTitle: {
-    ...font('extrabold', 16, { color: palette.ink }),
-    marginTop: 12,
-    letterSpacing: -0.3,
-  },
-  practiceArea: font('semibold', 11.5),
-  practiceFoot: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 8,
-    marginTop: 10,
-  },
-  todayRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
+  statRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
+  pbPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill },
+  practiceTitle: { ...font('extrabold', 17, { color: palette.ink }), letterSpacing: -0.3 },
+  practiceArea: font('semibold', 12),
   goButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     shadowOpacity: 0.35,

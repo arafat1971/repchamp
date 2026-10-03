@@ -535,3 +535,23 @@ describe('partner goal and layers', () => {
     expect(partnerLayersToday(m({ day: '2026-09-24', layers: [{ k: 'x', ml: 'no' }] }), '2026-09-24')).toEqual([]);
   });
 });
+
+describe('partnerGlassOf', () => {
+  const member = (displayName: string) =>
+    ({ uid: 'u2', displayName, avatarUrl: null, trainedDays: [], totalReps: 0 }) as unknown as import('../couple').CoupleMember;
+  const { partnerGlassOf } = require('../couple');
+
+  it('shows the partner as soon as they are paired, named', () => {
+    expect(partnerGlassOf(true, member('Alex'), '2026-10-03')).toMatchObject({ name: 'Alex', ml: null });
+  });
+
+  it('still shows them when the couple record has no name yet', () => {
+    expect(partnerGlassOf(true, member(''), '2026-10-03')?.name).toBe('Partner');
+    expect(partnerGlassOf(true, member('   '), '2026-10-03')?.name).toBe('Partner');
+  });
+
+  it('is absent when not paired or without a partner', () => {
+    expect(partnerGlassOf(false, member('Alex'), '2026-10-03')).toBeNull();
+    expect(partnerGlassOf(true, null, '2026-10-03')).toBeNull();
+  });
+});

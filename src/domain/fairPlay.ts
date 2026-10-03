@@ -50,3 +50,31 @@ export function clampDuelRepJump(previous: number, next: number): number {
   if (target <= prev) return prev;
   return Math.min(target, prev + MAX_DUEL_REP_JUMP);
 }
+
+/** Longest silence on a live seat before a keepalive write goes out anyway. */
+export const LIVE_KEEPALIVE_MS = 5000;
+
+/**
+ * Whether a live duel tick is worth a Firestore write.
+ *
+ * The session timer fires every ~320 ms whether or not anything happened, and
+ * each write also fans out as a snapshot read to the opponent. A 60 s set
+ * therefore cost ~190 writes per athlete for ~20 reps — enough to exhaust the
+ * free tier's 20K daily writes in about fifty duels. Writing only on a change
+ * (reps or form), plus a slow keepalive so a quiet seat still shows signs of
+ * life, cuts that by an order of magnitude without changing what either
+ * athlete sees: the opponent's HUD only ever moves when a rep lands.
+ */
+export function shouldPushLive(input: {
+  reps: number;
+  formScore: number;
+  lastSentReps: number;
+  lastSentForm: number | null;
+  lastWriteAt: number;
+  now: number;
+}): boolean {
+  if (clampDuelReps(input.reps) !== clampDuelReps(input.lastSentReps)) return true;
+  if (input.lastSentForm == null) return true;
+  if (clampFormScore(input.formScore) !== clampFormScore(input.lastSentForm)) return true;
+  return input.now - input.lastWriteAt >= LIVE_KEEPALIVE_MS;
+}

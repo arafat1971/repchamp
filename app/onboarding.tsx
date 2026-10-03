@@ -1,5 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
+import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
@@ -23,6 +24,8 @@ import Animated, {
   FadeIn,
   FadeInDown,
   FadeInUp,
+  ZoomIn,
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -33,7 +36,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BreathingImage, CountUp, Floating, StaggerIn } from '@/components/motion';
+import { BreathingImage, CountUp, Floating, PopOnChange, StaggerIn } from '@/components/motion';
 import { GoogleMark } from '@/components/GoogleMark';
 import { BarChart } from '@/components/charts/BarChart';
 import { GrowthChart } from '@/components/charts/GrowthChart';
@@ -61,7 +64,30 @@ import {
 } from '@/domain/onboardingNav';
 import { PENDING_INVITE_KEY, parseInvite } from '@/domain/pendingInvite';
 import { storage } from '@/lib/storage';
+import {
+  Aurora,
+  ChoiceRow,
+  ChoiceTile,
+  InsetGroup,
+  InsetRow,
+  ProgressDial,
+  ScreenHead,
+  StepScroll,
+  springIn,
+  useCommitChoice,
+} from '@/components/onboarding/ios';
+import {
+  Burst,
+  CoupleVisual,
+  CrownBadge,
+  HalfRepDemo,
+  RepCounterVisual,
+  SpaceDiagram,
+  VaultVisual,
+} from '@/components/onboarding/Visuals';
+import { selectionHaptic, successHaptic } from '@/lib/feedback';
 import { HomeWidgetStep } from '@/components/onboarding/HomeWidgetStep';
+import { RepsWidgetStep } from '@/components/onboarding/RepsWidgetStep';
 import { TogetherStep } from '@/components/onboarding/TogetherStep';
 import { checkHandleAtSignIn, mayPassUncheckedHandle } from '@/domain/signInHandle';
 import { fetchOffering, isPurchasesConfigured, purchase, sortPackagesForPaywall } from '@/services/purchases';
@@ -112,9 +138,7 @@ import { gradients, palette, radius, shadow, surfaceShadow } from '@/theme/token
  */
 // Onboarding media — the in-app demo clip and the illustrated value-screen art.
 const DEMO_VIDEO = require('../assets/remove_text_bro_thought_202607272319.mp4');
-const HERO_COUPLE = require('../assets/couple-hero.png');
 const TROPHY_GOLD = require('../assets/trophy-gold.png');
-const BADGE_VS = require('../assets/badge-vs.png');
 const IC_PUSHUP = require('../assets/ic-pushup.png');
 const FIRE_FLAME = require('../assets/fire-flame.png');
 const IC_SCORE = require('../assets/ic-score32.png');
@@ -374,20 +398,15 @@ export default function OnboardingScreen() {
           <ValueScreen
             eyebrow="AI REP COUNTING"
             eyebrowTint={palette.green50}
-            title="Every rep, counted for you"
+            title={'Every rep,\ncounted for you'}
             body="On-device pose tracking follows your body and counts each clean rep the moment you do it."
             points={[
               { icon: '🎯', title: 'Real-time count', sub: 'Reps tick up as you move' },
               { icon: '📐', title: 'Form feedback', sub: 'Depth and tempo, checked live' },
               { icon: '🔒', title: 'Private by design', sub: 'Video never leaves your phone' },
             ]}
-            visual={
-              <Floating distance={7}>
-                <View style={styles.valueBubbleGreen}>
-                  <Image source={IC_PUSHUP} style={styles.valueBubbleImg} contentFit="contain" />
-                </View>
-              </Floating>
-            }
+            aurora={palette.green400}
+            visual={<RepCounterVisual />}
             onNext={next}
           />
         ) : null}
@@ -402,14 +421,8 @@ export default function OnboardingScreen() {
               { icon: '⚔️', title: 'Live duels', sub: 'Race a rival rep-for-rep' },
               { icon: '🔥', title: 'One shared streak', sub: 'Break it and you both lose it' },
             ]}
-            visual={
-              <View style={styles.valueCoupleWrap}>
-                <Image source={HERO_COUPLE} style={styles.valueCoupleImg} contentFit="cover" />
-                <Floating distance={6} delay={300} style={styles.valueBadgeVs}>
-                  <Image source={BADGE_VS} style={{ width: 56, height: 37 }} contentFit="contain" />
-                </Floating>
-              </View>
-            }
+            aurora={palette.purple400}
+            visual={<CoupleVisual />}
             onNext={next}
           />
         ) : null}
@@ -417,13 +430,14 @@ export default function OnboardingScreen() {
           <ValueScreen
             eyebrow="CLIMB THE RANKS"
             eyebrowTint={palette.amber50}
-            title="Every rep counts for something"
+            title={'Every rep counts\nfor something'}
             body="Sets earn XP, XP moves you up a league, and the board resets every Monday. There is always something to chase."
             points={[
               { icon: '🏆', title: 'Weekly leagues', sub: 'Bronze to the top tier' },
               { icon: '⚡', title: 'Earn XP', sub: 'Every rep moves you up' },
               { icon: '📈', title: 'Track progress', sub: 'Personal bests, week over week' },
             ]}
+            aurora={palette.amber300}
             visual={<ProgressChartVisual />}
             onNext={next}
           />
@@ -595,7 +609,7 @@ export default function OnboardingScreen() {
             }}
           />
         ) : null}
-        {step === 21 ? <Paywall plan={plan} onSelect={setPlan} onNext={next} /> : null}
+        {step === 21 ? <Paywall plan={plan} goal={goal} onSelect={setPlan} onNext={next} /> : null}
         {/* The last two land right before the first set, which is where the
             advice actually gets used — a framing tip read fifteen screens
             earlier would be forgotten by the time the camera opens. */}
@@ -611,11 +625,14 @@ export default function OnboardingScreen() {
         {/* The widget, just before the offer: the plan is set and the partner
             is the reason to come back, so this is when a home-screen spot
             for them makes the most sense. Skips itself where unsupported. */}
-        {step === 24 ? <HomeWidgetStep onNext={next} /> : null}
+        {step === 24 ? <HomeWidgetStep onNext={next} username={username} /> : null}
         {/* The partner features are the reason to stay, so the offer follows a
             moment of feeling them rather than a description of them. */}
         {step === 25 ? <TogetherStep onNext={next} /> : null}
-        {step === 26 ? <Offer onDone={finish} /> : null}
+        {/* The Reps widget closes the home-screen setup, just before the offer.
+            Skips itself where unsupported. */}
+        {step === 26 ? <RepsWidgetStep onNext={next} /> : null}
+        {step === 27 ? <Offer onDone={finish} /> : null}
       </Animated.View>
     </View>
   );
@@ -827,49 +844,44 @@ function SignIn({
 
   return (
     <View style={[styles.step, styles.stepPadded]}>
-      <Animated.View entering={FadeInUp.duration(420)} style={{ alignItems: 'center' }}>
-        <View style={[styles.valueEyebrow, { backgroundColor: palette.green50 }]}>
-          <Text style={styles.valueEyebrowText}>KEEP YOUR PROGRESS</Text>
-        </View>
-        <Text style={[text.h1, { fontSize: 27, textAlign: 'center' }]}>Save your plan</Text>
-        <Text style={[text.body, styles.centeredCopy]}>
-          Sign in so your streak, league and personal bests follow you to a new phone.
-        </Text>
-      </Animated.View>
+      <Aurora tint={palette.green400} second={palette.amber300} />
+      <StepScroll>
+      <ScreenHead
+        eyebrow="KEEP YOUR PROGRESS"
+        tint={palette.green50}
+        title="Save your plan"
+        body="Sign in so your streak, league and personal bests follow you to a new phone."
+      />
 
-      {/* What is actually being protected, named. "Your progress" is abstract;
-          a streak, a league and a personal best are things the athlete has
-          just spent fifteen screens being shown. */}
-      <Animated.View entering={FadeIn.duration(600).delay(140)} style={styles.saveVault}>
-        <Floating distance={4} duration={4200}>
-          <View style={styles.saveVaultRow}>
-            {SAVED_ITEMS.map((item, i) => (
-              <StaggerIn key={item.label} index={i} step={110}>
-                <View style={styles.saveVaultItem}>
-                  <View style={[styles.saveVaultIcon, { backgroundColor: item.tint }]}>
-                    <Text style={{ fontSize: 19 }}>{item.icon}</Text>
-                  </View>
-                  <Text style={styles.saveVaultLabel}>{item.label}</Text>
-                </View>
-              </StaggerIn>
-            ))}
-          </View>
-        </Floating>
-      </Animated.View>
+      {/* What is being protected, shown as things orbiting a "saved" badge —
+          a streak, a league and a record are what the athlete has just spent
+          fifteen screens being shown. */}
+      <View style={styles.vaultStage}>
+        <VaultVisual />
+      </View>
+      </StepScroll>
 
-      <View style={{ gap: 12, marginTop: 24 }}>
+      <View style={{ gap: 6 }}>
         {googleReady ? (
-          <StaggerIn index={3} step={110}>
+          <Animated.View entering={springIn(3)}>
             <GoogleButton busy={busy} onPress={onGoogle} />
-          </StaggerIn>
+          </Animated.View>
         ) : null}
-        <StaggerIn index={4} step={110}>
-          <PrimaryButton
-            label={googleReady ? 'Not now' : 'Continue'}
-            onPress={onNext}
-            disabled={busy}
-          />
-        </StaggerIn>
+        <Animated.View entering={springIn(4)}>
+          {googleReady ? (
+            <PressableScale
+              onPress={onNext}
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel="Not now"
+              style={styles.skip}
+            >
+              <Text style={font('extrabold', 15, { color: palette.grey600 })}>Not now</Text>
+            </PressableScale>
+          ) : (
+            <PrimaryButton label="Continue" onPress={onNext} disabled={busy} />
+          )}
+        </Animated.View>
       </View>
 
       {/* Sits under the buttons because it is a reassurance, not an action. */}
@@ -892,13 +904,6 @@ function SignIn({
   );
 }
 
-/** The three things sign-in protects, shown rather than asserted. */
-const SAVED_ITEMS = [
-  { icon: '🔥', label: 'Streak', tint: palette.amber50 },
-  { icon: '🏆', label: 'League', tint: palette.green50 },
-  { icon: '📈', label: 'Records', tint: palette.blue50 },
-] as const;
-
 /**
  * The success beat, given the whole screen.
  *
@@ -913,7 +918,8 @@ function SignedIn({ message, holdMs }: { message: string; holdMs: number }) {
   const fill = useSharedValue(0);
 
   useEffect(() => {
-    tick.value = withSpring(1, { damping: 9, stiffness: 140 });
+    successHaptic();
+    tick.value = withSpring(1, { damping: 7, stiffness: 150 });
     /* Linear on purpose: this is a clock, not a flourish. Easing it would make
        the remaining wait misrepresent itself. */
     fill.value = withTiming(1, { duration: holdMs, easing: Easing.linear });
@@ -930,9 +936,13 @@ function SignedIn({ message, holdMs }: { message: string; holdMs: number }) {
 
   return (
     <View style={[styles.step, styles.stepPadded, styles.signedInScreen]}>
-      <Animated.View style={[styles.signedInBadge, tickStyle]}>
-        <Text style={styles.signedInBadgeTick}>✓</Text>
-      </Animated.View>
+      <Aurora tint={palette.green400} second={palette.amber300} />
+      <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+        <Burst emojis={['✨', '🎉', '⭐']} count={12} />
+        <Animated.View style={[styles.signedInBadge, tickStyle]}>
+          <Text style={styles.signedInBadgeTick}>✓</Text>
+        </Animated.View>
+      </View>
 
       <Animated.Text
         entering={FadeInUp.duration(360).delay(160)}
@@ -1041,6 +1051,7 @@ function ValueScreen({
   visual,
   onNext,
   cta = 'Continue',
+  aurora,
 }: {
   eyebrow: string;
   eyebrowTint: string;
@@ -1050,36 +1061,43 @@ function ValueScreen({
   visual: React.ReactNode;
   onNext: () => void;
   cta?: string;
+  aurora?: string;
 }) {
+  const { height } = useWindowDimensions();
+  // Short phones: shrink the hero rather than push the button off screen.
+  const { fontScale } = useWindowDimensions();
+  const compact = height < 760 || fontScale > 1.3;
+  const tiles = [palette.green100, palette.blue50, palette.amber50];
+
   return (
     <View style={[styles.step, styles.stepPadded]}>
-      <Animated.View entering={FadeInUp.duration(420)} style={{ alignItems: 'center' }}>
-        <View style={[styles.valueEyebrow, { backgroundColor: eyebrowTint }]}>
-          <Text style={styles.valueEyebrowText}>{eyebrow}</Text>
-        </View>
-        <Text style={[text.h1, { fontSize: 27, textAlign: 'center' }]}>{title}</Text>
-        <Text style={[text.body, styles.centeredCopy]}>{body}</Text>
-      </Animated.View>
+      <Aurora tint={aurora} />
+      <StepScroll>
+      <ScreenHead eyebrow={eyebrow} tint={eyebrowTint} title={title} body={body} />
 
-      <Animated.View entering={FadeIn.duration(600).delay(150)} style={styles.valueVisual}>
-        {visual}
-      </Animated.View>
-
-      <View style={{ gap: 12, marginBottom: 20 }}>
-        {points.map((p, i) => (
-          <StaggerIn key={p.title} index={i} step={90}>
-            <View style={styles.valuePoint}>
-              <View style={styles.valuePointIcon}>
-                <Text style={{ fontSize: 17 }}>{p.icon}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={font('extrabold', 14, { color: palette.ink })}>{p.title}</Text>
-                <Text style={text.captionMd}>{p.sub}</Text>
-              </View>
-            </View>
-          </StaggerIn>
-        ))}
+      <View style={[styles.valueVisual, { minHeight: compact ? 200 : 250 }]}>
+        <Animated.View
+          entering={ZoomIn.springify().damping(14).delay(140)}
+          style={compact ? { transform: [{ scale: 0.78 }] } : undefined}
+        >
+          {visual}
+        </Animated.View>
       </View>
+
+      <InsetGroup style={{ marginBottom: 18 }}>
+        {points.map((p, i) => (
+          <InsetRow
+            key={p.title}
+            glyph={p.icon}
+            tile={tiles[i % tiles.length] ?? palette.green100}
+            title={p.title}
+            sub={p.sub}
+            index={i}
+            last={i === points.length - 1}
+          />
+        ))}
+      </InsetGroup>
+      </StepScroll>
 
       <PrimaryButton label={cta} onPress={onNext} />
     </View>
@@ -1218,54 +1236,116 @@ function Photo({
   onPick: () => void;
   onNext: () => void;
 }) {
+  const spin = useSharedValue(0);
+  const pop = useSharedValue(1);
+
+  useEffect(() => {
+    spin.value = withRepeat(withTiming(1, { duration: 7000, easing: Easing.linear }), -1, false);
+  }, [spin]);
+
+  // A chosen photo lands with a pop and a success tick, so it feels received.
+  useEffect(() => {
+    if (!avatarUri) return;
+    successHaptic();
+    pop.value = withSequence(withTiming(1.14, { duration: 130 }), withSpring(1, { damping: 6, stiffness: 220 }));
+  }, [avatarUri, pop]);
+
+  const ringStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${spin.value * 360}deg` }] }));
+  const popStyle = useAnimatedStyle(() => ({ transform: [{ scale: pop.value }] }));
+  const handle = username || 'champion';
+
   return (
     <View style={[styles.step, styles.stepPadded]}>
-      <Text style={text.h1}>Add a profile photo</Text>
-      <Text style={[text.body, { marginTop: 8 }]}>Add a photo to personalize your profile.</Text>
+      <Aurora tint={palette.blue400} second={palette.purple400} />
+      <StepScroll>
+      <ScreenHead
+        title="Put a face to it"
+        body="Rivals and partners see this on every leaderboard and duel."
+      />
 
-      <Card style={styles.photoPreview}>
-        {avatarUri ? (
-          <Image source={{ uri: avatarUri }} style={styles.photoAvatar} />
-        ) : (
-          <View style={[styles.photoAvatar, styles.photoPlaceholder]}>
-            <Text style={font('extrabold', 26, { color: palette.green600 })}>
-              {username ? username.charAt(0).toUpperCase() : '?'}
-            </Text>
+      <View style={styles.photoStage}>
+        <PressableScale
+          onPress={onPick}
+          accessibilityRole="button"
+          accessibilityLabel={avatarUri ? 'Change your photo' : 'Choose a photo from your library'}
+        >
+          <Animated.View entering={ZoomIn.springify().damping(12).delay(120)} style={popStyle}>
+            <View style={styles.photoRingBox}>
+              <Animated.View style={[StyleSheet.absoluteFill, ringStyle]}>
+                <LinearGradient
+                  colors={[palette.green400, palette.blue400, palette.purple400, palette.green400]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.photoRing}
+                />
+              </Animated.View>
+              <View style={styles.photoRingGap}>
+                {avatarUri ? (
+                  <Image source={{ uri: avatarUri }} style={styles.photoBig} />
+                ) : (
+                  <View style={[styles.photoBig, styles.photoPlaceholder]}>
+                    <Text style={font('extrabold', 58, { color: palette.green600 })}>
+                      {handle.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <View style={styles.photoBadge}>
+                <Text style={{ fontSize: 18 }}>{avatarUri ? '✓' : '📷'}</Text>
+              </View>
+            </View>
+          </Animated.View>
+        </PressableScale>
+
+        <Animated.Text entering={springIn(3)} style={styles.photoHandle} {...scaleForRole('heading')}>
+          @{handle}
+        </Animated.Text>
+      </View>
+
+      {/* How it will look where it matters — a leaderboard row. */}
+      <Animated.View entering={springIn(4)}>
+        <InsetGroup>
+          <View style={styles.photoRow}>
+            {avatarUri ? (
+              <Image source={{ uri: avatarUri }} style={styles.photoMini} />
+            ) : (
+              <View style={[styles.photoMini, styles.photoPlaceholder]}>
+                <Text style={font('extrabold', 15, { color: palette.green600 })}>
+                  {handle.charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
+            <View style={{ flex: 1 }}>
+              <Text style={font('extrabold', 15, { color: palette.ink })}>@{handle}</Text>
+              <Text style={text.captionMd}>Bronze I · this week</Text>
+            </View>
+            <Text style={font('extrabold', 15, { color: palette.grey600 })}>0 XP</Text>
           </View>
-        )}
-        <View>
-          <Text style={font('extrabold', 17, { color: palette.ink })}>
-            @{username || 'champion'}
-          </Text>
-          <Text style={text.captionMd}>Profile preview</Text>
-        </View>
-      </Card>
+        </InsetGroup>
+      </Animated.View>
+      </StepScroll>
 
-      <PressableScale
-        onPress={onPick}
-        accessibilityRole="button"
-        accessibilityLabel="Choose a photo from your library"
-        style={styles.photoPicker}
-      >
-        <Text style={{ fontSize: 20 }}>🖼️</Text>
-        <Text style={font('extrabold', 15, { color: palette.green600 })}>
-          {avatarUri ? 'Photo added ✓' : 'Choose from library'}
-        </Text>
-      </PressableScale>
-
-      <View style={{ flex: 1 }} />
-      <PrimaryButton label="Continue" onPress={onNext} />
+      <PrimaryButton label={avatarUri ? 'Looks good' : 'Choose a photo'} onPress={avatarUri ? onNext : onPick} />
       <Pressable
         onPress={onNext}
         accessibilityRole="button"
         accessibilityLabel="Skip for now"
         style={styles.skip}
       >
-        <Text style={font('extrabold', 14, { color: palette.grey600 })}>Skip for now</Text>
+        <Text style={font('extrabold', 14, { color: palette.grey600 })}>
+          {avatarUri ? 'Not now' : 'Skip for now'}
+        </Text>
       </Pressable>
     </View>
   );
 }
+
+const GOAL_HINTS: Readonly<Record<string, string>> = {
+  strength: 'A progressive push and squat plan',
+  reps: 'Hands-free counting on every set',
+  form: 'Depth and tempo, scored live',
+  compete: 'Duels, leagues and rivals',
+};
 
 function Goal({
   selected,
@@ -1274,38 +1354,33 @@ function Goal({
   selected: string | null;
   onSelect: (id: string) => void;
 }) {
+  const { picked, choose } = useCommitChoice<string>(onSelect, selected);
+
   return (
     <View style={[styles.step, styles.stepPadded]}>
-      <Text style={text.h1}>What are you here for?</Text>
-      <Text style={[text.body, { marginTop: 8 }]}>
-        Your answer decides what the app puts in front of you.
-      </Text>
-      <View style={{ gap: 12, marginTop: 24 }}>
-        {GOALS.map((g) => (
-          <PressableScale
+      <Aurora tint={palette.purple400} second={palette.green400} />
+      <StepScroll>
+      <ScreenHead
+        align="left"
+        title="What are you here for?"
+        body="Pick the one that matters most. It decides what the app puts in front of you."
+      />
+      <View style={styles.goalGrid}>
+        {GOALS.map((g, i) => (
+          <ChoiceTile
             key={g.id}
-            onPress={() => onSelect(g.id)}
-            accessibilityRole="radio"
-            accessibilityState={{ selected: selected === g.id }}
-            accessibilityLabel={g.label}
-          >
-            <Card style={styles.goalRow}>
-              <View style={[styles.goalIcon, { backgroundColor: g.tint }]}>
-                <Text style={{ fontSize: 19 }}>{g.emoji}</Text>
-              </View>
-              <Text style={[font('extrabold', 16, { color: palette.ink }), { flex: 1 }]}>
-                {g.label}
-              </Text>
-              <View
-                style={[
-                  styles.radio,
-                  selected === g.id && { borderColor: palette.green600, backgroundColor: palette.green600 },
-                ]}
-              />
-            </Card>
-          </PressableScale>
+            emoji={g.emoji}
+            label={g.label}
+            hint={GOAL_HINTS[g.id] ?? ''}
+            tint={g.tint}
+            selected={picked === g.id}
+            dimmed={picked !== null && picked !== g.id}
+            index={i}
+            onPress={() => choose(g.id)}
+          />
         ))}
       </View>
+      </StepScroll>
     </View>
   );
 }
@@ -1320,71 +1395,72 @@ function Frequency({
   onNext: () => void;
 }) {
   const { fontScale } = useWindowDimensions();
-  const title =
-    value <= 2 ? 'Easy does it' : value <= 4 ? 'Great habit' : value <= 6 ? 'On fire' : 'Elite mode';
-  const note =
-    value <= 2
-      ? 'Perfect for building a routine'
-      : value <= 4
-        ? 'A sustainable, strong pace'
-        : value <= 6
-          ? 'Serious gains incoming'
-          : 'Every single day — respect';
+  const level = value <= 2 ? 0 : value <= 4 ? 1 : value <= 6 ? 2 : 3;
+  const emoji = ['🌱', '⚡', '🔥', '🚀'][level];
+  const tone = [palette.green500, palette.green500, palette.amber500, palette.red500][level];
+  const title = ['Easy does it', 'Great habit', 'On fire', 'Elite mode'][level];
+  const note = [
+    'Perfect for building a routine',
+    'A sustainable, strong pace',
+    'Serious gains incoming',
+    'Every single day. Respect.',
+  ][level];
 
   return (
     <View style={[styles.step, styles.stepPadded]}>
-      <Text style={text.h1}>How many days{'\n'}can you actually commit?</Text>
-      <Text style={[text.body, { marginTop: 8 }]}>
-        Be honest — a goal you hit beats a goal you admire. You can change it later.
-      </Text>
+      <Aurora tint={tone} second={palette.blue400} />
+      <StepScroll>
+      <ScreenHead
+        title={'How many days\ncan you commit?'}
+        body="Be honest. A goal you hit beats a goal you admire."
+      />
 
-      <Card style={styles.frequencyCard}>
-        <View style={styles.frequencyIcon}>
-          <Text style={{ fontSize: 22 }}>📅</Text>
-        </View>
-        <View style={styles.frequencyValue}>
-          <Text style={font('extrabold', 56, { color: palette.green600 })}>{value}</Text>
-          <Text style={font('extrabold', 17, { color: palette.ink })}>days per week</Text>
-        </View>
+      <Animated.View entering={ZoomIn.springify().damping(13).delay(140)} style={styles.freqDial}>
+        <ProgressDial size={196} stroke={16} progress={value / 7} color={tone}>
+          <Animated.View key={emoji} entering={ZoomIn.springify().damping(8)}>
+            <Text style={{ fontSize: 26 }}>{emoji}</Text>
+          </Animated.View>
+          <PopOnChange trigger={value} scale={1.16}>
+            <Text style={styles.freqNumber} {...scaleForRole('display')}>{value}</Text>
+          </PopOnChange>
+          <Text style={styles.freqUnit} {...scaleForRole('control')}>{value === 1 ? 'DAY A WEEK' : 'DAYS A WEEK'}</Text>
+        </ProgressDial>
+      </Animated.View>
 
-        {/* A track with a sliding thumb rather than seven separate buttons: the
-            thumb springs to the tapped day, so changing the goal reads as one
-            continuous control while each day keeps its own large tap target. */}
-        <View style={styles.dayPicker}>
-          <DayThumb value={value} />
-          {[1, 2, 3, 4, 5, 6, 7].map((d) => (
-            <Pressable
-              key={d}
-              onPress={() => onChange(d)}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: value === d }}
-              accessibilityLabel={`${d} days per week`}
-              style={[styles.dayChip, { minHeight: reservedControlHeight(40, fontScale) }]}
+      {/* A track with a sliding thumb: one continuous control, with each day
+          keeping its own large tap target. */}
+      <Animated.View entering={springIn(3)} style={styles.dayPicker}>
+        <DayThumb value={value} />
+        {[1, 2, 3, 4, 5, 6, 7].map((d) => (
+          <Pressable
+            key={d}
+            onPress={() => {
+              if (d !== value) selectionHaptic();
+              onChange(d);
+            }}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: value === d }}
+            accessibilityLabel={`${d} days per week`}
+            style={[styles.dayChip, { minHeight: reservedControlHeight(40, fontScale) }]}
+          >
+            <Text
+              style={font('extrabold', 14, {
+                color: value === d ? palette.white : palette.grey600,
+              })}
+              {...scaleForRole('control')}
             >
-              <Text
-                style={font('extrabold', 14, {
-                  color: value === d ? palette.white : palette.grey600,
-                })}
-                {...scaleForRole('control')}
-              >
-                {d}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+              {d}
+            </Text>
+          </Pressable>
+        ))}
+      </Animated.View>
 
-        <View style={styles.frequencyNote}>
-          <View style={styles.frequencyNoteIcon}>
-            <Text style={{ fontSize: 18 }}>⚡</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={font('extrabold', 15, { color: palette.ink })}>{title}</Text>
-            <Text style={text.captionMd}>{note}</Text>
-          </View>
-        </View>
-      </Card>
+      <Animated.View key={title} entering={FadeIn.duration(260)} style={styles.freqNote}>
+        <Text style={font('extrabold', 16, { color: palette.ink })}>{title}</Text>
+        <Text style={text.captionMd}>{note}</Text>
+      </Animated.View>
+      </StepScroll>
 
-      <View style={{ flex: 1 }} />
       <PrimaryButton label="Continue" onPress={onNext} />
     </View>
   );
@@ -1414,58 +1490,29 @@ function QuestionStep<T extends string>({
   selected: T | null;
   onSelect: (id: T) => void;
 }) {
+  const { picked, choose } = useCommitChoice<T>(onSelect, selected);
+
   return (
     <View style={[styles.step, styles.stepPadded]}>
-      <Animated.View entering={FadeInUp.duration(420)} style={{ alignItems: 'center' }}>
-        <View style={[styles.valueEyebrow, { backgroundColor: eyebrowTint }]}>
-          <Text style={styles.valueEyebrowText}>{eyebrow}</Text>
-        </View>
-        <Text style={[text.h1, { fontSize: 27, textAlign: 'center' }]}>{title}</Text>
-        <Text style={[text.body, styles.centeredCopy]}>{body}</Text>
-      </Animated.View>
+      <Aurora tint={eyebrowTint === palette.amber50 ? palette.amber300 : palette.green400} />
+      <StepScroll>
+      <ScreenHead eyebrow={eyebrow} tint={eyebrowTint} title={title} body={body} />
 
       <View style={{ gap: 12, marginTop: 24 }}>
         {options.map((option, i) => (
-          <StaggerIn key={option.id} index={i} step={80}>
-            <PressableScale
-              onPress={() => onSelect(option.id)}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: selected === option.id }}
-              accessibilityLabel={option.label}
-            >
-              <Card
-                style={[
-                  styles.questionRow,
-                  selected === option.id && styles.questionRowActive,
-                ]}
-              >
-                <View style={styles.questionIcon}>
-                  <Text style={{ fontSize: 21 }}>{option.emoji}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={font('extrabold', 15.5, { color: palette.ink })}>
-                    {option.label}
-                  </Text>
-                  <Text style={text.captionMd}>{option.sub}</Text>
-                </View>
-                <View
-                  style={[
-                    styles.radio,
-                    selected === option.id && {
-                      borderColor: palette.green600,
-                      backgroundColor: palette.green600,
-                    },
-                  ]}
-                >
-                  {selected === option.id ? (
-                    <Text style={font('extrabold', 13, { color: palette.white })}>✓</Text>
-                  ) : null}
-                </View>
-              </Card>
-            </PressableScale>
-          </StaggerIn>
+          <ChoiceRow
+            key={option.id}
+            emoji={option.emoji}
+            label={option.label}
+            sub={option.sub}
+            selected={picked === option.id}
+            dimmed={picked !== null && picked !== option.id}
+            index={i}
+            onPress={() => choose(option.id)}
+          />
         ))}
       </View>
+      </StepScroll>
     </View>
   );
 }
@@ -1755,12 +1802,67 @@ function YourFirstWeek({
       </StaggerIn>
 
       <View style={{ flex: 1 }} />
-      <PrimaryButton
-        label={`Start day one — ${pluralise(opener?.target ?? 0, 'rep')}`}
-        onPress={onNext}
+      <HoldToCommit
+        label={`Hold to commit — ${pluralise(opener?.target ?? 0, 'rep')} on day one`}
+        onCommit={() => {
+          track('onboarding_pledge_made', { weeklyGoal });
+          onNext();
+        }}
       />
       <Text style={styles.commitFootnote}>Takes about 2 minutes · no equipment</Text>
     </View>
+  );
+}
+
+const HOLD_MS = 1100;
+
+/**
+ * A pledge, not a button: press and hold fills the bar, and letting go early
+ * drains it. Saying "I'm in" out loud with a finger is a micro-commitment, and
+ * people follow through on what they have committed to. Screen readers cannot
+ * hold, so the accessibility action commits at once.
+ */
+function HoldToCommit({ label, onCommit }: { label: string; onCommit: () => void }) {
+  const fill = useSharedValue(0);
+  const [done, setDone] = useState(false);
+
+  const finish = useCallback(() => {
+    setDone((d) => {
+      if (d) return d;
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      setTimeout(onCommit, 350);
+      return true;
+    });
+  }, [onCommit]);
+
+  const start = () => {
+    if (done) return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    fill.value = withTiming(1, { duration: HOLD_MS, easing: Easing.linear }, (finished) => {
+      if (finished) runOnJS(finish)();
+    });
+  };
+  const cancel = () => {
+    if (done) return;
+    fill.value = withTiming(0, { duration: 220 });
+  };
+
+  const fillStyle = useAnimatedStyle(() => ({ width: `${fill.value * 100}%` }));
+
+  return (
+    <Pressable
+      onPressIn={start}
+      onPressOut={cancel}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityHint="Press and hold, or double tap, to commit"
+      accessibilityActions={[{ name: 'activate' }]}
+      onAccessibilityAction={finish}
+      style={styles.holdWrap}
+    >
+      <Animated.View style={[styles.holdFill, fillStyle]} />
+      <Text style={styles.holdLabel}>{done ? "You're in 🔥" : label}</Text>
+    </Pressable>
   );
 }
 
@@ -1954,44 +2056,40 @@ function HowRepsCount({
 
   return (
     <View style={[styles.step, styles.stepPadded]}>
-      <Animated.View entering={FadeInUp.duration(420)} style={{ alignItems: 'center' }}>
-        <View style={[styles.valueEyebrow, { backgroundColor: palette.blue50 }]}>
-          <Text style={styles.valueEyebrowText}>WHAT COUNTS</Text>
-        </View>
-        <Text style={[text.h1, { fontSize: 27, textAlign: 'center' }]}>
-          Half reps don’t count
-        </Text>
-        <Text style={[text.body, styles.centeredCopy]}>
-          Depth, tempo and alignment all have to land. A rep that misses gets scored, not
-          silently dropped — so you know why.
-        </Text>
-      </Animated.View>
+      <Aurora tint={palette.blue400} second={palette.green400} />
+      <ScreenHead
+        eyebrow="WHAT COUNTS"
+        tint={palette.blue50}
+        title={'Half reps\ndon’t count'}
+        body="Depth, tempo and alignment all have to land. A rep that misses is scored, not silently dropped, so you know why."
+      />
 
-      <View style={{ marginTop: 24, gap: 12 }}>
-        {[
-          { glyph: '📐', title: 'Depth', sub: 'Full range, or it doesn’t register' },
-          { glyph: '⏱️', title: 'Tempo', sub: 'Too fast reads as a bounce' },
-          { glyph: '📏', title: 'Alignment', sub: 'Hips and back stay in line' },
-        ].map((rule, i) => (
-          <StaggerIn key={rule.title} index={i} step={110}>
-            <RuleRow {...rule} />
-          </StaggerIn>
-        ))}
-      </View>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingTop: 22, paddingBottom: 12, gap: 14 }}
+        showsVerticalScrollIndicator={false}
+      >
+        <Animated.View entering={ZoomIn.springify().damping(14).delay(160)}>
+          <HalfRepDemo />
+        </Animated.View>
 
-      {/* The payoff: the standard just described, attached to their own number.
-          A rule list that ends on "Got it" teaches nothing about why it
-          mattered. */}
-      <StaggerIn index={3} step={110}>
-        <View style={styles.rulePayoff}>
+        <InsetGroup>
+          {[
+            { glyph: '📐', tile: palette.blue50, title: 'Depth', sub: 'Full range, or it doesn’t register' },
+            { glyph: '⏱️', tile: palette.amber50, title: 'Tempo', sub: 'Too fast reads as a bounce' },
+            { glyph: '📏', tile: palette.green100, title: 'Alignment', sub: 'Hips and back stay in line' },
+          ].map((rule, i, all) => (
+            <InsetRow key={rule.title} {...rule} index={i} last={i === all.length - 1} />
+          ))}
+        </InsetGroup>
+
+        {/* The payoff: the standard just described, attached to their own number. */}
+        <Animated.View entering={springIn(7)} style={styles.rulePayoff}>
           <Text style={font('bold', 12.5, { color: palette.green700 })}>
             {username ? `${username}, this week` : 'Your first week'}
           </Text>
           <View style={styles.rulePayoffRow}>
-            <CountUp
-              value={target}
-              style={font('extrabold', 34, { color: palette.ink })}
-            />
+            <CountUp value={target} style={font('extrabold', 34, { color: palette.ink })} />
             <Text style={font('bold', 15, { color: palette.grey600, marginBottom: 5 })}>
               {' '}clean reps
             </Text>
@@ -1999,12 +2097,10 @@ function HowRepsCount({
           <Text style={font('regular', 12, { color: palette.grey600 })}>
             Every one of them counted the same way.
           </Text>
-        </View>
-      </StaggerIn>
+        </Animated.View>
+      </ScrollView>
 
-      <View style={{ marginTop: 'auto' }}>
-        <PrimaryButton label="That’s the standard" onPress={onNext} />
-      </View>
+      <PrimaryButton label="That’s the standard" onPress={onNext} />
     </View>
   );
 }
@@ -2019,66 +2115,40 @@ function HowRepsCount({
 function SetUpYourSpace({ username, onNext }: { username: string; onNext: () => void }) {
   return (
     <View style={[styles.step, styles.stepPadded]}>
-      <Animated.View entering={FadeInUp.duration(420)} style={{ alignItems: 'center' }}>
-        <View style={[styles.valueEyebrow, { backgroundColor: palette.amber50 }]}>
-          <Text style={styles.valueEyebrowText}>BEFORE YOUR FIRST SET</Text>
-        </View>
-        <Text style={[text.h1, { fontSize: 27, textAlign: 'center' }]}>
-          Prop your phone up
-        </Text>
-        <Text style={[text.body, styles.centeredCopy]}>
-          The camera needs your whole body in frame. Two metres back and roughly waist high
-          is the sweet spot.
-        </Text>
-      </Animated.View>
+      <Aurora tint={palette.amber300} second={palette.green400} />
+      <ScreenHead
+        eyebrow="BEFORE YOUR FIRST SET"
+        tint={palette.amber50}
+        title="Prop your phone up"
+        body="The camera needs your whole body in frame. Two metres back and roughly waist high is the sweet spot."
+      />
 
-      {/* The phone drifts gently — the thing being described is a phone
-          standing up watching you, so showing it beats another bullet. */}
-      <View style={styles.spaceStage}>
-        <Floating distance={6}>
-          <View style={styles.spacePhone}>
-            <View style={styles.spacePhoneScreen} />
-          </View>
-        </Floating>
-        <Text style={styles.spaceDistance}>≈ 2 m</Text>
-        <Floating delay={400} distance={5}>
-          <Text style={{ fontSize: 38 }}>🧍</Text>
-        </Floating>
-      </View>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingTop: 26, paddingBottom: 12, gap: 20 }}
+        showsVerticalScrollIndicator={false}
+      >
+        <Animated.View entering={ZoomIn.springify().damping(14).delay(160)}>
+          <SpaceDiagram />
+        </Animated.View>
 
-      <View style={{ marginTop: 20, gap: 12 }}>
-        {[
-          { glyph: '📱', title: 'Lean it against something', sub: 'A wall, a bottle, a book' },
-          { glyph: '↔️', title: 'Step back', sub: 'About two metres from the phone' },
-          { glyph: '💡', title: 'Face the light', sub: 'A window behind you hides you' },
-        ].map((rule, i) => (
-          <StaggerIn key={rule.title} index={i} step={110}>
-            <RuleRow {...rule} />
-          </StaggerIn>
-        ))}
-      </View>
+        <InsetGroup>
+          {[
+            { glyph: '📱', tile: palette.blue50, title: 'Lean it against something', sub: 'A wall, a bottle, a book' },
+            { glyph: '↔️', tile: palette.green100, title: 'Step back', sub: 'About two metres from the phone' },
+            { glyph: '💡', tile: palette.amber50, title: 'Face the light', sub: 'A window behind you hides you' },
+          ].map((rule, i, all) => (
+            <InsetRow key={rule.title} {...rule} index={i} last={i === all.length - 1} />
+          ))}
+        </InsetGroup>
+      </ScrollView>
 
       {/* Ends on the set itself, not on "Ready". This is the last screen
           before the camera opens, so the button should say what happens. */}
-      <View style={{ marginTop: 'auto' }}>
-        <PrimaryButton
-          label={username ? `Start your first set, ${username}` : 'Start your first set'}
-          onPress={onNext}
-        />
-      </View>
-    </View>
-  );
-}
-
-/** Shared row for the two explainer screens above. */
-function RuleRow({ glyph, title, sub }: { glyph: string; title: string; sub: string }) {
-  return (
-    <View style={styles.ruleRow}>
-      <Text style={{ fontSize: 22 }}>{glyph}</Text>
-      <View style={{ flex: 1 }}>
-        <Text style={font('extrabold', 15, { color: palette.ink })}>{title}</Text>
-        <Text style={font('regular', 12.5, { color: palette.grey600 })}>{sub}</Text>
-      </View>
+      <PrimaryButton
+        label={username ? `Start your first set, ${username}` : 'Start your first set'}
+        onPress={onNext}
+      />
     </View>
   );
 }
@@ -2486,10 +2556,12 @@ function Building({ percent }: { percent: number }) {
 
 function Paywall({
   plan,
+  goal,
   onSelect,
   onNext,
 }: {
   plan: 'year' | 'month';
+  goal: string | null;
   onSelect: (p: 'year' | 'month') => void;
   onNext: () => void;
 }) {
@@ -2635,7 +2707,7 @@ function Paywall({
         ) : null}
         <Text style={[text.h1, { fontSize: 27, textAlign: 'center' }]}>{headline}</Text>
         <Text style={[text.body, styles.centeredCopy]}>
-          Every Pro exercise and programme, unlocked. Cancel anytime.
+          {goal ? `Your plan — ${goalPlan(goal).title.toLowerCase()} — with every Pro exercise and programme unlocked. Cancel anytime.` : 'Every Pro exercise and programme, unlocked. Cancel anytime.'}
         </Text>
       </Animated.View>
 
@@ -2847,6 +2919,7 @@ function Offer({ onDone }: { onDone: () => void }) {
 
   return (
     <View style={[styles.step, styles.stepPadded]}>
+      <Aurora tint={showOffer ? palette.green400 : palette.amber300} second={palette.purple400} />
       <Pressable
         onPress={onDone}
         accessibilityRole="button"
@@ -2859,49 +2932,57 @@ function Offer({ onDone }: { onDone: () => void }) {
         <Text style={{ fontSize: 16, color: palette.ink }}>✕</Text>
       </Pressable>
 
-      <Text style={[text.h1, { fontSize: 27, textAlign: 'center', marginTop: 4 }]}>
-        {showOffer ? 'Unlock everything' : "You're all set"}
-      </Text>
+      <StepScroll>
+      <ScreenHead
+        title={showOffer ? 'Unlock everything' : "You're all set"}
+        body={showOffer ? undefined : 'Your plan is built. The next rep is yours.'}
+      />
 
       <View style={styles.offerMiddle}>
         {loading ? (
           <ActivityIndicator color={palette.green500} />
         ) : showOffer ? (
           <>
-            <LinearGradient
-              colors={[palette.green400, palette.green600]}
-              style={styles.offerBadge}
-            >
-              <Text style={{ fontSize: 44 }}>👑</Text>
-              <Text style={font('extrabold', 18, { color: palette.white, marginTop: 4 })}>
-                PRO
-              </Text>
-            </LinearGradient>
+            <Animated.View entering={ZoomIn.springify().damping(11).delay(120)}>
+              <CrownBadge />
+            </Animated.View>
             {/* The store's own localised price string — never a hardcoded figure. */}
-            <Text style={font('extrabold', 22, { color: palette.ink, marginTop: 24 })}>
+            <Animated.Text entering={springIn(3)} style={styles.offerPrice} {...scaleForRole('display')}>
               {annual.product.priceString}
-            </Text>
-            <Text style={[text.captionMd, { marginTop: 4, textAlign: 'center' }]}>
+            </Animated.Text>
+            <Animated.Text entering={springIn(4)} style={[text.captionMd, { marginTop: 2, textAlign: 'center' }]}>
               {annual.product.description || 'Full access to every exercise and programme.'}
-            </Text>
+            </Animated.Text>
+            <InsetGroup style={{ alignSelf: 'stretch', marginTop: 18 }}>
+              {[
+                { glyph: '🏋️', tile: palette.green100, title: 'Every Pro exercise', sub: 'Unlocked from day one' },
+                { glyph: '🗓️', tile: palette.blue50, title: 'Every programme', sub: 'Structured weeks, not guesswork' },
+                { glyph: '✋', tile: palette.amber50, title: 'Cancel anytime', sub: 'In Google Play or App Store settings' },
+              ].map((rule, i, all) => (
+                <InsetRow key={rule.title} {...rule} index={i + 2} last={i === all.length - 1} />
+              ))}
+            </InsetGroup>
           </>
         ) : (
           <>
             {/* Ends onboarding on the plan they just built rather than a stray
                 emoji on a blank page — the three numbers are what they agreed
                 to, restated as a commitment. */}
-            <Floating distance={7}>
-              <View style={styles.offerReadyBubble}>
-                <Image source={TROPHY_GOLD} style={{ width: 126, height: 84 }} contentFit="contain" />
-              </View>
-            </Floating>
-            <Text style={font('extrabold', 21, { color: palette.ink, marginTop: 20 })}>
+            <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+              <Burst />
+              <Floating distance={7}>
+                <Animated.View entering={ZoomIn.springify().damping(8)} style={styles.offerReadyBubble}>
+                  <Image source={TROPHY_GOLD} style={{ width: 126, height: 84 }} contentFit="contain" />
+                </Animated.View>
+              </Floating>
+            </View>
+            <Animated.Text entering={springIn(2)} style={font('extrabold', 21, { color: palette.ink, marginTop: 20 })}>
               Your plan is ready
-            </Text>
+            </Animated.Text>
 
             <View style={styles.readyStats}>
               {READY_STATS.map((stat, i) => (
-                <StaggerIn key={stat.label} index={i} step={120}>
+                <Animated.View key={stat.label} entering={springIn(i + 3, 110)}>
                   <View style={styles.readyStat}>
                     <Text style={{ fontSize: 20 }}>{stat.emoji}</Text>
                     <Text style={font('extrabold', 17, { color: palette.ink, marginTop: 4 })}>
@@ -2909,12 +2990,13 @@ function Offer({ onDone }: { onDone: () => void }) {
                     </Text>
                     <Text style={styles.readyStatLabel}>{stat.label}</Text>
                   </View>
-                </StaggerIn>
+                </Animated.View>
               ))}
             </View>
           </>
         )}
       </View>
+      </StepScroll>
 
       {showOffer ? (
         <>
@@ -2943,6 +3025,53 @@ function Offer({ onDone }: { onDone: () => void }) {
 }
 
 const styles = StyleSheet.create({
+  // iOS-kit screens
+  goalGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 26 },
+  freqDial: { alignItems: 'center', marginTop: 26 },
+  freqNumber: { ...font('extrabold', 64, { color: palette.ink }), letterSpacing: -2.5, lineHeight: 70 },
+  freqUnit: { ...font('extrabold', 10.5, { color: palette.grey600 }), letterSpacing: 2, marginTop: -2 },
+  freqNote: {
+    alignItems: 'center',
+    gap: 2,
+    marginTop: 18,
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    alignSelf: 'center',
+  },
+  photoStage: { alignItems: 'center', marginTop: 26, marginBottom: 22 },
+  photoRingBox: { width: 176, height: 176, alignItems: 'center', justifyContent: 'center' },
+  photoRing: { flex: 1, borderRadius: 88 },
+  photoRingGap: {
+    width: 164,
+    height: 164,
+    borderRadius: 82,
+    backgroundColor: palette.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoBig: { width: 154, height: 154, borderRadius: 77 },
+  photoBadge: {
+    position: 'absolute',
+    right: 6,
+    bottom: 6,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: palette.white,
+    borderWidth: 3,
+    borderColor: palette.green500,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...surfaceShadow,
+  },
+  photoHandle: { ...font('extrabold', 22, { color: palette.ink }), letterSpacing: -0.6, marginTop: 14 },
+  photoRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
+  photoMini: { width: 40, height: 40, borderRadius: 20 },
+  vaultStage: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 190 },
+  offerPrice: { ...font('extrabold', 28, { color: palette.ink }), letterSpacing: -0.8, marginTop: 18 },
+
   root: { flex: 1, backgroundColor: palette.canvas },
   progressRow: {
     flexDirection: 'row',
@@ -3069,7 +3198,7 @@ const styles = StyleSheet.create({
     ...font('extrabold', 10.5, { color: palette.green700 }),
     letterSpacing: 2,
   },
-  valueVisual: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 150 },
+  valueVisual: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 150, marginVertical: 8 },
   valuePoint: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   valuePointIcon: {
     width: 40,
@@ -3140,7 +3269,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   chartAxisLabel: { ...font('bold', 9.5, { color: palette.grey450 }) },
-  chartTrophy: { position: 'absolute', top: -30, right: -6, zIndex: 3 },
+  chartTrophy: { position: 'absolute', top: -12, right: -6, zIndex: 3 },
 
   // Personalised plan / projection / first-week screens
   planVisual: { alignItems: 'center', justifyContent: 'center', marginTop: 24, marginBottom: 8 },
@@ -3170,7 +3299,17 @@ const styles = StyleSheet.create({
     marginTop: 16,
     textAlign: 'center',
   },
-  projectionWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
+  /* Sized by its content (flexBasis auto, never shrinks) and only then grows into
+     spare room. At `flex: 1` it shared the free space equally with the spacer
+     above the button, came out shorter than the chart card, and the card spilled
+     over the note below it. */
+  projectionWrap: {
+    flexGrow: 1,
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
   projectionNote: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -3190,6 +3329,19 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   paywallTrophy: { width: 104, height: 69 },
+  holdWrap: {
+    height: 60,
+    borderRadius: radius.xl,
+    backgroundColor: palette.green50,
+    borderWidth: 2,
+    borderColor: palette.green600,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  holdFill: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: palette.green500 },
+  holdLabel: { ...font('extrabold', 16, { color: palette.ink }), paddingHorizontal: 12, textAlign: 'center' },
+
   commitFootnote: {
     ...text.caption,
     color: palette.grey450,

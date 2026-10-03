@@ -34,10 +34,9 @@ import { firstNameOf, selectHomeGreeting } from '@/domain/homeGreeting';
 import { dailyChallengeProgress } from '@/domain/dailyChallenge';
 import { myExerciseBreakdown, partnerWidget } from '@/domain/coupleExercises';
 import {
-  partnerGoalToday,
+  partnerGlassOf,
   partnerLastDrinkToday,
   nudgeAt,
-  partnerLayersToday,
   partnerRepsToday,
   partnerWaterRevToday,
   partnerHabitsToday,
@@ -231,16 +230,10 @@ export default function HomeScreen() {
   /* The partner's glass on the Today card: present whenever paired, with
      `ml` null until they share water today — so the toast does not vanish
      every morning and reappear once they drink. */
-  const partnerGlass = useMemo(() => {
-    const name = couple.partner?.displayName;
-    if (!couple.paired || !name) return null;
-    return {
-      name,
-      ml: partnerWaterToday(couple.partner, today),
-      goalMl: partnerGoalToday(couple.partner, today),
-      layers: partnerLayersToday(couple.partner, today),
-    };
-  }, [couple.paired, couple.partner, today]);
+  const partnerGlass = useMemo(
+    () => partnerGlassOf(couple.paired, couple.partner, today),
+    [couple.paired, couple.partner, today],
+  );
 
   /* The partner's photo as their profile has it now — the couple doc's copy is
      a pairing-time snapshot, often empty or a path on their phone. */

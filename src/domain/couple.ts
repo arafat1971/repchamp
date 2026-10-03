@@ -900,3 +900,27 @@ export function partnerPokeToday(member: CoupleMember | null | undefined, today:
   const daily = member?.daily;
   return daily && daily.day === today ? daily.poke : undefined;
 }
+
+/**
+ * The partner's glass for the Home hydration card — what makes it show two
+ * pandas instead of one.
+ *
+ * Being paired is the whole condition. It used to also require the partner's
+ * `displayName` to be non-empty, so a pairing whose couple record carried an
+ * empty name (a snapshot taken before they set one) quietly fell back to the
+ * single-panda card even though the two of them were paired. A missing name now
+ * reads as "Partner"; `ml` stays null until they share water today.
+ */
+export function partnerGlassOf(
+  paired: boolean,
+  partner: CoupleMember | null | undefined,
+  today: string,
+): { name: string; ml: number | null; goalMl: number | null; layers: { k: string; ml: number }[] } | null {
+  if (!paired || !partner) return null;
+  return {
+    name: partner.displayName?.trim() || 'Partner',
+    ml: partnerWaterToday(partner, today),
+    goalMl: partnerGoalToday(partner, today),
+    layers: partnerLayersToday(partner, today),
+  };
+}

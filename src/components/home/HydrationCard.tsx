@@ -134,12 +134,14 @@ export function HydrationCard({
   /* Partner, live. The first value is a baseline — opening the app is not
      them drinking. */
   const lastPartner = useRef<number | null>(partnerMl);
+  const [theirPour, setTheirPour] = useState(0);
   const [live, setLive] = useState<{ id: number; ml: number } | null>(null);
   useEffect(() => {
     const before = lastPartner.current;
     lastPartner.current = partnerMl;
     if (before == null || partnerMl == null || partnerMl <= before) return;
     lightImpactHaptic();
+    setTheirPour((n) => n + 1);
     setLive((l) => ({ id: (l?.id ?? 0) + 1, ml: partnerMl - before }));
     const t = setTimeout(() => setLive(null), 3600);
     return () => clearTimeout(t);
@@ -173,6 +175,13 @@ export function HydrationCard({
   /* The pandas' faces follow the day: thirsty when clearly behind, sleepy at
      night, a party once the bottle is finished. */
   const myMood = pandaMood({ met: water.met, pace: pace.status, behindMl: pace.behindMl, hour: clock.getHours() });
+  const theirPace = partnerMl == null ? null : hydrationPace(partnerMl, theirGoal, clock);
+  const theirMood = pandaMood({
+    met: partnerMet,
+    pace: theirPace?.status ?? null,
+    behindMl: theirPace?.behindMl ?? 0,
+    hour: clock.getHours(),
+  });
 
   /* Hold the bear to pour: the amount climbs while held and the bear fills
      with it, so you see the glass land before you let go. */
@@ -221,20 +230,21 @@ export function HydrationCard({
 
   /* ---- Gestures between the pandas ---- */
   const [myGesture, setMyGesture] = useState<{ kind: PandaAction; key: number; giving: boolean } | null>(null);
+  const [theirGesture, setTheirGesture] = useState<{ kind: PandaAction; key: number; giving: boolean } | null>(null);
   const [burst, setBurst] = useState<{ action: PandaAction; key: number; line: string } | null>(null);
   useEffect(() => {
     if (!burst) return;
     const t = setTimeout(() => setBurst(null), 2600);
     return () => clearTimeout(t);
   }, [burst]);
-  const gestureSeq = useRef(0);
-  const gesture = (action: PandaAction) => {
+  const gesture = (action: PandaAction, fromTap = false) => {
     if (!partner || !onGesture || !onGesture(action)) return;
-    gestureSeq.current += 1;
-    const key = gestureSeq.current;
+    const key = Date.now();
     lightImpactHaptic();
     playGestureSound(action);
     setMyGesture({ kind: action, key, giving: true });
+    // A tap on their panda already made it giggle.
+    if (!fromTap) setTheirGesture({ kind: action, key, giving: action !== 'boop' && action !== 'tickle' });
     setBurst({ action, key, line: ACTION_META[action].sent(partner.name) });
   };
   const lastIncoming = useRef(incomingGesture?.key ?? 0);
@@ -245,6 +255,7 @@ export function HydrationCard({
     const t = setTimeout(() => {
       lightImpactHaptic();
       playGestureSound(action);
+      setTheirGesture({ kind: action, key, giving: true });
       setMyGesture({ kind: action, key, giving: action !== 'boop' && action !== 'tickle' });
       setBurst({ action, key, line: ACTION_META[action].got(partner.name) });
     }, 0);
@@ -286,15 +297,7 @@ export function HydrationCard({
               <Text style={styles.sideName} numberOfLines={1}>You · {water.percent}%</Text>
             </View>
 
-            <View style={styles.rival}>
-              <Text style={styles.sideName} numberOfLines={1}>
-                {partner.name}
-                {partnerMl == null ? '' : ` · ${partnerPercent}%`}
-              </Text>
-              <Text style={[styles.rivalAmount, partnerMl == null && { color: IOS.tertiary }]} numberOfLines={1}>
-                {partnerMl == null ? '—' : theirAmount}
-                {partnerMl == null ? null : <Text style={styles.sideUnit}> {theirUnit}</Text>}
-              </Text>
+            <View style={styles.middle}>
               {burst ? null : (
                 <View style={[styles.leadChip, lead.tone === 'me' && styles.leadMe, lead.tone === 'them' && styles.leadThem]}>
                   <Text style={[styles.leadText, lead.tone === 'me' && { color: '#0369A1' }, lead.tone === 'them' && { color: '#6D28D9' }]} numberOfLines={2}>
@@ -307,7 +310,7 @@ export function HydrationCard({
                   key={`l${burst.key}`}
                   entering={FadeInDown.springify().damping(14)}
                   exiting={FadeOutUp.duration(250)}
-                  style={[styles.news, { color: '#6D28D9' }]}
+                  style={[styles.news, styles.newsCenter, { color: '#6D28D9' }]}
                   numberOfLines={2}
                 >
                   {burst.line}
@@ -317,12 +320,36 @@ export function HydrationCard({
                   key={live?.id ?? 'news'}
                   entering={FadeInDown.springify().damping(14)}
                   exiting={FadeOutUp.duration(250)}
-                  style={[styles.news, live ? { color: IOS.water } : null]}
+                  style={[styles.news, styles.newsCenter, live ? { color: IOS.water } : null]}
                   numberOfLines={2}
                 >
                   {news}
                 </Animated.Text>
               ) : null}
+            </View>
+
+            <View style={styles.side}>
+              <PandaJar
+                id="partner"
+                remaining={partnerMl == null ? 100 : 100 - partnerPercent}
+                width={116}
+                outfit="hoodie"
+                mirrored
+                interactive
+                onPoke={() => gesture('tickle', true)}
+                gesture={theirGesture}
+                phase={phase}
+                sipKey={theirPour}
+                mood={theirMood}
+              />
+              <Text style={[styles.sideAmount, partnerMl == null && { color: IOS.tertiary }]} numberOfLines={1}>
+                {partnerMl == null ? '—' : theirAmount}
+                {partnerMl == null ? null : <Text style={styles.sideUnit}> {theirUnit}</Text>}
+              </Text>
+              <Text style={styles.sideName} numberOfLines={1}>
+                {partner.name}
+                {partnerMl == null ? '' : ` · ${partnerPercent}%`}
+              </Text>
             </View>
           </View>
         ) : (
@@ -743,8 +770,6 @@ const styles = StyleSheet.create({
   sideAmount: { ...font('extrabold', 20, { color: IOS.label, marginTop: 6 }), letterSpacing: -0.5, fontVariant: ['tabular-nums'] },
   sideUnit: font('semibold', 12, { color: IOS.secondary }),
   sideName: font('semibold', 11.5, { color: IOS.secondary, marginTop: 1 }),
-  rival: { flex: 1, alignItems: 'flex-start', justifyContent: 'center', alignSelf: 'center', gap: 4, paddingLeft: 8 },
-  rivalAmount: { ...font('extrabold', 26, { color: IOS.label }), letterSpacing: -0.6, fontVariant: ['tabular-nums'] },
   middle: { flex: 1, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', gap: 6 },
   leadChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: IOS.fill },
   leadMe: { backgroundColor: 'rgba(50,173,230,0.14)' },

@@ -72,6 +72,7 @@ import {
   InsetRow,
   ProgressDial,
   ScreenHead,
+  StepScroll,
   springIn,
   useCommitChoice,
 } from '@/components/onboarding/ios';
@@ -844,6 +845,7 @@ function SignIn({
   return (
     <View style={[styles.step, styles.stepPadded]}>
       <Aurora tint={palette.green400} second={palette.amber300} />
+      <StepScroll>
       <ScreenHead
         eyebrow="KEEP YOUR PROGRESS"
         tint={palette.green50}
@@ -857,6 +859,7 @@ function SignIn({
       <View style={styles.vaultStage}>
         <VaultVisual />
       </View>
+      </StepScroll>
 
       <View style={{ gap: 6 }}>
         {googleReady ? (
@@ -1062,15 +1065,17 @@ function ValueScreen({
 }) {
   const { height } = useWindowDimensions();
   // Short phones: shrink the hero rather than push the button off screen.
-  const compact = height < 760;
+  const { fontScale } = useWindowDimensions();
+  const compact = height < 760 || fontScale > 1.3;
   const tiles = [palette.green100, palette.blue50, palette.amber50];
 
   return (
     <View style={[styles.step, styles.stepPadded]}>
       <Aurora tint={aurora} />
+      <StepScroll>
       <ScreenHead eyebrow={eyebrow} tint={eyebrowTint} title={title} body={body} />
 
-      <View style={[styles.valueVisual, compact && { minHeight: 170 }]}>
+      <View style={[styles.valueVisual, { minHeight: compact ? 200 : 250 }]}>
         <Animated.View
           entering={ZoomIn.springify().damping(14).delay(140)}
           style={compact ? { transform: [{ scale: 0.78 }] } : undefined}
@@ -1092,6 +1097,7 @@ function ValueScreen({
           />
         ))}
       </InsetGroup>
+      </StepScroll>
 
       <PrimaryButton label={cta} onPress={onNext} />
     </View>
@@ -1251,6 +1257,7 @@ function Photo({
   return (
     <View style={[styles.step, styles.stepPadded]}>
       <Aurora tint={palette.blue400} second={palette.purple400} />
+      <StepScroll>
       <ScreenHead
         title="Put a face to it"
         body="Rivals and partners see this on every leaderboard and duel."
@@ -1316,8 +1323,8 @@ function Photo({
           </View>
         </InsetGroup>
       </Animated.View>
+      </StepScroll>
 
-      <View style={{ flex: 1 }} />
       <PrimaryButton label={avatarUri ? 'Looks good' : 'Choose a photo'} onPress={avatarUri ? onNext : onPick} />
       <Pressable
         onPress={onNext}
@@ -1352,6 +1359,7 @@ function Goal({
   return (
     <View style={[styles.step, styles.stepPadded]}>
       <Aurora tint={palette.purple400} second={palette.green400} />
+      <StepScroll>
       <ScreenHead
         align="left"
         title="What are you here for?"
@@ -1372,6 +1380,7 @@ function Goal({
           />
         ))}
       </View>
+      </StepScroll>
     </View>
   );
 }
@@ -1400,6 +1409,7 @@ function Frequency({
   return (
     <View style={[styles.step, styles.stepPadded]}>
       <Aurora tint={tone} second={palette.blue400} />
+      <StepScroll>
       <ScreenHead
         title={'How many days\ncan you commit?'}
         body="Be honest. A goal you hit beats a goal you admire."
@@ -1449,8 +1459,8 @@ function Frequency({
         <Text style={font('extrabold', 16, { color: palette.ink })}>{title}</Text>
         <Text style={text.captionMd}>{note}</Text>
       </Animated.View>
+      </StepScroll>
 
-      <View style={{ flex: 1 }} />
       <PrimaryButton label="Continue" onPress={onNext} />
     </View>
   );
@@ -1485,6 +1495,7 @@ function QuestionStep<T extends string>({
   return (
     <View style={[styles.step, styles.stepPadded]}>
       <Aurora tint={eyebrowTint === palette.amber50 ? palette.amber300 : palette.green400} />
+      <StepScroll>
       <ScreenHead eyebrow={eyebrow} tint={eyebrowTint} title={title} body={body} />
 
       <View style={{ gap: 12, marginTop: 24 }}>
@@ -1501,6 +1512,7 @@ function QuestionStep<T extends string>({
           />
         ))}
       </View>
+      </StepScroll>
     </View>
   );
 }
@@ -2920,6 +2932,7 @@ function Offer({ onDone }: { onDone: () => void }) {
         <Text style={{ fontSize: 16, color: palette.ink }}>✕</Text>
       </Pressable>
 
+      <StepScroll>
       <ScreenHead
         title={showOffer ? 'Unlock everything' : "You're all set"}
         body={showOffer ? undefined : 'Your plan is built. The next rep is yours.'}
@@ -2983,6 +2996,7 @@ function Offer({ onDone }: { onDone: () => void }) {
           </>
         )}
       </View>
+      </StepScroll>
 
       {showOffer ? (
         <>
@@ -3184,7 +3198,7 @@ const styles = StyleSheet.create({
     ...font('extrabold', 10.5, { color: palette.green700 }),
     letterSpacing: 2,
   },
-  valueVisual: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 150 },
+  valueVisual: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 150, marginVertical: 8 },
   valuePoint: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   valuePointIcon: {
     width: 40,

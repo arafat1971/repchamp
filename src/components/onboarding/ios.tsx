@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   Easing,
   FadeInDown,
@@ -33,6 +33,24 @@ const AnimatedCircle = Animated.createAnimatedComponent(Circle);
  * selections that confirm themselves — a check that pops, a tile that lifts —
  * before the flow moves on. Everything runs on the UI thread.
  */
+
+/**
+ * The body of a step, scrollable so large system text can never push the action
+ * button off screen. Short content still fills the height (`flexGrow`), so
+ * spacers and centred heroes behave exactly as they do without the scroll.
+ */
+export function StepScroll({ children }: { children: ReactNode }) {
+  return (
+    <ScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={{ flexGrow: 1, paddingBottom: 12 }}
+      showsVerticalScrollIndicator={false}
+      bounces={false}
+    >
+      {children}
+    </ScrollView>
+  );
+}
 
 /** A spring entrance: rises, overshoots a hair, settles. `i` staggers siblings. */
 export const springIn = (i = 0, step = 70) =>

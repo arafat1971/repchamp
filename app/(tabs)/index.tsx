@@ -816,7 +816,7 @@ export default function HomeScreen() {
       <View style={styles.afterWeek} />
 
       {morning && morning.show && partnerGlass ? (
-        <View style={styles.summaryGap}>
+        <View style={styles.morningGap}>
           <MorningCard
             name={partnerGlass.name}
             yesterday={morning.yesterday}
@@ -1218,6 +1218,10 @@ function QuickTile({
 const styles = StyleSheet.create({
   tabular: { fontVariant: ['tabular-nums'] },
   summaryGap: { marginBottom: 12 },
+  /* The morning card sits right above the hero, which has no top margin of
+     its own — at 12 the two read as one slab with the white card's corners
+     tucked under the green one. */
+  morningGap: { marginBottom: 20 },
   statusFade: { position: 'absolute', top: 0, left: 0, right: 0 },
 
   // Masthead

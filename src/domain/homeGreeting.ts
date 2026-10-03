@@ -3,6 +3,8 @@
  * header feels like a coach, not a clock.
  */
 
+import { challengeXpReward } from '@/domain/dailyChallenge';
+
 export type HomeGreeting = {
   /** Short line above the name, e.g. "Ready for today's streak?" */
   hook: string;
@@ -22,7 +24,7 @@ function timeOfDayLabel(hour: number): string {
  * Pick a greeting from local clock + streak state.
  *
  * Bonus copy only appears before 18:00 when the athlete still needs a set
- * today — a small XP nudge, not a permanent badge.
+ * today — the real challenge reward, not a permanent badge.
  */
 export function selectHomeGreeting(input: {
   hour?: number;
@@ -47,9 +49,13 @@ export function selectHomeGreeting(input: {
     hook = 'Trained today';
   }
 
+  /* The chip names what clearing the challenge actually pays, read from the same
+     rule the Daily screen uses. It used to promise "+5 XP if you finish before
+     6 PM" — a bonus no code ever granted, so the app advertised XP it did not
+     pay. */
   const bonus =
     !input.trainedToday && hour < 18
-      ? '+5 XP if you finish before 6 PM'
+      ? `+${challengeXpReward()} XP for clearing it`
       : !input.trainedToday && hour >= 18
         ? 'Night set still counts'
         : null;

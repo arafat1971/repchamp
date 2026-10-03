@@ -5,6 +5,7 @@ import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { HomeCard } from '@/components/ui/HomeCard';
 import { consistencyFor, type StreakState } from '@/domain/consistency';
 import { consistencyGrid, type GridCell } from '@/domain/progressSummary';
+import { pluralise } from '@/domain/plural';
 import { weekStrip } from '@/domain/weekStrip';
 import { selectBestStreak, useProfileStore, type SessionSummary } from '@/state/profileStore';
 import { font } from '@/theme/typography';
@@ -74,7 +75,7 @@ export function ConsistencyCard({ sessions }: { sessions: readonly SessionSummar
       <Text style={styles.line}>{c.line}</Text>
 
       {c.milestone ? (
-        <View style={styles.block} accessibilityLabel={`${c.milestone.daysToGo} days to a ${c.milestone.target} day streak`}>
+        <View style={styles.block} accessibilityLabel={`${pluralise(c.milestone.daysToGo, 'day')} to a ${c.milestone.target} day streak`}>
           <View style={styles.rowBetween}>
             <Text style={styles.blockLabel}>Next milestone · {c.milestone.target} days</Text>
             <Text style={styles.blockValue}>{c.milestone.daysToGo} to go</Text>
@@ -142,7 +143,7 @@ export function ConsistencyCard({ sessions }: { sessions: readonly SessionSummar
       </View>
 
       <View style={styles.stats}>
-        <Stat value={`${Math.max(best, c.streak)}`} label="Best streak" unit="days" />
+        <Stat value={`${Math.max(best, c.streak)}`} label="Best streak" unit={Math.max(best, c.streak) === 1 ? 'day' : 'days'} />
         <Stat value={`${c.last28.pct}%`} label="Last 28 days" />
         <Stat value={c.favouriteDay ? c.favouriteDay.slice(0, 3) : '—'} label="Favourite day" />
       </View>

@@ -1,3 +1,4 @@
+import { challengeXpReward } from '@/domain/dailyChallenge';
 import { firstNameOf, selectHomeGreeting } from '@/domain/homeGreeting';
 
 describe('selectHomeGreeting', () => {
@@ -10,7 +11,9 @@ describe('selectHomeGreeting', () => {
     });
     expect(g.timeOfDay).toBe('Good morning');
     expect(g.hook).toContain('streak');
-    expect(g.bonus).toContain('+5 XP');
+    /* The chip must name what clearing the challenge really pays — it once
+       promised a +5 XP early bonus that no code granted. */
+    expect(g.bonus).toContain(`+${challengeXpReward()} XP`);
   });
 
   it('skips the deadline bonus after 6 PM', () => {

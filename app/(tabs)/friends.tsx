@@ -592,10 +592,10 @@ export default function FriendsScreen() {
                     />
                     <View style={{ flex: 1 }}>
                       <Text style={text.cardTitle} numberOfLines={1}>
-                        {a.displayName}
+                        {discoveryTitle(a)}
                       </Text>
                       <Text style={font('semibold', 11, { color: palette.grey600 })}>
-                        {a.username ? `@${a.username}` : 'Just joined'}
+                        {isPlaceholderName(a) ? 'New athlete' : a.username ? `@${a.username}` : 'Just joined'}
                       </Text>
                     </View>
                   </PressableScale>
@@ -720,6 +720,19 @@ export default function FriendsScreen() {
 
     </Screen>
   );
+}
+
+/**
+ * Accounts that never set a name carry the app's placeholder, "Champion". Three
+ * of them in a row are indistinguishable, so discovery leads with the handle
+ * instead — the one thing that tells them apart.
+ */
+function isPlaceholderName(a: { displayName: string; username?: string | null }): boolean {
+  return a.displayName === 'Champion' && Boolean(a.username);
+}
+
+function discoveryTitle(a: { displayName: string; username?: string | null }): string {
+  return isPlaceholderName(a) ? (a.username as string) : a.displayName;
 }
 
 const styles = StyleSheet.create({

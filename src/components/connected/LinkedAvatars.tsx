@@ -51,7 +51,7 @@ export function LinkedAvatars({
       <View style={styles.link}>
         <View style={[styles.line, lit ? styles.lineLit : styles.lineDim]} />
         <Animated.View style={[styles.heart, heartStyle, !lit && styles.heartDim]}>
-          <Text style={styles.heartGlyph}>{lit ? '♥' : '·'}</Text>
+          <Text style={[styles.heartGlyph, !lit && styles.heartGlyphDim]}>{lit ? '♥' : '♡'}</Text>
         </Animated.View>
       </View>
       <View style={[styles.ring, { borderRadius: size }]}>
@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
   link: { width: 52, alignItems: 'center', justifyContent: 'center' },
   line: { position: 'absolute', left: 0, right: 0, height: 3, borderRadius: 2 },
   lineLit: { backgroundColor: palette.green400 },
-  lineDim: { backgroundColor: 'rgba(255,255,255,0.25)' },
+  lineDim: { backgroundColor: 'rgba(255,255,255,0.55)' },
   heart: {
     width: 26,
     height: 26,
@@ -76,6 +76,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  heartDim: { backgroundColor: 'rgba(255,255,255,0.35)' },
+  heartDim: { backgroundColor: 'rgba(255,255,255,0.9)' },
+  heartGlyphDim: { color: palette.grey500 },
   heartGlyph: { fontSize: 14, lineHeight: 17, color: palette.red500 },
 });

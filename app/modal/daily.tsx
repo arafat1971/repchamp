@@ -124,7 +124,9 @@ export default function DailyChallengeScreen() {
               <Text style={styles.bondGlyph}>♥</Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.bondTitle}>{bondLine(bondToday, partnerName)}</Text>
+              <Text style={styles.bondTitle} numberOfLines={1}>
+                {bondLine(bondToday, partnerName)}
+              </Text>
               <Text style={styles.bondSub}>Open today, together</Text>
             </View>
             <Text style={styles.chevron}>›</Text>
@@ -154,13 +156,13 @@ export default function DailyChallengeScreen() {
 function bondLine(status: string | null, partnerName: string): string {
   switch (status) {
     case 'both':
-      return `You and ${partnerName} both trained today`;
+      return 'You both trained today';
     case 'mine':
-      return `You’re in — waiting on ${partnerName}`;
+      return `Waiting on ${partnerName}`;
     case 'theirs':
       return `${partnerName} trained — your turn`;
     default:
-      return `Your bond streak needs you both today`;
+      return 'Your streak needs you both';
   }
 }
 

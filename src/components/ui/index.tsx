@@ -26,6 +26,7 @@ import { reservedControlHeight } from '@/theme/fontScale';
 import { scaleFor, scaleForRole, text } from '@/theme/typography';
 import { gradients, palette, radius, shadow, space, SCREEN_GUTTER, type Gradient } from '@/theme/tokens';
 import { lightImpactHaptic } from '@/lib/feedback';
+import { AiAvatar, aiPersonaForEmoji, aiPersonaForId } from './AiAvatar';
 
 export { Skeleton, SkeletonCircle } from './Skeleton';
 export { EmptyState, ErrorState } from './EmptyState';
@@ -381,6 +382,7 @@ export function ProgressBar({
 export function Avatar({
   initial,
   emoji,
+  ai,
   uri,
   size = 44,
   background = palette.green50,
@@ -391,6 +393,8 @@ export function Avatar({
   initial: string;
   /** App-owned emoji avatar (e.g. AI partners). Wins over `initial` when set. */
   emoji?: string;
+  /** An AI partner's id (roster or built-in rival) — draws its illustrated avatar. */
+  ai?: string;
   uri?: string | null;
   size?: number;
   background?: string;
@@ -399,6 +403,8 @@ export function Avatar({
   online?: boolean;
 }) {
   const borderRadius = square ? size * 0.32 : size / 2;
+  /* The app's AI characters are drawn, not emoji. */
+  const persona = uri ? null : (aiPersonaForId(ai) ?? aiPersonaForEmoji(emoji));
   return (
     <View>
       <View
@@ -414,6 +420,8 @@ export function Avatar({
       >
         {uri ? (
           <Image source={{ uri }} style={{ width: size, height: size }} contentFit="cover" />
+        ) : persona ? (
+          <AiAvatar persona={persona} size={size} />
         ) : emoji ? (
           <Text style={{ fontSize: size * 0.5 }}>{emoji}</Text>
         ) : (

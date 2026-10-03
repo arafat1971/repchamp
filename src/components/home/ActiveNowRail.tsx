@@ -140,7 +140,7 @@ export function ActiveNowRail({ live }: { live?: string } = {}) {
             name={o.name}
             meta={`Lv ${o.level}`}
             rpm={o.repsPerMinute}
-            avatar={<Avatar initial={o.initial} size={50} background={o.color} color={palette.white} online />}
+            avatar={<Avatar initial={o.initial} ai={o.id} size={50} background={o.color} color={palette.white} online />}
             onPress={() => raceAi(o.id)}
           />
         ))}

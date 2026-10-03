@@ -14,6 +14,9 @@ import { ExerciseLibrary } from '@/components/ExerciseLibrary';
 import { YogaGlyph } from '@/components/YogaGlyph';
 import { ProgrammeCard } from '@/components/ProgrammeCard';
 import { WeekRepsCard } from '@/components/train/WeekRepsCard';
+import { TrainSegments } from '@/components/train/TrainSegments';
+import { UpNextCard } from '@/components/train/UpNextCard';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { weekReps } from '@/domain/weekReps';
 import { HomeSectionHeader } from '@/components/home/HomeSectionHeader';
 import { ArrowIcon, CheckIcon, FlameIcon, LockIcon } from '@/components/home/Icons';
@@ -47,6 +50,14 @@ import { reservedControlHeight } from '@/theme/fontScale';
 import { font, scaleForRole } from '@/theme/typography';
 import { SCREEN_GUTTER, palette, radius, surfaceShadow } from '@/theme/tokens';
 
+type Section = 'strength' | 'yoga' | 'mind' | 'together';
+const SECTIONS: readonly { id: Section; label: string }[] = [
+  { id: 'strength', label: 'Strength' },
+  { id: 'yoga', label: 'Yoga' },
+  { id: 'mind', label: 'Mind' },
+  { id: 'together', label: 'Together' },
+];
+
 /** Rep milestones on the roadmap, in order. */
 const MILESTONES = [5, 10, 15, 25, 40] as const;
 
@@ -68,6 +79,7 @@ export default function TrainScreen() {
   const self = useSelfPlayer();
   const { paired, partner, streak, combined } = useCouple();
   const [starting, setStarting] = useState(false);
+  const [section, setSection] = useState<Section>('strength');
   const mindfulLog = useMindfulStore((s) => s.log);
   const week = lastNDayKeys(7);
   const yogaWeek = minutesOn(mindfulLog, 'yoga', week);
@@ -96,6 +108,12 @@ export default function TrainScreen() {
     repsSoFar: totalReps,
     billingReady: isPurchasesConfigured(),
   });
+
+  /* What to do next: whichever staple has not been done today, push-ups first.
+     Both done → a bonus set, still pointed at the lighter day. */
+  const trainedToday = pushStats.todayBest > 0 || squatStats.todayBest > 0;
+  const upNext: ExerciseId =
+    pushStats.todayBest === 0 ? 'push' : squatStats.todayBest === 0 ? 'squat' : 'push';
 
   const nextMilestone = MILESTONES.find((m) => m > best) ?? MILESTONES[MILESTONES.length - 1]!;
 
@@ -199,6 +217,25 @@ export default function TrainScreen() {
           />
         </StaggerIn>
 
+        <StaggerIn index={1} style={{ marginTop: 14 }}>
+          <UpNextCard
+            exercise={upNext === 'squat' ? 'squat' : 'push'}
+            streak={streakDays}
+            trainedToday={trainedToday}
+            locked={soloWalled}
+            onStart={() => practice(upNext)}
+          />
+        </StaggerIn>
+
+        <StaggerIn index={2} style={{ marginTop: 18 }}>
+          <TrainSegments options={SECTIONS} value={section} onChange={setSection} />
+        </StaggerIn>
+
+        {/* Keyed so each switch replays the fade — the page reads as changing,
+            not as one section silently swapping for another. */}
+        <Animated.View key={section} entering={FadeIn.duration(220)}>
+          {section === 'strength' ? (
+            <>
         {/* The training programme leads: it's the guided path, above free practice. */}
         <StaggerIn index={1} style={{ marginTop: 16 }}>
           <ProgrammeCard />
@@ -236,6 +273,58 @@ export default function TrainScreen() {
           />
         </StaggerIn>
 
+        <HomeSectionHeader title="Personal bests" />
+        <StaggerIn index={3}>
+          <View style={styles.card}>
+            <View style={styles.bestHead}>
+              <View style={[styles.bestGlyph, { backgroundColor: `${PUSH}14` }]}>
+                <ExerciseGlyph exercise="push" size={28} color={PUSH} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.bestLabel}>Push-ups in a row</Text>
+                <Text style={styles.bestCaption} numberOfLines={2}>
+                  {best === 0
+                    ? 'Finish a set to log your first max'
+                    : best >= nextMilestone
+                      ? 'Top milestone cleared — keep pushing'
+                      : `${pluralise(nextMilestone - best, 'rep')} to ${nextMilestone}`}
+                </Text>
+              </View>
+              <CountUp value={best} style={[styles.bestNumber, { color: PUSH }]} />
+            </View>
+
+            <Roadmap best={best} next={nextMilestone} />
+
+            <View style={styles.divider} />
+
+            <View style={styles.bestHead}>
+              <View style={[styles.bestGlyph, { backgroundColor: `${SQUAT}14` }]}>
+                <ExerciseGlyph exercise="squat" size={28} color={SQUAT} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.bestLabel}>Squats in a row</Text>
+                <Text style={styles.bestCaption} numberOfLines={2}>
+                  {squatBest === 0
+                    ? 'Finish a squat set to log your max'
+                    : 'Keep chasing a deeper, cleaner rep'}
+                </Text>
+              </View>
+              <CountUp value={squatBest} style={[styles.bestNumber, { color: SQUAT }]} />
+            </View>
+          </View>
+        </StaggerIn>
+
+        <HomeSectionHeader
+          title="Library"
+          right={<Text style={styles.sectionMeta}>{isPro ? 'All unlocked' : 'Pro'}</Text>}
+        />
+        <StaggerIn index={4}>
+          <ExerciseLibrary />
+        </StaggerIn>
+            </>
+          ) : null}
+          {section === 'yoga' ? (
+            <>
         {/* Yoga and meditation: timed and guided rather than camera-counted,
             and finishing one ticks the matching ritual habit. */}
         <HomeSectionHeader
@@ -264,6 +353,10 @@ export default function TrainScreen() {
           </ScrollView>
         </StaggerIn>
 
+            </>
+          ) : null}
+          {section === 'mind' ? (
+            <>
         <HomeSectionHeader
           title="Meditate"
           right={
@@ -283,6 +376,10 @@ export default function TrainScreen() {
           ))}
         </StaggerIn>
 
+            </>
+          ) : null}
+          {section === 'together' ? (
+            <>
         <HomeSectionHeader title="Together" />
         {/* The one dark surface on the tab, like the streak tile on Home: the
             couple set is the thing only this app does. */}
@@ -347,54 +444,9 @@ export default function TrainScreen() {
           </View>
         </StaggerIn>
 
-        <HomeSectionHeader title="Personal bests" />
-        <StaggerIn index={3}>
-          <View style={styles.card}>
-            <View style={styles.bestHead}>
-              <View style={[styles.bestGlyph, { backgroundColor: `${PUSH}14` }]}>
-                <ExerciseGlyph exercise="push" size={28} color={PUSH} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.bestLabel}>Push-ups in a row</Text>
-                <Text style={styles.bestCaption} numberOfLines={2}>
-                  {best === 0
-                    ? 'Finish a set to log your first max'
-                    : best >= nextMilestone
-                      ? 'Top milestone cleared — keep pushing'
-                      : `${pluralise(nextMilestone - best, 'rep')} to ${nextMilestone}`}
-                </Text>
-              </View>
-              <CountUp value={best} style={[styles.bestNumber, { color: PUSH }]} />
-            </View>
-
-            <Roadmap best={best} next={nextMilestone} />
-
-            <View style={styles.divider} />
-
-            <View style={styles.bestHead}>
-              <View style={[styles.bestGlyph, { backgroundColor: `${SQUAT}14` }]}>
-                <ExerciseGlyph exercise="squat" size={28} color={SQUAT} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.bestLabel}>Squats in a row</Text>
-                <Text style={styles.bestCaption} numberOfLines={2}>
-                  {squatBest === 0
-                    ? 'Finish a squat set to log your max'
-                    : 'Keep chasing a deeper, cleaner rep'}
-                </Text>
-              </View>
-              <CountUp value={squatBest} style={[styles.bestNumber, { color: SQUAT }]} />
-            </View>
-          </View>
-        </StaggerIn>
-
-        <HomeSectionHeader
-          title="Library"
-          right={<Text style={styles.sectionMeta}>{isPro ? 'All unlocked' : 'Pro'}</Text>}
-        />
-        <StaggerIn index={4}>
-          <ExerciseLibrary />
-        </StaggerIn>
+            </>
+          ) : null}
+        </Animated.View>
       </Screen>
       {/* Same status-bar fade as Home, so cards slip under the clock. */}
       <LinearGradient

@@ -1,5 +1,7 @@
+import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ProgressRing } from '@/components/connected/ProgressRing';
 import { CountUp } from '@/components/motion';
@@ -34,6 +36,8 @@ export function WeekRepsCard({
       : diff === 0
         ? 'Level with last week'
         : `${diff > 0 ? '+' : '−'}${Math.abs(diff).toLocaleString()} vs last week`;
+  const [picked, setPicked] = useState<string | null>(null);
+  const pickedDay = week.days.find((d) => d.day === picked) ?? null;
   const hit = daysTrained >= goal;
   const percent = goal > 0 ? (daysTrained / goal) * 100 : 0;
 
@@ -81,21 +85,40 @@ export function WeekRepsCard({
 
       <View style={styles.days}>
         {week.days.map((d) => (
-          <View key={d.day} style={styles.dayCol}>
+          <Pressable
+            key={d.day}
+            style={styles.dayCol}
+            accessibilityRole="button"
+            accessibilityLabel={`${d.letter}, ${d.reps} reps`}
+            onPress={() => {
+              void Haptics.selectionAsync();
+              setPicked((cur) => (cur === d.day ? null : d.day));
+            }}
+          >
             <View
               style={[
                 styles.dot,
                 d.reps > 0 && styles.dotOn,
                 d.isToday && styles.dotToday,
                 d.isFuture && styles.dotFuture,
+                picked === d.day && styles.dotPicked,
               ]}
             >
               {d.reps > 0 ? <CheckIcon size={12} color={palette.green900} strokeWidth={3} /> : null}
             </View>
             <Text style={[styles.letter, d.isToday && styles.letterToday]}>{d.letter}</Text>
-          </View>
+          </Pressable>
         ))}
       </View>
+      <Text style={styles.pickLine}>
+        {pickedDay
+          ? pickedDay.reps > 0
+            ? `${pickedDay.reps.toLocaleString()} reps on ${pickedDay.isToday ? 'today' : 'this day'}`
+            : pickedDay.isFuture
+              ? 'Still to come'
+              : 'Rest day — no reps logged'
+          : 'Tap a day to see its reps'}
+      </Text>
     </LinearGradient>
   );
 }
@@ -159,6 +182,8 @@ const styles = StyleSheet.create({
   },
   dotOn: { backgroundColor: palette.green400 },
   dotToday: { borderWidth: 2, borderColor: palette.white },
+  dotPicked: { transform: [{ scale: 1.18 }] },
+  pickLine: { ...font('semibold', 12, { color: 'rgba(255,255,255,0.6)' }), textAlign: 'center', marginTop: 10 },
   dotFuture: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.2)' },
   letter: font('bold', 11.5, { color: 'rgba(255,255,255,0.55)' }),
   letterToday: { color: palette.white },

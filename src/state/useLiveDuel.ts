@@ -22,7 +22,7 @@ import {
   type Duel,
   type DuelSeat,
 } from '@/domain/duel';
-import { clampDuelRepJump } from '@/domain/fairPlay';
+import { clampDuelRepJump, shouldPushLive } from '@/domain/fairPlay';
 import {
   fetchDuel,
   finishDuel,
@@ -66,6 +66,10 @@ export function useLiveDuel(duelId: string | null | undefined): LiveDuel {
   const lastPushAtRef = useRef<number>(0);
   /** Last reps value we intended for the cloud seat (fair-jump baseline). */
   const lastSentRepsRef = useRef(0);
+  /** Form score of the last successful write, or null before the first. */
+  const lastSentFormRef = useRef<number | null>(null);
+  /** When the last write was *attempted*, for the keepalive. */
+  const lastWriteAtRef = useRef(0);
   const finishedRef = useRef(false);
   const [matchStartedAtMs, setMatchStartedAtMs] = useState<number | null>(null);
 
@@ -77,6 +81,8 @@ export function useLiveDuel(duelId: string | null | undefined): LiveDuel {
     }
     finishedRef.current = false;
     lastSentRepsRef.current = 0;
+    lastSentFormRef.current = null;
+    lastWriteAtRef.current = 0;
     setMatchStartedAtMs(null);
 
     const unsub = watchDuel(duelId, (duel: Duel | null) => {
@@ -117,10 +123,29 @@ export function useLiveDuel(duelId: string | null | undefined): LiveDuel {
       if (now - lastPushAtRef.current < DUEL_SYNC_INTERVAL_MS) return;
       lastPushAtRef.current = now;
       const fairReps = clampDuelRepJump(lastSentRepsRef.current, reps);
+      /* The timer calls this every few hundred ms regardless of progress; only
+         a change (or the keepalive) is worth a write. A rep jump that the fair
+         clamp is still walking toward counts as a change, so a catch-up after
+         a dropped write keeps stepping until it lands. */
+      if (
+        !shouldPushLive({
+          reps: fairReps,
+          formScore,
+          lastSentReps: lastSentRepsRef.current,
+          lastSentForm: lastSentFormRef.current,
+          lastWriteAt: lastWriteAtRef.current,
+          now,
+        })
+      ) {
+        return;
+      }
+      lastWriteAtRef.current = now;
       // Only advance the fair baseline after a successful write — a failed push
       // used to jump the baseline and brick later ticks against the +8 rule.
       void pushLiveState(duelId, seat, { reps: fairReps, formScore }).then((ok) => {
-        if (ok) lastSentRepsRef.current = Math.max(lastSentRepsRef.current, fairReps);
+        if (!ok) return;
+        lastSentRepsRef.current = Math.max(lastSentRepsRef.current, fairReps);
+        lastSentFormRef.current = formScore;
       });
     },
     [duelId],

@@ -116,8 +116,12 @@ export function calculateStreak(trainedDays: readonly string[], today: string): 
   let streak = 0;
   let missesAllowed = 1;
 
-  // Walk backwards from today, tolerating one gap before giving up.
-  for (let i = 0; i < 400; i++) {
+  /* Walk backwards from today, tolerating one gap before giving up. The bound
+     comes from the data: with at most one tolerated miss between trained days,
+     the walk can never need more than twice as many steps as there are days.
+     A fixed 400 silently capped any longer streak at 400. */
+  const maxSteps = days.size * 2 + 2;
+  for (let i = 0; i < maxSteps; i++) {
     const key = cursor.toISOString().slice(0, 10);
     if (days.has(key)) {
       streak += 1;

@@ -76,7 +76,7 @@ purpose + optionality as noted.
 > Yes, purpose Account management" and note it's handled by the billing provider.
 
 ### Data types you must answer NO to (not collected)
-- **Location** (approximate or precise) — No
+- **Location** — **Approximate location: Yes (optional, shared).** Only when the athlete turns on "Real weather"; coordinates are rounded to ~10 km and sent to Open-Meteo (`src/services/weather.ts`). Precise location: No (blocked in the manifest). Declare Approximate location → Shared, optional, purpose App functionality.
 - **Contacts** — No
 - **Calendar** — No
 - **Health and fitness** — ⚠️ Judgement call: you track *reps/workouts*, which is activity
@@ -194,7 +194,9 @@ Verified against the code, not from memory. Every claim below traces to a specif
 | App interactions | Collected, **not** shared. Required. Analytics | 37 `track()` call sites; event names only, no free text |
 | Crash logs / diagnostics | Collected, **not** shared. Required | Sentry |
 | Purchase history | Collected, **not** shared. Required | RevenueCat entitlement state |
-| Location, contacts, calendar, health records, financial info, messages | **Not collected** | No such API is called anywhere |
+| Contacts, calendar, health records, financial info, messages | **Not collected** | No such API is called anywhere |
+| Approximate location | **Collected & shared, optional** | Real-weather widget → Open-Meteo, rounded to ~10 km, never stored |
+| Steps (Health and fitness → Fitness info) | **Collected, optional** | Pedometer; leaves the device only if shared with a partner via the couple record |
 
 ### The two answers that most often get flagged
 

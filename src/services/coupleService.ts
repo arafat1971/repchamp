@@ -15,6 +15,7 @@
 
 import firestore from '@react-native-firebase/firestore';
 
+import { fetchWithTimeout } from '@/lib/fetchWithTimeout';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import type { WaterWidgetSnapshot } from '@/domain/waterWidget';
 import {
@@ -116,7 +117,7 @@ export function sendPandaAction(
   lastGestureAt = now;
   void recordCoupleRitual(coupleId, uid, dayKey(), { poke: { e: actionCode(action), at: now } }).catch(() => {});
   if (canTickle(partner)) {
-    void fetch(EXPO_PUSH_ENDPOINT, {
+    void fetchWithTimeout(EXPO_PUSH_ENDPOINT, {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
       body: JSON.stringify({
@@ -798,7 +799,7 @@ export async function nudgePartner(
     // Only real Expo tokens are worth a POST; anything else Expo would reject.
     if (!token || !token.startsWith('ExponentPushToken')) return;
 
-    await fetch(EXPO_PUSH_ENDPOINT, {
+    await fetchWithTimeout(EXPO_PUSH_ENDPOINT, {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
       body: JSON.stringify({
@@ -857,7 +858,7 @@ export async function pushPartnerWaterWidget(
     const token = partner.expoPushToken ?? null;
     if (!token || !token.startsWith('ExponentPushToken')) return;
 
-    await fetch(EXPO_PUSH_ENDPOINT, {
+    await fetchWithTimeout(EXPO_PUSH_ENDPOINT, {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
       body: JSON.stringify({

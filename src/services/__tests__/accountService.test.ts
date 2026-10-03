@@ -20,6 +20,8 @@ function mockDoc(path: string) {
     async delete() {
       deleted.push(path);
       if (deleteOk[path] === false) throw new Error(`denied: ${path}`);
+      // A deleted duel stops coming back from queries, as it would for real.
+      if (path.startsWith('duels/')) delete duelRows[path.slice('duels/'.length)];
     },
     collection: (name: string) => mockCollection(`${path}/${name}`),
     async get() {
@@ -121,6 +123,27 @@ describe('deleteAccount', () => {
     await deleteAccount('ada');
 
     // The avatar rides on this document, so its deletion is the photo's.
+    expect(deleted).toContain('users/ada');
+  });
+
+  /*
+   * A settled duel keeps the athlete's name, uid and score on a document that
+   * nothing else ever deletes. Deletion used to close open duels only, leaving
+   * their match history behind while reporting a clean erase.
+   */
+  it('erases finished duels on either side', async () => {
+    duelRows['d1'] = { hostUid: 'ada', status: 'finished' };
+    duelRows['d2'] = { guestUid: 'ada', status: 'finished' };
+    await deleteAccount('ada');
+    expect(deleted).toContain('duels/d1');
+    expect(deleted).toContain('duels/d2');
+  });
+
+  it('reports the duel history when a finished duel cannot be deleted', async () => {
+    duelRows['d1'] = { hostUid: 'ada', status: 'finished' };
+    deleteOk['duels/d1'] = false;
+    await expect(deleteAccount('ada')).rejects.toThrow(/duel history/i);
+    // The rest of the wipe still ran.
     expect(deleted).toContain('users/ada');
   });
 });

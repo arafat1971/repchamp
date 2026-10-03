@@ -68,6 +68,12 @@ export interface ProfileState {
   /** Which athlete the Reps widget shows. Chosen by the user; never inferred. */
   sex: 'male' | 'female' | null;
   totalXp: number;
+  /**
+   * Reps banked over the life of the install. `sessions` is capped at 500 rows
+   * and so cannot answer "how many reps ever" for a long-time athlete; this
+   * counter can. Read it through `selectTotalReps`.
+   */
+  lifetimeReps: number;
   sessions: SessionSummary[];
   /** Best single-set rep count per exercise, for the Train roadmap. */
   personalBests: Record<ExerciseId, number>;
@@ -119,6 +125,7 @@ const initialState = {
   sex: null as 'male' | 'female' | null,
   blocker: null as Blocker | null,
   totalXp: 0,
+  lifetimeReps: 0,
   sessions: [] as SessionSummary[],
   // Derived from the exercise registry so it stays complete as the library grows,
   // rather than a hand-maintained literal that silently drifts out of date.
@@ -173,6 +180,9 @@ export const useProfileStore = create<ProfileState>()(
 
         set((state) => ({
           totalXp: state.totalXp + summary.xp,
+          // Start from whichever is larger so an account that predates this
+          // field (undefined → 0) is seeded from its history, not from zero.
+          lifetimeReps: selectTotalReps(state) + summary.reps,
           sessions: [summary, ...state.sessions].slice(0, 500),
           personalBests: {
             ...state.personalBests,
@@ -214,9 +224,10 @@ export const useProfileStore = create<ProfileState>()(
     }),
     {
       name: 'repchamp.profile',
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => zustandStorage),
-      // v1 → v2 added `programme`; v2 → v3 locks pairing Pro to a single grant.
+      // v1 → v2 added `programme`; v2 → v3 locks pairing Pro to a single grant;
+      // v3 → v4 adds the uncapped `lifetimeReps` counter, seeded from history.
       migrate: (persisted, version) => {
         const state = persisted as Partial<ProfileState>;
         let next = { ...state } as ProfileState;
@@ -229,6 +240,9 @@ export const useProfileStore = create<ProfileState>()(
             ...next,
             pairingBonusClaimed: next.pairingBonusClaimed ?? (next.pairingBonusUntil ?? 0) > 0,
           };
+        }
+        if (version < 4) {
+          next = { ...next, lifetimeReps: selectTotalReps({ sessions: next.sessions ?? [] }) };
         }
         return next;
       },
@@ -289,8 +303,18 @@ export function selectDaysTrainedThisWeek(
   return new Set(selectWeekSessions(state, now).map((s) => s.day)).size;
 }
 
-export function selectTotalReps(state: Pick<ProfileState, 'sessions'>): number {
-  return state.sessions.reduce((acc, s) => acc + s.reps, 0);
+/**
+ * Reps ever counted. The larger of the visible history and the lifetime
+ * counter: history is capped at 500 sessions, so for a long-time athlete it
+ * undercounts — and a total that shrinks as old sessions roll off would also
+ * hand a free athlete their allowance back. The max also keeps older persisted
+ * state (no counter) and callers that pass only `sessions` correct.
+ */
+export function selectTotalReps(
+  state: Pick<ProfileState, 'sessions'> & { lifetimeReps?: number },
+): number {
+  const visible = state.sessions.reduce((acc, s) => acc + s.reps, 0);
+  return Math.max(visible, state.lifetimeReps ?? 0);
 }
 
 export function selectDuelsWon(state: Pick<ProfileState, 'sessions'>): number {

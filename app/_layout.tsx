@@ -46,8 +46,8 @@ import {
 import { emitRetention, retentionSnapshot } from '@/services/recordSessionWithRetention';
 import { AppState } from 'react-native';
 
-import { selectTotalReps, useProfileStore } from '@/state/profileStore';
-import { isWalled } from '@/domain/hardPaywall';
+import { selectPairingBonusActive, selectTotalReps, useProfileStore } from '@/state/profileStore';
+import { reminderTapIsWalled } from '@/domain/reminderRoute';
 import { isPurchasesConfigured } from '@/services/purchases';
 import { preloadPoseModel } from '@/vision/modelCache';
 /** Persisted visit markers for `day_n_return` — nothing else recorded a date. */
@@ -143,9 +143,13 @@ export default function RootLayout() {
          * same walled check; and since its copy is specifically about progress
          * already banked, dropping a lapsed athlete on a paywall instead is the
          * sharpest possible version of the mistake this branch guards. */
-        const walled = isWalled({
-          isPro: useProStore.getState().isPro,
-          repsSoFar: selectTotalReps(useProfileStore.getState()),
+        const pro = useProStore.getState();
+        const profile = useProfileStore.getState();
+        const walled = reminderTapIsWalled({
+          proReady: pro.ready,
+          isPro: pro.isPro,
+          bonusActive: selectPairingBonusActive(profile),
+          repsSoFar: selectTotalReps(profile),
           billingReady: isPurchasesConfigured(),
         });
         router.push(

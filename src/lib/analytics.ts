@@ -1,6 +1,7 @@
 import { AppState } from 'react-native';
 
 import { posthogKey } from '@/lib/config';
+import { fetchWithTimeout } from '@/lib/fetchWithTimeout';
 import { assertHttps } from '@/lib/https';
 import { useSettingsStore } from '@/state/settingsStore';
 
@@ -183,6 +184,13 @@ interface QueuedEvent {
   event: string;
   properties: Record<string, unknown>;
   timestamp: string;
+  /**
+   * Who the event belongs to, captured when it was tracked. Resolving this at
+   * flush time attributed events to whoever was signed in when the batch went
+   * out — after a sign-out or account switch that was the wrong person, or
+   * "anonymous".
+   */
+  distinctId: string | null;
 }
 
 const POSTHOG_HOST = 'https://us.i.posthog.com';
@@ -222,6 +230,8 @@ let distinctId: string | null = null;
 let queue: QueuedEvent[] = [];
 let timer: ReturnType<typeof setInterval> | null = null;
 let appStateFlushInstalled = false;
+/** One flush at a time: overlapping ones sent the same batch twice. */
+let flushing = false;
 
 /** Flush the queue when the app backgrounds so session_finished isn't lost. */
 function ensureAppStateFlush(): void {
@@ -247,7 +257,7 @@ export function track<E extends EventName>(
 ): void {
   if (!apiKey() || !analyticsAllowed()) return;
   const properties = (args[0] ?? {}) as Record<string, unknown>;
-  queue.push({ event, properties, timestamp: new Date().toISOString() });
+  queue.push({ event, properties, timestamp: new Date().toISOString(), distinctId });
   // Drop oldest when offline backlog balloons — keeps memory bounded.
   if (queue.length > MAX_QUEUE) queue = queue.slice(queue.length - MAX_QUEUE);
   ensureTimer();
@@ -266,7 +276,7 @@ function ensureTimer(): void {
  */
 export async function flush(): Promise<void> {
   const key = apiKey();
-  if (!key || queue.length === 0) return;
+  if (!key || queue.length === 0 || flushing) return;
   // Switched off after events were queued: drop them unsent rather than
   // letting a toggle that says "off" still send what was already waiting.
   if (!analyticsAllowed()) {
@@ -274,26 +284,37 @@ export async function flush(): Promise<void> {
     return;
   }
 
+  /* Guarded: the interval, the batch-size trigger and the background hook can
+     all fire together. Two overlapping flushes both read the same head of the
+     queue, sent it twice, and then each sliced `batch.length` off — dropping
+     events that had never been sent. */
+  flushing = true;
   const batch = queue.slice(0, MAX_BATCH);
   const payload = {
     api_key: key,
     batch: batch.map((e) => ({
       event: e.event,
       timestamp: e.timestamp,
-      distinct_id: distinctId ?? 'anonymous',
+      distinct_id: e.distinctId ?? 'anonymous',
       properties: { ...e.properties, $lib: 'repchamp-mobile' },
     })),
   };
 
   try {
-    const res = await fetch(`${assertHttps(POSTHOG_HOST)}/batch/`, {
+    const res = await fetchWithTimeout(`${assertHttps(POSTHOG_HOST)}/batch/`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    // Only drop the events we actually sent once the server accepted them.
-    if (res.ok) queue = queue.slice(batch.length);
+    // Drop what was sent once the server accepted it. A permanent client error
+    // (anything 4xx except timeout/rate-limit) would never succeed on retry, and
+    // keeping it left a poison batch at the head of the queue, blocking every
+    // later event; discard it instead.
+    const permanent = res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429;
+    if (res.ok || permanent) queue = queue.slice(batch.length);
   } catch {
-    // Offline or a transient error — keep the queue for the next flush.
+    // Offline, timed out, or a transient error — keep the queue for the next flush.
+  } finally {
+    flushing = false;
   }
 }

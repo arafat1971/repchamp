@@ -261,6 +261,24 @@ describe('nudge', () => {
     );
   });
 
+  it('refuses a nudge with an unexpected field', async () => {
+    await seedPaired();
+    await assertFails(
+      updateDoc(doc(asUser(ALICE), 'couples', CODE), {
+        nudge: { fromUid: ALICE, at: 123, blob: 'x' },
+      }),
+    );
+  });
+
+  it('refuses an oversized nudge field', async () => {
+    await seedPaired();
+    await assertFails(
+      updateDoc(doc(asUser(ALICE), 'couples', CODE), {
+        nudge: { fromUid: ALICE, at: 123, kind: 'x'.repeat(500) },
+      }),
+    );
+  });
+
   it('refuses a stranger writing a nudge', async () => {
     await seedPaired();
     await assertFails(

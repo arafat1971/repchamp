@@ -197,7 +197,13 @@ service cloud.firestore {
             && request.resource.data.status == 'pending'
             && request.resource.data.guestUid == null
             && request.resource.data.host.uid == request.auth.uid
-            && request.resource.data.host.reps == 0)
+            && request.resource.data.host.reps == 0
+            && (!('kind' in request.resource.data)
+                || request.resource.data.kind in ['duel', 'train', 'compete'])
+            && (request.resource.data.targetUid == null
+                || (request.resource.data.targetUid is string
+                    && request.resource.data.targetUid != request.auth.uid
+                    && request.resource.data.targetUid.size() <= 128)))
           ||
           (request.resource.data.status == 'active'
             && request.resource.data.targetUid == null
@@ -228,7 +234,11 @@ service cloud.firestore {
       // Live / finish writes may only touch the caller's own seat map, plus
       // status/winnerUid when settling. The opponent's seat is frozen.
       function hostSeatWrite() {
+        // A settled duel or an already-finished seat takes no more live writes:
+        // the client used to read the document before every tick to check this.
         return request.auth.uid == resource.data.hostUid
+          && resource.data.status == 'active'
+          && resource.data.host.done != true
           && request.resource.data.host.uid == resource.data.host.uid
           && request.resource.data.guestUid == resource.data.guestUid
           && request.resource.data.hostUid == resource.data.hostUid
@@ -244,6 +254,8 @@ service cloud.firestore {
 
       function guestSeatWrite() {
         return request.auth.uid == resource.data.guestUid
+          && resource.data.status == 'active'
+          && resource.data.guest.done != true
           && resource.data.guest != null
           && request.resource.data.guest.uid == resource.data.guest.uid
           && request.resource.data.guestUid == resource.data.guestUid
@@ -335,11 +347,20 @@ service cloud.firestore {
 
       allow update: if isAuthed() && (isJoin() || isLiveUpdate());
 
+      // A live or settled match is shared state: the host must not be able to
+      // delete it mid-set or after losing, which would erase the guest's
+      // result. Hosts may withdraw only a still-pending invite; a target may
+      // decline one that nobody has joined. Once a duel is `finished` either
+      // player may remove it, which is what lets account deletion erase the
+      // athlete's match history (their name and score live on that document).
       allow delete: if isAuthed() && (
-        resource.data.hostUid == request.auth.uid
-        || (resource.data.targetUid == request.auth.uid
-            && resource.data.status == 'pending'
-            && resource.data.guestUid == null)
+        (resource.data.status == 'pending'
+          && (resource.data.hostUid == request.auth.uid
+              || (resource.data.targetUid == request.auth.uid
+                  && resource.data.guestUid == null)))
+        || (resource.data.status == 'finished'
+            && (resource.data.hostUid == request.auth.uid
+                || resource.data.guestUid == request.auth.uid))
       );
     }
 
@@ -519,9 +540,28 @@ service cloud.firestore {
         );
       }
 
+      // A nudge is a small fixed shape (see `Couple.nudge`). Without bounds a
+      // member could park an arbitrarily large payload on the shared document,
+      // which both partners download on every snapshot. `fromUid` is not pinned
+      // to the caller: a whole-document merge legitimately re-sends the
+      // partner's existing nudge unchanged.
+      function nudgeSane() {
+        let n = request.resource.data.get('nudge', null);
+        return n == null
+          || (n is map
+              && n.keys().hasOnly(['fromUid', 'kind', 'ml', 'drink', 'emoji', 'milestone', 'at'])
+              && (!('fromUid' in n) || (n.fromUid is string && n.fromUid.size() <= 128))
+              && (!('kind' in n) || (n.kind is string && n.kind.size() <= 24))
+              && (!('drink' in n) || (n.drink is string && n.drink.size() <= 24))
+              && (!('emoji' in n) || (n.emoji is string && n.emoji.size() <= 16))
+              && (!('milestone' in n) || n.milestone in ['half', 'goal'])
+              && (!('ml' in n) || (n.ml is number && n.ml >= 0 && n.ml <= 20000)));
+      }
+
       function isNudgeOnly() {
         return isMember()
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nudge']);
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nudge'])
+          && nudgeSane();
       }
 
       function isMemberUpdate() {
@@ -532,6 +572,7 @@ service cloud.firestore {
           && memberUidsPinned()
           && repsInSaneRange()
           && dailyInSaneRange()
+          && nudgeSane()
           && onlyOwnMemberStatsChanged();
       }
 

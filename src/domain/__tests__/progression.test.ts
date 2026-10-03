@@ -121,3 +121,16 @@ describe('lastNDayKeys', () => {
     expect(keys).toEqual(['2026-07-28', '2026-07-29', '2026-07-30']);
   });
 });
+
+describe('calculateStreak — long streaks', () => {
+  it('counts a streak longer than 400 days in full', () => {
+    const today = new Date('2026-10-03T00:00:00Z');
+    const days: string[] = [];
+    for (let i = 0; i < 450; i++) {
+      const d = new Date(today);
+      d.setUTCDate(d.getUTCDate() - i);
+      days.push(d.toISOString().slice(0, 10));
+    }
+    expect(calculateStreak(days, '2026-10-03')).toBe(450);
+  });
+});

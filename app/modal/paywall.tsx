@@ -42,6 +42,7 @@ import { orderBenefits, type BenefitId } from '@/domain/paywallBenefits';
 import { selectStreak, selectTotalReps, useProfileStore } from '@/state/profileStore';
 import { FREE_REP_LIMIT } from '@/domain/hardPaywall';
 import { ProgressRing } from '@/components/session/ProgressRing';
+import { CheckIcon } from '@/components/home/Icons';
 import {
   commitmentLine,
   granularPrice,
@@ -374,7 +375,14 @@ export default function PaywallScreen() {
           ) : null}
 
           <Animated.View entering={FadeInDown.duration(380).springify()}>
-            <LinearGradient colors={gradients.brandDeep} style={[styles.hero, surfaceShadow]}>
+            <LinearGradient
+              colors={gradients.heroEmerald}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[styles.hero, surfaceShadow]}
+            >
+              <View style={styles.heroGlow} pointerEvents="none" />
+              <View style={styles.heroRing} pointerEvents="none" />
               <View style={styles.heroTop}>
                 <View style={styles.heroBadge}>
                   <Image
@@ -420,29 +428,6 @@ export default function PaywallScreen() {
               )}
             </LinearGradient>
           </Animated.View>
-
-          <View style={[styles.benefits, styles.benefitsCard]}>
-            {/* Ordered by what this source blocked, so the promise that answers
-                the refusal is read first. See `domain/paywallBenefits`. */}
-            {orderBenefits(params.source).map((id, i) => {
-              const b = BENEFITS[id];
-              return (
-              <Animated.View
-                key={id}
-                entering={FadeInDown.delay(80 + i * 45).duration(320)}
-                style={styles.benefit}
-              >
-                <View style={styles.benefitIcon}>
-                  <Text style={styles.benefitCheck}>✓</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.benefitTitle}>{b.title}</Text>
-                  <Text style={styles.benefitDetail}>{b.detail}</Text>
-                </View>
-              </Animated.View>
-              );
-            })}
-          </View>
 
           <Text style={styles.plansLabel}>Choose your plan</Text>
 
@@ -520,6 +505,29 @@ export default function PaywallScreen() {
                 </Animated.View>
               ))
             )}
+          </View>
+
+          <View style={[styles.benefits, styles.benefitsCard]}>
+            {/* Ordered by what this source blocked, so the promise that answers
+                the refusal is read first. See `domain/paywallBenefits`. */}
+            {orderBenefits(params.source).map((id, i) => {
+              const b = BENEFITS[id];
+              return (
+              <Animated.View
+                key={id}
+                entering={FadeInDown.delay(80 + i * 45).duration(320)}
+                style={styles.benefit}
+              >
+                <View style={styles.benefitIcon}>
+                  <CheckIcon size={15} color={palette.green700} strokeWidth={3} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.benefitTitle}>{b.title}</Text>
+                  <Text style={styles.benefitDetail}>{b.detail}</Text>
+                </View>
+              </Animated.View>
+              );
+            })}
           </View>
         </Animated.ScrollView>
       </View>
@@ -667,7 +675,7 @@ function PlanRow({
           selected && { borderColor: palette.green600, backgroundColor: palette.green600 },
         ]}
       >
-        {selected ? <Text style={{ color: palette.white, fontSize: 13 }}>✓</Text> : null}
+        {selected ? <CheckIcon size={13} color={palette.white} strokeWidth={3} /> : null}
       </View>
       <View style={{ flex: 1, paddingRight: 8 }}>
         <Text style={font('extrabold', 16, { color: palette.ink })}>{title}</Text>
@@ -736,10 +744,30 @@ const styles = StyleSheet.create({
 
   hero: {
     borderRadius: radius['6xl'],
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 20,
+    paddingHorizontal: 22,
+    paddingTop: 18,
+    paddingBottom: 22,
     overflow: 'hidden',
+  },
+  /* Two soft shapes behind the copy, the same emerald depth Home and Train use. */
+  heroGlow: {
+    position: 'absolute',
+    top: -80,
+    right: -60,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: 'rgba(74,222,128,0.12)',
+  },
+  heroRing: {
+    position: 'absolute',
+    bottom: -70,
+    left: -50,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    borderWidth: 18,
+    borderColor: 'rgba(255,255,255,0.05)',
   },
   heroTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   heroBadge: {
@@ -804,7 +832,7 @@ const styles = StyleSheet.create({
   trustText: font('semibold', 12, { color: 'rgba(255,255,255,0.85)' }),
   trustDot: font('semibold', 12, { color: 'rgba(255,255,255,0.45)' }),
 
-  benefits: { marginTop: 16, gap: 12 },
+  benefits: { marginTop: 20, gap: 12 },
   benefitsCard: {
     padding: 16,
     borderRadius: radius['4xl'],
@@ -832,10 +860,10 @@ const styles = StyleSheet.create({
   heroTrophy: { width: 64, height: 64, marginLeft: 'auto' },
   benefit: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   benefitIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: palette.green500,
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    backgroundColor: palette.green50,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 4,
@@ -860,21 +888,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: 'rgba(15,31,23,0.08)',
     borderRadius: radius['4xl'],
-    paddingVertical: 16,
+    paddingVertical: 18,
     paddingHorizontal: 16,
     backgroundColor: palette.white,
     overflow: 'visible',
     ...surfaceShadow,
   },
   planSelected: {
+    borderWidth: 2,
     borderColor: palette.green500,
     backgroundColor: palette.green50,
   },
   planFeatured: {
     borderColor: palette.green600,
+    shadowColor: palette.green500,
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
   },
   planBadge: {
     position: 'absolute',

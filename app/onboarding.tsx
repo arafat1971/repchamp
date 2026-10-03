@@ -611,7 +611,7 @@ export default function OnboardingScreen() {
         {/* The widget, just before the offer: the plan is set and the partner
             is the reason to come back, so this is when a home-screen spot
             for them makes the most sense. Skips itself where unsupported. */}
-        {step === 24 ? <HomeWidgetStep onNext={next} /> : null}
+        {step === 24 ? <HomeWidgetStep onNext={next} username={username} /> : null}
         {/* The partner features are the reason to stay, so the offer follows a
             moment of feeling them rather than a description of them. */}
         {step === 25 ? <TogetherStep onNext={next} /> : null}

@@ -44,6 +44,10 @@ function duelDoc(id: string) {
   return duelsCol().doc(id);
 }
 
+function isPermissionDenied(error: unknown): boolean {
+  return String((error as { code?: string })?.code ?? '').endsWith('permission-denied');
+}
+
 /** The host's identity when opening a duel. */
 export interface DuelHostInput {
   uid: string;
@@ -124,7 +128,12 @@ export async function joinDuel(
 
   const ref = duelDoc(duelId);
   // Block check outside the transaction (extra reads); refuse before seating.
-  const peek = await ref.get();
+  // The rules let a non-player read a duel only while it is an open invite, so
+  // a refused read here means the seat has already gone.
+  const peek = await ref.get().catch((error: unknown) => {
+    if (isPermissionDenied(error)) throw new Error('Someone already joined that duel.');
+    throw error;
+  });
   if (peek.exists()) {
     const hostUid = (peek.data() as Duel).hostUid;
     if (hostUid && (await isBlockedByMe(input.uid, hostUid))) {

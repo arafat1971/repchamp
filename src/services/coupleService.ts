@@ -238,7 +238,13 @@ export async function joinCoupleByCode(
   const ref = coupleDoc(code);
 
   // Block check outside the transaction (same pattern as joinDuel).
-  const peek = await ref.get();
+  // A non-member can read a couple only while it is pending, so a refused read
+  // means the code exists and both seats are taken.
+  const peek = await ref.get().catch((error: unknown) => {
+    const code = String((error as { code?: string })?.code ?? '');
+    if (code.endsWith('permission-denied')) throw new Error('That couple is already paired up.');
+    throw error;
+  });
   if (peek.exists()) {
     const hostUid = (peek.data() as Couple).memberUids[0];
     if (hostUid && hostUid !== input.uid && (await isBlockedByMe(input.uid, hostUid))) {

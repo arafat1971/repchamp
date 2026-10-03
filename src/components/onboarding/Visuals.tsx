@@ -19,7 +19,7 @@ import Svg, { Circle, Defs, Line, LinearGradient as SvgGradient, Path, Stop } fr
 
 import { Floating, PopOnChange } from '@/components/motion';
 import { successHaptic } from '@/lib/feedback';
-import { font } from '@/theme/typography';
+import { font, scaleForRole } from '@/theme/typography';
 import { palette, radius, surfaceShadow } from '@/theme/tokens';
 
 import { PopChip, PulseRing } from './ios';
@@ -84,9 +84,9 @@ export function RepCounterVisual() {
         </Svg>
         <View style={v.ringCenter}>
           <PopOnChange trigger={reps} scale={1.14}>
-            <Text style={v.repNumber}>{reps}</Text>
+            <Text style={v.repNumber} {...scaleForRole('display')}>{reps}</Text>
           </PopOnChange>
-          <Text style={v.repLabel}>{full ? 'SET DONE 🎉' : 'REPS'}</Text>
+          <Text style={v.repLabel} {...scaleForRole('control')}>{full ? 'SET DONE 🎉' : 'REPS'}</Text>
         </View>
       </View>
 
@@ -99,14 +99,14 @@ export function RepCounterVisual() {
       <Floating distance={5} delay={500} style={v.cleanChip}>
         <PopOnChange trigger={reps} scale={1.1}>
           <View style={v.chip}>
-            <Text style={font('extrabold', 12, { color: palette.green700 })}>✓ Clean rep</Text>
+            <Text style={font('extrabold', 12, { color: palette.green700 })} {...scaleForRole('control')}>✓ Clean rep</Text>
           </View>
         </PopOnChange>
       </Floating>
 
       <Floating distance={6} delay={900} style={v.formChip}>
         <View style={[v.chip, { backgroundColor: palette.blue50 }]}>
-          <Text style={font('extrabold', 12, { color: palette.blue700 })}>📐 Form score</Text>
+          <Text style={font('extrabold', 12, { color: palette.blue700 })} {...scaleForRole('control')}>📐 Form score</Text>
         </View>
       </Floating>
     </View>
@@ -131,14 +131,14 @@ export function CoupleVisual() {
       <Floating distance={5} delay={600} style={v.streakChip}>
         <PopChip delay={400}>
           <View style={[v.chip, { backgroundColor: palette.amber50 }]}>
-            <Text style={font('extrabold', 12, { color: palette.amber800 })}>🔥 Shared streak</Text>
+            <Text style={font('extrabold', 12, { color: palette.amber800 })} {...scaleForRole('control')}>🔥 Shared streak</Text>
           </View>
         </PopChip>
       </Floating>
       <Floating distance={6} delay={1000} style={v.duelChip}>
         <PopChip delay={700}>
           <View style={[v.chip, { backgroundColor: palette.purple100 }]}>
-            <Text style={font('extrabold', 12, { color: palette.purple900 })}>⚔️ Live duel</Text>
+            <Text style={font('extrabold', 12, { color: palette.purple900 })} {...scaleForRole('control')}>⚔️ Live duel</Text>
           </View>
         </PopChip>
       </Floating>
@@ -212,32 +212,32 @@ export function HalfRepDemo() {
         <View style={v.demoTrack} />
         <View style={[v.depthLine, { top: DEPTH_AT * TRACK_H + DOT / 2 }]}>
           <View style={v.depthDash} />
-          <Text style={v.depthLabel}>DEPTH</Text>
+          <Text style={v.depthLabel} allowFontScaling={false}>DEPTH</Text>
         </View>
         <Animated.View
           style={[v.demoDot, { backgroundColor: tone, shadowColor: tone }, dotStyle]}
         >
-          <Text style={{ fontSize: 18 }}>{miss ? '✕' : hit ? '✓' : '🏋️'}</Text>
+          <Text style={{ fontSize: 18 }} allowFontScaling={false}>{miss ? '✕' : hit ? '✓' : '🏋️'}</Text>
         </Animated.View>
       </View>
 
       <View style={v.demoRight}>
-        <Text style={v.demoKicker}>THIS REP</Text>
+        <Text style={v.demoKicker} {...scaleForRole('control')}>THIS REP</Text>
         <View style={v.demoResultBox}>
           {result === 'idle' ? (
-            <Text style={[v.demoResult, { color: palette.grey500 }]}>Checking…</Text>
+            <Text style={[v.demoResult, { color: palette.grey500 }]} {...scaleForRole('display')}>Checking…</Text>
           ) : (
             <Animated.View key={result + count} entering={FadeIn.duration(180)} style={v.demoResultPop}>
-              <Text style={[v.demoResult, { color: tone }]}>{miss ? 'Half rep' : 'Full rep'}</Text>
+              <Text style={[v.demoResult, { color: tone }]} {...scaleForRole('display')}>{miss ? 'Half rep' : 'Full rep'}</Text>
             </Animated.View>
           )}
         </View>
-        <Text style={[v.demoSub, { color: miss ? palette.red500 : hit ? palette.green700 : palette.grey600 }]}>
+        <Text style={[v.demoSub, { color: miss ? palette.red500 : hit ? palette.green700 : palette.grey600 }]} {...scaleForRole('control')}>
           {miss ? 'Not counted. Go deeper.' : hit ? 'Counted. +1 rep' : 'Watching depth, tempo, form'}
         </Text>
         <View style={v.demoTally}>
-          <Text style={v.demoTallyNum}>{count}</Text>
-          <Text style={v.demoTallyLabel}> counted</Text>
+          <Text style={v.demoTallyNum} {...scaleForRole('display')}>{count}</Text>
+          <Text style={v.demoTallyLabel} {...scaleForRole('control')}> counted</Text>
         </View>
       </View>
     </View>
@@ -295,16 +295,16 @@ export function SpaceDiagram() {
       </View>
 
       <Floating distance={4} delay={300} style={v.personWrap}>
-        <Text style={{ fontSize: 58 }}>🧍</Text>
+        <Text allowFontScaling={false} style={{ fontSize: 58 }}>🧍</Text>
       </Floating>
 
       <View style={v.distPill}>
-        <Text style={font('extrabold', 12, { color: palette.amber800 })}>≈ 2 m</Text>
+        <Text style={font('extrabold', 12, { color: palette.amber800 })} {...scaleForRole('control')}>≈ 2 m</Text>
       </View>
 
       <PopChip delay={900} style={v.frameChip}>
         <View style={[v.chip, { backgroundColor: palette.green600 }]}>
-          <Text style={font('extrabold', 12, { color: palette.white })}>✓ Full body in frame</Text>
+          <Text style={font('extrabold', 12, { color: palette.white })} {...scaleForRole('control')}>✓ Full body in frame</Text>
         </View>
       </PopChip>
     </View>
@@ -329,9 +329,9 @@ export function VaultVisual() {
         <PulseRing size={104} color={palette.green500}>
           <LinearGradient colors={[palette.green400, palette.green700]} style={v.vaultBadge}>
             <View style={v.vaultShine} />
-            <Text style={{ fontSize: 44 }}>☁️</Text>
+            <Text allowFontScaling={false} style={{ fontSize: 44 }}>☁️</Text>
             <View style={v.vaultTick}>
-              <Text style={font('extrabold', 16, { color: palette.white, lineHeight: 20 })}>✓</Text>
+              <Text style={font('extrabold', 16, { color: palette.white, lineHeight: 20 })} allowFontScaling={false}>✓</Text>
             </View>
           </LinearGradient>
         </PulseRing>
@@ -340,8 +340,8 @@ export function VaultVisual() {
         <Floating key={it.label} distance={5} delay={i * 450} style={[v.vaultChip, it.pos]}>
           <PopChip delay={300 + i * 160}>
             <View style={[v.vaultChipInner, { backgroundColor: it.tint }]}>
-              <Text style={{ fontSize: 17 }}>{it.icon}</Text>
-              <Text style={font('extrabold', 13, { color: palette.ink })}>{it.label}</Text>
+              <Text allowFontScaling={false} style={{ fontSize: 17 }}>{it.icon}</Text>
+              <Text style={font('extrabold', 13, { color: palette.ink })} {...scaleForRole('control')}>{it.label}</Text>
             </View>
           </PopChip>
         </Floating>
@@ -372,8 +372,8 @@ export function CrownBadge() {
       <PulseRing size={148} color={palette.green400}>
         <LinearGradient colors={[palette.green400, palette.green700]} style={v.crown}>
           <Animated.View pointerEvents="none" style={[v.crownSheen, sheen]} />
-          <Text style={{ fontSize: 50 }}>👑</Text>
-          <Text style={font('extrabold', 17, { color: palette.white, letterSpacing: 2 })}>PRO</Text>
+          <Text allowFontScaling={false} style={{ fontSize: 50 }}>👑</Text>
+          <Text style={font('extrabold', 17, { color: palette.white, letterSpacing: 2 })} allowFontScaling={false}>PRO</Text>
         </LinearGradient>
       </PulseRing>
     </Floating>
@@ -394,7 +394,7 @@ function Particle({ emoji, angle, dist, delay }: { emoji: string; angle: number;
       { rotate: `${t.value * 200}deg` },
     ],
   }));
-  return <Animated.Text style={[{ position: 'absolute', fontSize: 22 }, style]}>{emoji}</Animated.Text>;
+  return <Animated.Text allowFontScaling={false} style={[{ position: 'absolute', fontSize: 22 }, style]}>{emoji}</Animated.Text>;
 }
 
 /** Emoji flung outward from the centre once on mount. */
@@ -500,7 +500,7 @@ const v = StyleSheet.create({
   },
   demoRight: { flex: 1, justifyContent: 'center' },
   demoKicker: { ...font('extrabold', 10.5, { color: palette.grey600 }), letterSpacing: 2 },
-  demoResultBox: { height: 38, justifyContent: 'center', marginTop: 4 },
+  demoResultBox: { minHeight: 38, justifyContent: 'center', marginTop: 4 },
   demoResultPop: {},
   demoResult: { ...font('extrabold', 28, { color: palette.ink }), letterSpacing: -0.8 },
   demoSub: { ...font('bold', 13), marginTop: 2 },

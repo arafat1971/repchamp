@@ -19,7 +19,7 @@ import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 
 import { PressableScale } from '@/components/ui';
 import { selectionHaptic } from '@/lib/feedback';
-import { font } from '@/theme/typography';
+import { font, scaleForRole } from '@/theme/typography';
 import { palette, radius, surfaceShadow } from '@/theme/tokens';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -116,7 +116,7 @@ export function Aurora({ tint = palette.green400, second = palette.blue400 }: { 
 export function Eyebrow({ label, tint }: { label: string; tint: string }) {
   return (
     <Animated.View entering={ZoomIn.springify().damping(14)} style={[s.eyebrow, { backgroundColor: tint }]}>
-      <Text style={s.eyebrowText}>{label}</Text>
+      <Text style={s.eyebrowText} {...scaleForRole('control')}>{label}</Text>
     </Animated.View>
   );
 }
@@ -140,11 +140,11 @@ export function ScreenHead({
   return (
     <View style={{ alignItems }}>
       {eyebrow ? <Eyebrow label={eyebrow} tint={tint ?? palette.green50} /> : null}
-      <Animated.Text entering={springIn(1)} style={[s.title, { textAlign }]}>
+      <Animated.Text entering={springIn(1)} style={[s.title, { textAlign }]} {...scaleForRole('heading')}>
         {title}
       </Animated.Text>
       {body ? (
-        <Animated.Text entering={springIn(2)} style={[s.body, { textAlign }]}>
+        <Animated.Text entering={springIn(2)} style={[s.body, { textAlign }]} {...scaleForRole('body')}>
           {body}
         </Animated.Text>
       ) : null}
@@ -179,11 +179,11 @@ export function InsetRow({
     <Animated.View entering={springIn(index + 3, 90)}>
       <View style={s.row}>
         <View style={[s.tile, { backgroundColor: tile }]}>
-          <Text style={{ fontSize: 19 }}>{glyph}</Text>
+          <Text style={{ fontSize: 19 }} allowFontScaling={false}>{glyph}</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={s.rowTitle}>{title}</Text>
-          <Text style={s.rowSub}>{sub}</Text>
+          <Text style={s.rowTitle} {...scaleForRole('heading')}>{title}</Text>
+          <Text style={s.rowSub} {...scaleForRole('body')}>{sub}</Text>
         </View>
       </View>
       {last ? null : <View style={s.hairline} />}
@@ -250,7 +250,7 @@ export function SpringCheck({ size = 24 }: { size?: number }) {
       entering={ZoomIn.springify().damping(9).stiffness(220)}
       style={[s.check, { width: size, height: size, borderRadius: size / 2 }]}
     >
-      <Text style={font('extrabold', size * 0.55, { color: palette.white })}>✓</Text>
+      <Text style={font('extrabold', size * 0.55, { color: palette.white })} allowFontScaling={false}>✓</Text>
     </Animated.View>
   );
 }
@@ -291,11 +291,11 @@ export function ChoiceRow({
       >
         <Animated.View style={[s.choice, selected && s.choiceOn, liftStyle]}>
           <View style={[s.choiceTile, selected && { backgroundColor: palette.green100 }]}>
-            <Text style={{ fontSize: 24 }}>{emoji}</Text>
+            <Text style={{ fontSize: 24 }} allowFontScaling={false}>{emoji}</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={s.choiceTitle}>{label}</Text>
-            <Text style={s.rowSub}>{sub}</Text>
+            <Text style={s.choiceTitle} {...scaleForRole('heading')}>{label}</Text>
+            <Text style={s.rowSub} {...scaleForRole('body')}>{sub}</Text>
           </View>
           {selected ? <SpringCheck /> : <View style={s.radio} />}
           <Scrim on={dimmed} round={22} />
@@ -346,10 +346,10 @@ export function ChoiceTile({
       >
         <View style={[s.bigTile, selected && s.choiceOn]}>
           <View style={[s.bigTileBubble, { backgroundColor: selected ? palette.green100 : tint }]}>
-            <Animated.Text style={[{ fontSize: 34 }, emojiStyle]}>{emoji}</Animated.Text>
+            <Animated.Text style={[{ fontSize: 34 }, emojiStyle]} allowFontScaling={false}>{emoji}</Animated.Text>
           </View>
-          <Text style={s.bigTileLabel}>{label}</Text>
-          <Text style={s.bigTileHint}>{hint}</Text>
+          <Text style={s.bigTileLabel} {...scaleForRole('control')}>{label}</Text>
+          <Text style={s.bigTileHint} {...scaleForRole('control')}>{hint}</Text>
           {selected ? (
             <View style={s.bigTileCheck}>
               <SpringCheck size={26} />
@@ -528,7 +528,7 @@ const s = StyleSheet.create({
   radio: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: palette.borderStrong },
   check: { backgroundColor: palette.green600, alignItems: 'center', justifyContent: 'center' },
 
-  tileWrap: { width: '48%', flexGrow: 1, height: 188 },
+  tileWrap: { width: '48%', flexGrow: 1, minHeight: 188 },
   bigTile: {
     flex: 1,
     padding: 16,

@@ -1290,7 +1290,7 @@ function Photo({
           </Animated.View>
         </PressableScale>
 
-        <Animated.Text entering={springIn(3)} style={styles.photoHandle}>
+        <Animated.Text entering={springIn(3)} style={styles.photoHandle} {...scaleForRole('heading')}>
           @{handle}
         </Animated.Text>
       </View>
@@ -1411,9 +1411,9 @@ function Frequency({
             <Text style={{ fontSize: 26 }}>{emoji}</Text>
           </Animated.View>
           <PopOnChange trigger={value} scale={1.16}>
-            <Text style={styles.freqNumber}>{value}</Text>
+            <Text style={styles.freqNumber} {...scaleForRole('display')}>{value}</Text>
           </PopOnChange>
-          <Text style={styles.freqUnit}>{value === 1 ? 'DAY A WEEK' : 'DAYS A WEEK'}</Text>
+          <Text style={styles.freqUnit} {...scaleForRole('control')}>{value === 1 ? 'DAY A WEEK' : 'DAYS A WEEK'}</Text>
         </ProgressDial>
       </Animated.View>
 
@@ -2934,7 +2934,7 @@ function Offer({ onDone }: { onDone: () => void }) {
               <CrownBadge />
             </Animated.View>
             {/* The store's own localised price string — never a hardcoded figure. */}
-            <Animated.Text entering={springIn(3)} style={styles.offerPrice}>
+            <Animated.Text entering={springIn(3)} style={styles.offerPrice} {...scaleForRole('display')}>
               {annual.product.priceString}
             </Animated.Text>
             <Animated.Text entering={springIn(4)} style={[text.captionMd, { marginTop: 2, textAlign: 'center' }]}>

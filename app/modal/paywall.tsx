@@ -1,5 +1,3 @@
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -10,20 +8,20 @@ import {
   Text,
   View,
 } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import type { PurchasesPackage } from 'react-native-purchases';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { track, truncateReason } from '@/lib/analytics';
 import { captureError } from '@/lib/crash';
 import { PRIVACY_URL, TERMS_URL } from '@/lib/urls';
-import { ModalHeader } from '@/components/ModalHeader';
 import { PressableScale, PrimaryButton, Screen } from '@/components/ui';
 import {
   hasFreeTrial,
   planTitle,
   renewDisclosure,
   subscribeCtaLabel,
+  trialLengthDays,
   trialPeriodLabel,
   trialRibbon,
 } from '@/domain/subscriptionCopy';
@@ -38,21 +36,20 @@ import { useAuthStore } from '@/state/authStore';
 import { useProStore } from '@/state/proStore';
 import { showDialog } from '@/state/useDialog';
 import { headlineProof } from '@/domain/progressProof';
-import { orderBenefits, type BenefitId } from '@/domain/paywallBenefits';
+import { blockedBenefit, orderBenefits, type BenefitId } from '@/domain/paywallBenefits';
+import { toPlanPrice } from '@/domain/subscriptionOffering';
 import { selectStreak, selectTotalReps, useProfileStore } from '@/state/profileStore';
 import { FREE_REP_LIMIT } from '@/domain/hardPaywall';
-import { ProgressRing } from '@/components/session/ProgressRing';
 import { CheckIcon } from '@/components/home/Icons';
 import {
   commitmentLine,
   granularPrice,
   monthlyEquivalent,
-  priceAnchor,
   savingsPercent,
-  type PlanPrice,
 } from '@/domain/paywallFraming';
+import { paywallLead, priceInsight, trialTimeline } from '@/domain/paywallInsight';
 import { font, text } from '@/theme/typography';
-import { gradients, palette, radius, surfaceShadow } from '@/theme/tokens';
+import { palette, radius } from '@/theme/tokens';
 
 /**
  * Compact value props — not card chrome. Push-ups & squats stay free.
@@ -225,9 +222,9 @@ export default function PaywallScreen() {
       setPro(true);
       await refresh();
       if (hasFreeTrial(selected)) {
-        track('trial_started', { plan: selected.packageType });
+        track('trial_started', { plan: selected.packageType, source: params.source ?? 'unknown' });
       }
-      track('subscribed', { plan: selected.packageType });
+      track('subscribed', { plan: selected.packageType, source: params.source ?? 'unknown' });
       leave();
       return;
     }
@@ -330,115 +327,122 @@ export default function PaywallScreen() {
   const ownProof = headlineProof(sessions, streak);
   const totalReps = useProfileStore(selectTotalReps);
 
+  /* The price in the athlete's own units. Workouts are counted over the last
+     thirty days from their real history, so "per workout" is their pace, not a
+     typical one. */
+  const [openedAt] = useState(() => Date.now());
+  const workouts30 = useMemo(() => {
+    const since = openedAt - 30 * 86_400_000;
+    return sessions.filter((x) => x.reps > 0 && Date.parse(x.completedAt) >= since).length;
+  }, [sessions, openedAt]);
+  const selectedPrice = selected ? toPlanPrice(selected) : null;
+  const insight = selectedPrice ? priceInsight(selectedPrice, workouts30) : null;
+  const timeline = useMemo(
+    () => (selected && hasFreeTrial(selected) ? trialTimeline(trialLengthDays(selected), new Date(openedAt)) : null),
+    [selected, openedAt],
+  );
+  const lead = paywallLead(params.source, {
+    fromRepWall,
+    freeLimit: FREE_REP_LIMIT,
+    totalReps,
+  });
+  const order = orderBenefits(params.source);
+  const leadBenefit = blockedBenefit(params.source);
+  const wallPct = Math.min(1, totalReps / FREE_REP_LIMIT);
+
   return (
     <Screen scroll={false} style={styles.root} contentStyle={styles.rootContent}>
       <View style={styles.body}>
-        {/* `onBack` is not optional here. ModalHeader falls back to
-            `router.back()`, which is exactly the exit `leave` exists to avoid:
-            the rep wall arrives via <Redirect>, so back lands on whatever
-            preceded the session and can re-wall straight back into this
-            screen. The chevron has to be the same door as "Maybe later". */}
-        <ModalHeader
-          title="RepChamp Pro"
-          subtitle="Unlock depth. Keep the free staples."
-          onBack={leaveWithoutBuying}
-        />
+        {/* `onBack` is not optional here: the rep wall arrives via <Redirect>,
+            so a plain `router.back()` can land on a screen that re-walls
+            straight back into this one. The close button is the same door as
+            "Maybe later" (see `leave`). */}
+        <View style={styles.topBar}>
+          <PressableScale
+            onPress={leaveWithoutBuying}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+            style={styles.close}
+          >
+            <View style={[styles.closeBar, { transform: [{ rotate: '45deg' }] }]} />
+            <View style={[styles.closeBar, { transform: [{ rotate: '-45deg' }] }]} />
+          </PressableScale>
+          {billingReady ? (
+            <PressableScale
+              onPress={() => void onRestore()}
+              accessibilityRole="button"
+              accessibilityLabel="Restore a previous purchase"
+              disabled={busy}
+              style={styles.footerLinkHit}
+            >
+              <Text style={styles.footerLink}>Restore</Text>
+            </PressableScale>
+          ) : null}
+        </View>
 
         <Animated.ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
-          {/* The rep wall, said plainly: what they did with the free reps, not
-              a lock icon. It is a statement of fact — their own count — and the
-              exit stays one tap away in the footer. */}
-          {fromRepWall ? (
-            <Animated.View entering={FadeInDown.duration(380)} style={styles.wallCard}>
-              <View style={styles.wallRing}>
-                <ProgressRing
-                  size={72}
-                  strokeWidth={8}
-                  percent={Math.min(100, Math.round((totalReps / FREE_REP_LIMIT) * 100))}
-                  color={palette.green500}
-                  trackColor={palette.divider}
-                >
-                  <Text style={styles.wallRingValue}>{Math.min(totalReps, FREE_REP_LIMIT)}</Text>
-                </ProgressRing>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.wallTitle}>Your free reps are used</Text>
-                <Text style={styles.wallBody}>
-                  {totalReps.toLocaleString()} reps counted so far. Pro keeps you going — duels and
-                  couple mode stay free either way.
-                </Text>
-              </View>
-            </Animated.View>
-          ) : null}
+          <Animated.View entering={FadeInDown.duration(360)}>
+            <Text style={styles.eyebrow}>REPCHAMP PRO</Text>
+            <Text style={styles.title} accessibilityRole="header">
+              {lead.title}
+            </Text>
+            <Text style={styles.sub}>{lead.sub}</Text>
 
-          <Animated.View entering={FadeInDown.duration(380).springify()}>
-            <LinearGradient
-              colors={gradients.heroEmerald}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={[styles.hero, surfaceShadow]}
-            >
-              <View style={styles.heroGlow} pointerEvents="none" />
-              <View style={styles.heroRing} pointerEvents="none" />
-              <View style={styles.heroTop}>
-                <View style={styles.heroBadge}>
-                  <Image
-                    source={require('../../assets/logo.png')}
-                    style={styles.heroLogo}
-                    contentFit="contain"
-                  />
-                </View>
-                <View style={styles.heroProTag}>
-                  <Text style={styles.heroProTagText}>PRO</Text>
-                </View>
-                <Image
-                  source={require('../../assets/trophy-gold.png')}
-                  style={styles.heroTrophy}
-                  contentFit="contain"
-                />
+            {/* The rep wall as a fact, not a lock: their own count, full. */}
+            {fromRepWall ? (
+              <View style={styles.wallTrack} accessibilityLabel={`${totalReps} of ${FREE_REP_LIMIT} free reps used`}>
+                <View style={[styles.wallFill, { width: `${Math.round(wallPct * 100)}%` }]} />
               </View>
-              <Text style={styles.heroTitle}>{fromRepWall ? 'Keep your momentum' : 'Train without limits'}</Text>
-              <Text style={styles.heroCopy}>
-                Full library, programmes, and form reports — cancel anytime.
-              </Text>
-              {/* Their own result, before the price. An athlete who has just
-                  been shown proof they are improving is deciding whether to
-                  keep something that works — not whether to gamble on a claim.
-                  Silent for anyone who has not earned a line yet, because
-                  inventing one here would be the exact opposite. */}
-              {ownProof ? <Text style={styles.ownProof}>{ownProof}</Text> : null}
-              {/* A price nobody has to convert in their head. Abstract money is
-                  easy to refuse; money measured against a coffee is not. */}
-              {selected && priceAnchor(toPlanPrice(selected)) ? (
-                <Text style={styles.anchorLine}>{priceAnchor(toPlanPrice(selected))}</Text>
-              ) : null}
-              {trialHint ? (
-                <View style={styles.trialPill}>
-                  <Text style={styles.trialPillText}>{trialHint} free · then subscribe</Text>
-                </View>
-              ) : (
-                <View style={styles.trustRow}>
-                  <Text style={styles.trustText}>Cancel anytime</Text>
-                  <Text style={styles.trustDot}>·</Text>
-                  <Text style={styles.trustText}>Store-secured billing</Text>
-                </View>
-              )}
-            </LinearGradient>
+            ) : ownProof ? (
+              <Text style={styles.ownProof}>{ownProof}</Text>
+            ) : null}
           </Animated.View>
 
-          <Text style={styles.plansLabel}>Choose your plan</Text>
+          {/* Ordered by what this source blocked; the refused one is marked.
+              All four promises always render in the same words — only the
+              order and the marker move. See `domain/paywallBenefits`. */}
+          <View style={styles.benefits}>
+            {order.map((id, i) => {
+              const b = BENEFITS[id];
+              const free = id === 'free-staples';
+              return (
+                <Animated.View
+                  key={id}
+                  entering={FadeInDown.delay(100 + i * 50).duration(320)}
+                  style={[styles.benefit, free && styles.benefitFree]}
+                >
+                  <View style={[styles.benefitDot, free && styles.benefitDotFree]}>
+                    <CheckIcon
+                      size={12}
+                      color={free ? palette.grey600 : palette.white}
+                      strokeWidth={3.2}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.benefitTitleRow}>
+                      <Text style={[styles.benefitTitle, free && styles.benefitTitleFree]}>
+                        {b.title}
+                      </Text>
+                      {id === leadBenefit ? (
+                        <View style={styles.forYou}>
+                          <Text style={styles.forYouText}>WHAT YOU TAPPED</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text style={styles.benefitDetail}>{b.detail}</Text>
+                  </View>
+                </Animated.View>
+              );
+            })}
+          </View>
 
           <View style={styles.plans}>
-            {/* No billing key on this build. Unlike the entitlement dialog
-                above — a rare, genuinely diagnostic message — this renders on
-                *every* paywall visit in dev, so it is the athlete's copy, not
-                a developer note; the setup pointer that used to live here
-                (REVENUECAT_SETUP.md) belongs in the repo, not on screen.
-                `isPurchasesConfigured()` returning false is itself the signal,
-                and the hard wall stands down when it does (see
+            {/* No billing key on this build. This renders on every dev visit,
+                so it is the athlete's copy, not a developer note. The hard
+                wall stands down when billing is unconfigured (see
                 domain/hardPaywall.ts), so nobody is ever locked out here. */}
             {!billingReady ? (
               <View style={styles.statusCard}>
@@ -472,22 +476,18 @@ export default function PaywallScreen() {
               packages.map((pkg, i) => (
                 <Animated.View
                   key={pkg.identifier}
-                  entering={FadeInDown.delay(120 + i * 50).duration(300)}
+                  entering={FadeInDown.delay(260 + i * 50).duration(300)}
                 >
                   <PlanRow
                     selected={pkg.identifier === selectedId}
                     onPress={() => setSelectedId(pkg.identifier)}
                     title={planTitle(pkg)}
-                    /* The per-week hint is dropped when a monthly rate is
-                       shown: "$1.15 a week · $5 / month · paid $60.00 annually"
-                       is the same price stated three ways, and three framings
-                       of one number read as sales patter rather than clarity.
-                       The rate and the real charge are the two that matter.
-                       Plans with no monthly reading keep the hint, which is
-                       their only granular framing. */
+                    /* One framing per plan: the monthly rate and the real
+                       charge are the two that matter; a third restatement of
+                       the same price reads as sales patter. */
                     subtitle={
                       monthlyFor(pkg)
-                        ? 'cancel anytime'
+                        ? (monthlyFor(pkg)?.billedAs ?? 'cancel anytime')
                         : (perWeekHint(pkg) ?? pkg.product.description ?? 'Full Pro access')
                     }
                     price={pkg.product.priceString}
@@ -507,112 +507,110 @@ export default function PaywallScreen() {
             )}
           </View>
 
-          <View style={[styles.benefits, styles.benefitsCard]}>
-            {/* Ordered by what this source blocked, so the promise that answers
-                the refusal is read first. See `domain/paywallBenefits`. */}
-            {orderBenefits(params.source).map((id, i) => {
-              const b = BENEFITS[id];
-              return (
-              <Animated.View
-                key={id}
-                entering={FadeInDown.delay(80 + i * 45).duration(320)}
-                style={styles.benefit}
-              >
-                <View style={styles.benefitIcon}>
-                  <CheckIcon size={15} color={palette.green700} strokeWidth={3} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.benefitTitle}>{b.title}</Text>
-                  <Text style={styles.benefitDetail}>{b.detail}</Text>
-                </View>
-              </Animated.View>
-              );
-            })}
-          </View>
+          {/* Keyed on the selection so the line re-reads when the plan changes
+              instead of silently swapping a number. */}
+          {plansReady && insight ? (
+            <Animated.Text key={selectedId} entering={FadeIn.duration(260)} style={styles.insight}>
+              {insight}
+            </Animated.Text>
+          ) : null}
+
+          {/* Only a real trial earns a timeline, and only with real dates. The
+              last free day is stated because that is when a surprise charge is
+              avoided — the single most useful thing to know before tapping. */}
+          {plansReady && timeline ? (
+            <Animated.View key={`t-${selectedId}`} entering={FadeIn.duration(260)} style={styles.timeline}>
+              <TimelineStep label="Today" detail="Full access starts. Nothing charged." first />
+              <TimelineStep
+                label={timeline.chargeDate}
+                detail={`Billing begins. Cancel by ${timeline.cancelBy} to pay nothing.`}
+                last
+              />
+            </Animated.View>
+          ) : null}
         </Animated.ScrollView>
       </View>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-        {selected && plansReady ? (
-          <Text style={styles.footerHint} numberOfLines={2}>
-            {renewDisclosure(selected)}
-          </Text>
-        ) : null}
-
-        {/* The reassurance sits directly under the button, where the hesitation
-            is. Naming the exit lowers the cost of committing, and it stays
-            honest: a trial is only promised when the plan carries one. */}
-        {selected && plansReady ? (
-          <Text style={styles.commitLine}>
-            {commitmentLine(hasFreeTrial(selected), trialHint)}
-          </Text>
-        ) : null}
-
         <PrimaryButton
           label={ctaLabel}
           onPress={onPrimary}
           disabled={busy || (billingReady && !showRetry && !plansReady && packages === null)}
         />
 
-        {billingReady ? (
-          <View style={styles.footerLinks}>
-            <PressableScale
-              onPress={() => void onRestore()}
-              accessibilityRole="button"
-              accessibilityLabel="Restore a previous purchase"
-              disabled={busy}
-              style={styles.footerLinkHit}
-            >
-              <Text style={styles.footerLink}>Restore purchase</Text>
-            </PressableScale>
-            <Text style={styles.footerSep}>·</Text>
-            {/* Unconditional. This used to render only when `showRetry` was
-                true, so on the ordinary loaded paywall — plans fetched, prices
-                on screen — the only ways out were the header chevron (which
-                was unwired, see above) and Android back. On the rep wall that
-                left an iOS athlete with no visible decline at all, which is
-                the dead end the store rejection was about. Declining must
-                always be one obvious tap. */}
-            <PressableScale
-              onPress={leaveWithoutBuying}
-              accessibilityRole="button"
-              accessibilityLabel="Maybe later"
-              disabled={busy}
-              style={styles.footerLinkHit}
-            >
-              <Text style={styles.footerLink}>Maybe later</Text>
-            </PressableScale>
-            <Text style={styles.footerSep}>·</Text>
-            <PressableScale
-              onPress={() => void Linking.openURL(TERMS_URL)}
-              accessibilityRole="link"
-              accessibilityLabel="Terms of use"
-              style={styles.footerLinkHit}
-            >
-              <Text style={styles.footerLink}>Terms</Text>
-            </PressableScale>
-            <Text style={styles.footerSep}>·</Text>
-            <PressableScale
-              onPress={() => void Linking.openURL(PRIVACY_URL)}
-              accessibilityRole="link"
-              accessibilityLabel="Privacy policy"
-              style={styles.footerLinkHit}
-            >
-              <Text style={styles.footerLink}>Privacy</Text>
-            </PressableScale>
-          </View>
-        ) : (
+        {/* The reassurance sits directly under the button, where the hesitation
+            is, and it only promises a trial when the plan carries one. */}
+        {selected && plansReady ? (
+          <Text style={styles.commitLine}>
+            {commitmentLine(hasFreeTrial(selected), trialHint)}
+          </Text>
+        ) : null}
+        {selected && plansReady ? (
+          <Text style={styles.footerHint} numberOfLines={2}>
+            {renewDisclosure(selected)}
+          </Text>
+        ) : null}
+
+        <View style={styles.footerLinks}>
+          {/* Unconditional: declining must always be one obvious tap. On the
+              rep wall an iOS athlete otherwise has no visible way to decline,
+              which is the dead end the store rejection was about. */}
           <PressableScale
             onPress={leaveWithoutBuying}
             accessibilityRole="button"
             accessibilityLabel="Maybe later"
+            disabled={busy}
             style={styles.footerLinkHit}
           >
-            <Text style={[styles.footerLink, { textAlign: 'center' }]}>Maybe later</Text>
+            <Text style={styles.footerLink}>Maybe later</Text>
           </PressableScale>
-        )}
+          <Text style={styles.footerSep}>·</Text>
+          <PressableScale
+            onPress={() => void Linking.openURL(TERMS_URL)}
+            accessibilityRole="link"
+            accessibilityLabel="Terms of use"
+            style={styles.footerLinkHit}
+          >
+            <Text style={styles.footerLink}>Terms</Text>
+          </PressableScale>
+          <Text style={styles.footerSep}>·</Text>
+          <PressableScale
+            onPress={() => void Linking.openURL(PRIVACY_URL)}
+            accessibilityRole="link"
+            accessibilityLabel="Privacy policy"
+            style={styles.footerLinkHit}
+          >
+            <Text style={styles.footerLink}>Privacy</Text>
+          </PressableScale>
+        </View>
       </View>
     </Screen>
+  );
+}
+
+function TimelineStep({
+  label,
+  detail,
+  first,
+  last,
+}: {
+  label: string;
+  detail: string;
+  first?: boolean;
+  last?: boolean;
+}) {
+  return (
+    <View style={styles.tlRow}>
+      <View style={styles.tlRail}>
+        <View style={[styles.tlLine, first && { backgroundColor: 'transparent' }]} />
+        <View style={[styles.tlDot, first && styles.tlDotOn]} />
+        <View style={[styles.tlLine, last && { backgroundColor: 'transparent' }]} />
+      </View>
+      <View style={{ flex: 1, paddingVertical: 8 }}>
+        <Text style={styles.tlLabel}>{label}</Text>
+        <Text style={styles.tlDetail}>{detail}</Text>
+      </View>
+    </View>
   );
 }
 
@@ -651,64 +649,40 @@ function PlanRow({
           ? `${title}, ${perMonth} per month, ${billedAs}${badge ? `, ${badge}` : ''}`
           : `${title}, ${price}${badge ? `, ${badge}` : ''}`
       }
-      style={[
-        styles.plan,
-        selected && styles.planSelected,
-        featured && selected && styles.planFeatured,
-      ]}
+      style={[styles.plan, selected && styles.planSelected]}
     >
-      {badge ? (
-        <View style={[styles.planBadge, featured && styles.planBadgeFeatured]}>
-          <Text
-            style={[
-              styles.planBadgeText,
-              featured && { color: palette.white },
-            ]}
-          >
-            {badge}
-          </Text>
-        </View>
-      ) : null}
-      <View
-        style={[
-          styles.radio,
-          selected && { borderColor: palette.green600, backgroundColor: palette.green600 },
-        ]}
-      >
-        {selected ? <CheckIcon size={13} color={palette.white} strokeWidth={3} /> : null}
+      <View style={[styles.radio, selected && styles.radioOn]}>
+        {selected ? <View style={styles.radioDot} /> : null}
       </View>
       <View style={{ flex: 1, paddingRight: 8 }}>
-        <Text style={font('extrabold', 16, { color: palette.ink })}>{title}</Text>
-        <Text style={styles.planSubtitle}>{subtitle}</Text>
+        <Text style={styles.planTitle}>{title}</Text>
+        {badge ? (
+          <View style={[styles.planBadge, featured && styles.planBadgeFeatured]}>
+            <Text style={[styles.planBadgeText, featured && { color: palette.white }]}>
+              {badge}
+            </Text>
+          </View>
+        ) : (
+          <Text style={styles.planSubtitle}>{subtitle}</Text>
+        )}
       </View>
-      {/* The rate leads, the charge follows. "$60" and "$10" are not the same
-          unit, so an annual plan reads as the expensive one until the athlete
-          divides it themselves — and most will not. Both in the same unit makes
-          the comparison honest; the real charge stays attached because finding
-          out about it at the store sheet is what produces refunds. */}
+      {/* The rate leads, the charge follows: "$60" and "$10" are not the same
+          unit, so both in one unit makes the comparison honest, and the real
+          charge stays attached because finding it out at the store sheet is
+          what produces refunds. */}
       {perMonth && billedAs ? (
         <View style={{ alignItems: 'flex-end' }}>
           <View style={styles.planRateRow}>
-            <Text style={font('extrabold', 19, { color: palette.ink })}>{perMonth}</Text>
-            <Text style={styles.planRateUnit}> / month</Text>
+            <Text style={styles.planPrice}>{perMonth}</Text>
+            <Text style={styles.planRateUnit}> / mo</Text>
           </View>
           <Text style={styles.planBilledAs}>{billedAs}</Text>
         </View>
       ) : (
-        <Text style={font('extrabold', 17, { color: palette.ink })}>{price}</Text>
+        <Text style={styles.planPrice}>{price}</Text>
       )}
     </PressableScale>
   );
-}
-
-/** Turn a RevenueCat package into the shape `domain/paywallFraming` reasons about. */
-function toPlanPrice(pkg: PurchasesPackage): PlanPrice {
-  const weeks: Record<string, number> = { ANNUAL: 52, MONTHLY: 4.345, WEEKLY: 1 };
-  return {
-    price: pkg.product.price || 0,
-    weeks: weeks[pkg.packageType] ?? 0,
-    symbol: pkg.product.priceString.replace(/[\d.,\s]/g, '') || '',
-  };
 }
 
 /** The monthly-rate split for a plan, or null when it is already monthly. */
@@ -717,9 +691,7 @@ function monthlyFor(pkg: PurchasesPackage) {
 }
 
 function perWeekHint(pkg: PurchasesPackage): string | null {
-  /* The arithmetic moved to `domain/paywallFraming`, where it is tested — the
-     same number decides whether a plan reads as £24.99 a year or 48p a week,
-     and getting it wrong either overstates the offer or wastes it. */
+  /* The arithmetic lives in `domain/paywallFraming`, where it is tested. */
   const granular = granularPrice(toPlanPrice(pkg));
   return granular ? `${granular} · cancel anytime` : null;
 }
@@ -742,212 +714,161 @@ const styles = StyleSheet.create({
   body: { flex: 1 },
   scrollContent: { paddingBottom: 20 },
 
-  hero: {
-    borderRadius: radius['6xl'],
-    paddingHorizontal: 22,
-    paddingTop: 18,
-    paddingBottom: 22,
-    overflow: 'hidden',
-  },
-  /* Two soft shapes behind the copy, the same emerald depth Home and Train use. */
-  heroGlow: {
-    position: 'absolute',
-    top: -80,
-    right: -60,
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    backgroundColor: 'rgba(74,222,128,0.12)',
-  },
-  heroRing: {
-    position: 'absolute',
-    bottom: -70,
-    left: -50,
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    borderWidth: 18,
-    borderColor: 'rgba(255,255,255,0.05)',
-  },
-  heroTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  heroBadge: {
-    width: 56,
-    height: 56,
-    borderRadius: radius.lg,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroLogo: { width: 34, height: 34, borderRadius: radius.sm, overflow: 'hidden' },
-  heroProTag: {
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: radius.pill,
-  },
-  heroProTagText: {
-    ...font('extrabold', 11, { color: palette.green700 }),
-    letterSpacing: 2.5,
-  },
-  heroTitle: {
-    ...font('extrabold', 28, { color: palette.white }),
-    letterSpacing: -0.8,
-    marginTop: 12,
-  },
-  heroCopy: {
-    ...font('semibold', 13.5, { color: 'rgba(255,255,255,0.9)' }),
-    marginTop: 4,
-    lineHeight: 19,
-  },
-  /* On the dark hero, so it reads as a quiet aside to the headline price
-     rather than another claim competing with it. */
-  /* Sits above the price on the dark hero, in the brand green so it reads as
-     the athlete's own result rather than another marketing claim. */
-  ownProof: {
-    ...font('extrabold', 13, { color: palette.green300 }),
-    marginTop: 10,
-    lineHeight: 18,
-  },
-  anchorLine: {
-    ...font('bold', 12.5, { color: 'rgba(255,255,255,0.72)' }),
-    marginTop: 6,
-  },
-  trialPill: {
-    alignSelf: 'flex-start',
-    marginTop: 12,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: radius.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-  },
-  trialPillText: font('extrabold', 12, { color: palette.white }),
-  trustRow: {
+  topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 12,
-  },
-  trustText: font('semibold', 12, { color: 'rgba(255,255,255,0.85)' }),
-  trustDot: font('semibold', 12, { color: 'rgba(255,255,255,0.45)' }),
-
-  benefits: { marginTop: 20, gap: 12 },
-  benefitsCard: {
-    padding: 16,
-    borderRadius: radius['4xl'],
-    backgroundColor: palette.white,
-    borderWidth: 1,
-    borderColor: 'rgba(15,31,23,0.06)',
-    ...surfaceShadow,
-  },
-  wallCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    padding: 16,
-    marginBottom: 12,
-    borderRadius: radius['4xl'],
-    backgroundColor: palette.white,
-    borderWidth: 1,
-    borderColor: 'rgba(15,31,23,0.06)',
-    ...surfaceShadow,
-  },
-  wallRing: { width: 72, height: 72, alignItems: 'center', justifyContent: 'center' },
-  wallRingValue: { ...font('extrabold', 20, { color: palette.ink }), fontVariant: ['tabular-nums'] },
-  wallTitle: { ...font('extrabold', 17, { color: palette.ink }), letterSpacing: -0.4 },
-  wallBody: { ...font('medium', 13, { color: palette.grey600 }), marginTop: 3, lineHeight: 18 },
-  heroTrophy: { width: 64, height: 64, marginLeft: 'auto' },
-  benefit: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  benefitIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-    backgroundColor: palette.green50,
-    alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     marginTop: 4,
-  },
-  benefitCheck: font('extrabold', 14, { color: palette.white }),
-  benefitTitle: font('extrabold', 14.5, { color: palette.ink }),
-  benefitDetail: {
-    ...text.caption,
-    marginTop: 4,
-    lineHeight: 17,
-  },
-
-  plansLabel: {
-    ...font('extrabold', 17, { color: palette.ink }),
-    letterSpacing: -0.4,
-    marginTop: 20,
     marginBottom: 8,
   },
-  plans: { gap: 8, paddingTop: 8 },
+  close: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: palette.divider,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeBar: {
+    position: 'absolute',
+    width: 16,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: palette.ink,
+  },
 
+  eyebrow: {
+    ...font('extrabold', 11, { color: palette.green600 }),
+    letterSpacing: 2.4,
+    marginTop: 12,
+  },
+  title: {
+    ...font('extrabold', 32, { color: palette.ink }),
+    letterSpacing: -1,
+    lineHeight: 37,
+    marginTop: 8,
+  },
+  sub: { ...font('medium', 15, { color: palette.grey600 }), lineHeight: 21, marginTop: 6 },
+  ownProof: { ...font('bold', 13, { color: palette.green700 }), marginTop: 10, lineHeight: 18 },
+  wallTrack: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: palette.divider,
+    marginTop: 16,
+    overflow: 'hidden',
+  },
+  wallFill: { height: 4, borderRadius: 2, backgroundColor: palette.green500 },
+
+  benefits: { marginTop: 24, gap: 14 },
+  benefit: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  benefitFree: {
+    marginTop: 2,
+    paddingTop: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: palette.borderStrong,
+  },
+  benefitDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: palette.green500,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  benefitDotFree: { backgroundColor: palette.divider },
+  benefitTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  benefitTitle: font('extrabold', 15, { color: palette.ink }),
+  benefitTitleFree: { color: palette.grey600 },
+  benefitDetail: { ...text.caption, marginTop: 2, lineHeight: 17 },
+  forYou: {
+    backgroundColor: palette.green50,
+    borderRadius: radius.xs,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  forYouText: { ...font('extrabold', 9, { color: palette.green700 }), letterSpacing: 0.8 },
+
+  plans: { gap: 10, marginTop: 28 },
   plan: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     borderWidth: 1.5,
-    borderColor: 'rgba(15,31,23,0.08)',
+    borderColor: palette.border,
     borderRadius: radius['4xl'],
-    paddingVertical: 18,
+    paddingVertical: 16,
     paddingHorizontal: 16,
     backgroundColor: palette.white,
-    overflow: 'visible',
-    ...surfaceShadow,
   },
-  planSelected: {
-    borderWidth: 2,
-    borderColor: palette.green500,
-    backgroundColor: palette.green50,
-  },
-  planFeatured: {
-    borderColor: palette.green600,
-    shadowColor: palette.green500,
-    shadowOpacity: 0.22,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-  },
+  planSelected: { borderColor: palette.ink, backgroundColor: palette.white },
+  planTitle: font('extrabold', 16, { color: palette.ink }),
   planBadge: {
-    position: 'absolute',
-    top: -10,
-    right: 14,
+    alignSelf: 'flex-start',
+    marginTop: 5,
     backgroundColor: palette.green50,
-    borderWidth: 1,
-    borderColor: palette.green200,
     borderRadius: radius.xs,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    zIndex: 2,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
   },
-  planBadgeFeatured: {
-    backgroundColor: palette.green600,
-    borderColor: palette.green700,
-  },
+  planBadgeFeatured: { backgroundColor: palette.green600 },
   planBadgeText: font('extrabold', 9.5, { color: palette.green700 }),
   planRateRow: { flexDirection: 'row', alignItems: 'baseline' },
-  /* Lighter and smaller than the number: the unit is what makes the figure
-     comparable, not what the eye should land on first. */
-  planRateUnit: { ...font('bold', 12, { color: palette.grey600 }) },
-  /* The real charge — deliberately quiet, deliberately present. */
-  planBilledAs: { ...font('semibold', 11, { color: palette.grey500 }), marginTop: 2 },
-  planSubtitle: { ...text.caption, marginTop: 4 },
+  /* Pricing type: semibold (not extrabold) at a larger size reads as figures,
+     not shouting; tabular numerals keep digits the same width so the two plans
+     line up, and tight tracking stops large numerals looking loose. */
+  planPrice: {
+    ...font('semibold', 22, { color: palette.ink }),
+    letterSpacing: -0.6,
+    fontVariant: ['tabular-nums'],
+  },
+  planRateUnit: { ...font('medium', 13, { color: palette.grey600 }), letterSpacing: 0 },
+  planBilledAs: {
+    ...font('medium', 11.5, { color: palette.grey500 }),
+    marginTop: 3,
+    fontVariant: ['tabular-nums'],
+  },
+  planSubtitle: { ...text.caption, marginTop: 3 },
   radio: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     borderWidth: 2,
     borderColor: palette.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  radioOn: { borderColor: palette.ink },
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: palette.ink },
+
+  insight: {
+    ...font('semibold', 13, { color: palette.green700 }),
+    fontVariant: ['tabular-nums'],
+    textAlign: 'center',
+    marginTop: 14,
+  },
+
+  timeline: { marginTop: 18, paddingHorizontal: 4 },
+  tlRow: { flexDirection: 'row', gap: 12 },
+  tlRail: { width: 12, alignItems: 'center' },
+  tlLine: { flex: 1, width: 2, backgroundColor: palette.border },
+  tlDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: palette.borderStrong,
+    backgroundColor: palette.canvas,
+  },
+  tlDotOn: { borderColor: palette.green500, backgroundColor: palette.green500 },
+  tlLabel: font('extrabold', 13, { color: palette.ink }),
+  tlDetail: { ...text.caption, marginTop: 1, lineHeight: 17 },
 
   statusCard: {
     borderRadius: radius['4xl'],
     backgroundColor: palette.white,
     borderWidth: 1,
-    borderColor: 'rgba(15,31,23,0.06)',
+    borderColor: palette.border,
     padding: 16,
     gap: 4,
   },
@@ -962,25 +883,23 @@ const styles = StyleSheet.create({
   loadingLabel: font('semibold', 13, { color: palette.grey600 }),
 
   footer: {
-    borderTopWidth: 1,
-    borderTopColor: palette.divider,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: palette.borderStrong,
     backgroundColor: palette.canvas,
-    paddingHorizontal: 0,
     paddingTop: 12,
     gap: 4,
   },
-  /* Directly under the CTA, muted: reassurance should be findable at the moment
-     of hesitation without competing with the button itself. */
+  /* Directly under the CTA, muted: findable at the moment of hesitation
+     without competing with the button itself. */
   commitLine: {
-    ...font('semibold', 11.5, { color: palette.grey450 }),
+    ...font('semibold', 11.5, { color: palette.grey550 }),
     textAlign: 'center',
-    marginBottom: 8,
+    marginTop: 8,
   },
   footerHint: {
     ...text.caption,
     color: palette.grey450,
     textAlign: 'center',
-    marginBottom: 4,
     paddingHorizontal: 8,
   },
   footerLinks: {
@@ -988,7 +907,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     flexWrap: 'wrap',
-    marginTop: 4,
   },
   footerLinkHit: { paddingVertical: 8, paddingHorizontal: 8 },
   footerLink: font('bold', 12.5, { color: palette.grey600 }),

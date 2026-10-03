@@ -55,7 +55,7 @@ export interface AnalyticsEvents {
   feed_card_viewed: { card: string; position: number };
   feed_cta: { card: string };
   invite_card_shown: Record<string, never>;
-  invite_card_tapped: Record<string, never>;
+  invite_card_tapped: { source: 'card' | 'rail' | 'hydration' };
   invite_card_dismissed: Record<string, never>;
 
   couple_invite_created: Record<string, never>;
@@ -77,6 +77,22 @@ export interface AnalyticsEvents {
 
   /** Mirrors `couple_paired` so both invite surfaces are measured the same way. */
   duel_joined: { via: 'qr' | 'code' | 'invite' };
+
+  /** A peak-moment Pro offer was shown on the result screen — see `domain/proMoment`. */
+  pro_moment_shown: { kind: string };
+  pro_moment_tapped: { kind: string };
+  pro_moment_dismissed: { kind: string };
+
+  /** The monthly → annual switch card — see `domain/annualUpgrade`. */
+  annual_offer_shown: Record<string, never>;
+  annual_offer_tapped: Record<string, never>;
+  annual_offer_dismissed: Record<string, never>;
+  annual_switched: Record<string, never>;
+
+  /** The lapsed-Pro card on Home — see `domain/proWinBack`. `kind`: offer | billing-issue. */
+  win_back_shown: { kind: string };
+  win_back_tapped: { kind: string };
+  win_back_dismissed: { kind: string };
 
   paywall_viewed: { source: string };
   /** The athlete saw the price and chose not to buy — the other half of the funnel. */
@@ -116,8 +132,13 @@ export interface AnalyticsEvents {
    * a cut message is never mistaken for the whole fault when someone is
    * diagnosing from the dashboard.
    */
-  trial_started: { plan: string };
-  subscribed: { plan: string };
+  /**
+   * `source` is the paywall entry point, so revenue can be attributed to the
+   * surface that earned it (rep wall, form report, a `moment-*` card). Without
+   * it `subscribed` is a total, not a funnel.
+   */
+  trial_started: { plan: string; source: string };
+  subscribed: { plan: string; source: string };
   restore_completed: { restored: boolean };
 
   share_opened: { kind: string };

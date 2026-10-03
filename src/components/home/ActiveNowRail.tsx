@@ -27,7 +27,17 @@ import { palette, surfaceShadow } from '@/theme/tokens';
  * focus, the same way the Friends tab does.
  */
 /** `live` is the "6 partners ready" count, shown beside the heading. */
-export function ActiveNowRail({ live }: { live?: string } = {}) {
+export function ActiveNowRail({
+  live,
+  showPairCard = false,
+  soloWalled = false,
+}: {
+  live?: string;
+  /** Offer pairing in the row. Off when paired, and when Home already shows a bigger invite. */
+  showPairCard?: boolean;
+  /** Free reps are spent: an AI race goes straight to the paywall, not through a session that unmounts. */
+  soloWalled?: boolean;
+} = {}) {
   const router = useRouter();
   const uid = useAuthStore((s) => s.user?.uid);
   const seed = usePhantomSeed();
@@ -66,6 +76,10 @@ export function ActiveNowRail({ live }: { live?: string } = {}) {
   };
 
   const raceAi = (id: string) => {
+    if (soloWalled) {
+      router.push({ pathname: '/modal/paywall', params: { source: 'rep-limit', hard: '1' } });
+      return;
+    }
     track('friend_invited', { kind: 'duel', isAI: true });
     router.push({ pathname: '/session', params: { exercise: 'push', mode: 'versus', opponent: id } });
   };
@@ -118,6 +132,39 @@ export function ActiveNowRail({ live }: { live?: string } = {}) {
             <Text style={[styles.goText, { color: palette.green700 }]}>Scan</Text>
           </View>
         </PressableScale>
+
+        {/* Alone: the card that turns the row into a pair. Hidden once paired. */}
+        {showPairCard ? (
+          <PressableScale
+            onPress={() => {
+              track('invite_card_tapped', { source: 'rail' });
+              router.push('/modal/couple-invite');
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Pair with a training partner"
+            style={[styles.card, styles.pairCard]}
+          >
+            <View style={styles.cardTag}>
+              <Text style={[styles.tagText, { color: palette.green700 }]}>DUO</Text>
+            </View>
+            <View style={styles.pairSeats}>
+              <View style={styles.pairSeat}>
+                <Text style={styles.pairSeatGlyph}>🐼</Text>
+              </View>
+              <View style={[styles.pairSeat, styles.pairSeatGhost]}>
+                <Text style={[styles.pairSeatGlyph, { opacity: 0.3 }]}>🐼</Text>
+              </View>
+              <View style={styles.pairPlus}>
+                <Text style={styles.pairPlusGlyph}>+</Text>
+              </View>
+            </View>
+            <Text style={styles.cardName}>Pair up</Text>
+            <Text style={styles.cardMeta}>Shared streak</Text>
+            <View style={[styles.go, { backgroundColor: palette.green600 }]}>
+              <Text style={styles.goText}>Invite</Text>
+            </View>
+          </PressableScale>
+        ) : null}
 
         {friends.map((f) => (
           <RaceCard
@@ -248,12 +295,12 @@ const styles = StyleSheet.create({
   cardLive: { borderColor: palette.green300, backgroundColor: '#F4FDF7' },
   addCard: { borderStyle: 'dashed', borderColor: palette.green300, shadowOpacity: 0, elevation: 0 },
   cardTag: { position: 'absolute', top: 7, left: 8 },
-  tagText: { ...font('extrabold', 8.5, { color: palette.grey500 }), letterSpacing: 0.6 },
+  tagText: { ...font('extrabold', 10, { color: palette.grey700 }), letterSpacing: 0.6 },
   cardName: { ...font('bold', 13, { color: palette.ink }), marginTop: 7, maxWidth: 92 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
-  cardMeta: font('semibold', 10.5, { color: palette.grey600 }),
+  cardMeta: font('semibold', 11, { color: palette.grey700 }),
   diff: { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 5 },
-  diffText: font('extrabold', 9.5),
+  diffText: font('extrabold', 10.5),
   go: {
     alignSelf: 'stretch',
     marginTop: 9,
@@ -276,5 +323,31 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: palette.white,
   },
+  pairCard: { borderStyle: 'dashed', borderColor: palette.green300, backgroundColor: palette.tintGreenTop },
+  pairSeats: { flexDirection: 'row', alignItems: 'center', height: 50, justifyContent: 'center' },
+  pairSeat: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: palette.white,
+    borderWidth: 2,
+    borderColor: palette.green300,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pairSeatGhost: { marginLeft: -10, borderStyle: 'dashed', backgroundColor: palette.green50 },
+  pairSeatGlyph: { fontSize: 20 },
+  pairPlus: {
+    position: 'absolute',
+    right: 14,
+    bottom: 0,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: palette.green600,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pairPlusGlyph: { ...font('extrabold', 13, { color: palette.white }), lineHeight: 15 },
   liveRing: { borderWidth: 2, borderColor: palette.green500, borderRadius: 27, padding: 1 },
 });

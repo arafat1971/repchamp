@@ -16,7 +16,7 @@ import { PressableScale } from '@/components/ui';
 import { getOpponent } from '@/domain/opponent';
 import { canUse } from '@/domain/pro';
 import { track } from '@/lib/analytics';
-import { LEAGUES } from '@/domain/progression';
+import { LEAGUES, dayKey } from '@/domain/progression';
 import { leagueMove, streakOutcome } from '@/domain/retention';
 import { captureError } from '@/lib/crash';
 import { playLoseSound, playSparkleSound, playWinSound, successHaptic } from '@/lib/feedback';
@@ -29,7 +29,12 @@ import { emitRetention, retentionSnapshot } from '@/services/recordSessionWithRe
 import { shareWorthyLine } from '@/domain/progressProof';
 import { setHighlight } from '@/domain/setHighlight';
 import { HighlightCard } from '@/components/session/HighlightCard';
-import { useProfileStore, selectLeague, selectStreak } from '@/state/profileStore';
+import { ProMomentCard } from '@/components/session/ProMomentCard';
+import { chooseProMoment, type ProMoment } from '@/domain/proMoment';
+import { isNearingWall } from '@/domain/hardPaywall';
+import { isPurchasesConfigured } from '@/services/purchases';
+import { useProMomentStore } from '@/state/proMomentStore';
+import { useProfileStore, selectLeague, selectStreak, selectTotalReps } from '@/state/profileStore';
 import { useIsPro } from '@/state/proStore';
 import { useAuthStore } from '@/state/authStore';
 import { useSessionStore } from '@/state/sessionStore';
@@ -61,11 +66,44 @@ export default function ResultScreen() {
   const authUid = useAuthStore((s) => s.user?.uid ?? null);
   const authReady = useAuthStore((s) => s.ready);
 
-  // The visible card, captured to a PNG when the athlete shares.
-  const shareCardRef = useRef<View>(null);
-
   // Persist exactly once
   const persisted = useRef(false);
+
+  /* The peak-moment Pro offer. Decided exactly once, when the set lands in the
+     history, so it reads the real history including this set and cannot flicker
+     in later. Subscribed before the settle effect below so its write is seen. */
+  const [proMoment, setProMoment] = useState<ProMoment | null>(null);
+  const momentDecided = useRef(false);
+  const sessionMode = session.config?.mode;
+  useEffect(
+    () =>
+      useProfileStore.subscribe((profile, prev) => {
+        if (profile.sessions === prev.sessions) return;
+        if (!persisted.current || momentDecided.current || profile.sessions.length === 0) return;
+        momentDecided.current = true;
+        const picked = chooseProMoment({
+          isPro,
+          sessions: profile.sessions,
+          history: useProMomentStore.getState().history,
+          now: Date.now(),
+          today: dayKey(),
+          nearingWall: isNearingWall({
+            isPro,
+            repsSoFar: selectTotalReps(profile),
+            isCoupleMode: sessionMode === 'together',
+            billingReady: isPurchasesConfigured(),
+          }),
+        });
+        if (!picked) return;
+        useProMomentStore.getState().recordShown(picked.kind);
+        track('pro_moment_shown', { kind: picked.kind });
+        setProMoment(picked);
+      }),
+    [isPro, sessionMode],
+  );
+
+  // The visible card, captured to a PNG when the athlete shares.
+  const shareCardRef = useRef<View>(null);
 
   // Snapshot outcome fields once — do not re-run settle when late store writes
   // (e.g. share snapshot) churn the whole session object.
@@ -563,6 +601,22 @@ export default function ResultScreen() {
               cooperative={mode === 'together'}
             />
           </Animated.View>
+        ) : null}
+
+        {proMoment ? (
+          <ProMomentCard
+            moment={proMoment}
+            onAccept={() => {
+              useProMomentStore.getState().recordOutcome(proMoment.kind, 'tapped');
+              track('pro_moment_tapped', { kind: proMoment.kind });
+              router.push({ pathname: '/modal/paywall', params: { source: proMoment.source } });
+            }}
+            onDismiss={() => {
+              useProMomentStore.getState().recordOutcome(proMoment.kind, 'dismissed');
+              track('pro_moment_dismissed', { kind: proMoment.kind });
+              setProMoment(null);
+            }}
+          />
         ) : null}
 
         {/* The Beautiful 3D Viral Share Card rendered on screen */}

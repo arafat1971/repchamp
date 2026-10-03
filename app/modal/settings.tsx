@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Linking, Platform, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
+import { AnnualUpgradeCard } from '@/components/AnnualUpgradeCard';
 import { ModalHeader } from '@/components/ModalHeader';
 import { Chevron, Divider, PressableScale, Screen, Toggle } from '@/components/ui';
 import { HomeSectionHeader } from '@/components/home/HomeSectionHeader';
@@ -408,7 +409,7 @@ export default function SettingsScreen() {
   );
 
   return (
-    <Screen>
+    <Screen enter>
       <ModalHeader title="Settings" />
 
       <HomeSectionHeader title="During workouts" />
@@ -445,6 +446,7 @@ export default function SettingsScreen() {
               }
             />
           </Card>
+          {isPro ? <AnnualUpgradeCard /> : null}
         </>
       ) : null}
 

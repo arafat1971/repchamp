@@ -2626,8 +2626,8 @@ function Paywall({
 
     if (result.ok && result.isPro) {
       useProStore.getState().setPro(true);
-      if (hasFreeTrial(selected)) track('trial_started', { plan: selected.packageType });
-      track('subscribed', { plan: selected.packageType });
+      if (hasFreeTrial(selected)) track('trial_started', { plan: selected.packageType, source: 'onboarding' });
+      track('subscribed', { plan: selected.packageType, source: 'onboarding' });
       onNext();
       return;
     }
@@ -2900,9 +2900,9 @@ function Offer({ onDone }: { onDone: () => void }) {
     if (result.ok && result.isPro) {
       setPro(true);
       if (hasFreeTrial(annual)) {
-        track('trial_started', { plan: annual.packageType });
+        track('trial_started', { plan: annual.packageType, source: 'onboarding' });
       }
-      track('subscribed', { plan: annual.packageType });
+      track('subscribed', { plan: annual.packageType, source: 'onboarding' });
       onDone();
       return;
     }

@@ -13,7 +13,8 @@ export const IOS = {
   duo: '#FF2D55',
   green: '#34C759',
   label: '#1C1C1E',
-  secondary: '#8E8E93',
+  /* 5.2:1 on white. The system grey (#8E8E93) is 3.3:1, too faint for 11–13pt text. */
+  secondary: '#6C6C70',
   tertiary: '#C7C7CC',
   fill: '#F2F2F7',
   separator: 'rgba(60,60,67,0.12)',

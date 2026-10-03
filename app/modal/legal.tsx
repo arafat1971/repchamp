@@ -25,7 +25,7 @@ export default function LegalScreen() {
   const title = tab === 'terms' ? 'Terms of Use' : 'Privacy Policy';
 
   return (
-    <Screen scroll>
+    <Screen scroll enter>
       <ModalHeader title={title} />
 
       <PressableScale

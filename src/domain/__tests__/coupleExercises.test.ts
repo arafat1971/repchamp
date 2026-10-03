@@ -1,7 +1,10 @@
 import {
   SIGNATURE_SHARE,
+  coupleDailyDetail,
   coupleExerciseInsight,
   myExerciseBreakdown,
+  sideTotals,
+  type DayStatusRow,
   type ExerciseSession,
 } from '@/domain/coupleExercises';
 
@@ -141,8 +144,6 @@ describe('coupleExerciseInsight', () => {
     }
   });
 });
-
-import { coupleDailyDetail, sideTotals, type DayStatusRow } from '@/domain/coupleExercises';
 
 const row = (
   day: string,

@@ -57,7 +57,7 @@ export default function ReportUserScreen() {
   };
 
   return (
-    <Screen>
+    <Screen enter>
       <ModalHeader title="Report user" subtitle={`About ${name}`} />
 
       <Text style={[text.body, { marginBottom: 12 }]}>

@@ -1,3 +1,4 @@
+import type { PlanPrice } from './paywallFraming';
 import type { PurchasesOffering, PurchasesOfferings, PurchasesPackage } from 'react-native-purchases';
 
 /**
@@ -31,4 +32,14 @@ export function sortPackagesForPaywall(packages: PurchasesPackage[]): PurchasesP
   return [...packages].sort(
     (a, b) => (rank[a.packageType] ?? 9) - (rank[b.packageType] ?? 9),
   );
+}
+
+/** Turn a RevenueCat package into the shape `domain/paywallFraming` reasons about. */
+export function toPlanPrice(pkg: PurchasesPackage): PlanPrice {
+  const weeks: Record<string, number> = { ANNUAL: 52, MONTHLY: 4.345, WEEKLY: 1 };
+  return {
+    price: pkg.product.price || 0,
+    weeks: weeks[pkg.packageType] ?? 0,
+    symbol: pkg.product.priceString.replace(/[\d.,\s]/g, '') || '',
+  };
 }

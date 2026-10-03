@@ -171,7 +171,8 @@ export function LiveStage({
   const bh = bw * 1.24;
   const arc = Math.min(1, Math.max(0, sky.night ? (hour >= 20 ? hour - 20 : hour + 4) / 9 : (hour - 5) / 15));
   const sx = width * (0.3 + 0.4 * arc);
-  const sy = H * (0.2 - 0.1 * Math.sin(Math.PI * arc));
+  /* Kept below the presence chip, which owns the top edge of the stage. */
+  const sy = H * (0.29 - 0.08 * Math.sin(Math.PI * arc));
 
   return (
     <View style={[styles.stage, { width, height: H }]}>
@@ -363,31 +364,29 @@ const styles = StyleSheet.create({
   stage: { borderRadius: 28, overflow: 'hidden' },
   presence: {
     position: 'absolute',
-    top: 16,
-    left: 18,
-    right: 18,
+    top: 14,
+    left: 14,
+    maxWidth: '88%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    alignSelf: 'flex-start',
+    paddingLeft: 10,
+    paddingRight: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(8,12,28,0.38)',
   },
-  dotWrap: { width: 12, height: 12, alignItems: 'center', justifyContent: 'center' },
-  dot: { width: 10, height: 10, borderRadius: 5 },
-  dotRing: { position: 'absolute', width: 10, height: 10, borderRadius: 5, backgroundColor: '#22C55E' },
-  presenceText: {
-    flexShrink: 1,
-    ...font('semibold', 13, { color: '#FFFFFF' }),
-    textShadowColor: 'rgba(0,0,0,0.35)',
-    textShadowRadius: 4,
-    textShadowOffset: { width: 0, height: 1 },
-  },
+  dotWrap: { width: 10, height: 10, alignItems: 'center', justifyContent: 'center' },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  dotRing: { position: 'absolute', width: 8, height: 8, borderRadius: 4, backgroundColor: '#22C55E' },
+  presenceText: { flexShrink: 1, ...font('semibold', 12.5, { color: '#FFFFFF' }) },
   bear: { position: 'absolute' },
   plate: { position: 'absolute', width: 124, alignItems: 'center' },
   plateName: { ...font('extrabold', 14, { color: '#FFFFFF' }), textShadowColor: 'rgba(0,0,0,0.45)', textShadowRadius: 4 },
   plateSub: { ...font('bold', 11, { color: 'rgba(255,255,255,0.92)' }), textShadowColor: 'rgba(0,0,0,0.45)', textShadowRadius: 3 },
   fly: { position: 'absolute', left: 0, top: 0, fontSize: 30 },
   piece: { position: 'absolute', left: 0, top: 0, borderRadius: 1.5 },
-  ribbonWrap: { position: 'absolute', top: 44, alignSelf: 'center' },
+  ribbonWrap: { position: 'absolute', top: 52, alignSelf: 'center' },
   ribbon: { backgroundColor: '#FBBF24', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 6 },
   ribbonText: font('bold', 13, { color: '#422006' }),
   tray: {

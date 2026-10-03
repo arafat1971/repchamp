@@ -107,6 +107,15 @@ export function ArrowIcon({ size, color, strokeWidth = 2 }: IconProps) {
   );
 }
 
+/** A solid play triangle, optically centred. */
+export function PlayIcon({ size, color }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path d="M8.5 5.6v12.8a1 1 0 0 0 1.52.85l10.2-6.4a1 1 0 0 0 0-1.7l-10.2-6.4a1 1 0 0 0-1.52.85z" fill={color} />
+    </Svg>
+  );
+}
+
 export function LockIcon({ size, color, strokeWidth = 2 }: IconProps) {
   return (
     <Frame size={size}>

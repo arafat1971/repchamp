@@ -116,7 +116,7 @@ export function usePartnerTodaySnapshot(): WaterWidgetSnapshot {
         lastAt: myLastAt,
       },
     });
-  }, [couple.paired, couple.partner, couple.couple, couple.me?.uid, today, myMl, myGoal, drinks, sessions, mySteps, streakDays, week, weatherOn, weatherNow, ritualDay, ritualTicks]);
+  }, [couple.paired, couple.partner, couple.couple, couple.me?.uid, couple.me?.ritualPlan, today, myMl, myGoal, drinks, sessions, mySteps, streakDays, week, weatherOn, weatherNow, ritualDay, ritualTicks]);
 }
 
 /**

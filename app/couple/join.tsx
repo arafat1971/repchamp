@@ -12,7 +12,7 @@ import { useDeferInvite } from '@/state/useDeferInvite';
 import { useProfileStore } from '@/state/profileStore';
 import { reservedControlHeight } from '@/theme/fontScale';
 import { font, scaleForRole, text } from '@/theme/typography';
-import { palette, radius } from '@/theme/tokens';
+import { palette } from '@/theme/tokens';
 
 /**
  * Deep-link landing for a couple invite — `repchamp://couple/join?code=XXXX`
@@ -90,7 +90,18 @@ export default function CoupleJoinScreen() {
           </>
         ) : (
           <>
-            <ActivityIndicator color={palette.green500} size="large" />
+            {/* Two seats closing: yours, and the one the code belongs to. */}
+            <View style={styles.seats}>
+              <View style={styles.seat}>
+                <Text style={styles.seatGlyph}>🐼</Text>
+              </View>
+              <View style={styles.link}>
+                <ActivityIndicator color={palette.green600} size="small" />
+              </View>
+              <View style={[styles.seat, styles.seatGhost]}>
+                <Text style={[styles.seatGlyph, { opacity: 0.45 }]}>🐼</Text>
+              </View>
+            </View>
             <Text style={styles.title}>Pairing you up…</Text>
             <Text style={[text.caption, styles.body]}>Joining with code {code}</Text>
             <PressableScale
@@ -110,14 +121,39 @@ export default function CoupleJoinScreen() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24 },
-  title: { ...font('extrabold', 20, { color: palette.ink }), marginTop: 8 },
+  seats: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  seat: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: palette.white,
+    borderWidth: 2,
+    borderColor: palette.green300,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  seatGhost: { borderStyle: 'dashed', backgroundColor: palette.green50 },
+  seatGlyph: { fontSize: 34 },
+  link: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: palette.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: -8,
+    zIndex: 1,
+    borderWidth: 1,
+    borderColor: palette.green200,
+  },
+  title: { ...font('extrabold', 22, { color: palette.ink }), marginTop: 8, letterSpacing: -0.4 },
   body: { textAlign: 'center' },
   button: {
     // `minHeight` at render time — see `@/theme/fontScale`.
     marginTop: 16,
     paddingHorizontal: 28,
-    borderRadius: radius['2xl'],
-    backgroundColor: palette.green500,
+    borderRadius: 26,
+    backgroundColor: palette.green600,
     alignItems: 'center',
     justifyContent: 'center',
   },

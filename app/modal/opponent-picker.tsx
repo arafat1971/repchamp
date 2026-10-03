@@ -65,7 +65,7 @@ export default function OpponentPickerScreen() {
     : OPPONENTS;
 
   return (
-    <Screen>
+    <Screen enter>
       <ModalHeader
         title="Choose your rival"
         subtitle="Push-up duel · 20 seconds · winner takes the XP"

@@ -147,3 +147,69 @@ export function monthlyEquivalent(
     billedAs: `paid ${priceString} ${cadence}`,
   };
 }
+
+/* ---------------------------------------------------------------------------
+ * "How little is this, really?"
+ *
+ * The same price in the units a person actually spends in: a day, a workout,
+ * a month. All derived from the real store price and the athlete's own
+ * training history — nothing invented, no fake "was" price, no scarcity.
+ * ------------------------------------------------------------------------- */
+
+const money = (plan: PlanPrice, n: number) => `${plan.symbol}${n.toFixed(2)}`;
+
+/** What one month of the plan costs, as a number. Null for a plan with no rate. */
+export function monthlyCost(plan: PlanPrice): number | null {
+  if (!plan.price || !plan.weeks) return null;
+  const months = (plan.weeks / 52) * 12;
+  // The monthly constant (4.345 weeks) is a rounded average: a monthly plan
+  // is exactly one month, not 0.2% less of one.
+  const exact = Math.abs(months - 1) < 0.02 ? 1 : months;
+  return plan.price / exact;
+}
+
+/** The price per day — the smallest honest unit — e.g. "$0.16". */
+export function perDayPrice(plan: PlanPrice): string | null {
+  if (!plan.price || !plan.weeks) return null;
+  const perDay = plan.price / (plan.weeks * 7);
+  return perDay >= 0.01 ? money(plan, perDay) : null;
+}
+
+/**
+ * What a workout costs at this athlete's own pace.
+ *
+ * Needs a few real workouts to mean anything: one session a month would make
+ * the sum look worse, and two would be a guess. Returns null below `MIN_WORKOUTS`.
+ */
+export const MIN_WORKOUTS_FOR_COST = 3;
+export function costPerWorkout(plan: PlanPrice, workoutsLast30Days: number): string | null {
+  const month = monthlyCost(plan);
+  if (month == null || workoutsLast30Days < MIN_WORKOUTS_FOR_COST) return null;
+  const each = month / workoutsLast30Days;
+  return each >= 0.01 ? money(plan, each) : null;
+}
+
+export interface YearComparison {
+  /** Twelve monthly payments. */
+  monthlyYear: string;
+  /** One annual payment. */
+  annualYear: string;
+  /** What the annual plan keeps in the athlete's pocket. */
+  saved: string;
+}
+
+/**
+ * Twelve months on the monthly plan against one annual payment — both real,
+ * both buyable. Null unless the annual plan is genuinely cheaper.
+ */
+export function yearComparison(monthly: PlanPrice, annual: PlanPrice): YearComparison | null {
+  const month = monthlyCost(monthly);
+  if (month == null || !annual.price) return null;
+  const monthlyYear = month * 12;
+  if (annual.price >= monthlyYear) return null;
+  return {
+    monthlyYear: money(monthly, monthlyYear),
+    annualYear: money(annual, annual.price),
+    saved: money(annual, monthlyYear - annual.price),
+  };
+}

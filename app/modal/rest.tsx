@@ -22,7 +22,7 @@ export default function RestDayScreen() {
   const streak = selectStreak(useProfileStore());
 
   return (
-    <Screen>
+    <Screen enter>
       <ModalHeader title="Rest Day" />
 
       <LinearGradient colors={gradients.info} style={[styles.hero, shadow.info]}>

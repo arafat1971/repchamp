@@ -29,6 +29,7 @@ import {
   syncMilestoneReached,
   syncRate,
   syncStreakLabel,
+  partnerGlassOf,
 } from '../couple';
 
 function member(uid: string, trainedDays: string[] = [], totalReps = 0): CoupleMember {
@@ -538,8 +539,7 @@ describe('partner goal and layers', () => {
 
 describe('partnerGlassOf', () => {
   const member = (displayName: string) =>
-    ({ uid: 'u2', displayName, avatarUrl: null, trainedDays: [], totalReps: 0 }) as unknown as import('../couple').CoupleMember;
-  const { partnerGlassOf } = require('../couple');
+    ({ uid: 'u2', displayName, avatarUrl: null, trainedDays: [], totalReps: 0 }) as unknown as CoupleMember;
 
   it('shows the partner as soon as they are paired, named', () => {
     expect(partnerGlassOf(true, member('Alex'), '2026-10-03')).toMatchObject({ name: 'Alex', ml: null });

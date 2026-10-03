@@ -43,7 +43,7 @@ export default function HistoryScreen() {
 
   if (sessions.length === 0) {
     return (
-      <Screen>
+      <Screen enter>
         <ModalHeader title="History" />
         <View style={styles.empty}>
           <Text style={styles.emptyMark}>—</Text>
@@ -58,7 +58,7 @@ export default function HistoryScreen() {
   }
 
   return (
-    <Screen>
+    <Screen enter>
       <ModalHeader title="History" />
 
       {proof ? (

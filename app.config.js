@@ -26,7 +26,9 @@ module.exports = () => {
   }
   if (env.EXPO_PUBLIC_SENTRY_DSN) extra.sentryDsn = env.EXPO_PUBLIC_SENTRY_DSN;
   // App Check debug token — development installs only. See src/lib/config.ts.
-  if (env.EXPO_PUBLIC_APP_CHECK_DEBUG_TOKEN) {
+  // `.easignore` uploads the local `.env`, so a production build must drop it
+  // here or the bypass credential ships inside the store binary's manifest.
+  if (env.EXPO_PUBLIC_APP_CHECK_DEBUG_TOKEN && env.EAS_BUILD_PROFILE !== 'production') {
     extra.appCheckDebugToken = env.EXPO_PUBLIC_APP_CHECK_DEBUG_TOKEN;
   }
 

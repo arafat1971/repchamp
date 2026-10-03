@@ -169,7 +169,7 @@ export default function FriendProfileScreen() {
   };
 
   return (
-    <Screen>
+    <Screen enter>
       <ModalHeader title={displayName} />
 
       <View style={styles.identity}>

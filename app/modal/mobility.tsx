@@ -74,7 +74,7 @@ export default function MobilityScreen() {
   };
 
   return (
-    <Screen>
+    <Screen enter>
       <ModalHeader title={activity.title} />
 
       <Card style={styles.hero}>
@@ -138,7 +138,7 @@ function TimedFlow({ activity, onDone }: { activity: TimedActivity; onDone: () =
   }, [started, done, activity.durationSec]);
 
   return (
-    <Screen>
+    <Screen enter>
       <ModalHeader title={activity.title} />
 
       <LinearGradient colors={gradients.info} style={[styles.timerHero, shadow.info]}>

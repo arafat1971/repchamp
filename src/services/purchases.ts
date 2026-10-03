@@ -3,6 +3,7 @@ import Purchases, {
   type CustomerInfo,
   type PurchasesOffering,
   type PurchasesPackage,
+  STORE_REPLACEMENT_MODE,
 } from 'react-native-purchases';
 
 import { PRO_ENTITLEMENT } from '@/domain/pro';
@@ -292,4 +293,111 @@ export function __resetPurchasesForTests(): void {
   configured = false;
   configuredUid = null;
   configureChain = Promise.resolve();
+}
+
+export interface ActiveSubscriptionInfo {
+  productId: string;
+  periodType: string;
+  willRenew: boolean;
+  latestPurchaseAt: number;
+  originalPurchaseAt: number;
+}
+
+/**
+ * The paid plan behind the Pro entitlement, or null when there is none — free
+ * athletes, and the pairing-bonus week, which is Pro without a subscription.
+ */
+export async function fetchActiveSubscription(
+  uid?: string | null,
+): Promise<ActiveSubscriptionInfo | null> {
+  if (!isPurchasesConfigured()) return null;
+  try {
+    await configurePurchases(uid ?? configuredUid);
+    const info = (await Purchases.getCustomerInfo()).entitlements.active[PRO_ENTITLEMENT];
+    if (!info) return null;
+    return {
+      productId: info.productIdentifier,
+      periodType: info.periodType,
+      willRenew: info.willRenew,
+      latestPurchaseAt: info.latestPurchaseDateMillis,
+      originalPurchaseAt: info.originalPurchaseDateMillis,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Move an existing subscriber onto another plan.
+ *
+ * Android needs the old product named, and `WITH_TIME_PRORATION` credits the
+ * unused part of the current month against the new price — the athlete is never
+ * charged twice for the same days. iOS ignores the change info: the plans share
+ * a subscription group, so the store handles the switch itself.
+ */
+export async function switchPlan(
+  pkg: PurchasesPackage,
+  oldProductId: string,
+  uid?: string | null,
+): Promise<PurchaseResult> {
+  if (!isPurchasesConfigured()) {
+    return { ok: false, isPro: false, cancelled: false, message: 'Billing is not set up yet.' };
+  }
+  try {
+    await configurePurchases(uid ?? configuredUid);
+    const { customerInfo } = await Purchases.purchasePackage(pkg, null, {
+      oldProductIdentifier: oldProductId,
+      replacementMode: STORE_REPLACEMENT_MODE.WITH_TIME_PRORATION,
+    });
+    return { ok: true, isPro: isProFromInfo(customerInfo), cancelled: false };
+  } catch (error) {
+    const cancelled =
+      typeof error === 'object' && error != null && 'userCancelled' in error
+        ? Boolean((error as { userCancelled?: boolean }).userCancelled)
+        : false;
+    if (!cancelled) {
+      console.warn(
+        '[RepChamp] plan switch failed:',
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+    return {
+      ok: false,
+      isPro: false,
+      cancelled,
+      message: error instanceof Error ? error.message : 'Could not switch plans.',
+    };
+  }
+}
+
+export interface LapsedSubscriptionInfo {
+  periodType: string;
+  startedAt: number;
+  endedAt: number;
+  billingIssue: boolean;
+}
+
+/**
+ * The Pro plan that used to be, or null when Pro is active, was never bought,
+ * or has no usable end date. Lapsed entitlements stay in `entitlements.all`.
+ */
+export async function fetchLapsedSubscription(
+  uid?: string | null,
+): Promise<LapsedSubscriptionInfo | null> {
+  if (!isPurchasesConfigured()) return null;
+  try {
+    await configurePurchases(uid ?? configuredUid);
+    const info = await Purchases.getCustomerInfo();
+    if (info.entitlements.active[PRO_ENTITLEMENT]) return null;
+    const past = info.entitlements.all[PRO_ENTITLEMENT];
+    if (!past || past.isActive || !past.expirationDateMillis) return null;
+    return {
+      periodType: past.periodType,
+      startedAt: past.originalPurchaseDateMillis,
+      endedAt: past.expirationDateMillis,
+      billingIssue: past.billingIssueDetectedAtMillis != null,
+    };
+  } catch {
+    return null;
+  }
 }

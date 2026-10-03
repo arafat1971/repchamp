@@ -8,7 +8,7 @@ import { PressableScale } from '@/components/ui';
 import { FlameIcon } from '@/components/home/Icons';
 import { ProgressRing } from '@/components/home/ProgressRing';
 import type { LeagueProgress } from '@/domain/leagueProgress';
-import type { StepsState } from '@/domain/steps';
+import { isFixableByAthlete, type StepsState } from '@/domain/steps';
 import { font } from '@/theme/typography';
 import { palette, radius, surfaceShadow } from '@/theme/tokens';
 
@@ -60,6 +60,10 @@ export function TodayBento({
   onLeague: () => void;
 }) {
   const stepsReady = steps.status === 'ready';
+  /* "Turn on" only when a tap can turn it on. A phone with no step sensor used
+     to get the same orange call to act, beside a Steps card saying the device
+     has no counter. */
+  const stepsFixable = steps.status === 'unavailable' && isFixableByAthlete(steps.reason);
   const stepPct = stepsReady ? Math.min(100, Math.round((steps.steps / Math.max(1, steps.goal)) * 100)) : 0;
   const closed = [challenge.percent, water.percent, stepPct].filter((p) => p >= 100).length;
   const overall = Math.round((challenge.percent + water.percent + stepPct) / 3);
@@ -92,15 +96,17 @@ export function TodayBento({
             <Legend color={RINGS.water.to} label="Water" value={`${litres(water.ml)}/${litres(water.goalMl)}L`} />
             {stepsReady ? (
               <Legend color={RINGS.steps.to} label="Steps" value={compact(steps.steps)} />
-            ) : (
+            ) : stepsFixable ? (
               <PressableScale onPress={onSteps} accessibilityRole="button" accessibilityLabel="Turn on step counting">
-                <Legend
-                  color={RINGS.steps.to}
-                  label="Steps"
-                  value={steps.status === 'loading' ? '…' : 'Turn on'}
-                  valueColor={RINGS.steps.ink}
-                />
+                <Legend color={RINGS.steps.to} label="Steps" value="Turn on" valueColor={RINGS.steps.ink} />
               </PressableScale>
+            ) : (
+              <Legend
+                color={RINGS.steps.to}
+                label="Steps"
+                value={steps.status === 'loading' ? '…' : '—'}
+                valueColor={palette.grey700}
+              />
             )}
           </View>
         </View>
@@ -249,7 +255,7 @@ const styles = StyleSheet.create({
   leagueTile: {},
   tileHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   tileLabel: { ...font('bold', 15, { color: palette.ink }), letterSpacing: -0.2 },
-  tileMeta: { ...font('bold', 12, { color: palette.grey600 }), fontVariant: ['tabular-nums'] },
+  tileMeta: { ...font('bold', 12, { color: palette.grey700 }), fontVariant: ['tabular-nums'] },
   ringStack: { width: OUTER, height: OUTER, alignSelf: 'center', marginTop: 6 },
   ringCenter: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   ringPct: { ...font('extrabold', 13, { color: palette.ink }), fontVariant: ['tabular-nums'] },
@@ -257,7 +263,7 @@ const styles = StyleSheet.create({
   legend: { marginTop: 8, gap: 3 },
   legendRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendDot: { width: 7, height: 7, borderRadius: 4 },
-  legendLabel: { ...font('semibold', 12, { color: palette.grey600 }), flex: 1 },
+  legendLabel: { ...font('semibold', 12, { color: palette.grey700 }), flex: 1 },
   legendValue: { ...font('extrabold', 12), fontVariant: ['tabular-nums'] },
   flameBubble: {
     width: 26,
@@ -275,8 +281,8 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     letterSpacing: -0.8,
   },
-  bigUnit: font('semibold', 13, { color: palette.grey600 }),
-  tileFoot: { ...font('medium', 11, { color: palette.grey600 }), marginTop: 3 },
+  bigUnit: font('semibold', 13, { color: palette.grey700 }),
+  tileFoot: { ...font('medium', 11, { color: palette.grey700 }), marginTop: 3 },
   leagueName: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   medal: { width: 22, height: 22, marginLeft: -3 },
   xpTrack: {

@@ -216,6 +216,7 @@ export function PandaJar({
   onPoke,
   gesture,
   decorations = false,
+  paused = false,
 }: {
   /** Unique per panda — SVG ids are global. */
   id: string;
@@ -242,6 +243,8 @@ export function PandaJar({
    * home-screen widget.
    */
   decorations?: boolean;
+  /** Stop the idle loops and the per-frame fur spring — the screen is not the one on show. */
+  paused?: boolean;
 }) {
   const art = ART[outfit];
   const reduced = useReducedMotion();
@@ -337,7 +340,7 @@ export function PandaJar({
   const earL = useSharedValue(0);
   const earR = useSharedValue(0);
   useEffect(() => {
-    if (reduced) return;
+    if (reduced || paused) return;
     idle.value = withRepeat(withTiming(1, { duration: mood === 'sleepy' ? 3600 : 2600, easing: Easing.inOut(Easing.sin) }), -1, true);
     const shut = () => withSequence(withTiming(1, { duration: 70 }), withDelay(60, withTiming(0, { duration: 90 })));
     blink.value = withRepeat(withSequence(withDelay(2800, shut()), withDelay(3400, shut()), withDelay(160, shut())), -1, false);
@@ -382,7 +385,7 @@ export function PandaJar({
       cancelAnimation(feet);
       cancelAnimation(bounce);
     };
-  }, [reduced, mood, idle, blink, glance, earL, earR, tilt, nose, feet, bounce]);
+  }, [reduced, paused, mood, idle, blink, glance, earL, earR, tilt, nose, feet, bounce]);
   const noseProps = useAnimatedProps(() => ({
     scaleX: 1 + nose.value * 0.12,
     scaleY: 1 - nose.value * 0.1,
@@ -407,7 +410,7 @@ export function PandaJar({
   const furLiftVel = useSharedValue(0);
   const furClock = useSharedValue(0);
   const lastHead = useSharedValue(0);
-  useFrameCallback((frame) => {
+  const furFrame = useFrameCallback((frame) => {
     const dt = Math.min(0.05, (frame.timeSincePreviousFrame ?? 16) / 1000);
     furClock.value += dt;
     const headAngle = (idle.value - 0.5) * sway + tilt.value * 11 + lift.value * 5 + Math.sin(hop.value * Math.PI * 3) * 4 * hop.value;
@@ -422,7 +425,10 @@ export function PandaJar({
     // A hop throws the hair up; it floats back down.
     furLiftVel.value += ((-furLift.value) * 30 - furLiftVel.value * 5 + hop.value * 40) * dt;
     furLift.value = Math.max(-1, Math.min(1.4, furLift.value + furLiftVel.value * dt));
-  }, !reduced);
+  }, !reduced && !paused);
+  useEffect(() => {
+    furFrame.setActive(!reduced && !paused);
+  }, [furFrame, reduced, paused]);
   const furKind = Art.FUR_KIND[outfit];
   const furProps = useAnimatedProps(() => ({ d: Art.crownFur(furPos.value, furLift.value, furClock.value, furKind) }));
   const furShadow = useAnimatedProps(() => ({ d: Art.crownFur(furPos.value, furLift.value, furClock.value, furKind) }));

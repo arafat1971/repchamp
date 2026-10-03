@@ -82,7 +82,7 @@ export default function UsernameScreen() {
   const changed = normalizeUsername(value) !== normalizeUsername(current);
 
   return (
-    <Screen>
+    <Screen enter>
       <ModalHeader title="Username" />
 
       <Card style={styles.card}>

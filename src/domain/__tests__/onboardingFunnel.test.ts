@@ -20,7 +20,7 @@ describe('onboardingStepName', () => {
   });
 
   it('covers every step the flow actually has', () => {
-    expect(ONBOARDING_STEP_COUNT).toBe(27);
+    expect(ONBOARDING_STEP_COUNT).toBe(28);
     for (let i = 0; i < ONBOARDING_STEP_COUNT; i += 1) {
       expect(onboardingStepName(i)).not.toMatch(/^step-/);
     }
@@ -37,11 +37,11 @@ describe('onboardingStepName', () => {
 describe('onboardingProgressPercent', () => {
   it('runs 0 to 100 across the flow', () => {
     expect(onboardingProgressPercent(0)).toBe(0);
-    expect(onboardingProgressPercent(26)).toBe(100);
+    expect(onboardingProgressPercent(27)).toBe(100);
   });
 
   it('puts the paywall late, where it belongs', () => {
-    expect(onboardingProgressPercent(21)).toBeGreaterThan(80);
+    expect(onboardingProgressPercent(21)).toBeGreaterThan(75);
   });
 
   /* Clamped rather than extrapolated: a stray index should not report 140%

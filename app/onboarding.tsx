@@ -62,6 +62,7 @@ import {
 import { PENDING_INVITE_KEY, parseInvite } from '@/domain/pendingInvite';
 import { storage } from '@/lib/storage';
 import { HomeWidgetStep } from '@/components/onboarding/HomeWidgetStep';
+import { RepsWidgetStep } from '@/components/onboarding/RepsWidgetStep';
 import { TogetherStep } from '@/components/onboarding/TogetherStep';
 import { checkHandleAtSignIn, mayPassUncheckedHandle } from '@/domain/signInHandle';
 import { fetchOffering, isPurchasesConfigured, purchase, sortPackagesForPaywall } from '@/services/purchases';
@@ -615,7 +616,10 @@ export default function OnboardingScreen() {
         {/* The partner features are the reason to stay, so the offer follows a
             moment of feeling them rather than a description of them. */}
         {step === 25 ? <TogetherStep onNext={next} /> : null}
-        {step === 26 ? <Offer onDone={finish} /> : null}
+        {/* The Reps widget closes the home-screen setup, just before the offer.
+            Skips itself where unsupported. */}
+        {step === 26 ? <RepsWidgetStep onNext={next} /> : null}
+        {step === 27 ? <Offer onDone={finish} /> : null}
       </Animated.View>
     </View>
   );

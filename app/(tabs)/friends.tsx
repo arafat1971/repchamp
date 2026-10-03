@@ -1,4 +1,5 @@
 import { QrPlusIcon } from '@/components/QrPlusIcon';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, TextInput } from 'react-native';
@@ -32,13 +33,15 @@ import {
   type RecentAthlete,
 } from '@/services/leaderboardService';
 import { useAuthStore } from '@/state/authStore';
+import { useCouple } from '@/state/useCouple';
+import { usePublicAvatar } from '@/state/usePublicAvatar';
 import { showDialog } from '@/state/useDialog';
 import { selectTotalReps, useProfileStore } from '@/state/profileStore';
 import { useEffectivePro } from '@/state/proStore';
 import { isPurchasesConfigured } from '@/services/purchases';
 import { isWalled } from '@/domain/hardPaywall';
 import { font, text } from '@/theme/typography';
-import { SCREEN_GUTTER, palette, radius, surfaceShadow } from '@/theme/tokens';
+import { SCREEN_GUTTER, gradients, palette, radius, surfaceShadow } from '@/theme/tokens';
 import type { InviteKind } from '@/domain/presence';
 
 /** Avatar tints, keyed by opponent id, matching the design. */
@@ -81,6 +84,96 @@ function FriendRowSkeleton() {
         </View>
       ))}
     </View>
+  );
+}
+
+/**
+ * The couple bond, at the top of the tab it belongs on.
+ *
+ * Pairing is the app's closest relationship and it had no door here: the only
+ * ways in were buried in Home and a modal. Three honest states — paired (open
+ * the shared day), waiting (an invite is out), and not paired (start one).
+ */
+function PartnerCard() {
+  const router = useRouter();
+  const couple = useCouple();
+  const myAvatar = useProfileStore((st) => st.avatarUri);
+  const partnerAvatar = usePublicAvatar(couple.partner?.uid, couple.partner?.avatarUrl);
+
+  if (couple.loading) return null;
+
+  if (couple.paired && couple.partner) {
+    const name = couple.partner.displayName?.trim() || 'your partner';
+    return (
+      <PressableScale
+        onPress={() => router.push('/couple/partner')}
+        accessibilityRole="button"
+        accessibilityLabel={`Open today together with ${name}`}
+      >
+        <LinearGradient
+          colors={gradients.heroEmerald}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.partnerCard, surfaceShadow]}
+        >
+          <View style={styles.partnerFaces}>
+            <Avatar
+              initial={(couple.me?.displayName || 'Y').charAt(0).toUpperCase()}
+              uri={myAvatar}
+              size={46}
+              background={palette.green50}
+            />
+            <View style={styles.partnerFaceBack}>
+              <Avatar
+                initial={(couple.partner.displayName || 'P').charAt(0).toUpperCase()}
+                uri={partnerAvatar}
+                size={46}
+                background={palette.purple100}
+                color={palette.purple900}
+              />
+            </View>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.partnerTitle} numberOfLines={1}>
+              You & {name}
+            </Text>
+            <Text style={styles.partnerSub} numberOfLines={1}>
+              {couple.streak > 0
+                ? `${couple.streak}-day streak together${couple.atRisk ? ' · keep it alive today' : ''}`
+                : 'Start your streak together today'}
+            </Text>
+          </View>
+          <View style={styles.partnerGo}>
+            <Text style={styles.partnerGoText}>Open</Text>
+          </View>
+        </LinearGradient>
+      </PressableScale>
+    );
+  }
+
+  const waiting = couple.awaitingPartner;
+  return (
+    <PressableScale
+      onPress={() => router.push('/modal/couple-invite')}
+      accessibilityRole="button"
+      accessibilityLabel={waiting ? 'Share your pair invite' : 'Pair with your partner'}
+      style={[styles.pairCard, surfaceShadow]}
+    >
+      <View style={styles.pairIcon}>
+        <QrPlusIcon size={22} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.pairTitle}>{waiting ? 'Waiting for your partner' : 'Pair with your partner'}</Text>
+        <Text style={styles.pairSub}>
+          {waiting
+            ? 'Your invite is out. Share the code again.'
+            : 'Shared streak, two pandas, live water.'}
+        </Text>
+      </View>
+      <View style={styles.pairGo}>
+        <Text style={styles.pairGoText}>{waiting ? 'Share' : 'Pair'}</Text>
+      </View>
+    </PressableScale>
   );
 }
 
@@ -276,6 +369,43 @@ export default function FriendsScreen() {
     }
   };
 
+  const botRow = (o: Opponent, index: number) => {
+    const { wins, losses } = record(o.id);
+    return (
+      <View key={o.id}>
+        {index > 0 ? <Divider style={{ marginHorizontal: 8 }} /> : null}
+        <View style={styles.friendRow}>
+          <PressableScale
+            onPress={() => router.push({ pathname: '/modal/friend', params: { id: o.id } })}
+            accessibilityRole="button"
+            accessibilityLabel={`View ${o.name}'s profile`}
+            style={styles.friendInfo}
+          >
+            <Avatar initial={o.initial} ai={o.id} size={46} background={tint(o.id).background} color={tint(o.id).color} />
+            <View style={{ flex: 1 }}>
+              <View style={styles.nameRow}>
+                <Text style={text.cardTitle} numberOfLines={1}>{o.name}</Text>
+                <AiTag />
+              </View>
+              <Text style={font('semibold', 11.5, { color: o.online ? palette.green600 : palette.grey600 })} numberOfLines={1}>
+                {o.online ? 'Ready to race' : 'Offline'} · Lv.{o.level}
+                {wins + losses > 0 ? ` · ${wins}–${losses}` : ''}
+              </Text>
+            </View>
+          </PressableScale>
+          <PressableScale
+            onPress={() => duel(o)}
+            accessibilityRole="button"
+            accessibilityLabel={`Duel ${o.name}`}
+            style={styles.duelButton}
+          >
+            <Text style={font('extrabold', 12.5, { color: palette.white })}>Duel</Text>
+          </PressableScale>
+        </View>
+      </View>
+    );
+  };
+
   return (
     <Screen>
       <StaggerIn index={0}>
@@ -317,12 +447,20 @@ export default function FriendsScreen() {
           <TextInput
             value={search}
             onChangeText={setSearch}
-            placeholder="Search rivals or friends..."
+            placeholder="Search friends or rivals"
             placeholderTextColor={palette.grey450}
             style={styles.searchInput}
           />
         </View>
       </StaggerIn>
+
+      {/* Your partner first: the closest bond has the top spot. Hidden while
+          searching so results lead. */}
+      {search.trim() ? null : (
+        <StaggerIn index={1} style={{ marginTop: 14 }}>
+          <PartnerCard />
+        </StaggerIn>
+      )}
 
       <StaggerIn index={1}>
         <HomeSectionHeader title="Active now" />
@@ -332,6 +470,17 @@ export default function FriendsScreen() {
           style={styles.bleed}
           contentContainerStyle={styles.onlineRow}
         >
+          <PressableScale
+            onPress={() => router.push('/modal/add-friend')}
+            accessibilityRole="button"
+            accessibilityLabel="Add a friend"
+            style={styles.onlineItem}
+          >
+            <View style={styles.addCircle}>
+              <Text style={styles.addCirclePlus}>+</Text>
+            </View>
+            <Text style={styles.onlineName}>Add</Text>
+          </PressableScale>
 
           {onlineFriends.map((f) => (
             <PressableScale
@@ -341,12 +490,9 @@ export default function FriendsScreen() {
               accessibilityLabel={`Invite ${f.displayName}`}
               style={styles.onlineItem}
             >
-              <Avatar
-                initial={(f.displayName || 'A').charAt(0).toUpperCase()}
-                uri={f.avatarUrl}
-                size={58}
-                online
-              />
+              <View style={styles.liveRing}>
+                <Avatar initial={(f.displayName || 'A').charAt(0).toUpperCase()} uri={f.avatarUrl} size={54} online />
+              </View>
               <Text style={[styles.onlineName, { color: palette.ink }]} numberOfLines={1}>
                 {f.displayName.split(' ')[0]}
               </Text>
@@ -361,15 +507,18 @@ export default function FriendsScreen() {
               accessibilityLabel={`Duel ${o.name}`}
               style={styles.onlineItem}
             >
-              <Avatar
-                initial={o.initial}
-                size={58}
-                background={tint(o.id).background}
-                color={tint(o.id).color}
-                online
-              />
-              <Text style={[styles.onlineName, { color: palette.ink }]}>{o.name}</Text>
-              <AiTag style={{ marginTop: 4, alignSelf: 'center' }} />
+              <View style={styles.liveRing}>
+                <Avatar
+                  initial={o.initial}
+                  ai={o.id}
+                  size={54}
+                  background={tint(o.id).background}
+                  color={tint(o.id).color}
+                  online
+                />
+              </View>
+              <Text style={[styles.onlineName, { color: palette.ink }]} numberOfLines={1}>{o.name}</Text>
+              <AiTag style={{ alignSelf: 'center' }} />
             </PressableScale>
           ))}
 
@@ -381,33 +530,30 @@ export default function FriendsScreen() {
               accessibilityLabel={`Duel ${p.name}`}
               style={styles.onlineItem}
             >
-              <Avatar
-                initial={p.initial}
-                emoji={p.emoji}
-                size={58}
-                background={p.tintBg}
-                color={p.tintColor}
-                online
-              />
-              <Text style={[styles.onlineName, { color: palette.ink }]}>{p.name.split(' ')[0]}</Text>
-              <AiTag style={{ marginTop: 4, alignSelf: 'center' }} />
+              <View style={styles.liveRing}>
+                <Avatar
+                  initial={p.initial}
+                  emoji={p.emoji}
+                  size={54}
+                  background={p.tintBg}
+                  color={p.tintColor}
+                  online
+                />
+              </View>
+              <Text style={[styles.onlineName, { color: palette.ink }]} numberOfLines={1}>{p.name.split(' ')[0]}</Text>
+              <AiTag style={{ alignSelf: 'center' }} />
             </PressableScale>
           ))}
         </ScrollView>
       </StaggerIn>
 
-      {/* Real friends lead. They used to sit below the AI partners, so the
-          people the tab exists for were the last thing on it. The section
-          always renders: a failed fetch, a search with no matches and having
-          no friends are three different states and must look different. */}
+      {/* Real friends lead. The section always renders: a failed fetch, a
+          search with no matches and having no friends are three different
+          states and must look different. */}
       <StaggerIn index={2}>
         <HomeSectionHeader
           title="Your friends"
-          right={
-            cloudFriends.length > 0 ? (
-              <Text style={styles.sectionMeta}>{cloudFriends.length}</Text>
-            ) : undefined
-          }
+          right={cloudFriends.length > 0 ? <Text style={styles.sectionMeta}>{cloudFriends.length}</Text> : undefined}
         />
         {filteredCloud.length === 0 ? (
           loading ? (
@@ -418,10 +564,7 @@ export default function FriendsScreen() {
             <View style={styles.card}>
               <ErrorState
                 title="Could not load friends"
-                message={loadFailureMessage(
-                  offline,
-                  'Your list is still safe — this is just the connection.',
-                )}
+                message={loadFailureMessage(offline, 'Your list is still safe — this is just the connection.')}
                 onRetry={refresh}
               />
             </View>
@@ -435,28 +578,31 @@ export default function FriendsScreen() {
               />
             </View>
           ) : (
-            <View style={styles.inviteHero}>
-              <Text style={styles.inviteTitle}>Train harder with someone watching</Text>
-              <Text style={styles.inviteBody}>
-                Friends see your streak, race you live and keep you showing up. Add one by username
-                or scan their code.
+            <View style={[styles.emptyCard, surfaceShadow]}>
+              <View style={styles.emptyIcon}>
+                <QrPlusIcon size={28} />
+              </View>
+              <Text style={styles.emptyTitle}>Train harder with someone watching</Text>
+              <Text style={styles.emptyBody}>
+                Friends see your streak, race you live and keep you showing up. Add one by username or
+                scan their code.
               </Text>
-              <View style={styles.inviteActions}>
+              <View style={styles.emptyActions}>
                 <PressableScale
                   onPress={() => router.push('/modal/add-friend')}
                   accessibilityRole="button"
                   accessibilityLabel="Add a friend"
-                  style={[styles.inviteButton, { backgroundColor: palette.white }]}
+                  style={[styles.emptyButton, styles.emptyButtonPrimary]}
                 >
-                  <Text style={font('extrabold', 14, { color: palette.green700 })}>Add a friend</Text>
+                  <Text style={font('extrabold', 14, { color: palette.white })}>Add a friend</Text>
                 </PressableScale>
                 <PressableScale
                   onPress={() => router.push('/modal/scan')}
                   accessibilityRole="button"
                   accessibilityLabel="Scan or show a QR code"
-                  style={[styles.inviteButton, styles.inviteButtonGhost]}
+                  style={[styles.emptyButton, styles.emptyButtonSoft]}
                 >
-                  <Text style={font('extrabold', 14, { color: palette.white })}>Scan a code</Text>
+                  <Text style={font('extrabold', 14, { color: palette.green700 })}>Scan a code</Text>
                 </PressableScale>
               </View>
             </View>
@@ -488,21 +634,25 @@ export default function FriendsScreen() {
                       <Avatar
                         initial={(f.displayName || 'A').charAt(0).toUpperCase()}
                         uri={f.avatarUrl}
-                        size={48}
+                        size={50}
                         online={f.online}
                       />
                       <View style={{ flex: 1 }}>
                         <Text style={styles.friendName} numberOfLines={1}>
                           {f.displayName}
                         </Text>
-                        <Text
-                          style={font('semibold', 12, {
-                            color: f.online ? palette.green600 : palette.grey600,
-                          })}
-                          numberOfLines={1}
-                        >
-                          {lastSeenLabel(f.online, f.lastActiveAt)} · Lv.{f.level}
-                        </Text>
+                        <View style={styles.statusRow}>
+                          <View style={[styles.statusDot, { backgroundColor: f.online ? palette.green500 : palette.grey400 }]} />
+                          <Text
+                            style={font('semibold', 12, { color: f.online ? palette.green600 : palette.grey600 })}
+                            numberOfLines={1}
+                          >
+                            {lastSeenLabel(f.online, f.lastActiveAt)}
+                          </Text>
+                          <View style={styles.levelChip}>
+                            <Text style={styles.levelChipText}>Lv.{f.level}</Text>
+                          </View>
+                        </View>
                       </View>
                     </PressableScale>
                     <PressableScale
@@ -530,7 +680,7 @@ export default function FriendsScreen() {
                         onPress={() => invite(f, 'train')}
                         accessibilityRole="button"
                         accessibilityLabel={`Train with ${f.displayName}`}
-                        style={styles.actionPill}
+                        style={[styles.actionPill, styles.actionPillSoft]}
                       >
                         <Text style={font('extrabold', 12, { color: palette.green700 })}>Train together</Text>
                       </PressableScale>
@@ -538,7 +688,7 @@ export default function FriendsScreen() {
                         onPress={() => invite(f, 'compete')}
                         accessibilityRole="button"
                         accessibilityLabel={`Compete with ${f.displayName}`}
-                        style={styles.actionPill}
+                        style={[styles.actionPill, styles.actionPillSoft]}
                       >
                         <Text style={font('extrabold', 12, { color: palette.green700 })}>Compete</Text>
                       </PressableScale>
@@ -559,9 +709,8 @@ export default function FriendsScreen() {
         )}
       </StaggerIn>
 
-
       {newAthletes.length > 0 ? (
-        <StaggerIn index={2}>
+        <StaggerIn index={3}>
           <HomeSectionHeader title="New on RepChamp" />
           <View style={styles.card}>
             {newAthletes.slice(0, 8).map((a, index) => (
@@ -585,16 +734,12 @@ export default function FriendsScreen() {
                     accessibilityLabel={`View ${a.displayName}'s profile`}
                     style={styles.friendInfo}
                   >
-                    <Avatar
-                      initial={(a.displayName || 'A').charAt(0).toUpperCase()}
-                      uri={a.avatarUrl}
-                      size={44}
-                    />
+                    <Avatar initial={(a.displayName || 'A').charAt(0).toUpperCase()} uri={a.avatarUrl} size={44} />
                     <View style={{ flex: 1 }}>
                       <Text style={text.cardTitle} numberOfLines={1}>
                         {discoveryTitle(a)}
                       </Text>
-                      <Text style={font('semibold', 11, { color: palette.grey600 })}>
+                      <Text style={font('semibold', 11.5, { color: palette.grey600 })}>
                         {isPlaceholderName(a) ? 'New athlete' : a.username ? `@${a.username}` : 'Just joined'}
                       </Text>
                     </View>
@@ -606,7 +751,7 @@ export default function FriendsScreen() {
                     accessibilityLabel={`Add ${a.displayName}`}
                     style={styles.addButton}
                   >
-                    <Text style={font('extrabold', 12, { color: palette.green700 })}>
+                    <Text style={font('extrabold', 12.5, { color: palette.green700 })}>
                       {addingUid === a.uid ? '…' : 'Add'}
                     </Text>
                   </PressableScale>
@@ -619,42 +764,31 @@ export default function FriendsScreen() {
 
       {seed.isSeeding && seed.phantomFriends.length > 0 ? (
         <StaggerIn index={3}>
-          <HomeSectionHeader title="Suggested friends" />
+          <HomeSectionHeader title="Suggested training partners" />
           <View style={styles.card}>
             {seed.phantomFriends.map((p, index) => (
               <View key={p.id}>
                 {index > 0 ? <Divider style={{ marginHorizontal: 8 }} /> : null}
                 <View style={styles.friendRow}>
                   <View style={styles.friendInfo}>
-                    <Avatar
-                      initial={p.initial}
-                      emoji={p.emoji}
-                      size={44}
-                      background={p.tintBg}
-                      color={p.tintColor}
-                    />
-                    <View>
+                    <Avatar initial={p.initial} emoji={p.emoji} size={46} background={p.tintBg} color={p.tintColor} />
+                    <View style={{ flex: 1 }}>
                       <View style={styles.nameRow}>
-                        <Text style={text.cardTitle}>{p.name}</Text>
+                        <Text style={text.cardTitle} numberOfLines={1}>{p.name}</Text>
                         <AiTag />
                       </View>
-                      <Text
-                        style={font('semibold', 11, {
-                          color: p.online ? palette.green500 : palette.grey600,
-                        })}
-                      >
-                        {p.online ? '● Online' : 'Offline'} · Lv.{p.level}
+                      <Text style={font('semibold', 11.5, { color: p.online ? palette.green600 : palette.grey600 })} numberOfLines={1}>
+                        {p.tagline.replace(/^AI · /, '')} · Lv.{p.level}
                       </Text>
                     </View>
                   </View>
-
                   <PressableScale
                     onPress={() => startAiDuel(p.id)}
                     accessibilityRole="button"
                     accessibilityLabel={`Duel ${p.name}`}
                     style={styles.duelButton}
                   >
-                    <Text style={font('extrabold', 12, { color: palette.white })}>Duel</Text>
+                    <Text style={font('extrabold', 12.5, { color: palette.white })}>Duel</Text>
                   </PressableScale>
                 </View>
               </View>
@@ -664,60 +798,11 @@ export default function FriendsScreen() {
       ) : null}
 
       {filteredOpponents.length > 0 ? (
-      <StaggerIn index={4}>
-        <HomeSectionHeader title="Practice with AI partners" />
-        <View style={styles.card}>
-          {filteredOpponents.map((o, index) => {
-            const { wins, losses } = record(o.id);
-
-            return (
-              <View key={o.id}>
-                {index > 0 ? <Divider style={{ marginHorizontal: 8 }} /> : null}
-                <View style={styles.friendRow}>
-                  <PressableScale
-                    onPress={() => router.push({ pathname: '/modal/friend', params: { id: o.id } })}
-                    accessibilityRole="button"
-                    accessibilityLabel={`View ${o.name}'s profile`}
-                    style={styles.friendInfo}
-                  >
-                    <Avatar
-                      initial={o.initial}
-                      size={44}
-                      background={tint(o.id).background}
-                      color={tint(o.id).color}
-                    />
-                    <View>
-                      <View style={styles.nameRow}>
-                        <Text style={text.cardTitle}>{o.name}</Text>
-                        <AiTag />
-                      </View>
-                      <Text
-                        style={font('semibold', 11, {
-                          color: o.online ? palette.green500 : palette.grey600,
-                        })}
-                      >
-                        {o.online ? '● Online' : 'Offline'} · Lv.{o.level}
-                        {wins + losses > 0 ? ` · ${wins}–${losses}` : ''}
-                      </Text>
-                    </View>
-                  </PressableScale>
-
-                  <PressableScale
-                    onPress={() => duel(o)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Duel ${o.name}`}
-                    style={styles.duelButton}
-                  >
-                    <Text style={font('extrabold', 12, { color: palette.white })}>Duel</Text>
-                  </PressableScale>
-                </View>
-              </View>
-            );
-          })}
-        </View>
-      </StaggerIn>
+        <StaggerIn index={4}>
+          <HomeSectionHeader title="Practice with AI partners" />
+          <View style={styles.card}>{filteredOpponents.map((o, i) => botRow(o, i))}</View>
+        </StaggerIn>
       ) : null}
-
     </Screen>
   );
 }
@@ -737,7 +822,6 @@ function discoveryTitle(a: { displayName: string; username?: string | null }): s
 
 const styles = StyleSheet.create({
   /* Sentence case, one size up: tracked all-caps labels read as template. */
-  sectionTitle: font('semibold', 14, { color: palette.grey600 }),
   header: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, marginBottom: 14 },
   eyebrow: font('semibold', 13, { color: palette.grey600 }),
   title: { ...font('extrabold', 28, { color: palette.ink }), letterSpacing: -0.8 },
@@ -756,6 +840,53 @@ const styles = StyleSheet.create({
   headerPlus: { ...font('extrabold', 26, { color: palette.white }), marginTop: -2 },
   bleed: { marginHorizontal: -SCREEN_GUTTER },
   sectionMeta: font('bold', 12, { color: palette.grey600 }),
+
+  /* Partner card — paired: the emerald hero Home and Train use. */
+  partnerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    borderRadius: radius['4xl'],
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+  },
+  partnerFaces: { flexDirection: 'row', alignItems: 'center' },
+  partnerFaceBack: { marginLeft: -14, borderRadius: 30, borderWidth: 3, borderColor: '#0B5132' },
+  partnerTitle: { ...font('extrabold', 17, { color: palette.white }), letterSpacing: -0.3 },
+  partnerSub: { ...font('semibold', 12.5, { color: 'rgba(255,255,255,0.82)' }), marginTop: 2 },
+  partnerGo: {
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: radius.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  partnerGoText: font('extrabold', 12.5, { color: palette.white }),
+
+  /* Partner card — not paired / waiting: light, inviting. */
+  pairCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: radius['4xl'],
+    padding: 14,
+    backgroundColor: palette.white,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: palette.green300,
+  },
+  pairIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: palette.green50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pairTitle: font('extrabold', 15.5, { color: palette.ink }),
+  pairSub: { ...font('semibold', 12.5, { color: palette.grey600 }), marginTop: 2, lineHeight: 17 },
+  pairGo: { backgroundColor: palette.green500, borderRadius: radius.pill, paddingHorizontal: 16, paddingVertical: 8 },
+  pairGoText: font('extrabold', 13, { color: palette.white }),
+
   friendCard: {
     borderRadius: radius['4xl'],
     padding: 12,
@@ -766,6 +897,10 @@ const styles = StyleSheet.create({
   },
   friendMain: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   friendName: { ...font('extrabold', 15.5, { color: palette.ink }), letterSpacing: -0.3 },
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 },
+  statusDot: { width: 7, height: 7, borderRadius: 4 },
+  levelChip: { backgroundColor: palette.divider, borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2 },
+  levelChipText: font('extrabold', 10.5, { color: palette.grey600 }),
   moreButton: {
     width: 36,
     height: 36,
@@ -784,23 +919,31 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: palette.divider,
   },
-  inviteHero: {
+
+  /* No friends yet: a light card, not a dark slab. */
+  emptyCard: {
     borderRadius: radius['6xl'],
     padding: 20,
-    backgroundColor: '#0B5132',
-    overflow: 'hidden',
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: 'rgba(15,31,23,0.06)',
   },
-  inviteTitle: { ...font('extrabold', 21, { color: palette.white }), letterSpacing: -0.5, lineHeight: 26 },
-  inviteBody: { ...font('medium', 13.5, { color: 'rgba(255,255,255,0.85)' }), lineHeight: 19, marginTop: 6 },
-  inviteActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
-  inviteButton: {
-    flex: 1,
-    height: 46,
-    borderRadius: radius.pill,
+  emptyIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: palette.green50,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  inviteButtonGhost: { borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.5)' },
+  emptyTitle: { ...font('extrabold', 19, { color: palette.ink }), letterSpacing: -0.4, textAlign: 'center', marginTop: 14 },
+  emptyBody: { ...font('medium', 13.5, { color: palette.grey600 }), lineHeight: 19, textAlign: 'center', marginTop: 6 },
+  emptyActions: { flexDirection: 'row', gap: 10, marginTop: 16, alignSelf: 'stretch' },
+  emptyButton: { flex: 1, height: 46, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
+  emptyButtonPrimary: { backgroundColor: palette.green500 },
+  emptyButtonSoft: { backgroundColor: palette.green50, borderWidth: 1, borderColor: '#bfeccb' },
+
   card: {
     borderRadius: radius['4xl'],
     padding: 8,
@@ -847,11 +990,17 @@ const styles = StyleSheet.create({
     padding: 0,
   },
   onlineRow: { flexDirection: 'row', gap: 16, paddingHorizontal: SCREEN_GUTTER, paddingVertical: 6 },
-  onlineItem: { alignItems: 'center', gap: 4, width: 64 },
+  onlineItem: { alignItems: 'center', gap: 4, width: 76 },
+  liveRing: {
+    padding: 3,
+    borderRadius: 34,
+    borderWidth: 2,
+    borderColor: palette.green300,
+  },
   addCircle: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: palette.green50,
     borderWidth: 2,
     borderStyle: 'dashed',
@@ -859,18 +1008,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  onlineName: font('bold', 11, { color: palette.grey600 }),
+  addCirclePlus: { ...font('extrabold', 26, { color: palette.green600 }), marginTop: -2 },
+  onlineName: font('bold', 11.5, { color: palette.grey600 }),
   friendRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     paddingVertical: 12,
     paddingHorizontal: 8,
-  },
-  cloudRow: {
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    gap: 8,
   },
   skeletonRow: {
     flexDirection: 'row',
@@ -884,29 +1029,23 @@ const styles = StyleSheet.create({
     backgroundColor: palette.green500,
     paddingVertical: 8,
     paddingHorizontal: 16,
-    borderRadius: radius.lg,
+    borderRadius: radius.pill,
   },
-  /* "Add" shares a shape with "Duel" but not its weight.
-   *
-   * Both were solid brand green, so a list of six suggestions was six of the
-   * loudest colour on the screen stacked down one edge — no priority, and the
-   * eye had nowhere to rest. Duelling is what the app is for; adding someone
-   * is administrative. A tinted fill keeps it clearly tappable and lets the
-   * green buttons that start a race actually mean something. */
+  /* "Add" shares a shape with "Duel" but not its weight: duelling is what the
+     app is for; adding someone is administrative. */
   addButton: {
     backgroundColor: palette.green50,
     borderWidth: 1,
     borderColor: '#bfeccb',
     paddingVertical: 8,
     paddingHorizontal: 16,
-    borderRadius: radius.lg,
+    borderRadius: radius.pill,
   },
-  actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   actionPill: {
     backgroundColor: palette.green500,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: radius.lg,
+    borderRadius: radius.pill,
   },
   actionPillSoft: {
     backgroundColor: palette.green50,
@@ -914,12 +1053,12 @@ const styles = StyleSheet.create({
   actionPillMuted: {
     backgroundColor: palette.border,
   },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   aiTag: {
     backgroundColor: palette.green50,
     borderRadius: radius.xs,
-    paddingHorizontal: 4,
-    paddingVertical: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
     alignSelf: 'flex-start',
   },
   aiTagText: font('extrabold', 9.5, { color: palette.green700, letterSpacing: 0.3 }),

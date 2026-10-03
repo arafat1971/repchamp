@@ -30,6 +30,7 @@ import { useSettingsStore } from '@/state/settingsStore';
 export interface AnalyticsEvents {
   app_opened: Record<string, never>;
   onboarding_completed: { weeklyGoal: number };
+  onboarding_pledge_made: { weeklyGoal: number };
   /** Fires once per step, so drop-off is visible screen by screen. */
   onboarding_step: { step: number; name: string; percent: number };
   session_started: { exercise: string; mode: string };

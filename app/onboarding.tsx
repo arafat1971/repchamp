@@ -1,5 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
+import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
@@ -23,6 +24,7 @@ import Animated, {
   FadeIn,
   FadeInDown,
   FadeInUp,
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -596,7 +598,7 @@ export default function OnboardingScreen() {
             }}
           />
         ) : null}
-        {step === 21 ? <Paywall plan={plan} onSelect={setPlan} onNext={next} /> : null}
+        {step === 21 ? <Paywall plan={plan} goal={goal} onSelect={setPlan} onNext={next} /> : null}
         {/* The last two land right before the first set, which is where the
             advice actually gets used — a framing tip read fifteen screens
             earlier would be forgotten by the time the camera opens. */}
@@ -1759,12 +1761,67 @@ function YourFirstWeek({
       </StaggerIn>
 
       <View style={{ flex: 1 }} />
-      <PrimaryButton
-        label={`Start day one — ${pluralise(opener?.target ?? 0, 'rep')}`}
-        onPress={onNext}
+      <HoldToCommit
+        label={`Hold to commit — ${pluralise(opener?.target ?? 0, 'rep')} on day one`}
+        onCommit={() => {
+          track('onboarding_pledge_made', { weeklyGoal });
+          onNext();
+        }}
       />
       <Text style={styles.commitFootnote}>Takes about 2 minutes · no equipment</Text>
     </View>
+  );
+}
+
+const HOLD_MS = 1100;
+
+/**
+ * A pledge, not a button: press and hold fills the bar, and letting go early
+ * drains it. Saying "I'm in" out loud with a finger is a micro-commitment, and
+ * people follow through on what they have committed to. Screen readers cannot
+ * hold, so the accessibility action commits at once.
+ */
+function HoldToCommit({ label, onCommit }: { label: string; onCommit: () => void }) {
+  const fill = useSharedValue(0);
+  const [done, setDone] = useState(false);
+
+  const finish = useCallback(() => {
+    setDone((d) => {
+      if (d) return d;
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      setTimeout(onCommit, 350);
+      return true;
+    });
+  }, [onCommit]);
+
+  const start = () => {
+    if (done) return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    fill.value = withTiming(1, { duration: HOLD_MS, easing: Easing.linear }, (finished) => {
+      if (finished) runOnJS(finish)();
+    });
+  };
+  const cancel = () => {
+    if (done) return;
+    fill.value = withTiming(0, { duration: 220 });
+  };
+
+  const fillStyle = useAnimatedStyle(() => ({ width: `${fill.value * 100}%` }));
+
+  return (
+    <Pressable
+      onPressIn={start}
+      onPressOut={cancel}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityHint="Press and hold, or double tap, to commit"
+      accessibilityActions={[{ name: 'activate' }]}
+      onAccessibilityAction={finish}
+      style={styles.holdWrap}
+    >
+      <Animated.View style={[styles.holdFill, fillStyle]} />
+      <Text style={styles.holdLabel}>{done ? "You're in 🔥" : label}</Text>
+    </Pressable>
   );
 }
 
@@ -2490,10 +2547,12 @@ function Building({ percent }: { percent: number }) {
 
 function Paywall({
   plan,
+  goal,
   onSelect,
   onNext,
 }: {
   plan: 'year' | 'month';
+  goal: string | null;
   onSelect: (p: 'year' | 'month') => void;
   onNext: () => void;
 }) {
@@ -2639,7 +2698,7 @@ function Paywall({
         ) : null}
         <Text style={[text.h1, { fontSize: 27, textAlign: 'center' }]}>{headline}</Text>
         <Text style={[text.body, styles.centeredCopy]}>
-          Every Pro exercise and programme, unlocked. Cancel anytime.
+          {goal ? `Your plan — ${goalPlan(goal).title.toLowerCase()} — with every Pro exercise and programme unlocked. Cancel anytime.` : 'Every Pro exercise and programme, unlocked. Cancel anytime.'}
         </Text>
       </Animated.View>
 
@@ -3194,6 +3253,19 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   paywallTrophy: { width: 104, height: 69 },
+  holdWrap: {
+    height: 60,
+    borderRadius: radius.xl,
+    backgroundColor: palette.green50,
+    borderWidth: 2,
+    borderColor: palette.green600,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  holdFill: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: palette.green500 },
+  holdLabel: { ...font('extrabold', 16, { color: palette.ink }), paddingHorizontal: 12, textAlign: 'center' },
+
   commitFootnote: {
     ...text.caption,
     color: palette.grey450,

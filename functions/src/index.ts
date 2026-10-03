@@ -50,12 +50,32 @@ export const challengeOnCreate = onDocumentCreated('duels/{duelId}', async (even
   const duelId = event.params.duelId;
   const targetUid = duel.targetUid;
 
+  /* Every invocation leaves a trace. The early exits below used to return
+   * silently, so "no log line" could mean the trigger never fired or merely
+   * that this duel had nobody to notify — indistinguishable from the console.
+   * No uids are logged: the duel id is enough to look the document up. */
+  logger.info('challengeOnCreate fired', {
+    duelId,
+    status: duel.status,
+    hasTarget: typeof targetUid === 'string' && !!targetUid,
+    kind: duel.kind ?? null,
+  });
+
   // Open/QR duels have no addressee — nobody to notify, by design.
-  if (typeof targetUid !== 'string' || !targetUid) return;
+  if (typeof targetUid !== 'string' || !targetUid) {
+    logger.info('challenge push skipped: open duel, no target', { duelId });
+    return;
+  }
   // Only a fresh invite is worth a push; an already-joined duel is not news.
-  if (duel.status !== 'pending') return;
+  if (duel.status !== 'pending') {
+    logger.info('challenge push skipped: duel is not pending', { duelId, status: duel.status });
+    return;
+  }
   // Never notify someone about their own challenge.
-  if (targetUid === duel.hostUid) return;
+  if (targetUid === duel.hostUid) {
+    logger.info('challenge push skipped: target is the host', { duelId });
+    return;
+  }
 
   const db = getFirestore();
 

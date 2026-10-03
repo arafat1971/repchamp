@@ -26,6 +26,14 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // An avatar field that is absent, null, or a string no larger than an
+    // inlined avatar (MAX_AVATAR_DATA_URI_BYTES in domain/safety.ts). Size
+    // only — the format is the profile rule's business.
+    function smallUrl(m, key) {
+      return m.get(key, null) == null
+        || (m[key] is string && m[key].size() <= 65536);
+    }
+
     match /users/{uid} {
       // Public profile lookup (username / add-friend). Push tokens live under
       // /private — never on this document.
@@ -151,6 +159,8 @@ service cloud.firestore {
         // Server-stamped when present, so a report cannot be back-dated.
         && (!('createdAt' in request.resource.data)
             || request.resource.data.createdAt == request.time)
+        && (!('clientAt' in request.resource.data)
+            || request.resource.data.clientAt is number)
         && (!('note' in request.resource.data)
             || (request.resource.data.note is string
                 && request.resource.data.note.size() <= 400))
@@ -187,17 +197,65 @@ service cloud.firestore {
           && resource.data.guestUid == null;
       }
 
-      allow read: if isPlayer() || isTarget() || isOpenInvite();
+      // `resource == null` first, for the reason spelled out on couples below:
+      // every other clause dereferences `resource`, so a get on a duel that
+      // has been deleted threw and surfaced as PERMISSION_DENIED instead of
+      // "not found" — which also failed the queue transactions that follow a
+      // stale `matched` ticket to its duel. A missing document returns no data.
+      //
+      // The open-invite clause is get-only. As a `read` it also answered list
+      // queries, so any signed-in client could enumerate every open QR lobby
+      // and take the seat without ever being shown the code.
+      allow get: if isAuthed()
+        && (resource == null || isPlayer() || isTarget() || isOpenInvite());
+      allow list: if isPlayer() || isTarget();
 
       // Host opens a pending invite, or a matchmaking seeker mints an active
       // duel where they are the guest and both seats start at zero reps.
+      // A seat is the eight fields `makePlayer` writes (plus the optional
+      // `photoUrl`). Capped because both players download the whole document
+      // on every live tick — an uncapped seat was room for ~1 MiB of anything.
+      function seatShapeOk(s) {
+        return s.keys().hasOnly(['uid', 'displayName', 'avatarUrl', 'photoUrl',
+                                 'level', 'reps', 'formScore', 'done', 'forfeited'])
+          && s.displayName is string
+          && s.displayName.size() <= 200
+          && smallUrl(s, 'avatarUrl')
+          && smallUrl(s, 'photoUrl');
+      }
+
+      // Every new duel, whichever way it is opened: known keys only, a real
+      // format, no winner yet, and a host seat that has not started.
+      function duelShapeOk() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['id', 'exercise', 'duration', 'status', 'hostUid',
+                                 'guestUid', 'targetUid', 'host', 'guest', 'winnerUid',
+                                 'cooperative', 'kind', 'createdAt', 'startedAt'])
+          && d.exercise is string
+          && d.exercise.size() <= 40
+          && d.duration is number
+          && d.duration > 0
+          && d.duration <= 3600
+          && d.get('winnerUid', null) == null
+          && seatShapeOk(d.host)
+          && d.host.done == false;
+      }
+
       allow create: if isAuthed()
+        && duelShapeOk()
         && (
           (request.resource.data.hostUid == request.auth.uid
             && request.resource.data.status == 'pending'
             && request.resource.data.guestUid == null
+            && request.resource.data.get('guest', null) == null
             && request.resource.data.host.uid == request.auth.uid
-            && request.resource.data.host.reps == 0)
+            && request.resource.data.host.reps == 0
+            && (!('kind' in request.resource.data)
+                || request.resource.data.kind in ['duel', 'train', 'compete'])
+            && (request.resource.data.targetUid == null
+                || (request.resource.data.targetUid is string
+                    && request.resource.data.targetUid != request.auth.uid
+                    && request.resource.data.targetUid.size() <= 128)))
           ||
           (request.resource.data.status == 'active'
             && request.resource.data.targetUid == null
@@ -207,7 +265,18 @@ service cloud.firestore {
             && request.resource.data.host.uid == request.resource.data.hostUid
             && request.resource.data.guest.uid == request.auth.uid
             && request.resource.data.host.reps == 0
-            && request.resource.data.guest.reps == 0)
+            && request.resource.data.guest.reps == 0
+            && seatShapeOk(request.resource.data.guest)
+            && request.resource.data.guest.done == false
+            // The forfeit clock runs from here, so it has to be the server's.
+            && request.resource.data.startedAt == request.time
+            // The named host must actually be in the queue. `get` reads the
+            // ticket as it stood before this commit — still `waiting`, since
+            // `tryPair` flips it in the same transaction. Without this anyone
+            // could seat any athlete as the host of a live duel they never
+            // asked for and could not delete.
+            && get(/databases/$(database)/documents/matchmaking/$(request.resource.data.hostUid))
+                 .data.status == 'waiting')
         );
 
       function isJoin() {
@@ -220,15 +289,66 @@ service cloud.firestore {
           && request.resource.data.guest.uid == request.auth.uid
           && request.resource.data.guest.reps == 0
           && (resource.data.targetUid == null || resource.data.targetUid == request.auth.uid)
-          // Host seat must not be rewritten on join.
-          && request.resource.data.host.reps == resource.data.host.reps
-          && request.resource.data.host.done == resource.data.host.done;
+          && request.resource.data.guest.done == false
+          && seatShapeOk(request.resource.data.guest)
+          // A join seats the guest and starts the clock, nothing else. Without
+          // the cap the joiner could rewrite the host's seat, the format
+          // (`duration`, `exercise`) or `winnerUid` in the same write.
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['status', 'guestUid', 'guest', 'startedAt'])
+          // Server-stamped: `forfeitWindowOpen` measures from this.
+          && request.resource.data.startedAt == request.time;
+      }
+
+      // Mirrors `resolveWinner` in src/domain/duel.ts: a lone forfeit loses,
+      // otherwise more reps wins, and a tie is a draw (null). A together set
+      // has no winner, so null is also accepted when `cooperative`.
+      function winnerOk() {
+        let h = request.resource.data.host;
+        let g = request.resource.data.guest;
+        let hf = h.get('forfeited', false) == true;
+        let gf = g.get('forfeited', false) == true;
+        let expected = (hf && !gf) ? g.uid
+          : ((gf && !hf) ? h.uid
+          : (h.reps > g.reps ? h.uid
+          : (g.reps > h.reps ? g.uid : null)));
+        let w = request.resource.data.get('winnerUid', null);
+        return w == expected
+          || (w == null && resource.data.get('cooperative', false) == true);
+      }
+
+      // `status` and `winnerUid` ride along on seat writes, and used to be
+      // free: a player could declare themselves the winner mid-set, or flip a
+      // live duel back to `pending` and then delete it. Now a seat write
+      // either leaves both alone, or settles — and settling needs both seats
+      // done and the winner the scores actually produce.
+      function settleOk() {
+        return (request.resource.data.host.done == true
+                && request.resource.data.guest.done == true)
+          ? (request.resource.data.status == 'finished' && winnerOk())
+          : (request.resource.data.status == 'active'
+              && request.resource.data.get('winnerUid', null)
+                   == resource.data.get('winnerUid', null));
+      }
+
+      // Mirrors `canForfeitOpenOpponent` / ABANDON_SETTLE_GRACE_MS in
+      // src/domain/duel.ts: an open seat may be forfeited only once the match
+      // window plus 60s grace has passed. Documents with no `startedAt`
+      // predate the stamp and stay settleable, as they are on the client.
+      function forfeitWindowOpen() {
+        return !('startedAt' in resource.data)
+          || request.time >= resource.data.startedAt
+               + duration.value(int(resource.data.duration) + 60, 's');
       }
 
       // Live / finish writes may only touch the caller's own seat map, plus
       // status/winnerUid when settling. The opponent's seat is frozen.
       function hostSeatWrite() {
+        // A settled duel or an already-finished seat takes no more live writes:
+        // the client used to read the document before every tick to check this.
         return request.auth.uid == resource.data.hostUid
+          && resource.data.status == 'active'
+          && resource.data.host.done != true
           && request.resource.data.host.uid == resource.data.host.uid
           && request.resource.data.guestUid == resource.data.guestUid
           && request.resource.data.hostUid == resource.data.hostUid
@@ -239,11 +359,15 @@ service cloud.firestore {
           )
           && (resource.data.guest == null
               || request.resource.data.guest == resource.data.guest)
-          && seatRepsFair(resource.data.host, request.resource.data.host);
+          && seatRepsFair(resource.data.host, request.resource.data.host)
+          && seatShapeOk(request.resource.data.host)
+          && settleOk();
       }
 
       function guestSeatWrite() {
         return request.auth.uid == resource.data.guestUid
+          && resource.data.status == 'active'
+          && resource.data.guest.done != true
           && resource.data.guest != null
           && request.resource.data.guest.uid == resource.data.guest.uid
           && request.resource.data.guestUid == resource.data.guestUid
@@ -254,7 +378,9 @@ service cloud.firestore {
                  .hasOnly(['guest', 'status', 'winnerUid'])
           )
           && request.resource.data.host == resource.data.host
-          && seatRepsFair(resource.data.guest, request.resource.data.guest);
+          && seatRepsFair(resource.data.guest, request.resource.data.guest)
+          && seatShapeOk(request.resource.data.guest)
+          && settleOk();
       }
 
       // Anti-cheat: reps non-decreasing + capped. Live ticks limited to +8;
@@ -283,9 +409,9 @@ service cloud.firestore {
           && before.done == false
           && after.done == true
           && after.forfeited == true
-          && after.uid == before.uid
-          && after.reps == before.reps
-          && after.formScore == before.formScore;
+          // Nothing else on the abandoned seat moves — not its score, and not
+          // its name or avatar either.
+          && after.diff(before).affectedKeys().hasOnly(['done', 'forfeited']);
       }
 
       function hostAbandonSettle() {
@@ -295,7 +421,10 @@ service cloud.firestore {
           && seatForfeitOnly(resource.data.guest, request.resource.data.guest)
           && request.resource.data.host.done == true
           && seatRepsFair(resource.data.host, request.resource.data.host)
+          && seatShapeOk(request.resource.data.host)
           && request.resource.data.status == 'finished'
+          && forfeitWindowOpen()
+          && winnerOk()
           && request.resource.data.guestUid == resource.data.guestUid
           && request.resource.data.hostUid == resource.data.hostUid
           && (
@@ -313,7 +442,10 @@ service cloud.firestore {
           && seatForfeitOnly(resource.data.host, request.resource.data.host)
           && request.resource.data.guest.done == true
           && seatRepsFair(resource.data.guest, request.resource.data.guest)
+          && seatShapeOk(request.resource.data.guest)
           && request.resource.data.status == 'finished'
+          && forfeitWindowOpen()
+          && winnerOk()
           && request.resource.data.guestUid == resource.data.guestUid
           && request.resource.data.hostUid == resource.data.hostUid
           && (
@@ -335,11 +467,20 @@ service cloud.firestore {
 
       allow update: if isAuthed() && (isJoin() || isLiveUpdate());
 
+      // A live or settled match is shared state: the host must not be able to
+      // delete it mid-set or after losing, which would erase the guest's
+      // result. Hosts may withdraw only a still-pending invite; a target may
+      // decline one that nobody has joined. Once a duel is `finished` either
+      // player may remove it, which is what lets account deletion erase the
+      // athlete's match history (their name and score live on that document).
       allow delete: if isAuthed() && (
-        resource.data.hostUid == request.auth.uid
-        || (resource.data.targetUid == request.auth.uid
-            && resource.data.status == 'pending'
-            && resource.data.guestUid == null)
+        (resource.data.status == 'pending'
+          && (resource.data.hostUid == request.auth.uid
+              || (resource.data.targetUid == request.auth.uid
+                  && resource.data.guestUid == null)))
+        || (resource.data.status == 'finished'
+            && (resource.data.hostUid == request.auth.uid
+                || resource.data.guestUid == request.auth.uid))
       );
     }
 
@@ -385,13 +526,41 @@ service cloud.firestore {
           && m.displayName is string;
       }
 
+      // The member slice is the fields `CoupleMember` declares and no others,
+      // with the free-text ones bounded: the partner downloads this slice on
+      // every snapshot, and the document's 1 MiB is shared between the two.
+      function memberShapeOk(m) {
+        return m.keys().hasOnly(['uid', 'displayName', 'avatarUrl', 'trainedDays',
+                                 'totalReps', 'expoPushToken', 'widgetPush',
+                                 'creditedIds', 'daily', 'ritualPlan'])
+          && m.displayName is string
+          && m.displayName.size() <= 200
+          && smallUrl(m, 'avatarUrl')
+          && m.trainedDays is list
+          && m.trainedDays.size() <= 5000
+          && (!('creditedIds' in m)
+              || (m.creditedIds is list && m.creditedIds.size() <= 250))
+          && (m.get('expoPushToken', null) == null
+              || (m.expoPushToken is string && m.expoPushToken.size() <= 200));
+      }
+
+      // The caller's own slice in the incoming document.
+      function ownMemberShapeOk() {
+        return request.resource.data.members[0].uid == request.auth.uid
+          ? memberShapeOk(request.resource.data.members[0])
+          : memberShapeOk(request.resource.data.members[1]);
+      }
+
       // Creator seats only themselves at zero reps.
       allow create: if isAuthed()
         && request.resource.data.memberUids == [request.auth.uid]
         && request.resource.data.pending == true
         && request.resource.data.members.size() == 1
         && request.resource.data.members[0].uid == request.auth.uid
-        && memberZeroed(request.resource.data.members[0]);
+        && memberZeroed(request.resource.data.members[0])
+        && memberShapeOk(request.resource.data.members[0])
+        && request.resource.data.keys().hasOnly(
+             ['id', 'memberUids', 'members', 'pending', 'createdAt']);
 
       // Joiner appends themselves at zero; the existing member's stats are frozen.
       //
@@ -411,6 +580,7 @@ service cloud.firestore {
           && request.resource.data.members[0] == resource.data.members[0]
           && request.resource.data.members[1].uid == request.auth.uid
           && memberZeroed(request.resource.data.members[1])
+          && memberShapeOk(request.resource.data.members[1])
           && request.resource.data.diff(resource.data).affectedKeys()
                .hasOnly(['memberUids', 'members', 'pending', 'pairedAt'])
           && (!('createdAt' in resource.data)
@@ -519,19 +689,45 @@ service cloud.firestore {
         );
       }
 
-      function isNudgeOnly() {
-        return isMember()
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nudge']);
+      // A nudge is a small fixed shape (see `Couple.nudge`). Without bounds a
+      // member could park an arbitrarily large payload on the shared document,
+      // which both partners download on every snapshot. `fromUid` is not pinned
+      // to the caller: a whole-document merge legitimately re-sends the
+      // partner's existing nudge unchanged.
+      function nudgeSane() {
+        let n = request.resource.data.get('nudge', null);
+        return n == null
+          || (n is map
+              && n.keys().hasOnly(['fromUid', 'kind', 'ml', 'drink', 'emoji', 'milestone', 'at'])
+              && (!('fromUid' in n) || (n.fromUid is string && n.fromUid.size() <= 128))
+              && (!('kind' in n) || (n.kind is string && n.kind.size() <= 24))
+              && (!('drink' in n) || (n.drink is string && n.drink.size() <= 24))
+              && (!('emoji' in n) || (n.emoji is string && n.emoji.size() <= 16))
+              && (!('milestone' in n) || n.milestone in ['half', 'goal'])
+              && (!('at' in n) || n.at is timestamp || n.at is number)
+              && (!('ml' in n) || (n.ml is number && n.ml >= 0 && n.ml <= 20000)));
       }
 
+      function isNudgeOnly() {
+        return isMember()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nudge'])
+          && nudgeSane();
+      }
+
+      // `pending` and `pairedAt` belong to the join alone. While a member
+      // update could move them, either partner could flip a paired couple
+      // back to `pending: true` — and a pending couple is readable by anyone
+      // holding the code, push tokens included.
       function isMemberUpdate() {
         return isMember()
           && request.resource.data.memberUids == resource.data.memberUids
           && request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['members', 'nudge', 'pending', 'pairedAt'])
+               .hasOnly(['members', 'nudge'])
           && memberUidsPinned()
           && repsInSaneRange()
           && dailyInSaneRange()
+          && nudgeSane()
+          && ownMemberShapeOk()
           && onlyOwnMemberStatsChanged();
       }
 
@@ -541,7 +737,22 @@ service cloud.firestore {
 
     match /matchmaking/{ticketUid} {
       allow read: if isAuthed();
-      allow create, update, delete: if isOwner(ticketUid);
+      // An athlete's own ticket is the shape `makeTicket` + `ttlFields` write.
+      // It was unvalidated, and the whole queue is readable by every client.
+      function ownTicketOk() {
+        let t = request.resource.data;
+        return t.keys().hasOnly(['uid', 'displayName', 'avatarUrl', 'level', 'exercise',
+                                 'duration', 'status', 'duelId', 'expiresAt',
+                                 'expiresAtTs', 'enqueuedAt'])
+          && t.uid == ticketUid
+          && t.displayName is string
+          && t.displayName.size() <= 200
+          && smallUrl(t, 'avatarUrl')
+          && t.status in ['waiting', 'matched', 'cancelled'];
+      }
+
+      allow create, update: if isOwner(ticketUid) && ownTicketOk();
+      allow delete: if isOwner(ticketUid);
 
       // A *foreign* claimer may flip someone's waiting ticket to `matched`, and
       // may move nothing else: `tryPair` writes exactly status + duelId on the
@@ -560,13 +771,20 @@ service cloud.firestore {
             || request.resource.data.expiresAt == resource.data.expiresAt)
         && (!('expiresAtTs' in resource.data)
             || request.resource.data.expiresAtTs == resource.data.expiresAtTs)
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['status', 'duelId'])
         && request.resource.data.duelId is string
-        && exists(/databases/$(database)/documents/duels/$(request.resource.data.duelId))
-        && get(/databases/$(database)/documents/duels/$(request.resource.data.duelId)).data.hostUid
+        // `getAfter`, not `get`: `tryPair` mints the duel in the same
+        // transaction as this claim, and `get`/`exists` only see what was
+        // committed before it — so the duel never existed yet and every real
+        // pairing was refused. A claim naming a duel that does not exist still
+        // fails: there is no `.data` to read.
+        && existsAfter(/databases/$(database)/documents/duels/$(request.resource.data.duelId))
+        && getAfter(/databases/$(database)/documents/duels/$(request.resource.data.duelId)).data.hostUid
              == resource.data.uid
-        && get(/databases/$(database)/documents/duels/$(request.resource.data.duelId)).data.guestUid
+        && getAfter(/databases/$(database)/documents/duels/$(request.resource.data.duelId)).data.guestUid
              == request.auth.uid
-        && get(/databases/$(database)/documents/duels/$(request.resource.data.duelId)).data.status
+        && getAfter(/databases/$(database)/documents/duels/$(request.resource.data.duelId)).data.status
              == 'active';
     }
 
@@ -582,6 +800,7 @@ service cloud.firestore {
           && request.resource.data.totalXp <= 100000000
           && request.resource.data.displayName is string
           && request.resource.data.displayName.size() <= 40
+          && smallUrl(request.resource.data, 'avatarUrl')
           // `weekKey` was previously unvalidated, which made scoreMonotonic()
           // trivially bypassable: that check waives the "weeklyXp can only go
           // up" guard whenever the key differs, so any junk value disabled it.

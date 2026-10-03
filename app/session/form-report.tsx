@@ -34,7 +34,7 @@ export default function FormReportScreen() {
     }
 
     return (
-      <Screen>
+      <Screen enter>
         <View style={styles.header}>
           <IconButton glyph="‹" label="Back to results" onPress={() => router.back()} />
           <Text style={[text.h2, { flex: 1 }]}>Form report</Text>
@@ -113,7 +113,7 @@ export default function FormReportScreen() {
 
   if (!report) {
     return (
-      <Screen>
+      <Screen enter>
         <Text style={text.h2}>No report available</Text>
         <PrimaryButton label="Back" onPress={() => router.back()} style={{ marginTop: 20 }} />
       </Screen>
@@ -121,7 +121,7 @@ export default function FormReportScreen() {
   }
 
   return (
-    <Screen>
+    <Screen enter>
       <View style={styles.header}>
         <IconButton glyph="‹" label="Back to results" onPress={() => router.back()} />
         <Text style={[text.h2, { flex: 1 }]}>Form report</Text>

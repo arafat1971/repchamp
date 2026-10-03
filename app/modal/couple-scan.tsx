@@ -134,7 +134,15 @@ export default function CoupleScanScreen() {
 
         {/* Reticle — a bracketed square to aim the code into. */}
         <View pointerEvents="none" style={styles.reticleWrap}>
-          <View style={styles.reticle} />
+          <View style={styles.reticle}>
+            <View style={[styles.corner, styles.cornerTL]} />
+            <View style={[styles.corner, styles.cornerTR]} />
+            <View style={[styles.corner, styles.cornerBL]} />
+            <View style={[styles.corner, styles.cornerBR]} />
+          </View>
+          <View style={styles.aimPill}>
+            <Text style={styles.aimText}>Line up the QR inside the frame</Text>
+          </View>
         </View>
 
         {joining ? (
@@ -190,18 +198,31 @@ const styles = StyleSheet.create({
   reticle: {
     width: 220,
     height: 220,
-    borderRadius: radius['4xl'],
-    borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.85)',
   },
+  /* Four corner brackets rather than a full outline: the code stays visible
+     edge to edge and the frame still reads as a target. */
+  corner: { position: 'absolute', width: 44, height: 44, borderColor: palette.green400 },
+  cornerTL: { top: 0, left: 0, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 20 },
+  cornerTR: { top: 0, right: 0, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: 20 },
+  cornerBL: { bottom: 0, left: 0, borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: 20 },
+  cornerBR: { bottom: 0, right: 0, borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: 20 },
+  aimPill: {
+    marginTop: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: 'rgba(9,14,11,0.6)',
+  },
+  aimText: font('semibold', 13, { color: palette.white }),
   joiningText: { ...font('extrabold', 15, { color: palette.white }), marginTop: 12 },
   hint: { textAlign: 'center', marginTop: 12 },
   manual: {
     // `minHeight` at render time — see `@/theme/fontScale`.
     marginTop: 12,
-    borderRadius: radius['2xl'],
+    borderRadius: 26,
     borderWidth: 1,
     borderColor: palette.border,
+    backgroundColor: palette.white,
     alignItems: 'center',
     justifyContent: 'center',
   },

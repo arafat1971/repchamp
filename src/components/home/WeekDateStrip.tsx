@@ -1,8 +1,10 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { useIsFocused } from 'expo-router';
 import Animated, {
   Easing,
+  cancelAnimation,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -117,7 +119,7 @@ function Day({ cell, todayPercent }: { cell: WeekCell; todayPercent: number }) {
   if (cell.isFuture) {
     return (
       <View style={[styles.dot, styles.dotFuture]}>
-        <Text style={[styles.date, { color: palette.grey500 }]}>{date}</Text>
+        <Text style={[styles.date, { color: palette.grey700 }]}>{date}</Text>
       </View>
     );
   }
@@ -125,7 +127,7 @@ function Day({ cell, todayPercent }: { cell: WeekCell; todayPercent: number }) {
   // Past and not trained: present, quiet, not red — a gap, not a scolding.
   return (
     <View style={[styles.dot, styles.dotMissed]}>
-      <Text style={[styles.date, { color: palette.grey600 }]}>{date}</Text>
+      <Text style={[styles.date, { color: palette.grey700 }]}>{date}</Text>
     </View>
   );
 }
@@ -133,7 +135,13 @@ function Day({ cell, todayPercent }: { cell: WeekCell; todayPercent: number }) {
 /** A soft ring breathing out from today until it is trained. */
 function Pulse() {
   const t = useSharedValue(0);
+  const focused = useIsFocused();
   useEffect(() => {
+    if (!focused) {
+      cancelAnimation(t);
+      t.value = 0;
+      return;
+    }
     t.value = withRepeat(
       withSequence(
         withTiming(1, { duration: 1400, easing: Easing.out(Easing.quad) }),
@@ -142,7 +150,7 @@ function Pulse() {
       -1,
       false,
     );
-  }, [t]);
+  }, [t, focused]);
   const style = useAnimatedStyle(() => ({
     opacity: 0.35 * (1 - t.value),
     transform: [{ scale: 1 + t.value * 0.45 }],
@@ -163,8 +171,8 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: 'row' },
   cell: { flex: 1, alignItems: 'center', gap: 2 },
-  letter: font('semibold', 10, { color: palette.grey500 }),
-  letterToday: font('extrabold', 10, { color: palette.ink }),
+  letter: font('semibold', 11, { color: palette.grey700 }),
+  letterToday: font('extrabold', 11, { color: palette.ink }),
   dotSlot: { width: '100%', height: DOT + 4, alignItems: 'center', justifyContent: 'center' },
   link: {
     position: 'absolute',

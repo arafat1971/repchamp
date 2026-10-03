@@ -197,7 +197,7 @@ export default function AddFriendScreen() {
   };
 
   return (
-    <Screen>
+    <Screen enter>
       <ModalHeader title="Add Friends" />
 
       <Card style={styles.search}>

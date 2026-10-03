@@ -53,7 +53,7 @@ export default function WeeklyRecapScreen() {
   const bestIndex = buckets.indexOf(Math.max(...buckets));
 
   return (
-    <Screen>
+    <Screen enter>
       <ModalHeader title="Weekly Recap" />
 
       <LinearGradient colors={gradients.brandDeep} style={[styles.hero, shadow.brand]}>

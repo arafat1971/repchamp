@@ -747,6 +747,11 @@ export default function TabsLayout() {
         }}
         screenOptions={{
           headerShown: false,
+          // Tabs slide a few points toward the one being opened and cross-fade,
+          // so switching reads as moving along the bar, not swapping pages.
+          animation: 'shift',
+          transitionSpec: { animation: 'timing', config: { duration: motion.base } },
+          sceneStyle: { backgroundColor: palette.canvas },
           tabBarActiveTintColor: palette.green600,
           tabBarInactiveTintColor: palette.slate600,
           tabBarStyle: [

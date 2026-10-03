@@ -387,7 +387,7 @@ export default function DuelWaitingScreen() {
 
   if (status === 'unavailable') {
     return (
-      <Screen>
+      <Screen enter>
         <ModalHeader title="Live duels" />
         <View style={styles.center}>
           <Avatar
@@ -421,7 +421,7 @@ export default function DuelWaitingScreen() {
 
   if (status === 'signin') {
     return (
-      <Screen>
+      <Screen enter>
         <ModalHeader title="Live duels" onBack={leaveWaiting} />
         <View style={styles.center}>
           <Avatar initial="?" size={80} />
@@ -464,7 +464,7 @@ export default function DuelWaitingScreen() {
 
   if (status === 'cancelled') {
     return (
-      <Screen>
+      <Screen enter>
         <ModalHeader title="Challenge closed" />
         <View style={styles.center}>
           <Text style={[text.h2, { textAlign: 'center', marginTop: 12 }]}>
@@ -497,7 +497,7 @@ export default function DuelWaitingScreen() {
   }
 
   return (
-    <Screen>
+    <Screen enter>
       {/* "Challenge sent" is only true when there was someone to send it to.
           An open QR duel goes to nobody in particular — the athlete is holding
           up a code and waiting to be scanned — and a header claiming otherwise

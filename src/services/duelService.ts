@@ -44,6 +44,10 @@ function duelDoc(id: string) {
   return duelsCol().doc(id);
 }
 
+function isPermissionDenied(error: unknown): boolean {
+  return String((error as { code?: string })?.code ?? '').endsWith('permission-denied');
+}
+
 /** The host's identity when opening a duel. */
 export interface DuelHostInput {
   uid: string;
@@ -124,7 +128,12 @@ export async function joinDuel(
 
   const ref = duelDoc(duelId);
   // Block check outside the transaction (extra reads); refuse before seating.
-  const peek = await ref.get();
+  // The rules let a non-player read a duel only while it is an open invite, so
+  // a refused read here means the seat has already gone.
+  const peek = await ref.get().catch((error: unknown) => {
+    if (isPermissionDenied(error)) throw new Error('Someone already joined that duel.');
+    throw error;
+  });
   if (peek.exists()) {
     const hostUid = (peek.data() as Duel).hostUid;
     if (hostUid && (await isBlockedByMe(input.uid, hostUid))) {
@@ -165,8 +174,8 @@ export async function joinDuel(
  *
  * Writes only the caller's own `host`/`guest` sub-fields, so the two players
  * never clobber each other and the security rules can scope each write to its
- * owner. Throttle at the call site to `DUEL_SYNC_INTERVAL_MS`; this method does
- * not rate-limit. No-op when unconfigured.
+ * owner. Throttle at the call site (`useLiveDuel` does, and skips ticks with
+ * nothing new); this method does not rate-limit. No-op when unconfigured.
  */
 export async function pushLiveState(
   duelId: string,
@@ -175,13 +184,11 @@ export async function pushLiveState(
 ): Promise<boolean> {
   if (!isFirebaseConfigured()) return false;
   try {
-    const snap = await duelDoc(duelId).get();
-    if (!snap.exists()) return false;
-    const duel = snap.data() as Duel;
-    if (duel.status === 'finished') return false;
-    const player = duel[seat];
-    if (!player || player.done) return false;
-
+    /* No pre-read: this runs several times a second, and a `get()` per tick
+       doubled the cost of every live set. The guard it provided — never write
+       to a settled duel or a seat that is already done — is enforced by the
+       rules (`hostSeatWrite` / `guestSeatWrite`), and `useLiveDuel` latches
+       pushes off once this athlete finishes. A rejected write returns false. */
     await duelDoc(duelId).update({
       [`${seat}.reps`]: clampDuelReps(slice.reps),
       [`${seat}.formScore`]: clampFormScore(slice.formScore),

@@ -1,14 +1,12 @@
 import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
-import { Image } from 'expo-image';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { ModalHeader } from '@/components/ModalHeader';
-import { GradientCard, PressableScale, PrimaryButton, Screen } from '@/components/ui';
-import { HomeCard as Card } from '@/components/ui/HomeCard';
-import { LinkedAvatars } from '@/components/connected/LinkedAvatars';
+import { PressableScale, Screen } from '@/components/ui';
 import { JourneyCard } from '@/components/together/JourneyCard';
+import { ActionList, ActionRow, LineIcon, PairPitch, SectionTitle, Surface, TogetherHero } from '@/components/together/kit';
 import { ME, THEM } from '@/components/together/RitualCard';
 import { HABITS, journey } from '@/domain/ritual';
 import { useRitualStore } from '@/state/ritualStore';
@@ -32,7 +30,7 @@ import { useCouple } from '@/state/useCouple';
 import { useAuthStore } from '@/state/authStore';
 import { useProfileStore } from '@/state/profileStore';
 import { font, text } from '@/theme/typography';
-import { gradients, palette, radius } from '@/theme/tokens';
+import { palette, radius } from '@/theme/tokens';
 
 /** Four weeks reads as a month of effort without scrolling on a small phone. */
 const WINDOW_DAYS = 28;
@@ -110,77 +108,31 @@ export default function CoupleTrackerScreen() {
      the shape of what pairing gives them, not a promise in prose. */
   if (!paired || !partner) {
     const previewDays = trackerHistory(null, viewerUid, today, WINDOW_DAYS);
-    const myInitial = (displayName?.trim()?.charAt(0) || 'A').toUpperCase();
 
     return (
       <Screen>
         <ModalHeader title="Your bond" />
 
-        {/* Show the thing rather than describing it. A bare paragraph asking
-            someone to go find a partner is the weakest possible pitch; a
-            greyed-out preview of their own future calendar, with the two
-            avatars that would fill it, makes the empty state the argument. */}
         <Animated.View entering={FadeInDown.duration(380).springify()}>
-          <GradientCard colors={gradients.brandDeep} glow="brand" style={styles.emptyHero}>
-            <View style={styles.emptyAvatars}>
-              <View style={styles.emptyAvatarMe}>
-                <Text style={styles.emptyAvatarText}>{myInitial}</Text>
-              </View>
-              {/* 🫶, matching the invite screen's pitch. A bare "+" said
-                  "add a person"; the two couple surfaces should make the same
-                  gesture at the same joint. */}
-              <View style={styles.emptyPlus}>
-                <Text style={styles.emptyJoinGlyph}>🫶</Text>
-              </View>
-              {/* Same empty seat as the invite screen's pitch, and the same
-                  reasoning: a bare "?" reads as an error rather than an
-                  invitation. The two couple surfaces must agree. */}
-              <View style={styles.emptyAvatarThem}>
-                <Image
-                  source={require('../../assets/logo.png')}
-                  style={styles.emptyPartnerLogo}
-                  contentFit="cover"
-                  accessibilityLabel="Your partner's empty seat"
-                />
-              </View>
-            </View>
-            <Text style={styles.emptyHeroTitle}>Train together</Text>
-            <Text style={styles.emptyHeroCopy}>
-              Your streak only survives on days you both show up. Reps combine into one total.
-            </Text>
-          </GradientCard>
+          <PairPitch
+            name={displayName?.trim() || 'You'}
+            uri={avatarUri}
+            title="Train together"
+            body="Your streak only survives on days you both show up. Reps combine into one total."
+            onInvite={() => router.push('/modal/couple-invite')}
+            onScan={() => router.push('/modal/couple-scan')}
+          />
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(80).duration(320)}>
-          <Card style={styles.emptyPreviewCard}>
+          <Surface style={styles.emptyPreviewCard}>
             <Text style={styles.emptyPreviewLabel}>WHAT YOU&rsquo;LL SEE</Text>
             <Calendar days={previewDays} muted />
             <Text style={[text.caption, styles.emptyPreviewNote]}>
               A month of who trained which day, filled in from your first shared session.
             </Text>
-          </Card>
+          </Surface>
         </Animated.View>
-
-        <PrimaryButton
-          label="Invite a partner"
-          onPress={() => router.push('/modal/couple-invite')}
-          style={styles.emptyButton}
-        />
-
-        {/* The QR lives on the invite screen, which owns pair-code creation —
-            a code has to exist before there is anything to encode. Offering
-            the scanner here covers the other half: the person who was *sent*
-            an invite and has the code on someone else's screen in front of
-            them. Without it they have to guess that "Invite a partner" is also
-            where you accept one. */}
-        <PressableScale
-          onPress={() => router.push('/modal/couple-scan')}
-          accessibilityRole="button"
-          accessibilityLabel="Scan a partner's QR code"
-          style={styles.emptySecondary}
-        >
-          <Text style={styles.emptySecondaryText}>Scan their QR code</Text>
-        </PressableScale>
 
         {/* Couple mode is unusable alone, so a screen that only offers pairing
             is a dead end for anyone not ready to invite someone. Training solo
@@ -215,85 +167,74 @@ export default function CoupleTrackerScreen() {
           The link between the two avatars lights up on a day you both trained,
           so the hero answers "are we good today?" before any number does. */}
       <Animated.View entering={FadeInDown.duration(340)}>
-        <GradientCard colors={gradients.brandDeep} glow="brand" style={styles.hero}>
-          <LinkedAvatars
-            lit={bondDay.get(today) === 'both'}
-            me={{ initial: myName.charAt(0).toUpperCase(), uri: avatarUri, color: ME }}
-            them={{ initial: partnerName.charAt(0).toUpperCase(), uri: partner.avatarUrl, color: THEM }}
-          />
-          <Text style={styles.heroStreak}>
-            {streak}
-            <Text style={styles.heroUnit}> {streak === 1 ? 'day' : 'days'} in a row</Text>
-          </Text>
-          <Text style={styles.heroSub}>
-            Best run {summary.bestRun} · Level {level.level}, {level.name}
-          </Text>
-          <View style={styles.levelTrack}>
-            <View style={[styles.levelFill, { width: `${Math.max(2, Math.round(level.progress))}%` }]} />
-          </View>
-          <View style={styles.figures}>
-            <Figure value={combined.toLocaleString()} label="reps together" />
-            <View style={styles.figureRule} />
-            <Figure value={String(summary.bothDays)} label="shared days" />
-            <View style={styles.figureRule} />
-            <Figure value={`${consistencyPct}%`} label={`of ${pluralise(WINDOW_DAYS, 'day')}`} />
-          </View>
-          <PressableScale
-            onPress={() => {
-              track('share_opened', { kind: 'couple-card' });
-              router.push('/modal/couple-card');
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="Share your bond card"
-            style={styles.heroShare}
-          >
-            <Text style={styles.heroShareText}>Share your bond card</Text>
-          </PressableScale>
-        </GradientCard>
+        <TogetherHero
+          lit={bondDay.get(today) === 'both'}
+          me={{ name: myName, uri: avatarUri, color: ME }}
+          them={{ name: partnerName, uri: partner.avatarUrl, color: THEM }}
+          streak={streak}
+          caption={`Best run ${pluralise(summary.bestRun, 'day')}`}
+          stats={[
+            { value: combined.toLocaleString(), label: 'reps together' },
+            { value: String(summary.bothDays), label: 'shared days' },
+            { value: `${consistencyPct}%`, label: `of ${pluralise(WINDOW_DAYS, 'day')}` },
+          ]}
+          level={{
+            label: `Level ${level.level} · ${level.name}`,
+            detail: level.nextAt ? `${level.points} / ${level.nextAt} XP` : 'Top level',
+            progress: level.progress,
+          }}
+          footer={
+              <PressableScale
+                onPress={() => {
+                  track('share_opened', { kind: 'couple-card' });
+                  router.push('/modal/couple-card');
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Share your bond card"
+                style={styles.heroShare}
+              >
+                <LineIcon name="share" size={16} color={palette.white} />
+                <Text style={styles.heroShareText}>Share your bond card</Text>
+              </PressableScale>
+          }
+        />
       </Animated.View>
 
       {/* Today lives on its own screen: this one is the bond's history. */}
-      <PressableScale
-        onPress={() => router.push('/couple/partner')}
-        accessibilityRole="button"
-        accessibilityLabel={`Open today with ${partnerName}`}
-        style={styles.todayRow}
-      >
-        <View style={styles.todayCopy}>
-          <Text style={styles.todayTitle}>Today, together</Text>
-          <Text style={styles.todaySub}>The live stage, your daily ritual, and what happened today</Text>
-        </View>
-        <Text style={styles.chevron}>›</Text>
-      </PressableScale>
+      <ActionList>
+        <ActionRow
+          flat
+          icon="today"
+          title="Today, together"
+          sub="The live stage, your daily ritual, and what happened today"
+          onPress={() => router.push('/couple/partner')}
+        />
+        <ActionRow
+          flat
+          rule
+          icon="target"
+          tint={palette.amber800}
+          title="Daily challenge"
+          sub="Today’s set to beat — and whether you both did it"
+          onPress={() => router.push('/modal/daily')}
+        />
+      </ActionList>
 
-      <PressableScale
-        onPress={() => router.push('/modal/daily')}
-        accessibilityRole="button"
-        accessibilityLabel="Open the daily challenge"
-        style={styles.todayRow}
-      >
-        <View style={styles.todayCopy}>
-          <Text style={styles.todayTitle}>Daily challenge</Text>
-          <Text style={styles.todaySub}>Today&rsquo;s set to beat — and whether you both did it</Text>
-        </View>
-        <Text style={styles.chevron}>›</Text>
-      </PressableScale>
-
-      <Heading title="Your ritual" aside={longView.since ? `since ${shortDate(longView.since)}` : undefined} />
+      <SectionTitle title="Your ritual" aside={longView.since ? `since ${shortDate(longView.since)}` : undefined} />
       <JourneyCard journey={longView} total={HABITS.length} />
 
-      <Heading title="This week" aside={`${pace.bothDays} of ${pace.goal} days`} />
-      <Card style={styles.pad}>
+      <SectionTitle title="This week" aside={`${pace.bothDays} of ${pace.goal} days`} />
+      <Surface style={styles.pad}>
         <View style={styles.segments}>
           {Array.from({ length: Math.max(1, pace.goal) }, (_, i) => (
             <View key={i} style={[styles.segment, { backgroundColor: i < pace.bothDays ? palette.green500 : palette.track }]} />
           ))}
         </View>
         <Text style={styles.note}>{paceHint(pace, partnerName)}</Text>
-      </Card>
+      </Surface>
 
-      <Heading title="Last four weeks" aside={`${summary.bothDays} shared`} />
-      <Card style={styles.pad}>
+      <SectionTitle title="Last four weeks" aside={`${summary.bothDays} shared`} />
+      <Surface style={styles.pad}>
         <Calendar days={history} />
         <View style={styles.legend}>
           <LegendDot color={palette.green500} label="Both" />
@@ -301,10 +242,10 @@ export default function CoupleTrackerScreen() {
           <LegendDot color={THEM} label={partnerName} />
           <LegendDot color={palette.track} label="Rest" />
         </View>
-      </Card>
+      </Surface>
 
-      <Heading title="Who put in what" />
-      <Card style={styles.pad}>
+      <SectionTitle title="Who put in what" />
+      <Surface style={styles.pad}>
         {noBondReps || !split ? (
           <Text style={styles.quiet}>
             No reps in the bond yet. Sets you do in Train together mode count here and keep your streak.
@@ -324,14 +265,14 @@ export default function CoupleTrackerScreen() {
             </Text>
           </>
         )}
-      </Card>
+      </Surface>
 
       {/* Mine only, and labelled as such: a partner's per-exercise history
           never reaches this device, so this shows my half and says so. */}
       {breakdown.total > 0 ? (
         <>
-          <Heading title="Your movements" aside="this month" />
-          <Card style={styles.pad}>
+          <SectionTitle title="Your movements" aside="this month" />
+          <Surface style={styles.pad}>
             {breakdown.mine.map((habit, i) => (
               <View key={habit.exercise} style={[styles.moveRow, i > 0 && styles.rule]}>
                 <View style={styles.moveHead}>
@@ -351,14 +292,14 @@ export default function CoupleTrackerScreen() {
                 : 'A good spread across your movements.'}{' '}
               {partnerName}&rsquo;s breakdown stays on their phone.
             </Text>
-          </Card>
+          </Surface>
         </>
       ) : null}
 
       {dailyLog.length > 0 ? (
         <>
-          <Heading title="Day by day" />
-          <Card style={styles.pad}>
+          <SectionTitle title="Day by day" />
+          <Surface style={styles.pad}>
             {dailyLog.map((d, i) => {
               const status = bondDay.get(d.day);
               const credited = status === 'mine' || status === 'both';
@@ -391,7 +332,7 @@ export default function CoupleTrackerScreen() {
             {dailyLog.some((d) => d.myReps > 0 && !(bondDay.get(d.day) === 'mine' || bondDay.get(d.day) === 'both')) ? (
               <Text style={styles.note}>Solo sets are yours; only Train together sets count toward the bond.</Text>
             ) : null}
-          </Card>
+          </Surface>
         </>
       ) : null}
     </Screen>
@@ -401,29 +342,6 @@ export default function CoupleTrackerScreen() {
 /* ------------------------------------------------------------------ *
  * Pieces
  * ------------------------------------------------------------------ */
-
-/** A section title in sentence case, with an optional quiet fact on the right. */
-function Heading({ title, aside }: { title: string; aside?: string }) {
-  return (
-    <View style={styles.heading}>
-      <Text style={styles.headingTitle}>{title}</Text>
-      {aside ? <Text style={styles.headingAside}>{aside}</Text> : null}
-    </View>
-  );
-}
-
-function Figure({ value, label }: { value: string; label: string }) {
-  return (
-    <View style={styles.figure}>
-      <Text style={styles.figureValue} numberOfLines={1}>
-        {value}
-      </Text>
-      <Text style={styles.figureLabel} numberOfLines={1}>
-        {label}
-      </Text>
-    </View>
-  );
-}
 
 /** Four-week grid, one column per day, wrapping a week per row. */
 function Calendar({ days, muted }: { days: readonly TrackerDay[]; muted?: boolean }) {
@@ -546,146 +464,29 @@ function paceHint(
 }
 
 const styles = StyleSheet.create({
-  todayLink: {
-    marginTop: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: radius.lg,
-    backgroundColor: palette.green50,
-  },
-  todayLinkText: { ...font('bold', 14), color: palette.green700 },
   loading: { paddingVertical: 48, alignItems: 'center' },
-  paddedCard: { padding: CARD_PADDING },
 
-  /* `GradientCard` only sets borderRadius + overflow — it carries no padding of
-     its own, so the horizontal value has to live here or the centred copy runs
-     into both gradient edges. 20 matches the paywall hero. */
-  emptyHero: { alignItems: 'center', paddingVertical: 28, paddingHorizontal: 20, gap: 6 },
-  emptyAvatars: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  emptyAvatarMe: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyAvatarThem: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    // Clips the logo tile to the ring — see couple-invite.tsx.
-    overflow: 'hidden',
-    marginLeft: -14,
-  },
-  emptyAvatarText: font('extrabold', 22, { color: palette.white }),
-  /* One figure, not a pair — see couple-invite.tsx. Held slightly transparent
-     so the filled seat opposite stays the dominant one. */
-  /* Same empty seat as the invite pitch — see couple-invite.tsx for why this
-     fills and is clipped rather than being inset. */
-  emptyPartnerLogo: { width: '100%', height: '100%', opacity: 0.9 },
-  emptyPlus: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: palette.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: -14,
-    zIndex: 1,
-  },
-  emptyJoinGlyph: { fontSize: 16 },
-  emptyHeroTitle: font('extrabold', 21, { color: palette.white }),
-  emptyHeroCopy: {
-    ...font('semibold', 13.5, { color: 'rgba(255,255,255,0.88)' }),
-    textAlign: 'center',
-    lineHeight: 19,
-  },
-
-  /* `Card` carries no padding of its own — only background, radius and shadow,
-     the same gap `GradientCard` has. Without this the label, grid and note all
-     render flush to the card edges and the two-line note spills past the bottom
-     rounded corner. 16 matches recap.tsx's chartCard. */
   emptyPreviewCard: { marginTop: 14, padding: CARD_PADDING },
   emptyPreviewLabel: {
     ...font('extrabold', 10.5, { color: palette.grey600, letterSpacing: 0.7 }),
     marginBottom: 10,
   },
   emptyPreviewNote: { marginTop: 10 },
-  emptyButton: { marginTop: 16 },
-  emptySecondary: {
-    marginTop: 10,
-    alignSelf: 'stretch',
-    alignItems: 'center',
-    paddingVertical: 13,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-    borderColor: palette.green500,
-  },
-  emptySecondaryText: font('extrabold', 14, { color: palette.green600 }),
   emptySkip: { marginTop: 14, alignSelf: 'center', paddingVertical: 10, paddingHorizontal: 16 },
   emptySkipText: font('bold', 13.5, { color: palette.grey600 }),
 
   pad: { padding: 18 },
-  hero: { padding: 22, alignItems: 'center' },
-  heroStreak: font('extrabold', 40, { color: palette.white, marginTop: 18 }),
-  heroUnit: font('semibold', 16, { color: 'rgba(255,255,255,0.75)' }),
-  heroSub: { ...font('medium', 13, { color: 'rgba(255,255,255,0.75)' }), marginTop: 2 },
-  levelTrack: {
-    alignSelf: 'stretch',
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    overflow: 'hidden',
+  heroShare: {
     marginTop: 16,
-  },
-  levelFill: { height: 6, borderRadius: 3, backgroundColor: palette.green400 },
-  figures: {
-    alignSelf: 'stretch',
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 16,
-    padding: 14,
-    borderRadius: radius.lg,
-    backgroundColor: 'rgba(0,0,0,0.22)',
-  },
-  figure: { flex: 1 },
-  figureValue: font('extrabold', 20, { color: palette.white }),
-  figureLabel: { ...font('medium', 12, { color: 'rgba(255,255,255,0.7)' }), marginTop: 1 },
-  figureRule: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', backgroundColor: 'rgba(255,255,255,0.3)', marginHorizontal: 12 },
-  heroShare: {
-    marginTop: 14,
+    gap: 8,
     paddingVertical: 10,
     paddingHorizontal: 18,
     borderRadius: radius.pill,
     backgroundColor: 'rgba(255,255,255,0.16)',
   },
   heroShareText: font('bold', 14, { color: palette.white }),
-
-  todayRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 10,
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    borderRadius: radius.lg,
-    backgroundColor: palette.white,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: palette.divider,
-  },
-  todayCopy: { flex: 1 },
-  todayTitle: font('semibold', 15, { color: palette.ink }),
-  todaySub: { ...font('regular', 12, { color: palette.slate500 }), marginTop: 1 },
-  chevron: font('semibold', 22, { color: palette.grey500 }),
-
-  heading: { flexDirection: 'row', alignItems: 'baseline', marginTop: 24, marginBottom: 10, paddingHorizontal: 2 },
-  headingTitle: { flex: 1, ...font('extrabold', 20, { color: palette.ink }) },
-  headingAside: font('medium', 13, { color: palette.slate500 }),
 
   segments: { flexDirection: 'row', gap: 4 },
   segment: { flex: 1, height: 8, borderRadius: 4 },

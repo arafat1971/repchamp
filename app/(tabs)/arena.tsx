@@ -14,6 +14,9 @@ import { captureError } from '@/lib/crash';
 import { leagueProgressFromWeeklyXp } from '@/domain/leagueProgress';
 import { buildLeaderboard, type LeaderboardRow } from '@/domain/leaderboard';
 import { usePhantomSeed } from '@/domain/seedPhantoms';
+import { dailyChallengeFor } from '@/domain/dailyChallenge';
+import { dayKey } from '@/domain/progression';
+import { getExercise } from '@/vision/exercises';
 import { fetchLeaderboard } from '@/services/leaderboardService';
 import { useAuthStore } from '@/state/authStore';
 import { selectLeague, selectWeeklyXp, useProfileStore } from '@/state/profileStore';
@@ -52,6 +55,10 @@ function TrophyIcon({ size = 17, color = palette.green700 }: { size?: number; co
 }
 
 export default function ArenaScreen() {
+  /* Read from the shared definition, not typed here: the challenge rotates by
+     day, so a literal "25 push-ups" was wrong six days in seven. */
+  const daily = dailyChallengeFor(dayKey());
+  const dailyLine = `Beat ${daily.target} ${getExercise(daily.exercise).label.toLowerCase()}`;
   useTabView('arena');
   const router = useRouter();
   const profile = useProfileStore();
@@ -121,7 +128,9 @@ export default function ArenaScreen() {
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
             <Text style={styles.eyebrow} numberOfLines={1}>
-              {you ? `Rank #${you.rank} this week` : 'Compete this week'}
+              {/* A rank earned with zero XP is a tie broken in the athlete's
+                  favour, not a position — say so rather than hand out #1. */}
+              {you && weeklyXp > 0 ? `Rank #${you.rank} this week` : 'Earn XP to take your place'}
             </Text>
             <Text style={styles.title} accessibilityRole="header">
               Arena
@@ -151,7 +160,7 @@ export default function ArenaScreen() {
           </View>
           <View style={styles.leagueXp}>
             <Text style={styles.leagueXpValue}>{weeklyXp.toLocaleString()}</Text>
-            <Text style={styles.leagueXpUnit}>XP</Text>
+            <Text style={styles.leagueXpUnit}>XP this week</Text>
           </View>
         </View>
       </StaggerIn>
@@ -307,7 +316,7 @@ export default function ArenaScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={font('extrabold', 15, { color: palette.ink })}>Daily Challenge</Text>
-              <Text style={text.caption}>Beat 25 push-ups · resets at midnight</Text>
+              <Text style={text.caption}>{dailyLine} · resets at midnight</Text>
             </View>
             <View style={styles.dailyGo}>
               <Text style={styles.dailyGoArrow}>›</Text>

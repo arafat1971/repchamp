@@ -5,8 +5,7 @@ import {
   clampWeeklyXp,
   MAX_DUEL_REP_JUMP,
   MAX_DUEL_REPS,
-  MAX_WEEKLY_XP,
-} from '../fairPlay';
+  MAX_WEEKLY_XP, LIVE_KEEPALIVE_MS, shouldPushLive } from '../fairPlay';
 import { suggestedCameraFps, noteInferenceMs, resetThermalTelemetry, shouldRunInference } from '@/vision/thermal';
 
 describe('fairPlay clamps', () => {
@@ -39,5 +38,30 @@ describe('thermal throttle', () => {
     for (let i = 0; i < 20; i++) noteInferenceMs(50);
     const runs = Array.from({ length: 6 }, () => shouldRunInference());
     expect(runs.filter(Boolean).length).toBeLessThan(6);
+  });
+});
+
+describe('shouldPushLive', () => {
+  const base = { reps: 5, formScore: 80, lastSentReps: 5, lastSentForm: 80, lastWriteAt: 1000, now: 1400 };
+
+  it('stays quiet when nothing changed', () => {
+    expect(shouldPushLive(base)).toBe(false);
+  });
+
+  it('writes when reps change', () => {
+    expect(shouldPushLive({ ...base, reps: 6 })).toBe(true);
+  });
+
+  it('writes when form changes', () => {
+    expect(shouldPushLive({ ...base, formScore: 70 })).toBe(true);
+  });
+
+  it('writes the first tick, before any form has been sent', () => {
+    expect(shouldPushLive({ ...base, lastSentForm: null })).toBe(true);
+  });
+
+  it('sends a keepalive after a long silence', () => {
+    expect(shouldPushLive({ ...base, now: base.lastWriteAt + LIVE_KEEPALIVE_MS })).toBe(true);
+    expect(shouldPushLive({ ...base, now: base.lastWriteAt + LIVE_KEEPALIVE_MS - 1 })).toBe(false);
   });
 });

@@ -62,7 +62,7 @@ export default function RitualPlanScreen() {
   };
 
   return (
-    <Screen>
+    <Screen enter>
       <ModalHeader title="Your ritual" subtitle={`Shared with ${partnerName}`} />
 
       <Text style={styles.lead}>Water, walking and exercise count themselves. Pick the three you tick each day.</Text>

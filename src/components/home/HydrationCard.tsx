@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useIsFocused } from 'expo-router';
 import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import Animated, {
   Easing,
@@ -6,12 +7,9 @@ import Animated, {
   FadeInDown,
   FadeOut,
   FadeOutUp,
-  SensorType,
   cancelAnimation,
   useAnimatedProps,
-  useAnimatedSensor,
   useAnimatedStyle,
-  useDerivedValue,
   useReducedMotion,
   useSharedValue,
   withRepeat,
@@ -71,6 +69,7 @@ export function HydrationCard({
   incomingGesture,
   suggestedGesture,
   duoStreak = 0,
+  onPair,
 }: {
   water: HydrationProgress;
   /** Today's drinks. The panda's bottle shows the total, so this is currently unused. */
@@ -95,29 +94,28 @@ export function HydrationCard({
   suggestedGesture?: PandaAction;
   /** Days in a row you both filled your bears — shown by the title. */
   duoStreak?: number;
+  /** Unpaired only: opens the invite flow from the empty seat beside your bear. */
+  onPair?: () => void;
 }) {
   const reduced = useReducedMotion();
   const [width, setWidth] = useState(0);
   const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
 
-  /* Shared liquid motion: drift, and tilt with the phone. */
+  /* Tabs stay mounted, so everything that loops stops while Home is not the
+     tab on show. The gravity sensor that used to run here at 30 Hz fed a tilt
+     value nothing read. */
+  const focused = useIsFocused();
+  const still = reduced || !focused;
+  /* Shared liquid motion: drift. */
   const phase = useSharedValue(0);
   useEffect(() => {
-    if (reduced) {
+    if (still) {
       cancelAnimation(phase);
       return;
     }
     phase.value = withRepeat(withTiming(2 * Math.PI, { duration: 3000, easing: Easing.linear }), -1);
     return () => cancelAnimation(phase);
-  }, [reduced, phase]);
-  const gravity = useAnimatedSensor(SensorType.GRAVITY, { interval: 32 });
-  const tilt = useSharedValue(0);
-  useDerivedValue(() => {
-    if (reduced) return;
-    const gx = gravity.sensor.value.x ?? 0;
-    const target = Math.max(-0.25, Math.min(0.25, gx / 9.81 / 2));
-    tilt.value = tilt.value + (target - tilt.value) * 0.12;
-  });
+  }, [still, phase]);
 
   /* The "+": tap repeats the last choice; hold opens the picker. */
   const [choice, setChoice] = useState<{ kind: DrinkKind; ml: number }>({ kind: 'water', ml: 250 });
@@ -210,7 +208,7 @@ export function HydrationCard({
   const lead: { text: string; tone: 'me' | 'them' | 'even' } = (() => {
     if (!partner || partnerMl == null) return { text: 'Waiting on their first sip', tone: 'even' };
     const gap = water.percent - partnerPercent;
-    if (water.met && partnerMet) return { text: 'Both full 🎉', tone: 'even' };
+    if (water.met && partnerMet) return { text: 'Both full', tone: 'even' };
     if (gap === 0) return { text: 'Neck and neck', tone: 'even' };
     return gap > 0
       ? { text: `You lead by ${gap}%`, tone: 'me' }
@@ -270,7 +268,7 @@ export function HydrationCard({
         icon={<DropIcon size={16} color={IOS.water} />}
         title="Hydration"
         tint={IOS.water}
-        trailing={`${duoStreak > 0 ? `🔥 ${duoStreak} · ` : ''}${water.met ? 'Goal met' : `${formatMl(water.remainingMl)} to go`}`}
+        trailing={`${duoStreak > 0 ? `${duoStreak}-day streak · ` : ''}${water.met ? 'Goal met' : `${formatMl(water.remainingMl)} to go`}`}
       >
         {partner ? (
           /* Face to face: two bears, two numbers, and who is ahead between
@@ -284,6 +282,7 @@ export function HydrationCard({
                   remaining={100 - heldPercent}
                   width={116}
                   phase={phase}
+                  paused={!focused}
                   sipKey={myPour}
                   mood={myMood}
                   gesture={myGesture}
@@ -339,6 +338,7 @@ export function HydrationCard({
                 onPoke={() => gesture('tickle', true)}
                 gesture={theirGesture}
                 phase={phase}
+                paused={!focused}
                 sipKey={theirPour}
                 mood={theirMood}
               />
@@ -346,11 +346,81 @@ export function HydrationCard({
                 {partnerMl == null ? '—' : theirAmount}
                 {partnerMl == null ? null : <Text style={styles.sideUnit}> {theirUnit}</Text>}
               </Text>
-              <Text style={styles.sideName} numberOfLines={1}>
-                {partner.name}
-                {partnerMl == null ? '' : ` · ${partnerPercent}%`}
-              </Text>
+              {/* The percent is its own text so a long name truncates and the
+                  number — the half that changes — is never the part cut off. */}
+              <View style={styles.sideNameRow}>
+                <Text style={[styles.sideName, { flexShrink: 1 }]} numberOfLines={1}>
+                  {partner.name}
+                </Text>
+                {partnerMl == null ? null : <Text style={styles.sideName}> · {partnerPercent}%</Text>}
+              </View>
             </View>
+          </View>
+        ) : onPair ? (
+          /* Alone, but the seat is there: a ghost of the second bear, so the
+             card shows what pairing adds instead of leaving a gap. */
+          <View style={styles.duel}>
+            <View style={styles.side}>
+              {width > 0 ? (
+                <HoldBear hold={hold}>
+                  <PandaJar
+                    id="me"
+                    remaining={100 - heldPercent}
+                    width={116}
+                    phase={phase}
+                    paused={!focused}
+                    sipKey={myPour}
+                    mood={myMood}
+                  />
+                </HoldBear>
+              ) : null}
+              <Text style={styles.sideAmount} numberOfLines={1}>
+                {amount}
+                <Text style={styles.sideUnit}> {unit}</Text>
+              </Text>
+              <Text style={styles.sideName} numberOfLines={1}>You · {water.percent}%</Text>
+            </View>
+
+            <View style={styles.middle}>
+              <View style={styles.leadChip}>
+                <Text style={styles.leadText} numberOfLines={2}>
+                  Fill it together
+                </Text>
+              </View>
+            </View>
+
+            <Pressable
+              onPress={onPair}
+              accessibilityRole="button"
+              accessibilityLabel="Pair with a partner to share a water jar"
+              style={styles.side}
+            >
+              <View style={styles.ghost}>
+                {width > 0 ? (
+                  <PandaJar
+                    id="ghost"
+                    remaining={100}
+                    width={116}
+                    outfit="hoodie"
+                    mirrored
+                    phase={phase}
+                    paused={!focused}
+                    sipKey={0}
+                    mood="sleepy"
+                  />
+                ) : null}
+                <View style={styles.ghostVeil} pointerEvents="none" />
+                <View style={styles.ghostPlus} pointerEvents="none">
+                  <Text style={styles.ghostPlusGlyph}>+</Text>
+                </View>
+              </View>
+              <Text style={[styles.sideAmount, { color: IOS.tertiary }]} numberOfLines={1}>
+                —
+              </Text>
+              <Text style={[styles.sideName, { color: IOS.green }]} numberOfLines={1}>
+                Add partner
+              </Text>
+            </Pressable>
           </View>
         ) : (
           <View style={styles.metricRow}>
@@ -361,6 +431,7 @@ export function HydrationCard({
                 remaining={100 - heldPercent}
                 width={96}
                 phase={phase}
+                paused={!focused}
                 sipKey={myPour}
                 mood={myMood}
               />
@@ -414,7 +485,7 @@ export function HydrationCard({
         </View>
         {cheer ? (
           <Animated.View entering={FadeInDown.springify().damping(12)} exiting={FadeOutUp.duration(250)} style={styles.goalHit}>
-            <Text style={styles.goalHitText}>🎉 Goal hit! Your bear is full</Text>
+            <Text style={styles.goalHitText}>Goal hit — your bear is full</Text>
           </Animated.View>
         ) : null}
 
@@ -770,6 +841,7 @@ const styles = StyleSheet.create({
   sideAmount: { ...font('extrabold', 20, { color: IOS.label, marginTop: 6 }), letterSpacing: -0.5, fontVariant: ['tabular-nums'] },
   sideUnit: font('semibold', 12, { color: IOS.secondary }),
   sideName: font('semibold', 11.5, { color: IOS.secondary, marginTop: 1 }),
+  sideNameRow: { flexDirection: 'row', alignSelf: 'stretch', justifyContent: 'center', paddingHorizontal: 4 },
   middle: { flex: 1, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', gap: 6 },
   leadChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: IOS.fill },
   leadMe: { backgroundColor: 'rgba(50,173,230,0.14)' },
@@ -777,6 +849,21 @@ const styles = StyleSheet.create({
   leadText: { ...font('bold', 11.5, { color: IOS.secondary }), textAlign: 'center' },
   newsCenter: { textAlign: 'center', marginTop: 0 },
   burst: { fontSize: 38, textAlign: 'center' },
+  /* The empty seat: the same bear, washed to a silhouette. */
+  ghost: { opacity: 0.9, overflow: 'hidden', borderRadius: 24 },
+  ghostVeil: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(242,242,247,0.72)', borderRadius: 24 },
+  ghostPlus: {
+    position: 'absolute',
+    right: 14,
+    top: 14,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: IOS.green,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ghostPlusGlyph: { ...font('extrabold', 20, { color: '#ffffff' }), lineHeight: 23 },
   gestures: { flexDirection: 'row', gap: 6, marginBottom: 12 },
   gesture: { flex: 1, alignItems: 'center', paddingVertical: 7, borderRadius: 14, backgroundColor: IOS.fill },
   gestureOn: { backgroundColor: 'rgba(139,92,246,0.12)', borderWidth: 1, borderColor: 'rgba(139,92,246,0.35)' },

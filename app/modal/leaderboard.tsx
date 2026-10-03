@@ -108,7 +108,7 @@ export default function LeaderboardScreen() {
   const you = rows.find((r) => r.isYou);
 
   return (
-    <Screen>
+    <Screen enter>
       <ModalHeader title="Leaderboard" />
 
       <View style={styles.segmented}>

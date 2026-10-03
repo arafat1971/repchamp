@@ -15,6 +15,7 @@
 
 import firestore from '@react-native-firebase/firestore';
 
+import { fetchWithTimeout } from '@/lib/fetchWithTimeout';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import type { WaterWidgetSnapshot } from '@/domain/waterWidget';
 import {
@@ -116,7 +117,7 @@ export function sendPandaAction(
   lastGestureAt = now;
   void recordCoupleRitual(coupleId, uid, dayKey(), { poke: { e: actionCode(action), at: now } }).catch(() => {});
   if (canTickle(partner)) {
-    void fetch(EXPO_PUSH_ENDPOINT, {
+    void fetchWithTimeout(EXPO_PUSH_ENDPOINT, {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
       body: JSON.stringify({
@@ -237,7 +238,13 @@ export async function joinCoupleByCode(
   const ref = coupleDoc(code);
 
   // Block check outside the transaction (same pattern as joinDuel).
-  const peek = await ref.get();
+  // A non-member can read a couple only while it is pending, so a refused read
+  // means the code exists and both seats are taken.
+  const peek = await ref.get().catch((error: unknown) => {
+    const code = String((error as { code?: string })?.code ?? '');
+    if (code.endsWith('permission-denied')) throw new Error('That couple is already paired up.');
+    throw error;
+  });
   if (peek.exists()) {
     const hostUid = (peek.data() as Couple).memberUids[0];
     if (hostUid && hostUid !== input.uid && (await isBlockedByMe(input.uid, hostUid))) {
@@ -798,7 +805,7 @@ export async function nudgePartner(
     // Only real Expo tokens are worth a POST; anything else Expo would reject.
     if (!token || !token.startsWith('ExponentPushToken')) return;
 
-    await fetch(EXPO_PUSH_ENDPOINT, {
+    await fetchWithTimeout(EXPO_PUSH_ENDPOINT, {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
       body: JSON.stringify({
@@ -857,7 +864,7 @@ export async function pushPartnerWaterWidget(
     const token = partner.expoPushToken ?? null;
     if (!token || !token.startsWith('ExponentPushToken')) return;
 
-    await fetch(EXPO_PUSH_ENDPOINT, {
+    await fetchWithTimeout(EXPO_PUSH_ENDPOINT, {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
       body: JSON.stringify({

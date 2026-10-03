@@ -96,7 +96,12 @@ export default function NotificationsScreen() {
       ) : null}
 
       <StaggerIn index={1}>
-        <Eyebrow style={{ marginBottom: 8 }}>Invites</Eyebrow>
+        {/* Real invites are invites. With none pending, what is left is a
+            suggested race against an AI partner — said as such, not dressed as
+            a challenge nobody sent. */}
+        <Eyebrow style={{ marginBottom: 8 }}>
+          {incoming.length > 0 || loading ? 'Invites' : 'Race an AI partner'}
+        </Eyebrow>
         {loading ? (
           <InviteSkeleton />
         ) : incoming.length > 0 ? (
@@ -135,7 +140,8 @@ export default function NotificationsScreen() {
               <InviteCard
                 key={phantom.id}
                 name={phantom.name}
-                verb="Challenged you to a duel"
+                ai
+                verb="AI partner · ready to race you"
                 avatar={
                   <Avatar
                     initial={phantom.initial}
@@ -159,7 +165,8 @@ export default function NotificationsScreen() {
         ) : !dismissedPhantoms.has(challenger.id) ? (
           <InviteCard
             name={challenger.name}
-            verb="Challenged you to a duel"
+            ai
+            verb="AI partner · ready to race you"
             avatar={
               <Avatar
                 initial={challenger.initial}
@@ -210,6 +217,19 @@ export default function NotificationsScreen() {
         />
         </View>
       </StaggerIn>
+
+      {/* The preferences that decide what lands here live in Settings; this is
+          the one place someone looking at a quiet inbox thinks to change them. */}
+      <StaggerIn index={3}>
+        <PressableScale
+          onPress={() => router.push('/modal/settings')}
+          accessibilityRole="button"
+          accessibilityLabel="Notification settings"
+          style={styles.settingsLink}
+        >
+          <Text style={font('bold', 13.5, { color: palette.green700 })}>Notification settings</Text>
+        </PressableScale>
+      </StaggerIn>
     </Screen>
   );
 }
@@ -227,7 +247,10 @@ function InviteCard({
   onAccept,
   onDismiss,
   acceptLabel,
+  ai = false,
 }: {
+  /** An AI partner, not a person: labelled as one, never marked NEW. */
+  ai?: boolean;
   name: string;
   verb: string;
   avatar: ReactNode;
@@ -247,7 +270,7 @@ function InviteCard({
               {name}
             </Text>
             <View style={styles.newPill}>
-              <Text style={styles.newPillText}>NEW</Text>
+              <Text style={styles.newPillText}>{ai ? 'AI' : 'NEW'}</Text>
             </View>
           </View>
           <Text style={font('semibold', 12, { color: palette.slate500 })}>{verb}</Text>
@@ -270,7 +293,7 @@ function InviteCard({
           style={[styles.acceptButton, { minHeight: reservedControlHeight(44, fontScale) }]}
         >
           <Text style={font('extrabold', 14, { color: palette.white })} {...scaleForRole('control')}>
-            Accept
+            {ai ? 'Race' : 'Accept'}
           </Text>
         </PressableScale>
         <PressableScale
@@ -280,7 +303,7 @@ function InviteCard({
           style={[styles.laterButton, { minHeight: reservedControlHeight(44, fontScale) }]}
         >
           <Text style={font('extrabold', 14, { color: palette.slate500 })} {...scaleForRole('control')}>
-            Later
+            {ai ? 'Not now' : 'Later'}
           </Text>
         </PressableScale>
       </View>
@@ -388,6 +411,7 @@ function NotifGlyph({ name, color }: { name: NotifGlyphName; color: string }) {
 }
 
 const styles = StyleSheet.create({
+  settingsLink: { alignSelf: 'center', marginTop: 24, paddingVertical: 10, paddingHorizontal: 16 },
   mutedBanner: {
     flexDirection: 'row',
     alignItems: 'center',

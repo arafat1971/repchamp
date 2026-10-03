@@ -65,7 +65,7 @@ export default function BlockedUsersScreen() {
   };
 
   return (
-    <Screen>
+    <Screen enter>
       <ModalHeader title="Blocked" subtitle="People you’ve blocked" />
 
       {rows === null ? (

@@ -150,3 +150,11 @@ describe('report shape is pinned', () => {
     );
   });
 });
+
+describe('clientAt', () => {
+  it('refuses a non-numeric clientAt', async () => {
+    await assertFails(
+      addDoc(collection(asUser(REPORTER), 'reports'), report({ clientAt: 'x'.repeat(1000) })),
+    );
+  });
+});

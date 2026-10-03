@@ -1,4 +1,6 @@
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { useRef } from 'react';
 import { Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
@@ -7,12 +9,15 @@ import { captureRef } from 'react-native-view-shot';
 import { track } from '@/lib/analytics';
 import { captureError } from '@/lib/crash';
 import { ModalHeader } from '@/components/ModalHeader';
-import { Avatar, Card, PressableScale, Screen } from '@/components/ui';
+import { PressableScale, Screen } from '@/components/ui';
+import { LinkedAvatars } from '@/components/connected/LinkedAvatars';
+import { LineIcon, PairPitch } from '@/components/together/kit';
+import { ME, THEM } from '@/components/together/RitualCard';
 import { inviteLink, lastMilestoneReached } from '@/domain/couple';
 import { useCouple } from '@/state/useCouple';
 import { reservedControlHeight } from '@/theme/fontScale';
 import { font, scaleForRole, text } from '@/theme/typography';
-import { palette, radius } from '@/theme/tokens';
+import { gradients, palette, radius } from '@/theme/tokens';
 
 /**
  * The couple's shareable moment — combined reps, shared streak, both names.
@@ -27,8 +32,9 @@ import { palette, radius } from '@/theme/tokens';
  * anything on the athlete's behalf.
  */
 export default function CoupleCardScreen() {
+  const router = useRouter();
   const { fontScale } = useWindowDimensions();
-  const { paired, partner, me, streak, combined, code } = useCouple();
+  const { paired, partner, me, streak, combined, code, level } = useCouple();
   const cardRef = useRef<View>(null);
 
   const milestone = lastMilestoneReached(combined);
@@ -66,25 +72,27 @@ export default function CoupleCardScreen() {
 
   if (!paired || !partner || !me) {
     return (
-      <Screen>
+      <Screen enter>
         <ModalHeader title="Our card" />
-        <Card style={styles.muted}>
-          <Text style={text.caption}>
-            Pair with a partner first — your card shows what the two of you have done together.
-          </Text>
-        </Card>
+        <PairPitch
+          name="You"
+          title="A card for two"
+          body="Pair with a partner first — your card shows what the two of you have done together."
+          onInvite={() => router.replace('/modal/couple-invite')}
+        />
       </Screen>
     );
   }
 
   return (
-    <Screen>
+    <Screen enter>
       <ModalHeader title="Our card" />
 
       {/* `collapsable={false}` keeps this a real native view so view-shot can
           snapshot it; the ref targets the capture at exactly the card. */}
       <View ref={cardRef} collapsable={false} style={styles.captureWrap}>
-        <View style={styles.card}>
+        <LinearGradient colors={gradients.heroEmerald} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.card}>
+          <View style={styles.glow} />
           {/* Header — brand mark left, single-accent "together" tag right. */}
           <View style={styles.header}>
             <View style={styles.brandGroup}>
@@ -101,40 +109,36 @@ export default function CoupleCardScreen() {
             </View>
           </View>
 
-          <View style={styles.avatars}>
-            <View style={styles.avatarRing}>
-              <Avatar
-                uri={me.avatarUrl}
-                initial={me.displayName.charAt(0).toUpperCase() || '?'}
-                size={60}
-              />
-            </View>
-            <View style={styles.plusBadge}>
-              <Text style={styles.plus}>+</Text>
-            </View>
-            <View style={styles.avatarRing}>
-              <Avatar
-                uri={partner.avatarUrl}
-                initial={partner.displayName.charAt(0).toUpperCase() || '?'}
-                size={60}
-              />
-            </View>
-          </View>
+          {/* The same linked pair, in the same colours, as the bond hero. */}
+          <LinkedAvatars
+            lit={streak > 0}
+            size={60}
+            me={{ initial: me.displayName.charAt(0).toUpperCase() || '?', uri: me.avatarUrl, color: ME }}
+            them={{ initial: partner.displayName.charAt(0).toUpperCase() || '?', uri: partner.avatarUrl, color: THEM }}
+          />
 
-          <Text style={styles.names}>
+          <Text style={styles.names} numberOfLines={1}>
             {me.displayName} & {partner.displayName}
           </Text>
 
-          <Text style={styles.big}>{combined}</Text>
+          <Text style={styles.big} numberOfLines={1} adjustsFontSizeToFit>
+            {combined.toLocaleString()}
+          </Text>
           <Text style={styles.bigLabel}>REPS TOGETHER</Text>
 
-          {streak > 0 ? (
-            <View style={styles.streakPill}>
-              <View style={styles.streakDot} />
-              <Text style={styles.streakText}>{streak} DAY STREAK</Text>
+          <View style={styles.stats}>
+            <View style={styles.stat}>
+              <Text style={styles.statValue}>{streak}</Text>
+              <Text style={styles.statLabel}>day streak</Text>
             </View>
-          ) : null}
-        </View>
+            <View style={[styles.stat, styles.statRule]}>
+              <Text style={styles.statValue}>Lv {level.level}</Text>
+              <Text style={styles.statLabel} numberOfLines={1}>
+                {level.name}
+              </Text>
+            </View>
+          </View>
+        </LinearGradient>
       </View>
 
       <PressableScale
@@ -143,8 +147,9 @@ export default function CoupleCardScreen() {
         accessibilityLabel="Share our couple card"
         style={[styles.share, { minHeight: reservedControlHeight(56, fontScale) }]}
       >
+        <LineIcon name="share" size={18} color={palette.white} />
         <Text style={font('extrabold', 16, { color: palette.white })} {...scaleForRole('control')}>
-          Share
+          Share card
         </Text>
       </PressableScale>
 
@@ -156,7 +161,6 @@ export default function CoupleCardScreen() {
 }
 
 const styles = StyleSheet.create({
-  muted: { padding: 16 },
   // Transparent so the rounded card's corners stay clean in the captured PNG
   // (no white square poking past the radius). Matches the result share card.
   captureWrap: { backgroundColor: 'transparent', alignSelf: 'center' },
@@ -166,76 +170,76 @@ const styles = StyleSheet.create({
     paddingVertical: 28,
     paddingHorizontal: 24,
     alignItems: 'center',
-    backgroundColor: palette.white,
-    borderWidth: 1,
-    borderColor: palette.border,
     // Clip children (avatars, tag) to the card's rounded corners.
     overflow: 'hidden',
+  },
+  glow: {
+    position: 'absolute',
+    top: -90,
+    right: -70,
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    backgroundColor: 'rgba(134,239,172,0.10)',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     width: '100%',
-    marginBottom: 20,
+    marginBottom: 24,
   },
   brandGroup: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   logo: { width: 24, height: 24, borderRadius: radius.sm, overflow: 'hidden' },
-  brandTitle: font('extrabold', 14, { color: palette.ink, letterSpacing: 2 }),
+  brandTitle: font('extrabold', 14, { color: palette.white, letterSpacing: 2 }),
   tag: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: palette.green50,
+    backgroundColor: 'rgba(255,255,255,0.16)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: radius.pill,
   },
-  tagDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: palette.green500 },
-  tagText: { ...font('extrabold', 9.5, { color: palette.green700 }), letterSpacing: 1 },
-  avatars: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatarRing: { borderRadius: radius['6xl'], borderWidth: 2.5, borderColor: palette.green500, padding: 4 },
-  plusBadge: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: palette.green50,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  plus: font('extrabold', 20, { color: palette.green600 }),
+  tagDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: palette.green400 },
+  tagText: { ...font('extrabold', 9.5, { color: palette.white }), letterSpacing: 1 },
   names: {
-    ...font('extrabold', 17, { color: palette.ink }),
-    marginTop: 12,
+    ...font('bold', 15, { color: 'rgba(255,255,255,0.82)' }),
+    marginTop: 14,
     textAlign: 'center',
+    maxWidth: '100%',
   },
   big: {
-    ...font('extrabold', 72, { color: palette.ink }),
-    lineHeight: 78,
-    marginTop: 8,
+    ...font('extrabold', 76, { color: palette.white }),
+    lineHeight: 82,
+    letterSpacing: -2.5,
+    marginTop: 10,
+    fontVariant: ['tabular-nums'],
   },
   bigLabel: {
-    ...font('extrabold', 10, { color: palette.slate500 }),
+    ...font('extrabold', 10.5, { color: 'rgba(255,255,255,0.7)' }),
     letterSpacing: 2.4,
-    marginTop: 4,
+    marginTop: 2,
   },
-  streakPill: {
+  stats: {
+    alignSelf: 'stretch',
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 16,
-    backgroundColor: palette.green50,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: radius.pill,
+    marginTop: 22,
+    paddingVertical: 12,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.24)',
   },
-  streakDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: palette.green500 },
-  streakText: { ...font('extrabold', 12, { color: palette.green700 }), letterSpacing: 1 },
+  stat: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
+  statRule: { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: 'rgba(255,255,255,0.25)' },
+  statValue: { ...font('extrabold', 19, { color: palette.white }), fontVariant: ['tabular-nums'] },
+  statLabel: { ...font('medium', 11.5, { color: 'rgba(255,255,255,0.68)' }), marginTop: 1 },
   share: {
     // `minHeight` at render time — see `@/theme/fontScale`.
     marginTop: 20,
-    borderRadius: radius['2xl'],
-    backgroundColor: palette.green500,
+    borderRadius: 28,
+    backgroundColor: palette.ink,
+    flexDirection: 'row',
+    gap: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -75,4 +75,10 @@ describe('orderBenefits', () => {
       expect(orderBenefits(source)[0]).not.toBe('free-staples');
     }
   });
+
+  it('leads with the benefit a peak-moment card promised', () => {
+    expect(orderBenefits('moment-personal-best')[0]).toBe('reports');
+    expect(orderBenefits('moment-streak')[0]).toBe('programmes');
+    expect(orderBenefits('moment-first-win')[0]).toBe('library');
+  });
 });

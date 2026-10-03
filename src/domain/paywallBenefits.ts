@@ -43,15 +43,18 @@ export const DEFAULT_BENEFIT_ORDER: readonly BenefitId[] = [
  * not one feature, so no single promise answers it and the authored order is
  * the honest response.
  */
-function blockedBenefit(source: string | null | undefined): BenefitId | null {
+export function blockedBenefit(source: string | null | undefined): BenefitId | null {
   switch (source) {
     case 'exercise-library':
     case 'duel-exercise':
+    case 'moment-first-win':
       return 'library';
     case 'programme':
+    case 'moment-streak':
       return 'programmes';
     case 'form-report':
     case 'form-report-teaser':
+    case 'moment-personal-best':
       return 'reports';
     default:
       return null;

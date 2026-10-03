@@ -250,7 +250,7 @@ export async function upsertProfile(
     if ((await checkUsername(username, profile.uid)) !== 'free') {
       username =
         (typeof cloud?.username === 'string' && cloud.username) ||
-        `${username.slice(0, 16)}_${profile.uid.slice(0, 4)}`;
+        `${username.slice(0, 15)}_${profile.uid.slice(0, 4)}`;
     }
     const displayName = sanitizeDisplayName(profile.displayName, username);
     const avatarUrl = isCloudSafeAvatarUrl(profile.avatarUrl) ? profile.avatarUrl : null;

@@ -1,3 +1,14 @@
+import { LockIcon } from '@/components/home/Icons';
+import {
+  ActionList,
+  ActionRow,
+  ButtonPair,
+  LineIcon,
+  SectionTitle,
+  Surface,
+  TogetherHero,
+} from '@/components/together/kit';
+import { ME, THEM } from '@/components/together/RitualCard';
 import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -15,7 +26,6 @@ import {
 import Animated, {
   FadeInDown,
   FadeInUp,
-  ZoomIn,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -272,10 +282,40 @@ export default function CoupleInviteScreen() {
     levelName: level.name,
   });
 
+  const bothToday = myDays.has(today) && partnerDays.has(today);
+  const sharedThisWeek = week.filter((d) => myDays.has(d) && partnerDays.has(d)).length;
+  const earnedCount = badges.filter((b) => b.earned).length;
+  const firstName = partner?.displayName?.trim().split(' ')[0] || 'partner';
+
+  const nudge = async () => {
+    if (!couple || !uid || !partner || nudging) return;
+    setNudging(true);
+    try {
+      await nudgePartner(couple.id, uid, displayName || 'Your partner');
+      track('couple_nudge_sent');
+      showDialog({
+        title: 'Nudge sent',
+        message: `${partner.displayName} will get a push to come train.`,
+        tone: 'success',
+        actions: [{ label: 'Got it', variant: 'primary' }],
+      });
+    } catch (error) {
+      captureError(error);
+      showDialog({
+        title: 'Nudge failed',
+        message:
+          error instanceof Error
+            ? error.message
+            : "We couldn't send that nudge. Check your connection and try again.",
+        tone: 'danger',
+        actions: [{ label: 'Try again', variant: 'primary' }],
+      });
+    } finally {
+      setNudging(false);
+    }
+  };
+
   const myInitial = displayName ? displayName.trim().charAt(0).toUpperCase() : 'A';
-  const partnerInitial = partner?.displayName
-    ? partner.displayName.trim().charAt(0).toUpperCase()
-    : '?';
 
   return (
     <Screen>
@@ -301,313 +341,164 @@ export default function CoupleInviteScreen() {
         <>
           {bonusActive ? (
             <Animated.View entering={FadeInDown.duration(400)} style={styles.bonusBanner}>
-              <Text style={{ fontSize: 18 }}>🎁</Text>
-              <Text style={styles.bonusText}>
-                You both unlocked a free week of Pro — the full library and programmes are on.
-              </Text>
+              <View style={styles.bonusTile}>
+                <LineIcon name="gift" size={18} color={palette.amber800} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.bonusTitle}>You both unlocked a free week of Pro</Text>
+                <Text style={styles.bonusText}>The full library and programmes are on.</Text>
+              </View>
             </Animated.View>
           ) : null}
 
-          {/* ── Pairing status (highlighted) ── */}
-          <Animated.View entering={FadeInDown.duration(400)} style={styles.statusRow}>
-            <View style={styles.statusAvatars}>
-              {avatarUri ? (
-                <Image source={{ uri: avatarUri }} style={styles.statusAvatar} contentFit="cover" />
-              ) : (
-                <View style={[styles.statusAvatar, styles.statusAvatarFallback]}>
-                  <Text style={styles.statusAvatarInitial}>{myInitial}</Text>
-                </View>
-              )}
-              {partner.avatarUrl ? (
-                <Image
-                  source={{ uri: partner.avatarUrl }}
-                  style={[styles.statusAvatar, styles.statusAvatarOverlap]}
-                  contentFit="cover"
-                />
-              ) : (
-                <View style={[styles.statusAvatar, styles.statusAvatarOverlap, styles.statusAvatarFallback]}>
-                  <Text style={styles.statusAvatarInitial}>{partnerInitial}</Text>
-                </View>
-              )}
-            </View>
-            <View style={styles.statusTextCol}>
-              <Text style={styles.statusName} numberOfLines={1}>
-                Paired with {partner.displayName}
-              </Text>
-              <View style={styles.statusMetaRow}>
-                <View
-                  style={[
-                    styles.statusDot,
-                    bond.tone === 'risk' && { backgroundColor: palette.amber500 },
-                    bond.tone === 'locked' && { backgroundColor: palette.green500 },
-                    bond.tone === 'nudge' && { backgroundColor: palette.amber500 },
-                  ]}
-                />
-                <Text style={styles.statusMeta} numberOfLines={1}>
-                  {bond.headline}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.statusTag}>
-              <Text style={styles.statusTagText}>PAIRED</Text>
-            </View>
+          {/* ── The bond: the same hero as Today together and the history ── */}
+          <Animated.View entering={FadeInDown.duration(450)}>
+            <TogetherHero
+              lit={bothToday}
+              me={{ name: displayName?.trim() || 'You', uri: avatarUri, color: ME }}
+              them={{ name: partner.displayName, uri: partner.avatarUrl, color: THEM }}
+              streak={streak}
+              caption={bond.headline}
+              stats={[
+                { value: combined.toLocaleString(), label: 'reps together' },
+                { value: `${sharedThisWeek}/7`, label: 'days this week' },
+                { value: `${earnedCount}/${badges.length}`, label: 'milestones' },
+              ]}
+              level={{
+                label: `Level ${level.level} · ${level.name}`,
+                detail: level.nextAt ? `${level.points} / ${level.nextAt} XP` : 'Top level',
+                progress: level.progress,
+              }}
+            />
           </Animated.View>
 
-          {/* ── Hero Bond Card ── */}
-          <Animated.View entering={FadeInDown.duration(500).delay(100)}>
-            <LinearGradient
-              colors={['#059669', '#10b981', '#34d399']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={[styles.bondCard, shadow.brand]}
-            >
-              {/* Overlapping Avatar Pair with Photos */}
-              <View style={styles.avatarPairRow}>
-                <View style={styles.avatarRingMe}>
-                  {avatarUri ? (
-                    <Image source={{ uri: avatarUri }} style={styles.avatarImg} contentFit="cover" />
-                  ) : (
-                    <View style={[styles.avatarPlaceholder, { backgroundColor: '#047857' }]}>
-                      <Text style={styles.avatarInitial}>{myInitial}</Text>
-                    </View>
-                  )}
-                </View>
-                {/* Heart connector */}
-                <Animated.View entering={ZoomIn.duration(500).delay(300)} style={styles.heartBadge}>
-                  <Text style={{ fontSize: 18 }}>❤️</Text>
-                </Animated.View>
-                <View style={styles.avatarRingPartner}>
-                  {partner.avatarUrl ? (
-                    <Image source={{ uri: partner.avatarUrl }} style={styles.avatarImg} contentFit="cover" />
-                  ) : (
-                    <View style={[styles.avatarPlaceholder, { backgroundColor: palette.green900 }]}>
-                      <Text style={styles.avatarInitial}>{partnerInitial}</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
+          {/* The two things you do to a bond, straight under it and equal. */}
+          <ButtonPair
+            secondary={{
+              label: nudging ? 'Sending…' : `Nudge ${firstName}`,
+              icon: 'bell',
+              onPress: () => void nudge(),
+              a11y: `Nudge ${partner.displayName} to train`,
+              disabled: nudging,
+            }}
+            primary={{
+              label: 'Share card',
+              icon: 'share',
+              onPress: () => router.push('/modal/couple-card'),
+              a11y: 'Open our shareable couple card',
+            }}
+          />
 
-              {/* Names row */}
-              <View style={styles.namesPairRow}>
-                <Text style={styles.myName} numberOfLines={1}>You</Text>
-                <Text style={styles.bondLabel}>BONDED</Text>
-                <Text style={styles.partnerName} numberOfLines={1}>{partner.displayName}</Text>
-              </View>
-
-              {/* Bond stats — clean numeric row, no emoji noise. */}
-              <View style={styles.bigStatsRow}>
-                <View style={styles.bigStatCol}>
-                  <Text style={styles.bigStatNumber}>{streak}</Text>
-                  <Text style={styles.bigStatLabel}>DAY STREAK</Text>
-                </View>
-                <View style={styles.bigStatDivider} />
-                <View style={styles.bigStatCol}>
-                  <Text style={styles.bigStatNumber}>{combined}</Text>
-                  <Text style={styles.bigStatLabel}>REPS TOGETHER</Text>
-                </View>
-                <View style={styles.bigStatDivider} />
-                <View style={styles.bigStatCol}>
-                  <Text style={styles.bigStatNumber}>Lv.{level.level}</Text>
-                  <Text style={styles.bigStatLabel}>{level.name.toUpperCase()}</Text>
-                </View>
-              </View>
-
-              {/* Level progress */}
-              <View style={styles.levelBlock}>
-                <View style={styles.levelHeader}>
-                  <Text style={styles.levelName}>
-                    Bond Level {level.level}
-                  </Text>
-                  {level.nextAt ? (
-                    <Text style={styles.levelNext}>
-                      {level.points} / {level.nextAt} XP
-                    </Text>
-                  ) : (
-                    <Text style={styles.levelNext}>MAX LEVEL</Text>
-                  )}
-                </View>
-                <View style={styles.levelTrack}>
-                  <Animated.View
-                    entering={FadeInDown.duration(800).delay(600)}
-                    style={[styles.levelFill, { width: `${Math.round(level.progress * 100)}%` }]}
-                  />
-                </View>
-              </View>
-
-              {/* Smart status banner — hook copy for fresh / nudge / risk */}
-              {bond.tone === 'risk' || bond.tone === 'fresh' || bond.tone === 'nudge' ? (
-                <Animated.View
-                  entering={FadeInDown.duration(400).delay(400)}
-                  style={[
-                    styles.riskBanner,
-                    bond.tone === 'fresh' && styles.hookBannerFresh,
-                    bond.tone === 'nudge' && styles.hookBannerNudge,
-                  ]}
-                >
-                  <Text style={styles.riskText}>{bond.headline}</Text>
-                </Animated.View>
-              ) : null}
-            </LinearGradient>
-          </Animated.View>
-
-          {/* ── 7-Day Activity Calendar ── */}
-          <Animated.View entering={FadeInUp.duration(400).delay(200)} style={styles.calendarCard}>
-            <View style={styles.calendarHeader}>
-              <Text style={styles.calendarTitle}>Last 7 days</Text>
-              <Text style={styles.calendarHint}>Both train = full glow</Text>
-            </View>
-            <View style={styles.calendarRow}>
-              {week.map((day) => {
-                const both = myDays.has(day) && partnerDays.has(day);
-                const meOnly = myDays.has(day) && !partnerDays.has(day);
-                const partnerOnly = !myDays.has(day) && partnerDays.has(day);
-                const none = !myDays.has(day) && !partnerDays.has(day);
-                return (
-                  <Animated.View
-                    key={day}
-                    entering={FadeInUp.duration(300).delay(250)}
-                    style={styles.calendarDayCol}
-                  >
-                    <Text style={styles.calendarDayLabel}>{weekdayLetter(day)}</Text>
+          {/* ── This week ── */}
+          <Animated.View entering={FadeInUp.duration(400).delay(150)}>
+            <SectionTitle title="This week" aside={`${sharedThisWeek} of 7 together`} />
+            <Surface style={styles.weekCard}>
+              <View style={styles.weekRow}>
+                {week.map((day) => {
+                  const mine = myDays.has(day);
+                  const theirs = partnerDays.has(day);
+                  const both = mine && theirs;
+                  const isToday = day === today;
+                  return (
                     <View
-                      style={[
-                        styles.calendarDot,
-                        both && styles.calendarDotBoth,
-                        meOnly && styles.calendarDotMe,
-                        partnerOnly && styles.calendarDotPartner,
-                        none && styles.calendarDotNone,
-                      ]}
+                      key={day}
+                      style={styles.weekCol}
+                      accessibilityLabel={`${day}: ${both ? 'you both trained' : mine ? 'only you trained' : theirs ? `only ${firstName} trained` : 'no one trained'}`}
                     >
-                      {both ? <Text style={{ fontSize: 10 }}>✓</Text> : null}
+                      <Text style={[styles.weekLetter, isToday && styles.weekLetterToday]}>{weekdayLetter(day)}</Text>
+                      <View
+                        style={[
+                          styles.weekDot,
+                          both && styles.weekDotBoth,
+                          mine && !theirs && { backgroundColor: `${ME}22` },
+                          theirs && !mine && { backgroundColor: `${THEM}2E` },
+                          isToday && !both && styles.weekDotToday,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.weekNum,
+                            both && { color: palette.white },
+                            mine && !theirs && { color: ME },
+                            theirs && !mine && { color: palette.amber800 },
+                          ]}
+                        >
+                          {Number(day.slice(8, 10))}
+                        </Text>
+                      </View>
                     </View>
-                  </Animated.View>
-                );
-              })}
-            </View>
-            <View style={styles.calendarLegend}>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: palette.green500 }]} />
-                <Text style={styles.legendText}>Both</Text>
+                  );
+                })}
               </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: palette.green300 }]} />
-                <Text style={styles.legendText}>You</Text>
+              <View style={styles.weekLegend}>
+                <Legend color={palette.green500} label="Both" />
+                <Legend color={ME} label="You" />
+                <Legend color={THEM} label={firstName} />
               </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: '#cbd5e1' }]} />
-                <Text style={styles.legendText}>{partner.displayName.split(' ')[0]}</Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: palette.track }]} />
-                <Text style={styles.legendText}>None</Text>
-              </View>
-            </View>
+              <Text style={styles.weekNote}>Your streak only grows on days you both train.</Text>
+            </Surface>
           </Animated.View>
 
-          {/* ── Badge Shelf ── */}
-          <Animated.View entering={FadeInUp.duration(400).delay(300)}>
-            <Text style={styles.sectionTitle}>Couple Badges</Text>
+          <ActionList style={styles.navList}>
+            <ActionRow
+              flat
+              icon="today"
+              title="Today, together"
+              sub="The live stage, your ritual and today’s moments"
+              onPress={() => router.push('/couple/partner')}
+            />
+            <ActionRow
+              flat
+              rule
+              icon="calendar"
+              tint={ME}
+              title="Your history together"
+              sub="Four weeks of who trained, and who put in what"
+              onPress={() => router.push('/couple')}
+            />
+          </ActionList>
+
+          {/* ── Milestones ── */}
+          <Animated.View entering={FadeInUp.duration(400).delay(250)}>
+            <SectionTitle title="Milestones" aside={`${earnedCount} of ${badges.length}`} />
             <View style={styles.badgeShelf}>
-              {badges.map((b, i) => (
-                <Animated.View
+              {badges.map((b) => (
+                <View
                   key={b.id}
-                  entering={ZoomIn.duration(350).delay(400 + i * 80)}
-                  style={[styles.badge, !b.earned && styles.badgeLocked]}
+                  style={[styles.badge, b.earned && styles.badgeEarned]}
+                  accessibilityLabel={`${b.title}. ${b.detail}. ${b.earned ? 'Earned' : 'Locked'}`}
                 >
-                  <Text style={styles.badgeEmoji}>{b.emoji}</Text>
-                  <Text style={styles.badgeTitle} numberOfLines={1}>
+                  <View style={[styles.badgeMedal, b.earned && styles.badgeMedalEarned]}>
+                    <Text style={[styles.badgeEmoji, !b.earned && styles.badgeEmojiLocked]}>{b.emoji}</Text>
+                    {b.earned ? null : (
+                      <View style={styles.badgeLock}>
+                        <LockIcon size={10} color={palette.grey700} strokeWidth={2.4} />
+                      </View>
+                    )}
+                  </View>
+                  <Text style={[styles.badgeTitle, !b.earned && styles.badgeTitleLocked]} numberOfLines={1}>
                     {b.title}
                   </Text>
-                  {b.earned ? (
-                    <View style={styles.badgeEarnedDot} />
-                  ) : null}
-                </Animated.View>
+                  <Text style={styles.badgeDetail} numberOfLines={2}>
+                    {b.detail}
+                  </Text>
+                </View>
               ))}
             </View>
           </Animated.View>
 
-          <Text style={[text.caption, styles.hint]}>
-            Your streak only grows on days you <Text style={styles.bold}>both</Text> train.
-          </Text>
-
-          {/* ── Action Buttons ── */}
-          <Animated.View entering={FadeInUp.duration(400).delay(450)} style={styles.actions}>
-            <PressableScale
-              onPress={async () => {
-                if (!couple || !uid || nudging) return;
-                setNudging(true);
-                try {
-                  await nudgePartner(couple.id, uid, displayName || 'Your partner');
-                  track('couple_nudge_sent');
-                  showDialog({
-                    title: 'Nudge sent',
-                    message: `${partner.displayName} will get a push to come train.`,
-                    tone: 'success',
-                    actions: [{ label: 'Got it', variant: 'primary' }],
-                  });
-                } catch (error) {
-                  captureError(error);
-                  showDialog({
-                    title: 'Nudge failed',
-                    message:
-                      error instanceof Error
-                        ? error.message
-                        : "We couldn't send that nudge. Check your connection and try again.",
-                    tone: 'danger',
-                    actions: [{ label: 'Try again', variant: 'primary' }],
-                  });
-                } finally {
-                  setNudging(false);
-                }
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={`Nudge ${partner.displayName} to train`}
-              style={[styles.actionOutline, { minHeight: reservedControlHeight(52, fontScale) }]}
-            >
-              <Text style={styles.actionOutlineLabel} {...scaleForRole('control')}>
-                {nudging ? 'Sending…' : 'Nudge'}
-              </Text>
-            </PressableScale>
-            <PressableScale
-              onPress={() => router.push('/modal/couple-card')}
-              accessibilityRole="button"
-              accessibilityLabel="Open our shareable couple card"
-            >
-              <LinearGradient
-                colors={[palette.green500, palette.green700]}
-                style={[
-                  styles.actionPrimaryGrad,
-                  { minHeight: reservedControlHeight(52, fontScale) },
-                ]}
-              >
-                <Text style={font('extrabold', 14, { color: palette.white })} {...scaleForRole('control')}>
-                  Our Card
-                </Text>
-              </LinearGradient>
-            </PressableScale>
-          </Animated.View>
-
-          <Divider style={{ marginVertical: 20 }} />
-
-          {/* ── Manage bond (professional danger action) ── */}
-          <Text style={styles.manageLabel}>MANAGE BOND</Text>
-          <PressableScale
-            onPress={unpair}
-            accessibilityRole="button"
-            accessibilityLabel={`Unpair from ${partner.displayName}`}
-            style={styles.unpairCard}
-          >
-            <View style={styles.unpairIcon}>
-              <View style={styles.unpairIconBar} />
-            </View>
-            <View style={styles.unpairTextCol}>
-              <Text style={styles.unpairTitle}>Unpair from {partner.displayName}</Text>
-              <Text style={styles.unpairSub}>
-                Ends your shared streak and combined total. This can&apos;t be undone.
-              </Text>
-            </View>
-            <Text style={styles.unpairChevron}>›</Text>
-          </PressableScale>
+          {/* ── Manage: quiet until you need it; the dialog carries the warning ── */}
+          <ActionList style={styles.manage}>
+            <ActionRow
+              flat
+              danger
+              icon="unpair"
+              tint={palette.red500}
+              title={`Unpair from ${partner.displayName}`}
+              sub="Ends your shared streak and combined total"
+              onPress={unpair}
+            />
+          </ActionList>
         </>
       ) : null}
 
@@ -616,7 +507,7 @@ export default function CoupleInviteScreen() {
         <>
           <Animated.View entering={FadeInDown.duration(500)} style={styles.waitingHero}>
             <LinearGradient
-              colors={[palette.tintGreenTop, palette.tintGreenBottom, palette.green700]}
+              colors={gradients.heroEmerald}
               style={styles.waitingGradient}
             >
               <Animated.View style={qrPulseStyle}>
@@ -645,6 +536,8 @@ export default function CoupleInviteScreen() {
               onPress={shareCode}
               accessibilityRole="button"
               accessibilityLabel="Share invite"
+            
+              style={{ flex: 1 }}
             >
               <LinearGradient
                 colors={gradients.brandStrong}
@@ -720,7 +613,7 @@ export default function CoupleInviteScreen() {
                 other hero in the app, so the two halves of the pairing flow
                 read as different products one tap apart. */}
             <LinearGradient
-              colors={gradients.brandDeep}
+              colors={gradients.heroEmerald}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={[styles.pitchCard, shadow.brand]}
@@ -859,234 +752,103 @@ export default function CoupleInviteScreen() {
   );
 }
 
+function Legend({ color, label }: { color: string; label: string }) {
+  return (
+    <View style={styles.legendItem}>
+      <View style={[styles.legendDot, { backgroundColor: color }]} />
+      <Text style={styles.legendText} numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   muted: { padding: 12, marginBottom: 16 },
   loading: { paddingVertical: 40, alignItems: 'center' },
 
   /* ── PAIRED STATE ── */
-  bondCard: {
-    borderRadius: radius['4xl'],
-    padding: 24,
-    gap: 20,
-    alignItems: 'center',
-  },
-  avatarPairRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  avatarRingMe: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.9)',
-    overflow: 'hidden',
-    backgroundColor: '#047857',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-    zIndex: 2,
-  },
-  avatarRingPartner: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.9)',
-    overflow: 'hidden',
-    backgroundColor: palette.green900,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-    marginLeft: -16,
-    zIndex: 1,
-  },
-  avatarImg: { width: '100%', height: '100%' },
-  avatarPlaceholder: {
-    width: '100%',
-    height: '100%',
+  weekCard: { padding: 16 },
+  weekRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  weekCol: { flex: 1, alignItems: 'center', gap: 8 },
+  weekLetter: font('semibold', 11, { color: palette.grey600 }),
+  weekLetterToday: { color: palette.ink },
+  weekDot: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: palette.divider,
   },
-  avatarInitial: font('extrabold', 28, { color: palette.white }),
-  heartBadge: {
-    position: 'absolute',
-    zIndex: 10,
-    backgroundColor: palette.white,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  namesPairRow: {
+  weekDotBoth: { backgroundColor: palette.green500 },
+  weekDotToday: { borderWidth: 1.5, borderColor: palette.ink },
+  weekNum: { ...font('bold', 13, { color: palette.grey700 }), fontVariant: ['tabular-nums'] },
+  weekLegend: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  myName: font('extrabold', 15, { color: 'rgba(255,255,255,0.9)' }),
-  bondLabel: {
-    ...font('extrabold', 9.5, { color: 'rgba(255,255,255,0.6)' }),
-    letterSpacing: 2,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  partnerName: font('extrabold', 15, { color: 'rgba(255,255,255,0.9)' }),
-
-  bigStatsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    backgroundColor: 'rgba(0,0,0,0.12)',
-    borderRadius: radius['3xl'],
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-  },
-  bigStatCol: { flex: 1, alignItems: 'center', gap: 4 },
-  bigStatNumber: font('extrabold', 26, { color: palette.white }),
-  bigStatLabel: {
-    ...font('bold', 9.5, { color: 'rgba(255,255,255,0.7)' }),
-    letterSpacing: 1,
-  },
-  bigStatDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
-
-  levelBlock: { width: '100%', gap: 4 },
-  levelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
-  levelName: font('extrabold', 13, { color: palette.white }),
-  levelNext: { ...font('bold', 11, { color: 'rgba(255,255,255,0.8)' }) },
-  levelTrack: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    overflow: 'hidden',
-  },
-  levelFill: { height: '100%', borderRadius: radius.xs, backgroundColor: palette.white },
-
-  riskBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(239,68,68,0.2)',
-    borderRadius: radius.xl,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    width: '100%',
-  },
-  hookBannerFresh: {
-    backgroundColor: 'rgba(255,255,255,0.18)',
-  },
-  hookBannerNudge: {
-    backgroundColor: 'rgba(245,158,11,0.28)',
-  },
-  riskText: font('bold', 12, { color: '#fef2f2' }),
-
-  /* ── Calendar ── */
-  calendarCard: {
-    backgroundColor: palette.white,
-    borderRadius: radius['3xl'],
-    padding: 16,
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: palette.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  calendarHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  calendarTitle: font('extrabold', 14, { color: palette.ink }),
-  calendarHint: font('bold', 10, { color: palette.grey500 }),
-  calendarRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 4,
-  },
-  calendarDayCol: { alignItems: 'center', gap: 4, flex: 1 },
-  calendarDayLabel: font('bold', 10, { color: palette.grey500 }),
-  calendarDot: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  calendarDotBoth: { backgroundColor: palette.green500 },
-  calendarDotMe: { backgroundColor: palette.green300 },
-  calendarDotPartner: { backgroundColor: '#cbd5e1' },
-  calendarDotNone: { backgroundColor: palette.divider },
-  calendarLegend: {
-    flexDirection: 'row',
-    justifyContent: 'center',
     gap: 16,
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: palette.divider,
-  },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendText: font('bold', 9.5, { color: palette.grey500 }),
-
-  /* ── Badges ── */
-  sectionTitle: {
-    ...font('extrabold', 14, { color: palette.ink }),
     marginTop: 16,
-    marginBottom: 8,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: palette.border,
   },
-  badgeShelf: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  legendText: { ...font('semibold', 12, { color: palette.grey700 }), flexShrink: 1 },
+  weekNote: { ...font('medium', 12.5, { color: palette.grey700 }), marginTop: 10, lineHeight: 17 },
+
+  navList: { marginTop: 16 },
+
+  /* ── Milestones ── */
+  badgeShelf: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   badge: {
     width: '30%',
     flexGrow: 1,
     alignItems: 'center',
-    gap: 4,
-    paddingVertical: 12,
+    paddingTop: 14,
+    paddingBottom: 12,
+    paddingHorizontal: 8,
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: 'rgba(15,31,23,0.06)',
+    borderRadius: radius['2xl'],
+  },
+  badgeEarned: { borderColor: palette.green200 },
+  badgeMedal: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.divider,
+  },
+  badgeMedalEarned: { backgroundColor: palette.green50 },
+  badgeEmoji: { fontSize: 22 },
+  badgeEmojiLocked: { opacity: 0.35 },
+  badgeLock: {
+    position: 'absolute',
+    right: -3,
+    bottom: -3,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: palette.white,
     borderWidth: 1,
     borderColor: palette.border,
-    borderRadius: radius['2xl'],
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
-    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  badgeLocked: { opacity: 0.35 },
-  badgeEmoji: { fontSize: 24 },
-  badgeTitle: { ...font('extrabold', 9.5, { color: palette.ink }), letterSpacing: 0.3 },
-  badgeEarnedDot: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: palette.green500,
+  badgeTitle: { ...font('bold', 12.5, { color: palette.ink }), marginTop: 10, textAlign: 'center' },
+  badgeTitleLocked: { color: palette.grey700 },
+  badgeDetail: {
+    ...font('medium', 10.5, { color: palette.grey600 }),
+    marginTop: 2,
+    textAlign: 'center',
+    lineHeight: 14,
+    minHeight: 28,
   },
+
+  manage: { marginTop: 28 },
 
   /* ── Shared styles ── */
   actions: { flexDirection: 'row', gap: 12, marginTop: 16 },
@@ -1119,83 +881,6 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  hint: { marginTop: 12, textAlign: 'center' },
-  bold: font('extrabold', 13, { color: palette.ink }),
-
-  /* ── Pairing status header ── */
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: palette.white,
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: radius['3xl'],
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    marginBottom: 12,
-    ...shadow.card,
-  },
-  statusAvatars: { flexDirection: 'row', alignItems: 'center' },
-  statusAvatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    borderWidth: 2,
-    borderColor: palette.white,
-    overflow: 'hidden',
-    backgroundColor: palette.green50,
-  },
-  statusAvatarOverlap: { marginLeft: -12 },
-  statusAvatarFallback: { alignItems: 'center', justifyContent: 'center' },
-  statusAvatarInitial: font('extrabold', 15, { color: palette.green600 }),
-  statusTextCol: { flex: 1 },
-  statusName: font('extrabold', 15, { color: palette.ink }),
-  statusMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-  statusDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: palette.green500 },
-  statusMeta: font('medium', 12, { color: palette.slate500 }),
-  statusTag: {
-    backgroundColor: palette.green50,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: radius.pill,
-  },
-  statusTagText: font('extrabold', 10, { color: palette.green700, letterSpacing: 1 }),
-
-  /* ── Manage bond / unpair ── */
-  manageLabel: {
-    ...font('extrabold', 10, { color: palette.slate400, letterSpacing: 1.5 }),
-    marginBottom: 8,
-  },
-  unpairCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: palette.white,
-    borderWidth: 1,
-    borderColor: palette.red100,
-    borderRadius: radius['2xl'],
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-  },
-  unpairIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: palette.red100,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  unpairIconBar: {
-    width: 16,
-    height: 3,
-    borderRadius: radius.xs,
-    backgroundColor: palette.red500,
-  },
-  unpairTextCol: { flex: 1 },
-  unpairTitle: font('extrabold', 14, { color: palette.red500 }),
-  unpairSub: { ...font('medium', 11.5, { color: palette.slate500 }), marginTop: 4, lineHeight: 16 },
-  unpairChevron: font('extrabold', 22, { color: palette.red400 }),
 
   /* ── WAITING STATE ── */
   waitingHero: { marginBottom: 4 },
@@ -1350,13 +1035,23 @@ const styles = StyleSheet.create({
   bonusBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#fffbeb',
+    gap: 12,
+    backgroundColor: palette.white,
     borderWidth: 1,
-    borderColor: palette.amber200,
+    borderColor: palette.amber100,
     borderRadius: radius['2xl'],
-    padding: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     marginBottom: 12,
   },
-  bonusText: { ...font('bold', 12.5, { color: palette.amber900 }), flex: 1, lineHeight: 17 },
+  bonusTile: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    backgroundColor: palette.amber50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bonusTitle: font('bold', 14, { color: palette.ink }),
+  bonusText: { ...font('medium', 12.5, { color: palette.grey700 }), marginTop: 1, lineHeight: 17 },
 });

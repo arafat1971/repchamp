@@ -261,6 +261,24 @@ describe('nudge', () => {
     );
   });
 
+  it('refuses a nudge with an unexpected field', async () => {
+    await seedPaired();
+    await assertFails(
+      updateDoc(doc(asUser(ALICE), 'couples', CODE), {
+        nudge: { fromUid: ALICE, at: 123, blob: 'x' },
+      }),
+    );
+  });
+
+  it('refuses an oversized nudge field', async () => {
+    await seedPaired();
+    await assertFails(
+      updateDoc(doc(asUser(ALICE), 'couples', CODE), {
+        nudge: { fromUid: ALICE, at: 123, kind: 'x'.repeat(500) },
+      }),
+    );
+  });
+
   it('refuses a stranger writing a nudge', async () => {
     await seedPaired();
     await assertFails(
@@ -524,6 +542,82 @@ describe('daily metrics', () => {
     await assertSucceeds(
       updateDoc(doc(asUser(ALICE), 'couples', CODE), {
         members: [member(ALICE, { totalReps: 20 }), member(BOB)],
+      }),
+    );
+  });
+});
+
+describe('pending is set by the join alone', () => {
+  it('refuses a member flipping a paired couple back to pending', async () => {
+    await seedPaired();
+    await assertFails(updateDoc(doc(asUser(ALICE), 'couples', CODE), { pending: true }));
+  });
+
+  it('refuses a member rewriting pairedAt', async () => {
+    await seedPaired();
+    await assertFails(updateDoc(doc(asUser(ALICE), 'couples', CODE), { pairedAt: 1 }));
+  });
+
+  it('refuses the sole member closing their own invite by clearing pending', async () => {
+    await seedPending();
+    await assertFails(updateDoc(doc(asUser(ALICE), 'couples', CODE), { pending: false }));
+  });
+});
+
+describe('member and nudge payload bounds', () => {
+  it('refuses unknown keys on the caller’s own slice', async () => {
+    await seedPaired();
+    await assertFails(
+      updateDoc(doc(asUser(ALICE), 'couples', CODE), {
+        members: [member(ALICE, { junk: 'x' }), member(BOB)],
+      }),
+    );
+  });
+
+  it('refuses an oversized display name on the caller’s own slice', async () => {
+    await seedPaired();
+    await assertFails(
+      updateDoc(doc(asUser(BOB), 'couples', CODE), {
+        members: [member(ALICE), member(BOB, { displayName: 'x'.repeat(201) })],
+      }),
+    );
+  });
+
+  it('accepts the fields the app writes onto a slice', async () => {
+    await seedPaired();
+    await assertSucceeds(
+      updateDoc(doc(asUser(BOB), 'couples', CODE), {
+        members: [
+          member(ALICE),
+          member(BOB, {
+            avatarUrl: null,
+            totalReps: 12,
+            trainedDays: ['2026-10-03'],
+            creditedIds: ['c1'],
+            expoPushToken: 'ExponentPushToken[abc]',
+            widgetPush: 3,
+            daily: { day: '2026-10-03', waterMl: 500 },
+          }),
+        ],
+      }),
+    );
+  });
+
+  it('refuses a nudge whose timestamp is a string', async () => {
+    await seedPaired();
+    await assertFails(
+      updateDoc(doc(asUser(ALICE), 'couples', CODE), { nudge: { fromUid: ALICE, at: 'x'.repeat(1000) } }),
+    );
+  });
+
+  it('refuses creating a couple with extra top-level fields', async () => {
+    await assertFails(
+      setDoc(doc(asUser(ALICE), 'couples', CODE), {
+        id: CODE,
+        memberUids: [ALICE],
+        members: [member(ALICE)],
+        pending: true,
+        nudge: 'x',
       }),
     );
   });

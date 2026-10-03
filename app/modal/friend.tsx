@@ -169,13 +169,14 @@ export default function FriendProfileScreen() {
   };
 
   return (
-    <Screen>
+    <Screen enter>
       <ModalHeader title={displayName} />
 
       <View style={styles.identity}>
         <Avatar
           initial={(displayName || 'A').charAt(0).toUpperCase()}
           uri={!bot ? (cloudAvatar ?? undefined) : undefined}
+          ai={bot ? friend.id : undefined}
           size={88}
           square
           background={tint.background}

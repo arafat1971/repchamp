@@ -1,7 +1,8 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Platform, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Linking, Platform, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
+import { AnnualUpgradeCard } from '@/components/AnnualUpgradeCard';
 import { ModalHeader } from '@/components/ModalHeader';
 import { Chevron, Divider, PressableScale, Screen, Toggle } from '@/components/ui';
 import { HomeSectionHeader } from '@/components/home/HomeSectionHeader';
@@ -26,7 +27,8 @@ import { isWidgetSupported } from '@/services/partnerWidget';
 import { isPurchasesConfigured, resetPurchases, restore } from '@/services/purchases';
 import { track } from '@/lib/analytics';
 import { useAuthStore } from '@/state/authStore';
-import { useProStore } from '@/state/proStore';
+import { useEffectivePro, useProStore } from '@/state/proStore';
+import { SUPPORT_EMAIL } from '@/lib/urls';
 import { showDialog } from '@/state/useDialog';
 import { daysSinceLastSession } from '@/domain/dormantReminder';
 import { dayKey } from '@/domain/progression';
@@ -63,7 +65,8 @@ const STEP_COUNTING_ROW: ToggleRow = {
   subtitle: 'Keeps a quiet notification so your daily total is complete',
 };
 
-const PRIVACY_TOGGLES: ToggleRow[] = [
+/** What is allowed to ping the athlete — kept apart from who can see them. */
+const NOTIFICATION_TOGGLES: ToggleRow[] = [
   { key: 'duelInvites', title: 'Duel invites', subtitle: 'Get notified when challenged' },
   {
     key: 'dailyReminder',
@@ -83,6 +86,10 @@ const PRIVACY_TOGGLES: ToggleRow[] = [
     title: 'Ritual reminder',
     subtitle: 'One evening nudge with what’s left of your routine',
   },
+];
+
+/** What other people, and the app's own analytics, can see. */
+const PRIVACY_TOGGLES: ToggleRow[] = [
   {
     key: 'shareActivity',
 
@@ -125,6 +132,7 @@ export default function SettingsScreen() {
   const uid = useAuthStore((s) => s.user?.uid ?? null);
   const setPro = useProStore((s) => s.setPro);
   const refreshPro = useProStore((s) => s.refresh);
+  const isPro = useEffectivePro();
   const [busy, setBusy] = useState<null | 'export' | 'delete' | 'restore'>(null);
 
   const clearLocalSession = async (opts?: { syncFirst?: boolean }) => {
@@ -401,18 +409,46 @@ export default function SettingsScreen() {
   );
 
   return (
-    <Screen>
+    <Screen enter>
       <ModalHeader title="Settings" />
 
       <HomeSectionHeader title="During workouts" />
       {renderGroup(WORKOUT_TOGGLES)}
 
-      <HomeSectionHeader title="Notifications &amp; privacy" />
+      <HomeSectionHeader title="Notifications" />
       {renderGroup(
         /* Android only: iOS counts steps without a background service, so the
            switch would control nothing there. */
-        Platform.OS === 'android' ? [...PRIVACY_TOGGLES, STEP_COUNTING_ROW] : PRIVACY_TOGGLES,
+        Platform.OS === 'android' ? [...NOTIFICATION_TOGGLES, STEP_COUNTING_ROW] : NOTIFICATION_TOGGLES,
       )}
+
+      <HomeSectionHeader title="Privacy" />
+      {renderGroup(PRIVACY_TOGGLES)}
+
+      {/* Where the athlete can see what they have, and what to do about it.
+          Shown only when billing exists on this build — a plan row with nothing
+          to buy would be a dead end. */}
+      {isPurchasesConfigured() ? (
+        <>
+          <HomeSectionHeader title="Subscription" />
+          <Card style={styles.group}>
+            <LinkRow
+              label="RepChamp Pro"
+              detail={isPro ? 'Active' : 'Free plan'}
+              onPress={() =>
+                isPro
+                  ? void Linking.openURL(
+                      Platform.OS === 'ios'
+                        ? 'https://apps.apple.com/account/subscriptions'
+                        : 'https://play.google.com/store/account/subscriptions',
+                    ).catch(captureError)
+                  : router.push({ pathname: '/modal/paywall', params: { source: 'settings' } })
+              }
+            />
+          </Card>
+          {isPro ? <AnnualUpgradeCard /> : null}
+        </>
+      ) : null}
 
       {cloudConfigured ? (
         <>
@@ -488,7 +524,17 @@ export default function SettingsScreen() {
         ) : null}
       </Card>
 
+      <HomeSectionHeader title="Help" />
       <Card style={styles.group}>
+        <LinkRow
+          label="Contact support"
+          onPress={() =>
+            void Linking.openURL(
+              `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('RepChamp support')}`,
+            ).catch(captureError)
+          }
+        />
+        <Divider />
         <LinkRow
           label="Replay intro"
           onPress={() => router.replace('/onboarding')}
@@ -515,10 +561,13 @@ function LinkRow({
   label,
   onPress,
   destructive = false,
+  detail,
 }: {
   label: string;
   onPress: () => void;
   destructive?: boolean;
+  /** Current state shown before the chevron, e.g. "Active". */
+  detail?: string;
 }) {
   return (
     <PressableScale
@@ -535,6 +584,9 @@ function LinkRow({
       >
         {label}
       </Text>
+      {detail ? (
+        <Text style={font('semibold', 13, { color: palette.grey600, marginRight: 6 })}>{detail}</Text>
+      ) : null}
       <Chevron />
     </PressableScale>
   );

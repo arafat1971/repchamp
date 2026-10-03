@@ -76,6 +76,8 @@ export const palette = {
   grey500: '#9aa39d',
   grey550: '#94a29a',
   grey600: '#8a938c',
+  /** Secondary text on white or canvas. grey600 is 3.2:1 there; this is 4.6:1+, which small text needs. */
+  grey700: '#69726c',
   border: '#e6eae4',
   borderStrong: '#d4dad4',
   divider: '#f0f2ef',

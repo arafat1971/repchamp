@@ -1,6 +1,6 @@
 # Typecheck, lint, and unit tests on every push and pull request.
 #
-# The repo already had the hard part — 967 tests, a typecheck and a lint config
+# The repo already had the hard part — 1,700+ tests, a typecheck and a lint config
 # that all pass in a few seconds — and no workflow running any of it, so a green
 # PR meant "someone said it passed locally" rather than something the PR asserts.
 #

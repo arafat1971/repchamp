@@ -1,5 +1,9 @@
 import {
   commitmentLine,
+  costPerWorkout,
+  monthlyCost,
+  perDayPrice,
+  yearComparison,
   granularPrice,
   monthlyEquivalent,
   priceAnchor,
@@ -149,5 +153,47 @@ describe('monthlyEquivalent', () => {
     const m = monthlyEquivalent({ price: 36, weeks: 26, symbol: '$' }, '$36', 'SIX_MONTH');
     expect(m?.perMonth).toBe('$6');
     expect(m?.billedAs).toBe('paid $36 every 6 months');
+  });
+});
+
+describe('perDayPrice', () => {
+  it('divides the real charge by the days it covers', () => {
+    expect(perDayPrice(annual(59.99))).toBe('£0.16');
+    expect(perDayPrice(monthly(4.99))).toBe('£0.16');
+  });
+  it('is null when there is no rate to divide', () => {
+    expect(perDayPrice({ price: 0, weeks: 52, symbol: '£' })).toBeNull();
+  });
+});
+
+describe('monthlyCost', () => {
+  it('treats a monthly plan as exactly one month', () => {
+    expect(monthlyCost(monthly(4.99))).toBeCloseTo(4.99, 5);
+  });
+  it('spreads an annual plan over twelve months', () => {
+    expect(monthlyCost(annual(60))).toBeCloseTo(5, 5);
+  });
+});
+
+describe('costPerWorkout', () => {
+  it('uses the athlete’s own pace', () => {
+    expect(costPerWorkout(monthly(6), 12)).toBe('£0.50');
+  });
+  it('stays silent until there is a real pace to divide by', () => {
+    expect(costPerWorkout(monthly(6), 2)).toBeNull();
+    expect(costPerWorkout(monthly(6), 0)).toBeNull();
+  });
+});
+
+describe('yearComparison', () => {
+  it('compares twelve monthly payments with one annual payment', () => {
+    expect(yearComparison(monthly(10), annual(60))).toEqual({
+      monthlyYear: '£120.00',
+      annualYear: '£60.00',
+      saved: '£60.00',
+    });
+  });
+  it('claims nothing when the annual plan is not cheaper', () => {
+    expect(yearComparison(monthly(4), annual(60))).toBeNull();
   });
 });

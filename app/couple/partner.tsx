@@ -1,15 +1,16 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeInDown, FadeInUp, FadeOutUp } from 'react-native-reanimated';
 
 import { ModalHeader } from '@/components/ModalHeader';
 import { PressableScale, Screen, Toggle } from '@/components/ui';
-import { HomeCard as Card } from '@/components/ui/HomeCard';
 import { HabitIcon } from '@/components/together/HabitIcon';
 import { LiveStage } from '@/components/together/LiveStage';
 import { ME, RitualCard, THEM } from '@/components/together/RitualCard';
 import { RitualWeekCard } from '@/components/together/RitualWeekCard';
+import { CheckIcon, DuelIcon, FlameIcon } from '@/components/home/Icons';
+import { ActionList, ActionRow, PairPitch, SectionTitle, Surface } from '@/components/together/kit';
 import { bearLayers } from '@/components/widget/WidgetPreview';
 import { track } from '@/lib/analytics';
 import { captureError } from '@/lib/crash';
@@ -45,6 +46,7 @@ import {
   sharingSummary,
   type SharedMetricKey,
 } from '@/domain/partnerSharing';
+import { pluralise } from '@/domain/plural';
 import { dayKey } from '@/domain/progression';
 import { rivalryLine, rivalryNudge, rivalryWith } from '@/domain/rivalry';
 import { repsOnDay } from '@/domain/waterWidget';
@@ -77,7 +79,7 @@ import { showDialog } from '@/state/useDialog';
 import { usePartnerTodaySnapshot } from '@/state/usePartnerTodaySnapshot';
 import { useStepsToday } from '@/state/useStepsToday';
 import { getExercise } from '@/vision/exercises';
-import { font, text } from '@/theme/typography';
+import { font } from '@/theme/typography';
 import { palette } from '@/theme/tokens';
 
 
@@ -98,9 +100,10 @@ import { palette } from '@/theme/tokens';
  */
 export default function PartnerDashboardScreen() {
   const router = useRouter();
-  const { couple, paired, partner, loading } = useCouple();
+  const { couple, paired, partner, loading, streak } = useCouple();
   const uid = useAuthStore((s) => s.user?.uid ?? null);
   const displayName = useProfileStore((s) => s.displayName);
+  const avatarUri = useProfileStore((s) => s.avatarUri);
   const sessions = useProfileStore((s) => s.sessions);
   const drinks = useHydrationStore((s) => s.drinks);
   const shareSteps = useSharingStore((s) => s.steps);
@@ -348,21 +351,15 @@ export default function PartnerDashboardScreen() {
   if (!paired || !partner || !couple) {
     return (
       <Screen>
-        <ModalHeader title="Partner" />
-        <Card style={styles.pad}>
-          <Text style={styles.emptyTitle}>Pair up to see each other’s day</Text>
-          <Text style={[text.caption, styles.emptyBody]}>
-            Once you’re paired, you’ll both see who trained today, and each of you chooses
-            whether to share steps and water.
-          </Text>
-          <PressableScale
-            onPress={() => router.replace('/modal/couple-invite')}
-            accessibilityRole="button"
-            style={styles.linkRow}
-          >
-            <Text style={styles.linkText}>Invite your partner</Text>
-          </PressableScale>
-        </Card>
+        <ModalHeader title="Today, together" />
+        <PairPitch
+          name={myName}
+          uri={avatarUri}
+          title="See each other’s day"
+          body="Once you’re paired you both see who trained, and each of you chooses whether to share steps and water."
+          onInvite={() => router.replace('/modal/couple-invite')}
+          onScan={() => router.push('/modal/scan')}
+        />
       </Screen>
     );
   }
@@ -430,7 +427,7 @@ export default function PartnerDashboardScreen() {
 
       {!introSeen ? (
         <Animated.View entering={FadeInDown.duration(300)} exiting={FadeOutUp} style={styles.introWrap}>
-          <Card style={styles.intro}>
+          <Surface style={styles.intro}>
             <Text style={styles.introTitle}>How today works</Text>
             {[
               `Tap ${partnerName}'s bear to send a heart. It lands on their screen while you're both here.`,
@@ -445,7 +442,7 @@ export default function PartnerDashboardScreen() {
             <PressableScale onPress={dismissIntro} accessibilityRole="button" style={styles.introBtn}>
               <Text style={styles.introBtnText}>Got it</Text>
             </PressableScale>
-          </Card>
+          </Surface>
         </Animated.View>
       ) : null}
 
@@ -481,8 +478,22 @@ export default function PartnerDashboardScreen() {
         />
         <View style={styles.pills}>
           <Pill icon="plus" label="250 ml" onPress={() => go('/drink')} primary />
-          <Pill icon="splash" label={`Splash ${partnerName}`} onPress={() => go('/splash')} />
+          <Pill icon="splash" label={partnerName.length > 10 ? 'Splash' : `Splash ${partnerName}`} onPress={() => go('/splash')} />
         </View>
+      </Animated.View>
+
+      {/* The day in three numbers, before the detail below. */}
+      <Animated.View entering={FadeInDown.delay(80).duration(320)}>
+        <Surface style={styles.strip}>
+          <Stat icon={<FlameIcon size={14} color={palette.amber600} />} value={String(streak)} label="day streak" />
+          <Stat
+            rule
+            icon={<CheckIcon size={14} color={palette.green600} />}
+            value={`${myScore + theirScore}/${HABITS.length * 2}`}
+            label="ritual today"
+          />
+          <Stat rule icon={<DuelIcon size={14} color={ME} />} value={`${rivalry.wins}–${rivalry.losses}`} label="duels" />
+        </Surface>
       </Animated.View>
 
       {toast ? (
@@ -510,47 +521,48 @@ export default function PartnerDashboardScreen() {
         </Animated.View>
       ) : null}
 
-      <Heading title="Today" aside={`${myScore + theirScore} of ${HABITS.length * 2} done`} />
+      <SectionTitle title="Today" aside={`${myScore + theirScore} of ${HABITS.length * 2} done`} />
       <View style={styles.block}>
         <RitualCard mine={mineRitual} theirs={theirRitual} name={partnerName} onToggle={onToggle} onEdit={() => router.push('/modal/ritual-plan')}
           onGuide={(id) => router.push({ pathname: '/modal/breathe', params: { habit: id } })}
         />
       </View>
 
-      <Heading title="This week" aside={week7.perfectDays > 0 ? `${week7.perfectDays} perfect ${week7.perfectDays === 1 ? 'day' : 'days'}` : undefined} />
+      <SectionTitle title="This week" aside={week7.perfectDays > 0 ? `${week7.perfectDays} perfect ${week7.perfectDays === 1 ? 'day' : 'days'}` : undefined} />
       <View style={styles.block}>
         <RitualWeekCard week={week7} total={HABITS.length} name={partnerName} streak={snapReal ? snap.streak : 0} />
       </View>
 
-      <Heading title="Moments" />
-      <Card style={[styles.pad, styles.block]}>
+      <SectionTitle title="Moments" />
+      <Surface style={[styles.pad, styles.block]}>
         {moments.length === 0 ? (
           <Text style={styles.quiet}>Nothing yet today. Drinks, sets and splashes between you show up here.</Text>
         ) : (
           moments.map((m, i) => <MomentRow key={`${m.at}-${i}`} m={m} first={i === 0} />)
         )}
-      </Card>
+      </Surface>
 
-      <Heading title="Duels" aside={rivalry.played > 0 ? `${rivalry.played} played` : undefined} />
-      <Card style={[styles.pad, styles.block]}>
-        <View style={styles.duelRow}>
-          <Text style={styles.duelScore}>
-            <Text style={{ color: ME }}>{rivalry.wins}</Text>
-            <Text style={styles.duelDash}> – </Text>
-            <Text style={{ color: THEM }}>{rivalry.losses}</Text>
-          </Text>
-          <Text style={styles.duelLine}>
-            {rivalry.played > 0 ? rivalryLine(rivalry, partnerName) : rivalryNudge(rivalry, partnerName)}
-          </Text>
+      <SectionTitle title="Duels" aside={rivalry.played > 0 ? `${rivalry.played} played` : undefined} />
+      <Surface style={[styles.pad, styles.block]}>
+        {/* A face-off: you on the left, them on the right, wins under each. */}
+        <View style={styles.faceoff}>
+          <FaceoffSide name="You" initial={myName} wins={rivalry.wins} color={ME} lead={rivalry.wins > rivalry.losses} />
+          <View style={styles.vs}>
+            <Text style={styles.vsText}>VS</Text>
+          </View>
+          <FaceoffSide name={partnerName} initial={partnerName} wins={rivalry.losses} color={THEM} lead={rivalry.losses > rivalry.wins} />
         </View>
+        <Text style={styles.duelLine}>
+          {rivalry.played > 0 ? rivalryLine(rivalry, partnerName) : rivalryNudge(rivalry, partnerName)}
+        </Text>
         <View style={styles.duelActions}>
           <TextButton label={rivalry.played > 0 ? 'Rematch' : 'Race live'} onPress={() => openDuel('duel')} primary />
           <TextButton label="Train together" onPress={() => openDuel('train')} />
         </View>
-      </Card>
+      </Surface>
 
-      <Heading title={`Nudge ${partnerName}`} />
-      <Card style={[styles.pad, styles.block]}>
+      <SectionTitle title={`Nudge ${partnerName}`} />
+      <Surface style={[styles.pad, styles.block]}>
         <View style={styles.chips}>
           {REMINDER_KINDS.map((kind) => {
             const b = reminderButton(kind);
@@ -564,16 +576,18 @@ export default function PartnerDashboardScreen() {
                 accessibilityLabel={`Remind ${partnerName}: ${b.label}`}
                 style={[styles.chip, busy && styles.chipBusy]}
               >
-                <Text style={styles.chipText}>{busy ? 'Sending…' : b.label}</Text>
+                <Text style={styles.chipText} numberOfLines={1}>
+                  {busy ? 'Sending…' : b.label}
+                </Text>
               </PressableScale>
             );
           })}
         </View>
         <Text style={styles.note}>{partnerName} gets a notification, even with the app closed.</Text>
-      </Card>
+      </Surface>
 
-      <Heading title="What you share" />
-      <Card style={[styles.pad, styles.block]}>
+      <SectionTitle title="What you share" />
+      <Surface style={[styles.pad, styles.block]}>
         <ShareRow label="Steps today" detail="Your daily step count" value={shareSteps} onChange={(v) => toggle('steps', v)} />
         <View style={styles.divider} />
         <ShareRow label="Water today" detail="How much you've drunk" value={shareWater} onChange={(v) => toggle('water', v)} />
@@ -596,11 +610,31 @@ export default function PartnerDashboardScreen() {
           {sharingSummary({ steps: shareSteps, water: shareWater }, partnerName)} Turning one off removes today’s number
           from their screen right away.
         </Text>
-      </Card>
+      </Surface>
 
-      <PressableScale onPress={() => router.push('/couple')} accessibilityRole="button" style={styles.linkRow}>
-        <Text style={styles.linkText}>Your history together</Text>
-      </PressableScale>
+      <SectionTitle title="More together" />
+      <ActionList style={styles.moreList}>
+        <ActionRow
+          flat
+          icon="calendar"
+          title="Your history together"
+          sub="Streak, calendar and who put in what"
+          badge={streak > 0 ? pluralise(streak, 'day') : undefined}
+          onPress={() => router.push('/couple')}
+        />
+        <ActionRow
+          flat
+          rule
+          icon="share"
+          tint={ME}
+          title="Share your bond card"
+          sub="An image of your streak, for stories and chats"
+          onPress={() => {
+            track('share_opened', { kind: 'couple-card' });
+            router.push('/modal/couple-card');
+          }}
+        />
+      </ActionList>
     </Screen>
   );
 }
@@ -609,14 +643,34 @@ export default function PartnerDashboardScreen() {
  * Pieces
  * ------------------------------------------------------------------ */
 
-/** A section title in sentence case, with an optional quiet fact on the right. */
-function Heading({ title, aside }: { title: string; aside?: string }) {
+/** One of the three numbers under the stage: a column in one shared surface. */
+function Stat({ icon, value, label, rule }: { icon: ReactNode; value: string; label: string; rule?: boolean }) {
   return (
-    <View style={styles.heading}>
-      <Text style={styles.headingTitle} numberOfLines={1}>
-        {title}
+    <View style={[styles.stat, rule && styles.statRule]}>
+      <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>
+        {value}
       </Text>
-      {aside ? <Text style={styles.headingAside}>{aside}</Text> : null}
+      <View style={styles.statFoot}>
+        {icon}
+        <Text style={styles.statLabel} numberOfLines={1}>
+          {label}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+/** One half of the duel face-off. */
+function FaceoffSide({ name, initial, wins, color, lead }: { name: string; initial: string; wins: number; color: string; lead: boolean }) {
+  return (
+    <View style={styles.side}>
+      <View style={[styles.sideFace, { backgroundColor: color }, lead && styles.sideLead]}>
+        <Text style={styles.sideInitial}>{(initial.charAt(0) || '?').toUpperCase()}</Text>
+      </View>
+      <Text style={[styles.sideWins, { color }]}>{wins}</Text>
+      <Text style={styles.sideName} numberOfLines={1}>
+        {name}
+      </Text>
     </View>
   );
 }
@@ -718,7 +772,7 @@ const styles = StyleSheet.create({
     borderColor: palette.divider,
   },
   pillPrimary: { backgroundColor: palette.ink, borderColor: palette.ink },
-  pillText: font('semibold', 15, { color: palette.ink }),
+  pillText: { ...font('semibold', 15, { color: palette.ink }), flexShrink: 1 },
   pillTextPrimary: { color: palette.white },
 
   toast: {
@@ -731,9 +785,22 @@ const styles = StyleSheet.create({
   },
   toastText: font('semibold', 14, { color: palette.white }),
 
-  heading: { flexDirection: 'row', alignItems: 'baseline', marginTop: 22, marginBottom: 10, paddingHorizontal: 2 },
-  headingTitle: { flex: 1, ...font('extrabold', 20, { color: palette.ink }) },
-  headingAside: font('medium', 13, { color: palette.slate500 }),
+  strip: { flexDirection: 'row', marginTop: 14, paddingVertical: 14, borderRadius: 20 },
+  stat: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
+  statRule: { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: palette.border },
+  statValue: { ...font('extrabold', 22, { color: palette.ink }), fontVariant: ['tabular-nums'], letterSpacing: -0.5 },
+  statFoot: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  statLabel: { ...font('semibold', 11.5, { color: palette.grey700 }), flexShrink: 1 },
+  moreList: { marginTop: 0 },
+  faceoff: { flexDirection: 'row', alignItems: 'center' },
+  side: { flex: 1, alignItems: 'center' },
+  sideFace: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  sideLead: { borderWidth: 3, borderColor: palette.amber300 },
+  sideInitial: font('extrabold', 19, { color: palette.white }),
+  sideWins: { ...font('extrabold', 34), marginTop: 6, fontVariant: ['tabular-nums'], letterSpacing: -1 },
+  sideName: { ...font('semibold', 12.5, { color: palette.grey600 }), maxWidth: '90%' },
+  vs: { width: 40, height: 40, borderRadius: 20, backgroundColor: palette.ink, alignItems: 'center', justifyContent: 'center' },
+  vsText: { ...font('extrabold', 12, { color: palette.white }), letterSpacing: 0.5 },
 
   quiet: font('regular', 14, { color: palette.slate500 }),
   moment: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
@@ -742,10 +809,7 @@ const styles = StyleSheet.create({
   momentText: { flex: 1, ...font('medium', 14, { color: palette.ink }) },
   momentTime: font('medium', 12, { color: palette.grey500 }),
 
-  duelRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  duelScore: font('extrabold', 30, { color: palette.ink }),
-  duelDash: { color: palette.grey500 },
-  duelLine: { flex: 1, ...font('medium', 14, { color: palette.slate500 }) },
+  duelLine: { ...font('medium', 13.5, { color: palette.slate500 }), textAlign: 'center', marginTop: 12 },
   duelActions: { flexDirection: 'row', gap: 10, marginTop: 14 },
   textBtn: {
     flex: 1,
@@ -764,13 +828,15 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     paddingHorizontal: 14,
-    height: 36,
-    borderRadius: 18,
+    minHeight: 40,
+    borderRadius: 20,
     justifyContent: 'center',
-    backgroundColor: palette.track,
+    backgroundColor: palette.green50,
+    borderWidth: 1,
+    borderColor: palette.green200,
   },
   chipBusy: { opacity: 0.6 },
-  chipText: font('semibold', 14, { color: palette.ink }),
+  chipText: font('bold', 13.5, { color: palette.green700 }),
   note: { marginTop: 12, ...font('regular', 12, { color: palette.slate500 }) },
 
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: palette.divider, marginVertical: 12 },
@@ -780,8 +846,4 @@ const styles = StyleSheet.create({
   shareDetail: { marginTop: 2, ...font('regular', 12, { color: palette.slate500 }) },
   alwaysOn: font('semibold', 13, { color: palette.slate500 }),
   summary: { marginTop: 14, ...font('regular', 12, { color: palette.slate500 }) },
-  emptyTitle: { ...font('bold', 17), color: palette.ink },
-  emptyBody: { marginTop: 6, color: palette.slate500 },
-  linkRow: { alignItems: 'center', paddingVertical: 20 },
-  linkText: font('semibold', 14, { color: palette.slate500 }),
 });

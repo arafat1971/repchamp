@@ -10,9 +10,9 @@
  */
 
 import { assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
-import { doc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, runTransaction, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
 
-import { asAnon, asUser, clearData, seed, setupEnv, teardownEnv } from './harness';
+import { asAnon, asUser, clearData, seat, seed, setupEnv, teardownEnv } from './harness';
 
 const WAITER = 'waiter';
 const SEEKER = 'seeker';
@@ -162,6 +162,128 @@ describe('claiming a stranger’s ticket', () => {
     await seedClaimable();
     await assertFails(
       setDoc(doc(asUser(SEEKER), 'matchmaking', WAITER), ticket(WAITER, { status: 'cancelled' })),
+    );
+  });
+});
+
+/* The suites above seed the duel first, which is not what the app does:
+ * `tryPair` mints the duel and claims the ticket in ONE transaction. That
+ * difference hid a rule that refused every real pairing, so these run the
+ * client's actual write shape. */
+describe('pairing in a single transaction (what tryPair does)', () => {
+  const duel = {
+    exercise: 'push',
+    duration: 20,
+    status: 'active',
+    hostUid: WAITER,
+    guestUid: SEEKER,
+    targetUid: null,
+    host: seat(WAITER),
+    guest: seat(SEEKER),
+    winnerUid: null,
+  };
+
+  beforeEach(async () => {
+    await seed(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'matchmaking', WAITER), ticket(WAITER));
+    });
+  });
+
+  it('allows minting the duel and claiming the ticket together', async () => {
+    const db = asUser(SEEKER);
+    await assertSucceeds(
+      runTransaction(db, async (tx) => {
+        await tx.get(doc(db, 'matchmaking', SEEKER));
+        await tx.get(doc(db, 'matchmaking', WAITER));
+        tx.set(doc(db, 'duels', DUEL), {
+          ...duel,
+          createdAt: serverTimestamp(),
+          startedAt: serverTimestamp(),
+        });
+        tx.update(doc(db, 'matchmaking', WAITER), { status: 'matched', duelId: DUEL });
+        tx.set(doc(db, 'matchmaking', SEEKER), ticket(SEEKER, { status: 'matched', duelId: DUEL }));
+      }),
+    );
+  });
+
+  it('refuses a claim whose duel is not created in the same commit', async () => {
+    const db = asUser(SEEKER);
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'matchmaking', WAITER), { status: 'matched', duelId: 'missing' });
+    await assertFails(batch.commit());
+  });
+
+  it('refuses minting a matched duel with a client-chosen start time', async () => {
+    await assertFails(setDoc(doc(asUser(SEEKER), 'duels', DUEL), { ...duel, startedAt: 1 }));
+  });
+});
+
+describe('a claim moves only status and duelId', () => {
+  it('refuses rewriting the format or adding fields while claiming', async () => {
+    await seedClaimable();
+    await assertFails(
+      updateDoc(doc(asUser(SEEKER), 'matchmaking', WAITER), {
+        status: 'matched',
+        duelId: DUEL,
+        exercise: 'squat',
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(asUser(SEEKER), 'matchmaking', WAITER), {
+        status: 'matched',
+        duelId: DUEL,
+        junk: 'x',
+      }),
+    );
+  });
+});
+
+describe('a matched duel needs a host who is actually queued', () => {
+  const forced = (hostUid: string) => ({
+    exercise: 'push',
+    duration: 20,
+    status: 'active',
+    hostUid,
+    guestUid: SEEKER,
+    targetUid: null,
+    host: seat(hostUid),
+    guest: seat(SEEKER),
+    winnerUid: null,
+    startedAt: serverTimestamp(),
+  });
+
+  it('refuses seating an athlete with no ticket as host of a live duel', async () => {
+    await assertFails(setDoc(doc(asUser(SEEKER), 'duels', DUEL), forced('victim')));
+  });
+
+  it('refuses seating an athlete whose ticket is already matched', async () => {
+    await seed(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'matchmaking', WAITER), ticket(WAITER, { status: 'matched', duelId: 'x' }));
+    });
+    await assertFails(setDoc(doc(asUser(SEEKER), 'duels', DUEL), forced(WAITER)));
+  });
+});
+
+describe('own ticket shape', () => {
+  it('refuses unknown fields on a ticket', async () => {
+    await assertFails(
+      setDoc(doc(asUser(WAITER), 'matchmaking', WAITER), ticket(WAITER, { junk: 'x' })),
+    );
+  });
+
+  it('refuses a ticket carrying an oversized name', async () => {
+    await assertFails(
+      setDoc(doc(asUser(WAITER), 'matchmaking', WAITER), ticket(WAITER, { displayName: 'x'.repeat(201) })),
+    );
+  });
+
+  it('accepts the full shape enqueue writes', async () => {
+    await assertSucceeds(
+      setDoc(doc(asUser(WAITER), 'matchmaking', WAITER), {
+        ...ticket(WAITER),
+        expiresAtTs: new Date(EXPIRES_AT),
+        enqueuedAt: serverTimestamp(),
+      }),
     );
   });
 });

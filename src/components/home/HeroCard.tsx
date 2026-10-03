@@ -164,14 +164,18 @@ export function HeroCard({
   onPress,
   progress,
   bonus,
+  locked = false,
 }: {
   focus: HomeFocus;
   onPress: () => void;
   progress?: { value: number; target: number };
   /** A time-boxed reason to go now ("+5 XP before 6 PM"), shown as a tag. */
   bonus?: string | null;
+  /** Free reps are spent: the card says so and its tap opens the paywall. */
+  locked?: boolean;
 }) {
-  const c = contentFor(focus);
+  const base = contentFor(focus);
+  const c = locked ? { ...base, body: 'Your free reps are used up.', cta: 'See Pro' } : base;
   const showProgress = !c.image && focus.kind === 'daily-challenge' && !!progress;
   const pct = showProgress && progress ? Math.min(1, progress.value / Math.max(1, progress.target)) : 0;
   return (
@@ -218,17 +222,24 @@ export function HeroCard({
           <Text style={[styles.eyebrow, c.image ? styles.textOverPhoto : null]}>{c.eyebrow}</Text>
           {/* Drawn art only. The emoji that used to fill this corner on the
               other states repeated the title in a font the OS picks. */}
-          {c.image || !c.art ? null : <Image source={c.art} style={styles.art} contentFit="contain" />}
+          {c.image || !c.art ? null : (
+            <>
+              {/* The figure is drawn dark, on a dark card: a pale disc behind
+                  it is what lets it be seen at all. */}
+              <View style={styles.artGlow} pointerEvents="none" />
+              <Image source={c.art} style={styles.art} contentFit="contain" />
+            </>
+          )}
         </View>
         <Text style={[styles.title, c.image ? styles.textOverPhoto : null]}>{c.title}</Text>
         {/* The supporting line would fall across the couple's faces. On a photo
             card the image does that work, so the copy stays title + CTA. */}
         {/* A bonus with a deadline beats a general line about rhythm, so it
             takes the body's place when there is one. */}
-        {c.image ? null : bonus ? (
+        {c.image ? null : bonus && !locked ? (
           <View style={styles.bonus}>
             <Text style={styles.bonusText} numberOfLines={1}>
-              ⚡ {bonus}
+              {bonus}
             </Text>
           </View>
         ) : (
@@ -311,6 +322,15 @@ const styles = StyleSheet.create({
   },
   /* Sized to carry the card, not decorate it; negative margins let the 3:2
      illustration bleed into the padding so it sits flush to the corner. */
+  artGlow: {
+    position: 'absolute',
+    top: -34,
+    right: -34,
+    width: 172,
+    height: 132,
+    borderRadius: 66,
+    backgroundColor: 'rgba(255,255,255,0.13)',
+  },
   art: { position: 'absolute', top: -8, right: -10, width: 120, height: 80 },
   title: {
     ...font('extrabold', 24, { color: palette.white }),

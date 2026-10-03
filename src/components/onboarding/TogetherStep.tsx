@@ -2,7 +2,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, {
-  FadeInUp,
   ZoomIn,
   useAnimatedStyle,
   useSharedValue,
@@ -11,7 +10,10 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { PopOnChange } from '@/components/motion';
 import { PressableScale, PrimaryButton } from '@/components/ui';
+import { Aurora, PulseRing, ScreenHead, springIn } from './ios';
+import { Burst } from './Visuals';
 import { HABITS, POKES, toggleTick, type HabitId } from '@/domain/ritual';
 import { previewCta, previewLine } from '@/domain/togetherPreview';
 import { lightImpactHaptic, selectionHaptic, successHaptic } from '@/lib/feedback';
@@ -58,20 +60,17 @@ export function TogetherStep({ onNext }: { onNext: () => void }) {
 
   return (
     <View style={styles.step}>
+      <Aurora tint={palette.green400} second={palette.purple400} />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <Animated.View entering={FadeInUp.duration(420)} style={styles.head}>
-          <View style={styles.eyebrow}>
-            <Text style={styles.eyebrowText}>BETTER TOGETHER</Text>
-          </View>
-          <Text style={styles.title}>Someone will feel it{'\n'}when you show up</Text>
-          <Text style={styles.body}>
-            Your water, steps and workouts, shared with the one person you choose. Try it — tap
-            a habit below.
-          </Text>
-        </Animated.View>
+        <ScreenHead
+          eyebrow="BETTER TOGETHER"
+          tint={palette.green50}
+          title={'Someone will feel it\nwhen you show up'}
+          body="Your water, steps and workouts, shared with the one person you choose. Try it: tap a habit below."
+        />
 
         {/* The partner's side: what they will see. */}
-        <View style={styles.partnerCard}>
+        <Animated.View entering={springIn(3)} style={styles.partnerCard}>
           <LinearGradient
             pointerEvents="none"
             colors={['rgba(34,197,94,0.14)', 'rgba(34,197,94,0)']}
@@ -80,9 +79,11 @@ export function TogetherStep({ onNext }: { onNext: () => void }) {
             style={StyleSheet.absoluteFill}
           />
           <View style={styles.partnerTop}>
-            <View style={styles.ghost}>
-              <Text style={styles.ghostQ}>?</Text>
-            </View>
+            <PulseRing size={48} color={palette.green400}>
+              <View style={styles.ghost}>
+                <Text style={styles.ghostQ}>?</Text>
+              </View>
+            </PulseRing>
             <View style={{ flex: 1 }}>
               <Text style={styles.partnerName}>Your partner</Text>
               <View style={styles.previewTag}>
@@ -91,7 +92,9 @@ export function TogetherStep({ onNext }: { onNext: () => void }) {
               </View>
             </View>
             <View style={styles.score}>
-              <Text style={styles.scoreValue}>{done}</Text>
+              <PopOnChange trigger={done} scale={1.3}>
+                <Text style={styles.scoreValue}>{done}</Text>
+              </PopOnChange>
               <Text style={styles.scoreOf}>/{total}</Text>
             </View>
           </View>
@@ -100,21 +103,28 @@ export function TogetherStep({ onNext }: { onNext: () => void }) {
             {HABITS.map((h) => {
               const on = ticks.includes(h.id);
               return (
-                <View key={h.id} style={[styles.mirrorDot, on && styles.mirrorDotOn]}>
-                  <Text style={[styles.mirrorEmoji, !on && { opacity: 0.35 }]}>{h.emoji}</Text>
-                </View>
+                <PopOnChange key={h.id} trigger={on ? 1 : 0} scale={1.3}>
+                  <View style={[styles.mirrorDot, on && styles.mirrorDotOn]}>
+                    <Text style={[styles.mirrorEmoji, !on && { opacity: 0.35 }]}>{h.emoji}</Text>
+                  </View>
+                </PopOnChange>
               );
             })}
           </View>
 
           <View style={styles.track}>
-            <View style={[styles.fill, { width: `${(done / total) * 100}%` }]} />
+            <SpringFill value={done / total} />
           </View>
 
           {floaters.map((f) => (
             <Floater key={f.id} id={f.id} emoji={f.e} onDone={dropFloater} />
           ))}
-        </View>
+          {done === total ? (
+            <View style={styles.burstAnchor}>
+              <Burst emojis={['🔥', '💚', '✨']} count={10} />
+            </View>
+          ) : null}
+        </Animated.View>
 
         {/* Your side: the day you'd tick off. */}
         <Text style={styles.sectionLabel}>Your day</Text>
@@ -185,6 +195,16 @@ export function TogetherStep({ onNext }: { onNext: () => void }) {
       </View>
     </View>
   );
+}
+
+/** The progress bar's fill, springing to its new width instead of jumping. */
+function SpringFill({ value }: { value: number }) {
+  const w = useSharedValue(0);
+  useEffect(() => {
+    w.value = withSpring(value, { damping: 14, stiffness: 120 });
+  }, [value, w]);
+  const style = useAnimatedStyle(() => ({ width: `${w.value * 100}%` }));
+  return <Animated.View style={[styles.fill, style]} />;
 }
 
 /** An emoji that drifts up off the partner card and fades, then removes itself. */
@@ -287,6 +307,7 @@ const styles = StyleSheet.create({
   track: { height: 8, borderRadius: 4, backgroundColor: palette.divider, marginTop: 14, overflow: 'hidden' },
   fill: { height: 8, borderRadius: 4, backgroundColor: palette.green500 },
   floater: { position: 'absolute', right: 40, top: 40, fontSize: 28 },
+  burstAnchor: { position: 'absolute', right: 48, top: 52 },
 
   sectionLabel: {
     ...font('extrabold', 17, { color: palette.ink }),

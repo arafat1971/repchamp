@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { forwardRef, type ReactNode } from 'react';
+import { Children, forwardRef, useEffect, type ReactNode } from 'react';
 import {
   Pressable,
   RefreshControl,
@@ -15,6 +15,8 @@ import {
   type ViewStyle,
 } from 'react-native';
 import Animated, {
+  Easing,
+  FadeInDown,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -24,8 +26,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { reservedControlHeight } from '@/theme/fontScale';
 import { scaleFor, scaleForRole, text } from '@/theme/typography';
-import { gradients, palette, radius, shadow, space, SCREEN_GUTTER, type Gradient } from '@/theme/tokens';
+import { gradients, motion, palette, radius, shadow, space, SCREEN_GUTTER, type Gradient } from '@/theme/tokens';
 import { lightImpactHaptic } from '@/lib/feedback';
+import { AiAvatar, aiPersonaForEmoji, aiPersonaForId } from './AiAvatar';
 
 export { Skeleton, SkeletonCircle } from './Skeleton';
 export { EmptyState, ErrorState } from './EmptyState';
@@ -47,9 +50,17 @@ export function Screen({
   contentStyle,
   onRefresh,
   refreshing = false,
+  enter = false,
 }: {
   children: ReactNode;
   scroll?: boolean;
+  /**
+   * Staggers each top-level child in on mount, so a pushed screen assembles
+   * itself as it slides in instead of arriving as a finished sheet. For
+   * screens that do not already place their own `StaggerIn`s; scroll mode
+   * only, since wrapping would break a `flex: 1` child of a fixed screen.
+   */
+  enter?: boolean;
   style?: StyleProp<ViewStyle>;
   contentStyle?: StyleProp<ViewStyle>;
   /** Adds pull-to-refresh. Omit it and the screen scrolls exactly as before. */
@@ -112,10 +123,26 @@ export function Screen({
         ) : undefined
       }
     >
-      {children}
+      {enter
+        ? Children.toArray(children).map((child, i) => (
+            <Animated.View
+              key={(child as { key?: string | null }).key ?? i}
+              // Capped so a long list's tail is not still arriving a second
+              // after the screen has settled.
+              entering={FadeInDown.delay(Math.min(i, ENTER_MAX_STEPS) * ENTER_STEP)
+                .duration(motion.screenIn)
+                .withInitialValues({ transform: [{ translateY: 14 }] })}
+            >
+              {child}
+            </Animated.View>
+          ))
+        : children}
     </ScrollView>
   );
 }
+
+const ENTER_STEP = 50;
+const ENTER_MAX_STEPS = 7;
 
 /** Section heading above a list, e.g. "Today's Challenges". */
 export function SectionLabel({
@@ -200,9 +227,12 @@ export function Divider({ style }: { style?: StyleProp<ViewStyle> }) {
  * Press target that scales down on touch, matching the prototype's
  * `.press:active { transform: scale(.96) }`.
  *
- * Uses a spring rather than a timing curve so a quick tap still completes the
- * return animation instead of snapping.
+ * Presses in on a short timing curve so the touch registers instantly, then
+ * releases on a lightly underdamped spring — the control settles back with a
+ * small overshoot rather than sliding to rest.
  */
+const PRESS_RELEASE = { damping: 13, stiffness: 320, mass: 0.7 } as const;
+
 export const PressableScale = forwardRef<View, PressableProps & { children: ReactNode }>(
   function PressableScale({ children, style, ...props }, ref) {
     const scale = useSharedValue(1);
@@ -218,13 +248,13 @@ export const PressableScale = forwardRef<View, PressableProps & { children: Reac
         // to the caller's handler below.
         onPressIn={(e) => {
           // eslint-disable-next-line react-hooks/immutability
-          scale.value = withTiming(0.97, { duration: 150 });
+          scale.value = withTiming(0.96, { duration: motion.fast });
           lightImpactHaptic();
           props.onPressIn?.(e);
         }}
         onPressOut={(e) => {
           // eslint-disable-next-line react-hooks/immutability
-          scale.value = withTiming(1, { duration: 150 });
+          scale.value = withSpring(1, PRESS_RELEASE);
           props.onPressOut?.(e);
         }}
         style={[animatedStyle, style as StyleProp<ViewStyle>]}
@@ -350,10 +380,16 @@ export function ProgressBar({
   fillColor?: string;
 }) {
   const clamped = Math.max(0, Math.min(100, percent));
-  const animatedStyle = useAnimatedStyle(
-    () => ({ width: withTiming(`${clamped}%`, { duration: 900 }) }),
-    [clamped],
-  );
+  // Starts empty so the bar fills on arrival as well as on change — a bar that
+  // is already full when the screen appears reads as decoration, not progress.
+  const fill = useSharedValue(0);
+  useEffect(() => {
+    fill.value = withTiming(clamped, {
+      duration: motion.xpFill,
+      easing: Easing.bezier(...motion.easeOut),
+    });
+  }, [clamped, fill]);
+  const animatedStyle = useAnimatedStyle(() => ({ width: `${fill.value}%` }));
 
   return (
     <View
@@ -381,6 +417,7 @@ export function ProgressBar({
 export function Avatar({
   initial,
   emoji,
+  ai,
   uri,
   size = 44,
   background = palette.green50,
@@ -391,6 +428,8 @@ export function Avatar({
   initial: string;
   /** App-owned emoji avatar (e.g. AI partners). Wins over `initial` when set. */
   emoji?: string;
+  /** An AI partner's id (roster or built-in rival) — draws its illustrated avatar. */
+  ai?: string;
   uri?: string | null;
   size?: number;
   background?: string;
@@ -399,6 +438,8 @@ export function Avatar({
   online?: boolean;
 }) {
   const borderRadius = square ? size * 0.32 : size / 2;
+  /* The app's AI characters are drawn, not emoji. */
+  const persona = uri ? null : (aiPersonaForId(ai) ?? aiPersonaForEmoji(emoji));
   return (
     <View>
       <View
@@ -414,6 +455,8 @@ export function Avatar({
       >
         {uri ? (
           <Image source={{ uri }} style={{ width: size, height: size }} contentFit="cover" />
+        ) : persona ? (
+          <AiAvatar persona={persona} size={size} />
         ) : emoji ? (
           <Text style={{ fontSize: size * 0.5 }}>{emoji}</Text>
         ) : (

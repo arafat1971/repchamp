@@ -15,12 +15,13 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { track } from '@/lib/analytics';
-import { ArrowIcon, BellIcon, DuelIcon, FlameIcon, GearIcon, LockIcon } from '@/components/home/Icons';
+import { ArrowIcon, BellIcon, DuelIcon, GearIcon, LockIcon, PlayIcon } from '@/components/home/Icons';
 import { HeroCard } from '@/components/home/HeroCard';
 import { ActiveNowRail } from '@/components/home/ActiveNowRail';
 import { HomeSectionHeader, homeSectionLink } from '@/components/home/HomeSectionHeader';
 import { DuoCard } from '@/components/home/DuoCard';
 import { InvitePartnerCard } from '@/components/home/InvitePartnerCard';
+import { WinBackCard } from '@/components/WinBackCard';
 import { HydrationCard } from '@/components/home/HydrationCard';
 import { StepsCard } from '@/components/home/StepsCard';
 import { TodayBento } from '@/components/home/TodayBento';
@@ -34,17 +35,16 @@ import { firstNameOf, selectHomeGreeting } from '@/domain/homeGreeting';
 import { dailyChallengeProgress } from '@/domain/dailyChallenge';
 import { myExerciseBreakdown, partnerWidget } from '@/domain/coupleExercises';
 import {
-  partnerGoalToday,
+  partnerGlassOf,
   partnerLastDrinkToday,
   nudgeAt,
-  partnerLayersToday,
   partnerRepsToday,
   partnerWaterRevToday,
   partnerHabitsToday,
   partnerStepsToday,
   partnerWaterToday,
 } from '@/domain/couple';
-import { drinksOnDay, hydrationProgress, stepGoalMl } from '@/domain/hydration';
+import { drinksOnDay, hydrationProgress, stepGoalMl , DEFAULT_DAILY_GOAL_ML } from '@/domain/hydration';
 import { lightImpactHaptic, playPopSound, selectionHaptic } from '@/lib/feedback';
 import { shareDrink, syncHydrationNow, syncRepsNow, syncStepsNow } from '@/services/hydrationSync';
 import { useStepsToday } from '@/state/useStepsToday';
@@ -62,7 +62,6 @@ import { refreshWeather } from '@/services/weather';
 import { meadow, weekWrap, wrapLine } from '@/domain/week';
 import { bondMonths, occasionFor, seasonFor } from '@/domain/season';
 import { duoStreak } from '@/domain/duoStreak';
-import { DEFAULT_DAILY_GOAL_ML } from '@/domain/hydration';
 import { HABITS, type Poke, cleanTicks, effectivePlan, morningCard, planHabits, ritualFor, ritualScore } from '@/domain/ritual';
 import { getExercise } from '@/vision/exercises';
 import { clearWidgetSnapshot, publishWidgetSnapshot, setTickleTarget } from '@/services/partnerWidget';
@@ -231,16 +230,10 @@ export default function HomeScreen() {
   /* The partner's glass on the Today card: present whenever paired, with
      `ml` null until they share water today — so the toast does not vanish
      every morning and reappear once they drink. */
-  const partnerGlass = useMemo(() => {
-    const name = couple.partner?.displayName;
-    if (!couple.paired || !name) return null;
-    return {
-      name,
-      ml: partnerWaterToday(couple.partner, today),
-      goalMl: partnerGoalToday(couple.partner, today),
-      layers: partnerLayersToday(couple.partner, today),
-    };
-  }, [couple.paired, couple.partner, today]);
+  const partnerGlass = useMemo(
+    () => partnerGlassOf(couple.paired, couple.partner, today),
+    [couple.paired, couple.partner, today],
+  );
 
   /* The partner's photo as their profile has it now — the couple doc's copy is
      a pairing-time snapshot, often empty or a path on their phone. */
@@ -379,8 +372,13 @@ export default function HomeScreen() {
   const surface = useWidgetStyleStore((st) => st.surface);
   const weatherNow = useWeatherStore((st) => st.now);
   /* Real weather, when switched on: refreshed on focus, at most half-hourly. */
+  /* When Home last came into focus. Unpaired, the minute clock does not tick
+     (nothing reads it), and tabs stay mounted for days — so the greeting's
+     hour is taken from whichever is later, the clock or the last focus. */
+  const [focusedAt, setFocusedAt] = useState(() => Date.now());
   useFocusEffect(
     useCallback(() => {
+      setFocusedAt(Date.now());
       void refreshWeather();
     }, []),
   );
@@ -578,9 +576,10 @@ export default function HomeScreen() {
     [coupleId, myUid],
   );
 
+  const greetingHour = new Date(Math.max(minute, focusedAt)).getHours();
   const greetingCopy = useMemo(
-    () => selectHomeGreeting({ streak, trainedToday, firstName }),
-    [streak, trainedToday, firstName],
+    () => selectHomeGreeting({ hour: greetingHour, streak, trainedToday, firstName }),
+    [greetingHour, streak, trainedToday, firstName],
   );
 
   const pushStats = useMemo(
@@ -700,8 +699,17 @@ export default function HomeScreen() {
     router.push({ pathname: '/session', params: { exercise, mode: 'practice' } });
   };
 
+  /* The hero's solo cases behind the rep wall. The daily challenge used to
+     open its modal and start a session that unmounted itself into the paywall
+     — the same bounce `startSolo` exists to prevent, on the biggest card. */
+  const heroLocked = soloWalled && (focus.kind === 'daily-challenge' || focus.kind === 'goal-met');
+
   const onHeroPress = () => {
     track('home_hero_tapped', { kind: focus.kind });
+    if (heroLocked) {
+      router.push({ pathname: '/modal/paywall', params: { source: 'rep-limit', hard: '1' } });
+      return;
+    }
     switch (focus.kind) {
       case 'first-session':
         return startSolo('push');
@@ -742,7 +750,8 @@ export default function HomeScreen() {
     <View style={{ flex: 1, backgroundColor: palette.canvas }}>
       <Screen style={{ backgroundColor: 'transparent' }} onRefresh={onRefresh} refreshing={refreshing}>
       {/* Top bar, app-style: avatar (level on it) and a two-line greeting on
-          the left, the streak flame and alerts on the right. One compact row
+          the left, alerts and settings on the right. The streak lives on its
+          tile just below — a second flame up here said the same number twice. One compact row
           instead of a third of the screen, so the hero lands above the fold. */}
       <View style={styles.header}>
         <PressableScale
@@ -765,7 +774,7 @@ export default function HomeScreen() {
             </View>
           </View>
           <View style={styles.levelBadge} accessibilityLabel={`Level ${level.level}`}>
-            <Text style={font('extrabold', 9.5, { color: palette.white })}>{level.level}</Text>
+            <Text style={font('extrabold', 10, { color: palette.white })}>{level.level}</Text>
           </View>
         </PressableScale>
 
@@ -781,15 +790,6 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.headerActions}>
-          <PopOnChange trigger={streak} style={[styles.streakPill, streak > 0 && styles.streakPillOn]}>
-            <FlameIcon size={15} color={streak > 0 ? palette.amber600 : palette.grey500} />
-            <Text
-              style={[font('extrabold', 14, { color: streak > 0 ? palette.amber800 : palette.grey600 }), styles.tabular]}
-              accessibilityLabel={`${streak} day streak`}
-            >
-              {streak}
-            </Text>
-          </PopOnChange>
           <BellButton
             pendingDuels={pendingDuels}
             onPress={() => router.push('/modal/notifications')}
@@ -816,7 +816,7 @@ export default function HomeScreen() {
       <View style={styles.afterWeek} />
 
       {morning && morning.show && partnerGlass ? (
-        <View style={styles.summaryGap}>
+        <View style={styles.morningGap}>
           <MorningCard
             name={partnerGlass.name}
             yesterday={morning.yesterday}
@@ -840,6 +840,7 @@ export default function HomeScreen() {
           onPress={onHeroPress}
           progress={{ value: daily.best, target: daily.target }}
           bonus={greetingCopy.bonus}
+          locked={heroLocked}
         />
       </StaggerIn>
 
@@ -870,8 +871,16 @@ export default function HomeScreen() {
         accessibilityLabel="Open your day feed"
         style={styles.feedEntry}
       >
-        <Text style={font('extrabold', 15, { color: palette.white })}>▶  Your day</Text>
-        <Text style={font('semibold', 13, { color: 'rgba(255,255,255,0.8)' })}>Swipe through it</Text>
+        <View style={styles.feedIcon}>
+          <PlayIcon size={15} color={palette.green700} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={font('bold', 14.5, { color: palette.ink })}>Your day</Text>
+          <Text style={font('medium', 12, { color: palette.grey700 })} numberOfLines={1}>
+            Swipe through today, one card at a time
+          </Text>
+        </View>
+        <ArrowIcon size={15} color={palette.grey500} strokeWidth={2.2} />
       </PressableScale>
 
       {/* The action people open the app for, straight under the hero rather
@@ -909,7 +918,8 @@ export default function HomeScreen() {
 
       {/* Faces to race, one tap from Home rather than a tab away. */}
       <StaggerIn index={2}>
-        <ActiveNowRail live={`${activity.count} ${activity.label.split(' ').pop()}`} />
+        <ActiveNowRail live={`${activity.count} ${activity.label.split(' ').pop()}`} showPairCard={!couple.paired && !couple.loading && !inviteCardShown && focus.kind !== 'invite-partner'}
+          soloWalled={soloWalled} />
       </StaggerIn>
 
       {/* The couple as one face-off — replaces the bond strip and the partner
@@ -952,13 +962,15 @@ export default function HomeScreen() {
           <HomeSectionHeader title="Together" />
           <InvitePartnerCard
             onInvite={() => {
-              track('invite_card_tapped');
+              track('invite_card_tapped', { source: 'card' });
               router.push('/modal/couple-invite');
             }}
             onDismiss={dismissInviteCard}
           />
         </StaggerIn>
       ) : null}
+
+      <WinBackCard />
 
       {/* Today's water as a filling glass and steps as a footprint trail, with
           drinks a tap away. */}
@@ -984,6 +996,14 @@ export default function HomeScreen() {
           incomingGesture={partnerGesture}
           suggestedGesture={suggestedGesture}
           duoStreak={partnerGlass ? duoDays : 0}
+          onPair={
+            couple.paired
+              ? undefined
+              : () => {
+                  track('invite_card_tapped', { source: 'hydration' });
+                  router.push('/modal/couple-invite');
+                }
+          }
         />
       </StaggerIn>
       <StaggerIn index={4}>
@@ -1177,7 +1197,7 @@ function QuickTile({
           >
             <Text
               style={font('bold', 10.5, {
-                color: locked ? palette.grey600 : deltaPositive ? accent : '#b91c1c',
+                color: locked ? palette.grey700 : deltaPositive ? accent : '#b91c1c',
               })}
             >
               {pillLabel}
@@ -1198,7 +1218,7 @@ function QuickTile({
               <Text style={font('semibold', 11.5, { color: palette.grey500 })}>today</Text>
             </View>
             {/* "Last 0 reps" said nothing — there was no last session to beat. */}
-            <Text style={font('medium', 11, { color: palette.grey600 })} numberOfLines={1}>
+            <Text style={font('medium', 11, { color: palette.grey700 })} numberOfLines={1}>
               {stats.lastBest > 0
                 ? `Best ${stats.lastBest}`
                 : stats.todayBest > 0
@@ -1218,6 +1238,10 @@ function QuickTile({
 const styles = StyleSheet.create({
   tabular: { fontVariant: ['tabular-nums'] },
   summaryGap: { marginBottom: 12 },
+  /* The morning card sits right above the hero, which has no top margin of
+     its own — at 12 the two read as one slab with the white card's corners
+     tucked under the green one. */
+  morningGap: { marginBottom: 20 },
   statusFade: { position: 'absolute', top: 0, left: 0, right: 0 },
 
   // Masthead
@@ -1227,7 +1251,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     gap: 12,
   },
-  dateEyebrow: { ...font('semibold', 13, { color: palette.grey600 }) },
+  dateEyebrow: { ...font('semibold', 13, { color: palette.grey700 }) },
   greetingName: {
     ...font('extrabold', 22, { color: palette.ink }),
     letterSpacing: -0.6,
@@ -1235,25 +1259,24 @@ const styles = StyleSheet.create({
   feedEntry: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 18,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    borderRadius: 18,
-    backgroundColor: palette.green600,
-  },
-  streakPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    height: 40,
-    paddingHorizontal: 12,
-    borderRadius: radius.pill,
+    gap: 12,
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: radius['4xl'],
     backgroundColor: palette.white,
     borderWidth: 1,
-    borderColor: 'rgba(15,31,23,0.08)',
+    borderColor: 'rgba(15,31,23,0.06)',
+    ...surfaceShadow,
   },
-  streakPillOn: { backgroundColor: '#FFF6E5', borderColor: 'rgba(249,115,22,0.22)' },
+  feedIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: palette.green50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   avatarRing: { width: 44, height: 44, borderRadius: 22, padding: 2, backgroundColor: palette.borderStrong },
   avatar: {
@@ -1290,9 +1313,9 @@ const styles = StyleSheet.create({
    */
   iconButton: {
     position: 'relative',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: palette.white,
     borderWidth: 1,
     borderColor: 'rgba(15,31,23,0.08)',

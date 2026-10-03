@@ -22,7 +22,7 @@ describe('nextStep / previousStep', () => {
   it('never goes below the welcome screen or past the offer', () => {
     expect(previousStep(0)).toBe(0);
     expect(previousStep(1)).toBe(0);
-    expect(nextStep(26)).toBe(26);
+    expect(nextStep(27)).toBe(27);
   });
 });
 
@@ -63,7 +63,7 @@ describe('resumeStep', () => {
   it('re-enters at reminders from the build screen onward, one tap from sign-in', () => {
     expect(resumeStep(BUILD_STEP)).toBe(REMINDERS_STEP);
     expect(resumeStep(PAYWALL_STEP)).toBe(REMINDERS_STEP);
-    expect(resumeStep(26)).toBe(REMINDERS_STEP);
+    expect(resumeStep(27)).toBe(REMINDERS_STEP);
   });
 
   it('falls back to the welcome screen for nonsense', () => {

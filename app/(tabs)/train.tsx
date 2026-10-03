@@ -437,69 +437,46 @@ function PracticeTile({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={locked ? `${title} — free reps used, see Pro` : `Practice ${title}`}
-      style={{ flex: 1 }}
     >
-      <LinearGradient
-        colors={[`${accent}24`, `${accent}0A`, palette.white]}
-        locations={[0, 0.55, 1]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0.4, y: 1 }}
-        style={styles.practiceTile}
-      >
-        <View style={styles.practiceTop}>
-          <View style={styles.practiceGlyph}>
-            <Image
-              source={exercise === 'squat' ? IC_SQUAT : IC_PUSHUP}
-              style={{ width: 38, height: 38 }}
-              contentFit="contain"
-            />
-          </View>
-          <View style={[styles.pbPill, locked && { backgroundColor: palette.divider }]}>
-            <Text
-              style={font('bold', 10.5, {
-                color: locked ? palette.grey600 : accent,
-              })}
-            >
-              {locked ? 'Free reps used' : pb > 0 ? `PB ${pb}` : 'No PB yet'}
+      <View style={styles.practiceRow}>
+        <View style={[styles.practiceGlyph, { backgroundColor: `${accent}1A` }]}>
+          <Image
+            source={exercise === 'squat' ? IC_SQUAT : IC_PUSHUP}
+            style={{ width: 40, height: 40 }}
+            contentFit="contain"
+          />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.practiceTitle} numberOfLines={1}>
+            {title}
+          </Text>
+          <Text style={[styles.practiceArea, { color: accent }]} numberOfLines={1}>
+            {area}
+          </Text>
+          <View style={styles.statRow}>
+            <View style={[styles.pbPill, { backgroundColor: locked ? palette.divider : `${accent}14` }]}>
+              <Text style={font('bold', 11, { color: locked ? palette.grey600 : accent })}>
+                {locked ? 'Free reps used' : pb > 0 ? `PB ${pb}` : 'No PB yet'}
+              </Text>
+            </View>
+            <Text style={font('semibold', 12, { color: palette.grey600 })}>
+              {todayBest > 0 ? `${todayBest} today` : 'Not yet today'}
             </Text>
           </View>
         </View>
-
-        <Text style={styles.practiceTitle} numberOfLines={1}>
-          {title}
-        </Text>
-        <Text style={[styles.practiceArea, { color: accent }]} numberOfLines={1}>
-          {area}
-        </Text>
-
-        <View style={styles.practiceFoot}>
-          <View style={{ flex: 1 }}>
-            <View style={styles.todayRow}>
-              <CountUp
-                value={todayBest}
-                duration={800}
-                style={[font('extrabold', 22, { color: palette.ink }), styles.tabular]}
-              />
-              <Text style={font('semibold', 11.5, { color: palette.grey500 })}>today</Text>
-            </View>
-          </View>
-          <View
-            style={[
-              styles.goButton,
-              {
-                backgroundColor: locked ? palette.grey500 : accent,
-                shadowColor: accent,
-              },
-            ]}
-          >
-            {locked ? (
-              <LockIcon size={15} color={palette.white} />
-            ) : (
-              <ArrowIcon size={15} color={palette.white} strokeWidth={2.4} />
-            )}
-          </View>
+        <View
+          style={[
+            styles.goButton,
+            { backgroundColor: locked ? palette.grey500 : accent, shadowColor: accent },
+          ]}
+        >
+          {locked ? (
+            <LockIcon size={16} color={palette.white} />
+          ) : (
+            <ArrowIcon size={16} color={palette.white} strokeWidth={2.4} />
+          )}
         </View>
-      </LinearGradient>
+      </View>
     </PressableScale>
   );
 }
@@ -817,52 +794,33 @@ const styles = StyleSheet.create({
   aiChipText: font('bold', 11.5, { color: palette.green700 }),
 
   // Practice tiles
-  tileRow: { flexDirection: 'row', gap: 12 },
-  practiceTile: {
+  tileRow: { gap: 10 },
+  practiceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    padding: 14,
     borderRadius: radius['4xl'],
-    padding: 12,
+    backgroundColor: palette.white,
     borderWidth: 1,
     borderColor: 'rgba(15,31,23,0.06)',
-    overflow: 'hidden',
-    backgroundColor: palette.white,
     ...surfaceShadow,
   },
-  practiceTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
   practiceGlyph: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    backgroundColor: palette.white,
+    width: 60,
+    height: 60,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pbPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: radius.pill,
-    backgroundColor: palette.white,
-  },
-  practiceTitle: {
-    ...font('extrabold', 16, { color: palette.ink }),
-    marginTop: 12,
-    letterSpacing: -0.3,
-  },
-  practiceArea: font('semibold', 11.5),
-  practiceFoot: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 8,
-    marginTop: 10,
-  },
-  todayRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
+  statRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
+  pbPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill },
+  practiceTitle: { ...font('extrabold', 17, { color: palette.ink }), letterSpacing: -0.3 },
+  practiceArea: font('semibold', 12),
   goButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     shadowOpacity: 0.35,

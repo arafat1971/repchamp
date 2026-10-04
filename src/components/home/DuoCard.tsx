@@ -11,7 +11,9 @@ import { font } from '@/theme/typography';
 import { palette } from '@/theme/tokens';
 
 /* You in green, them in pink; a day you both trained is both halves full. */
-const ME = IOS.green;
+/* The brand green, not the system one: beside the Train button and the hero
+   the brighter iOS green read as a second, slightly-off brand colour. */
+const ME = palette.green600;
 const THEM = IOS.duo;
 
 /**
@@ -214,8 +216,8 @@ const styles = StyleSheet.create({
 
   week: { flexDirection: 'row', gap: 2 },
   day: { alignItems: 'center', gap: 3 },
-  dayLetter: font('semibold', 8.5, { color: IOS.secondary }),
-  dayLetterToday: font('bold', 8.5, { color: IOS.label }),
+  dayLetter: font('semibold', 10, { color: IOS.secondary }),
+  dayLetterToday: font('bold', 10, { color: IOS.label }),
   dot: { width: DOT, height: DOT, borderRadius: DOT / 2, overflow: 'hidden', backgroundColor: IOS.fill },
   dotToday: { borderWidth: 1.5, borderColor: IOS.label },
   halves: { flex: 1, flexDirection: 'row' },
@@ -244,7 +246,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 38,
     borderRadius: 12,
-    backgroundColor: IOS.green,
+    backgroundColor: palette.green600,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -253,9 +255,9 @@ const styles = StyleSheet.create({
     height: 38,
     paddingHorizontal: 24,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,45,85,0.10)',
+    backgroundColor: IOS.fill,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  secondaryText: font('bold', 14, { color: THEM }),
+  secondaryText: font('bold', 14, { color: IOS.label }),
 });

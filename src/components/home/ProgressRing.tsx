@@ -106,6 +106,8 @@ export function ProgressRing({
           strokeLinecap="round"
           fill="none"
           strokeDasharray={circumference}
+          /* A zero-length dash with a round cap still paints a dot. */
+          opacity={target > 0 ? 1 : 0}
           animatedProps={animatedProps}
           transform={`rotate(-90 ${size / 2} ${size / 2})`}
         />

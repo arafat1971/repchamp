@@ -37,6 +37,7 @@ import { dayKey } from '@/domain/progression';
 import { dailyChallengeProgress } from '@/domain/dailyChallenge';
 import type { ExerciseId } from '@/vision/exercises';
 import { useIsPro } from '@/state/proStore';
+import { useFabStore } from '@/state/fabStore';
 import { canStartExercise } from '@/domain/pro';
 import { isWalled } from '@/domain/hardPaywall';
 import { isPurchasesConfigured } from '@/services/purchases';
@@ -445,8 +446,17 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
       : withSpring(open ? 1 : 0, { damping: 14, stiffness: 220 });
   }, [open, spin, reduced]);
 
+  /* Tucked away while Home scrolls down, so it stops sitting on the content
+     being read. Never while the menu is open — the × has to stay reachable. */
+  const tucked = useFabStore((s) => s.tucked) && !open;
+  const tuck = useSharedValue(0);
+  useEffect(() => {
+    tuck.value = withTiming(tucked ? 1 : 0, { duration: reduced ? motion.fast : 200 });
+  }, [tucked, tuck, reduced]);
+
   const scaleStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: entered.value * breathe.value * focusScale.value }],
+    opacity: 1 - tuck.value,
+    transform: [{ translateY: tuck.value * 96 }, { scale: entered.value * breathe.value * focusScale.value }],
   }));
 
   const glowStyle = useAnimatedStyle(() => ({
@@ -648,7 +658,10 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
       </Modal>
 
 
-      <Animated.View style={[styles.fabContainer, { bottom: bottomPosition }, scaleStyle]}>
+      <Animated.View
+        style={[styles.fabContainer, { bottom: bottomPosition }, scaleStyle]}
+        pointerEvents={tucked ? 'none' : 'box-none'}
+      >
         <Animated.View style={glowStyle}>
           <TouchableOpacity
             activeOpacity={0.85}

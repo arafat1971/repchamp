@@ -92,6 +92,7 @@ import { useEffectivePro, useProStore } from '@/state/proStore';
 import { isPurchasesConfigured } from '@/services/purchases';
 import { isWalled } from '@/domain/hardPaywall';
 import { useCouple } from '@/state/useCouple';
+import { useFabStore } from '@/state/fabStore';
 import { usePublicAvatar } from '@/state/usePublicAvatar';
 import { useIncomingDuelCount } from '@/state/useIncomingDuelCount';
 import { useLiveActivityCount } from '@/state/useLiveActivityCount';
@@ -380,6 +381,8 @@ export default function HomeScreen() {
     useCallback(() => {
       setFocusedAt(Date.now());
       void refreshWeather();
+      // Leaving Home always hands the Train button back to the other tabs.
+      return () => useFabStore.getState().setTucked(false);
     }, []),
   );
   /* The morning card: once a morning, paired, with yesterday as this phone saw it. */
@@ -748,7 +751,7 @@ export default function HomeScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: palette.canvas }}>
-      <Screen style={{ backgroundColor: 'transparent' }} onRefresh={onRefresh} refreshing={refreshing}>
+      <Screen style={{ backgroundColor: 'transparent' }} onRefresh={onRefresh} refreshing={refreshing} tuckFabOnScroll>
       {/* Top bar, app-style: avatar (level on it) and a two-line greeting on
           the left, alerts and settings on the right. The streak lives on its
           tile just below — a second flame up here said the same number twice. One compact row
@@ -839,7 +842,9 @@ export default function HomeScreen() {
           focus={focus}
           onPress={onHeroPress}
           progress={{ value: daily.best, target: daily.target }}
-          bonus={greetingCopy.bonus}
+          /* The chip names the daily challenge's reward; on "Your first set"
+             it promised XP "for clearing it" with nothing to clear. */
+          bonus={focus.kind === 'daily-challenge' ? greetingCopy.bonus : null}
           locked={heroLocked}
         />
       </StaggerIn>

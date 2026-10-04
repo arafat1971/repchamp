@@ -182,8 +182,9 @@ function Ring({
 }) {
   return (
     <View style={[StyleSheet.absoluteFill, styles.ringSlot]} pointerEvents="none">
-      {/* Floored at 1% so an empty ring still shows its start dot. */}
-      <ProgressRing percent={Math.max(1, percent)} size={size} thickness={THICK} from={tone.from} to={tone.to} track={tone.track} />
+      {/* An empty ring is just its track. Three start dots stacked at twelve
+          o'clock read as a glitch, not as three rings waiting. */}
+      <ProgressRing percent={percent} size={size} thickness={THICK} from={tone.from} to={tone.to} track={tone.track} />
     </View>
   );
 }

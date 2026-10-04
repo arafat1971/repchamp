@@ -31,6 +31,7 @@ export function HealthCard({
   title,
   tint,
   trailing,
+  accessory,
   onPress,
   accessibilityLabel,
   children,
@@ -39,6 +40,8 @@ export function HealthCard({
   title: string;
   tint: string;
   trailing?: string;
+  /** A small control after the status — an info button, say. */
+  accessory?: ReactNode;
   onPress?: () => void;
   accessibilityLabel?: string;
   children: ReactNode;
@@ -56,6 +59,7 @@ export function HealthCard({
               {trailing}
             </Text>
           ) : null}
+          {accessory ?? null}
           {onPress ? <Text style={styles.chevron}>›</Text> : null}
         </View>
       </View>

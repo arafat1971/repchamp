@@ -76,9 +76,9 @@ export function TodayBento({
         onPress={onChallenge}
         accessibilityRole="button"
         accessibilityLabel={`Today: ${closed} of 3 goals closed`}
-        style={styles.left}
+        style={[styles.tile, styles.ringsTile, styles.left]}
       >
-        <View style={[styles.tile, styles.ringsTile]}>
+        <>
           <View style={styles.tileHead}>
             <Text style={styles.tileLabel}>Today</Text>
             <Text style={styles.tileMeta}>{closed}/3</Text>
@@ -109,7 +109,7 @@ export function TodayBento({
               />
             )}
           </View>
-        </View>
+        </>
       </PressableScale>
 
       <View style={styles.right}>
@@ -118,9 +118,9 @@ export function TodayBento({
           onPress={onStreak}
           accessibilityRole="button"
           accessibilityLabel={`${streak} day streak, ${daysTrained} of ${goal} days this week`}
-          style={styles.flex}
+          style={[styles.tile, styles.streakTile]}
         >
-          <View style={[styles.tile, styles.streakTile]}>
+          <>
             <View style={styles.bigRow}>
               <PopOnChange trigger={streak} style={styles.flameBubble}>
                 <FlameIcon size={15} color={streak > 0 ? palette.amber300 : palette.grey500} />
@@ -137,7 +137,7 @@ export function TodayBento({
                   ? `Weekly goal met · ${daysTrained}/${goal}`
                   : `${daysTrained}/${goal} this week · ${daysToGoal} to go`}
             </Text>
-          </View>
+          </>
         </PressableScale>
 
         {/* League tile */}
@@ -145,9 +145,9 @@ export function TodayBento({
           onPress={onLeague}
           accessibilityRole="button"
           accessibilityLabel={`League ${league.title}, ${league.weeklyXp} XP this week`}
-          style={styles.flex}
+          style={[styles.tile, styles.leagueTile]}
         >
-          <View style={[styles.tile, styles.leagueTile]}>
+          <>
             <View style={styles.leagueName}>
               <Image source={MEDAL_BRONZE} style={styles.medal} contentFit="contain" />
               <Text style={font('extrabold', 13.5, { color: palette.ink, letterSpacing: -0.2, flex: 1 })} numberOfLines={1}>
@@ -164,7 +164,7 @@ export function TodayBento({
                 ? `${league.xpToNext.toLocaleString()} to ${league.nextLeague.name}`
                 : 'Top league'}
             </Text>
-          </View>
+          </>
         </PressableScale>
       </View>
     </View>
@@ -236,7 +236,7 @@ function compact(n: number): string {
 }
 
 const styles = StyleSheet.create({
-  grid: { flexDirection: 'row', gap: 12, marginTop: 12 },
+  grid: { flexDirection: 'row', alignItems: 'stretch', gap: 12, marginTop: 12 },
   left: { flex: 1.08 },
   right: { flex: 1, gap: 12 },
   flex: { flex: 1 },

@@ -1306,7 +1306,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  afterWeek: { height: 10 },
+  afterWeek: { height: 0 },
   /**
    * Single-purpose circular control — one icon, one action. The border is
    * deliberately stronger than `palette.border`, which vanished on the canvas.

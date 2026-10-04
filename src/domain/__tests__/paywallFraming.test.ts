@@ -93,7 +93,7 @@ describe('commitmentLine', () => {
 
   it('does not claim a trial when the label is missing', () => {
     expect(commitmentLine(true, null)).toBe(
-      'Cancel anytime · Keep the free staples either way',
+      'Cancel anytime in Google Play · Couple mode stays free either way',
     );
   });
 });

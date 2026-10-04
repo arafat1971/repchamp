@@ -6,7 +6,6 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSequence,
-  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 
@@ -146,7 +145,7 @@ export function TogetherStep({ onNext }: { onNext: () => void }) {
                     {h.label}
                   </Text>
                   {on ? (
-                    <Animated.View entering={ZoomIn.springify()} style={styles.check}>
+                    <Animated.View entering={ZoomIn.duration(320)} style={styles.check}>
                       <Text style={styles.checkMark}>✓</Text>
                     </Animated.View>
                   ) : null}
@@ -201,7 +200,7 @@ export function TogetherStep({ onNext }: { onNext: () => void }) {
 function SpringFill({ value }: { value: number }) {
   const w = useSharedValue(0);
   useEffect(() => {
-    w.value = withSpring(value, { damping: 14, stiffness: 120 });
+    w.value = withTiming(value, { duration: 300 });
   }, [value, w]);
   const style = useAnimatedStyle(() => ({ width: `${w.value * 100}%` }));
   return <Animated.View style={[styles.fill, style]} />;
@@ -215,7 +214,7 @@ function Floater({ id, emoji, onDone }: { id: number; emoji: string; onDone: (id
   const [x] = useState(() => (Math.random() - 0.5) * 90);
 
   useEffect(() => {
-    s.value = withSpring(1.3);
+    s.value = withTiming(1.3, { duration: 250 });
     o.value = withSequence(withTiming(1, { duration: 120 }), withTiming(0, { duration: 1100 }));
     y.value = withTiming(-70, { duration: 1250 });
     // Removal happens on the JS thread, after the animation has finished.

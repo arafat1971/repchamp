@@ -143,11 +143,12 @@ Every exercise is bodyweight. No gym, no dumbbells, no subscription box — your
 phone, some floor space, and a few minutes.
 
 WHAT YOU GET FREE
-Push-ups and squats, unlimited. Duels, couples mode, leaderboards, streaks and
-badges — all included, no trial timer.
+Try it free: your first 50 reps, no card needed. Couples mode is free, always.
+Leaderboards, streaks and badges are included.
 
-REPCHAMP PRO
-Unlocks the full exercise library: lunges, sit-ups, glute bridges, pike
+REPCHAMP PRO (auto-renewing monthly subscription, price shown in the app and
+Google Play before you pay; cancel any time in Google Play)
+Keeps you training past the free reps and unlocks the full exercise library: lunges, sit-ups, glute bridges, pike
 push-ups, high knees, jumping jacks, shoulder rolls and full-body stretches.
 
 YOUR VIDEO NEVER LEAVES YOUR PHONE

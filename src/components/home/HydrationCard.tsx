@@ -413,7 +413,9 @@ export function HydrationCard({
                     outfit="hoodie"
                     mirrored
                     phase={phase}
-                    paused={!animating}
+                    /* A veiled placeholder: it never needs to move, and a live
+                       jar here doubled the card's per-frame repaint. */
+                    paused
                     sipKey={0}
                     mood="sleepy"
                   />

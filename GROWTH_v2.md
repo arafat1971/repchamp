@@ -7,9 +7,9 @@ in code** and **what needs your business decisions**.
 
 ## The model (current, revised 2026-10-07)
 
-**Hard rep wall, couple mode exempt, annual-with-trial as the default offer.**
+**Hard rep wall, couple mode exempt, annual as the default offer. No free trial (owner decision, 2026-10-07).**
 - **Free download.** The only charge is the subscription (weekly / monthly / annual).
-- **Wall:** 50 free lifetime reps (`FREE_REP_LIMIT`), then training stops until Pro.
+- **Wall:** 0 free reps (`FREE_REP_LIMIT = 0`, owner decision 2026-10-07): a true hard paywall, the first solo set is walled. Dismissible to Home, never an inescapable loop (Play rejected that shape).
   Pro, couple mode and `billingReady === false` are exempt (`src/domain/hardPaywall.ts`).
 - **Free forever:** couple mode / together sets / invites. This is the viral loop; never wall a guest.
 - **Annual is the default selection** on the paywall; weekly exists as a price anchor, not the push.
@@ -20,8 +20,9 @@ in code** and **what needs your business decisions**.
 - The earlier note here ("a hard wall converts almost nobody") was wrong for this category.
 
 ### Open items (owner action, not code)
-1. **Free trial on annual** (3-7 days): Play Console -> `annual-auto` -> add offer, new customers,
-   free trial. The paywall already shows "Start free trial" + timeline when the product carries one.
+1. **No free trial.** Do not add an intro offer in Play Console. The paywall only shows trial copy
+   when a product carries one, so nothing in code needs changing. (Benchmarks favour trials in
+   Health & Fitness, so revisit if paywall-to-subscribe is weak.)
 2. **Device purchase test** of `annual-auto` with a licence tester; confirm Pro unlocks.
    (Code now falls back to any active entitlement if the RevenueCat id is not `pro`.)
 3. **Review the funnel after 2-3 weeks** (see below) before touching `HARD_WALL_ENABLED` again.
@@ -30,7 +31,7 @@ in code** and **what needs your business decisions**.
 PostHog events, source `rep-limit`: `paywall_shown` -> `paywall_dismissed` / `purchase_cancelled` /
 `purchase_failed` -> `trial_started` / `subscribed`.
 - Keep the wall if paywall-to-trial/subscribe is healthy and D7 retention of free users is not collapsing.
-- Raise `FREE_REP_LIMIT` (not remove the wall) if most dismissals happen before a first streak or form report.
+- Raise `FREE_REP_LIMIT` above 0 (not remove the wall) if most dismissals happen before a first streak or form report.
 - Only reverse if dismissals dominate AND D1/D7 retention is clearly worse than before 2026-09-20.
 
 ---

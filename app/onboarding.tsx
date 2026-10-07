@@ -2818,7 +2818,9 @@ function Paywall({
       <Text style={[text.captionMd, { textAlign: 'center', marginTop: 12 }]}>
         {selected
           ? renewDisclosure(selected)
-          : `Start free with ${FREE_REP_LIMIT} reps. Couple mode is always free.`}
+          : FREE_REP_LIMIT > 0
+            ? `Start free with ${FREE_REP_LIMIT} reps. Couple mode is always free.`
+            : 'Couple mode is always free.'}
       </Text>
     </ScrollView>
 

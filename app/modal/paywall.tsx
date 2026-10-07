@@ -80,7 +80,10 @@ const BENEFITS: Record<BenefitId, { title: string; detail: string }> = {
   },
   'free-staples': {
     title: 'Free to start',
-    detail: `${FREE_REP_LIMIT} free reps to try it, and couple mode is free forever`,
+    detail:
+      FREE_REP_LIMIT > 0
+        ? `${FREE_REP_LIMIT} free reps to try it, and couple mode is free forever`
+        : 'Couple mode is free forever',
   },
 };
 
@@ -356,7 +359,7 @@ export default function PaywallScreen() {
   });
   const order = orderBenefits(params.source);
   const leadBenefit = blockedBenefit(params.source);
-  const wallPct = Math.min(1, totalReps / FREE_REP_LIMIT);
+  const wallPct = FREE_REP_LIMIT > 0 ? Math.min(1, totalReps / FREE_REP_LIMIT) : 1;
 
   /* A slow breathing pulse on the button: the one thing on the screen that
      moves, so the eye ends up there. Small enough not to read as a gimmick. */
@@ -420,7 +423,11 @@ export default function PaywallScreen() {
               {fromRepWall ? (
                 <View
                   style={styles.wallTrack}
-                  accessibilityLabel={`${totalReps} of ${FREE_REP_LIMIT} free reps used`}
+                  accessibilityLabel={
+                    FREE_REP_LIMIT > 0
+                      ? `${totalReps} of ${FREE_REP_LIMIT} free reps used`
+                      : 'Free reps used'
+                  }
                 >
                   <View style={[styles.wallFill, { width: `${Math.round(wallPct * 100)}%` }]} />
                 </View>

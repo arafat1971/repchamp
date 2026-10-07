@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Children, forwardRef, useEffect, type ReactNode } from 'react';
+import { Children, forwardRef, useEffect, useState, type ReactNode } from 'react';
 import {
   Pressable,
   RefreshControl,
@@ -30,9 +30,11 @@ import { scaleFor, scaleForRole, text } from '@/theme/typography';
 import { gradients, motion, palette, radius, shadow, space, SCREEN_GUTTER, type Gradient } from '@/theme/tokens';
 import { lightImpactHaptic } from '@/lib/feedback';
 import { AiAvatar, aiPersonaForEmoji, aiPersonaForId } from './AiAvatar';
+import { createViewportPing, ViewportPingContext } from './useOnScreen';
 
 export { Skeleton, SkeletonCircle } from './Skeleton';
 export { Spinner } from './Spinner';
+export { useOnScreen } from './useOnScreen';
 export { EmptyState, ErrorState } from './EmptyState';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -70,6 +72,7 @@ export function Screen({
   refreshing?: boolean;
 }) {
   const insets = useSafeAreaInsets();
+  const [viewport] = useState(createViewportPing);
   /*
    * Bottom clearance keeps the floating Train FAB off the last tiles.
    *
@@ -107,10 +110,15 @@ export function Screen({
   }
 
   return (
+    <ViewportPingContext.Provider value={viewport}>
     <ScrollView
       style={[styles.screen, style]}
       contentContainerStyle={[styles.screenContent, padding, contentStyle]}
       showsVerticalScrollIndicator={false}
+      // Tells rows that scrolled out of view (see `useOnScreen`) to re-measure,
+      // so endless animation can stop while nobody can see it.
+      onScroll={() => viewport.ping()}
+      scrollEventThrottle={100}
       // Lets a horizontal child (the home hero carousel) keep its own gesture
       // rather than having this vertical scroll claim it.
       directionalLockEnabled
@@ -146,6 +154,7 @@ export function Screen({
           ))
         : children}
     </ScrollView>
+    </ViewportPingContext.Provider>
   );
 }
 

@@ -410,8 +410,13 @@ export function PandaJar({
   const furLiftVel = useSharedValue(0);
   const furClock = useSharedValue(0);
   const lastHead = useSharedValue(0);
+  const furAcc = useSharedValue(0);
   const furFrame = useFrameCallback((frame) => {
-    const dt = Math.min(0.05, (frame.timeSincePreviousFrame ?? 16) / 1000);
+    // ~30 Hz: the tuft is a slow spring, and every step repaints the jar.
+    furAcc.value += (frame.timeSincePreviousFrame ?? 16) / 1000;
+    if (furAcc.value < 1 / 30) return;
+    const dt = Math.min(0.05, furAcc.value);
+    furAcc.value = 0;
     furClock.value += dt;
     const headAngle = (idle.value - 0.5) * sway + tilt.value * 11 + lift.value * 5 + Math.sin(hop.value * Math.PI * 3) * 4 * hop.value;
     const headVel = (headAngle - lastHead.value) / Math.max(dt, 0.001);

@@ -41,12 +41,13 @@ import { GoogleMark } from '@/components/GoogleMark';
 import { BarChart } from '@/components/charts/BarChart';
 import { GrowthChart } from '@/components/charts/GrowthChart';
 import { ProgressRing } from '@/components/session/ProgressRing';
-import { Card as BaseCard, PressableScale, Spinner } from '@/components/ui';
+import { Avatar, Card as BaseCard, PressableScale, Spinner } from '@/components/ui';
 import { captureError } from '@/lib/crash';
 import { pluralise } from '@/domain/plural';
 import { OPPONENTS } from '@/domain/opponent';
 import { FREE_REP_LIMIT } from '@/domain/hardPaywall';
 import { reminderTapIsWalled } from '@/domain/reminderRoute';
+import { preferredHourFor } from '@/domain/reminderSchedule';
 import { track } from '@/lib/analytics';
 import { onboardingProgressPercent, onboardingStepName } from '@/domain/onboardingFunnel';
 import {
@@ -58,18 +59,36 @@ import {
   AFTER_PAYWALL_STEP,
   BUILD_STEP,
   PAYWALL_STEP,
+  PHOTO_STEP,
+  PRICE_WHY_STEP,
+  REMINDERS_STEP,
   SIGN_IN_STEP,
+  USERNAME_STEP,
   afterSignInStep,
   barPercent,
   nextStep,
   previousStep,
   resumeStep,
+  stepIdAt,
+  type Circle,
+  type FlowAnswers,
 } from '@/domain/onboardingNav';
 import { PENDING_INVITE_KEY, parseInvite } from '@/domain/pendingInvite';
 import { storage } from '@/lib/storage';
 import {
+  AnswerChips,
+  FeelStep,
+  FriendsPitch,
+  PriceWhyStep,
+  StylesStep,
+  TrainWithStep,
+  WhenStep,
+  YogaPitch,
+} from '@/components/onboarding/Steps';
+import {
   Aurora,
   ChoiceRow,
+  Eyebrow,
   ChoiceTile,
   InsetGroup,
   InsetRow,
@@ -200,7 +219,9 @@ export default function OnboardingScreen() {
   const [draft] = useState(() =>
     firstRun ? parseDraft(storage.getString(ONBOARDING_DRAFT_KEY), Date.now()) : null,
   );
-  const [step, setStep] = useState(() => (draft ? resumeStep(draft.step) : 0));
+  const [step, setStep] = useState(() =>
+    draft ? resumeStep(draft.step, { circle: draft.circle, styles: draft.styles }) : 0,
+  );
   /* True when sign-in was reached by the "Already have an account?" link rather
      than by walking the flow. Someone who jumped forward has not answered the
      goal, frequency or reminder questions yet, so completing sign-in has to
@@ -222,16 +243,26 @@ export default function OnboardingScreen() {
   const [weeklyGoal, setWeeklyGoal] = useState(draft?.weeklyGoal ?? 4);
   const [buildPercent, setBuildPercent] = useState(0);
   const [plan, setPlan] = useState<'year' | 'month'>(draft?.plan ?? 'year');
+  /* The new questions. Each answer is kept, shown back to the athlete later,
+     and — for the last two — decides which screens they see at all. */
+  const [feel, setFeel] = useState<string | null>(draft?.feel ?? null);
+  const [circle, setCircle] = useState<Circle | null>(draft?.circle ?? null);
+  const [styleIds, setStyleIds] = useState<string[]>(draft?.styles ?? []);
+  const [when, setWhen] = useState<string | null>(draft?.when ?? null);
+  const answers = useMemo<FlowAnswers>(() => ({ circle, styles: styleIds }), [circle, styleIds]);
 
   /* `next` is bound to the step it was rendered for. An option tap calls it
      right after setting its answer, and a second quick tap — or a slow
      username check finishing twice — used to advance two screens, skipping one
      the athlete never saw. Only the first call for a given step moves. */
-  const next = useCallback(
-    () =>
+  const advance = useCallback(
+    (override?: Partial<FlowAnswers>) =>
       setStep((s) => {
         if (s !== step) return s;
-        const target = nextStep(s);
+        /* The answer just given is not in `answers` yet — state has not
+           re-rendered — so a choice passes itself in. Without it, picking
+           "my partner" would skip the screen about partners. */
+        const target = nextStep(s, { ...answers, ...override });
         /* Already signed in with Google — e.g. via "Already have an account?"
            earlier — so asking again would loop them through sign-in twice. */
         const user = useAuthStore.getState().user;
@@ -240,15 +271,18 @@ export default function OnboardingScreen() {
         }
         return target;
       }),
-    [step],
+    [step, answers],
   );
-  /* Steps 12 (AI coach) and 13 (couple mode) restate what screens 1 and 3
-     already showed, and sit between the athlete's answers and the plan they
-     were promised. They stay in the file so the funnel names line up, and
-     navigation steps over them in both directions. */
-  const back = useCallback(() => setStep((s) => previousStep(s)), []);
+  /* A plain "continue": it ignores whatever it is called with, so it is safe
+     to hand to an onPress that passes the press event. */
+  const next = useCallback(() => advance(), [advance]);
+  /* The AI-coach and couple-mode screens are branches now: they appear only
+     for an athlete who said they want a coach or a partner, and navigation
+     steps over them in both directions otherwise (see `onboardingNav`). */
+  const back = useCallback(() => setStep((s) => previousStep(s, answers)), [answers]);
   const afterSignIn = useCallback(
-    () => setStep((s) => (s === 20 ? afterSignInStep(useProStore.getState().isPro) : s)),
+    () =>
+      setStep((s) => (s === SIGN_IN_STEP ? afterSignInStep(useProStore.getState().isPro) : s)),
     [],
   );
 
@@ -259,9 +293,25 @@ export default function OnboardingScreen() {
     if (!firstRun || step < 1) return;
     storage.set(
       ONBOARDING_DRAFT_KEY,
-      serializeDraft({ step, username, avatarUri, goal, level, blocker, weeklyGoal, plan }, Date.now()),
+      serializeDraft(
+        {
+          step,
+          username,
+          avatarUri,
+          goal,
+          level,
+          blocker,
+          weeklyGoal,
+          plan,
+          feel,
+          circle,
+          styles: styleIds,
+          when,
+        },
+        Date.now(),
+      ),
     );
-  }, [firstRun, step, username, avatarUri, goal, level, blocker, weeklyGoal, plan]);
+  }, [firstRun, step, username, avatarUri, goal, level, blocker, weeklyGoal, plan, feel, circle, styleIds, when]);
 
   /* A subscriber signing in on a new phone should not be offered the paywall:
      Pro can land a moment after sign-in, so skip it if it arrives while the
@@ -269,7 +319,7 @@ export default function OnboardingScreen() {
   const isPro = useProStore((st) => st.isPro);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (step === PAYWALL_STEP && isPro) setStep(AFTER_PAYWALL_STEP);
+    if ((step === PAYWALL_STEP || step === PRICE_WHY_STEP) && isPro) setStep(AFTER_PAYWALL_STEP);
   }, [step, isPro]);
 
   /* Android's back button used to leave the app mid-flow. Where the on-screen
@@ -311,6 +361,9 @@ export default function OnboardingScreen() {
       fitnessLevel: level,
       blocker,
     });
+    /* What they said about when they train stands in for the learned hour
+       until their own sessions show a habit — see `reminderHourFor`. */
+    useProfileStore.getState().setPreferredHour(preferredHourFor(when));
     track('onboarding_completed', { weeklyGoal });
     storage.remove(ONBOARDING_DRAFT_KEY);
     // Upload local photo first — pushProfile strips non-HTTPS URLs, so a bare
@@ -363,18 +416,18 @@ export default function OnboardingScreen() {
     });
     if (walled) return;
     router.push({ pathname: '/session', params: { exercise: 'push', mode: 'practice' } });
-  }, [completeOnboarding, username, weeklyGoal, avatarUri, level, blocker, router]);
+  }, [completeOnboarding, username, weeklyGoal, avatarUri, level, blocker, when, router]);
 
   /* Build-profile progress animation (step 10). */
   useEffect(() => {
-    if (step !== 18) return;
+    if (step !== BUILD_STEP) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setBuildPercent(0);
     const id = setInterval(() => {
       setBuildPercent((p) => {
         if (p >= 100) {
           clearInterval(id);
-          setTimeout(() => setStep((s) => (s === 18 ? 19 : s)), 650);
+          setTimeout(() => setStep((s) => (s === BUILD_STEP ? REMINDERS_STEP : s)), 650);
           return 100;
         }
         return p + 2;
@@ -407,7 +460,8 @@ export default function OnboardingScreen() {
     setPrevStep(step);
     setGoingBack(step < prevStep);
   }
-  const progressPercent = barPercent(step);
+  const progressPercent = barPercent(step, answers);
+  const id = stepIdAt(step);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -431,14 +485,23 @@ export default function OnboardingScreen() {
         entering={(goingBack ? FadeInLeft : FadeInRight).duration(340)}
         style={styles.stepWrap}
       >
-        {step === 0 ? <Welcome onNext={next} /> : null}
-        {step === 1 ? <Showcase onNext={next} /> : null}
-        {step === 2 ? (
+        {id === 'welcome' ? <Welcome onNext={next} /> : null}
+        {id === 'showcase' ? <Showcase onNext={next} /> : null}
+        {id === 'feel' ? (
+          <FeelStep
+            selected={feel}
+            onSelect={(v) => {
+              setFeel(v);
+              next();
+            }}
+          />
+        ) : null}
+        {id === 'value-counts-reps' ? (
           <ValueScreen
             eyebrow="AI REP COUNTING"
             eyebrowTint={palette.green50}
             title={'Every rep,\ncounted for you'}
-            body="On-device pose tracking follows your body and counts each clean rep the moment you do it."
+            body="Your camera counts each clean rep the moment you do it."
             points={[
               { icon: '🎯', title: 'Real-time count', sub: 'Reps tick up as you move' },
               { icon: '📐', title: 'Form feedback', sub: 'Depth and tempo, checked live' },
@@ -449,12 +512,12 @@ export default function OnboardingScreen() {
             onNext={next}
           />
         ) : null}
-        {step === 3 ? (
+        {id === 'value-couple' ? (
           <ValueScreen
             eyebrow="TRAIN AS TWO"
             eyebrowTint="#ffe4e6"
             title="Nobody quits alone"
-            body="Pair up and your streak becomes theirs too. Skipping stops being a private decision."
+            body="Pair up and your streak becomes theirs. Skipping stops being private."
             points={[
               { icon: '🐼', title: 'Couple mode', sub: 'One shared streak, two phones' },
               { icon: '⚔️', title: 'Live duels', sub: 'Race a rival rep-for-rep' },
@@ -465,12 +528,12 @@ export default function OnboardingScreen() {
             onNext={next}
           />
         ) : null}
-        {step === 4 ? (
+        {id === 'value-ranks' ? (
           <ValueScreen
             eyebrow="CLIMB THE RANKS"
             eyebrowTint={palette.amber50}
             title={'Every rep counts\nfor something'}
-            body="Sets earn XP, XP moves you up a league, and the board resets every Monday. There is always something to chase."
+            body="Sets earn XP. XP moves you up a league. The board resets every Monday."
             points={[
               { icon: '🏆', title: 'Weekly leagues', sub: 'Bronze to the top tier' },
               { icon: '⚡', title: 'Earn XP', sub: 'Every rep moves you up' },
@@ -481,7 +544,7 @@ export default function OnboardingScreen() {
             onNext={next}
           />
         ) : null}
-        {step === 5 ? (
+        {id === 'username' ? (
           <Username
             value={username}
             error={usernameError}
@@ -492,7 +555,7 @@ export default function OnboardingScreen() {
             onSignIn={() => {
               setUsernameError(null);
               setCameToSignInEarly(true);
-              setStep(20);
+              setStep(SIGN_IN_STEP);
             }}
             onNext={() => {
               const err = usernameValidationError(username);
@@ -524,10 +587,10 @@ export default function OnboardingScreen() {
             }}
           />
         ) : null}
-        {step === 6 ? (
+        {id === 'photo' ? (
           <Photo username={username} avatarUri={avatarUri} onPick={pickPhoto} onNext={next} />
         ) : null}
-        {step === 7 ? (
+        {id === 'goal' ? (
           <Goal
             selected={goal}
             onSelect={(id) => {
@@ -536,13 +599,40 @@ export default function OnboardingScreen() {
             }}
           />
         ) : null}
-        {step === 8 ? (
+        {id === 'train-with' ? (
+          <TrainWithStep
+            selected={circle}
+            onSelect={(v) => {
+              setCircle(v);
+              advance({ circle: v });
+            }}
+          />
+        ) : null}
+        {id === 'friends-pitch' ? <FriendsPitch username={username} onNext={next} /> : null}
+        {id === 'styles' ? (
+          <StylesStep
+            selected={styleIds}
+            onChange={setStyleIds}
+            onNext={(ids) => advance({ styles: ids })}
+          />
+        ) : null}
+        {id === 'yoga-pitch' ? <YogaPitch onNext={next} /> : null}
+        {id === 'when' ? (
+          <WhenStep
+            selected={when}
+            onSelect={(v) => {
+              setWhen(v);
+              next();
+            }}
+          />
+        ) : null}
+        {id === 'frequency' ? (
           <Frequency value={weeklyGoal} onChange={setWeeklyGoal} onNext={next} />
         ) : null}
         {/* Two qualifying questions — both genuinely change what follows: the
             level scales the first-week target, the blocker picks which feature
             the app leads with. */}
-        {step === 9 ? (
+        {id === 'experience' ? (
           <QuestionStep
             eyebrow="YOUR STARTING POINT"
             eyebrowTint={palette.green50}
@@ -556,7 +646,7 @@ export default function OnboardingScreen() {
             }}
           />
         ) : null}
-        {step === 10 ? (
+        {id === 'blocker' ? (
           <QuestionStep
             eyebrow="THE HONEST ONE"
             eyebrowTint={palette.amber50}
@@ -571,16 +661,23 @@ export default function OnboardingScreen() {
           />
         ) : null}
         {/* The answer to what they just told us blocks them. */}
-        {step === 11 ? <YourAntidote blocker={blocker} onNext={next} /> : null}
-        {step === 12 ? <AiCoach onNext={next} /> : null}
-        {step === 13 ? <CoupleMode onNext={next} /> : null}
+        {id === 'antidote' ? <YourAntidote blocker={blocker} onNext={next} /> : null}
+        {id === 'coach-pitch' ? <AiCoach onNext={next} /> : null}
+        {id === 'couple-pitch' ? <CoupleMode onNext={next} /> : null}
         {/* Personalised trio — each reflects the answers just given, turning
             them into a concrete plan instead of discarding them. */}
-        {step === 14 ? <YourPlan goal={goal} weeklyGoal={weeklyGoal} onNext={next} /> : null}
-        {step === 15 ? (
+        {id === 'your-plan' ? (
+          <YourPlan
+            goal={goal}
+            weeklyGoal={weeklyGoal}
+            recap={<AnswerChips feel={feel} circle={circle} styleIds={styleIds} when={when} />}
+            onNext={next}
+          />
+        ) : null}
+        {id === 'your-projection' ? (
           <YourProjection username={username} weeklyGoal={weeklyGoal} onNext={next} />
         ) : null}
-        {step === 16 ? (
+        {id === 'your-first-week' ? (
           <YourFirstWeek
             username={username}
             goal={goal}
@@ -589,17 +686,22 @@ export default function OnboardingScreen() {
             onNext={next}
           />
         ) : null}
-        {step === 17 ? <Challenge username={username} avatarUri={avatarUri} onNext={() => setStep(18)} /> : null}
-        {step === 18 ? <Building percent={buildPercent} /> : null}
+        {id === 'challenge' ? <Challenge username={username} avatarUri={avatarUri} onNext={() => setStep(BUILD_STEP)} /> : null}
+        {id === 'building' ? <Building percent={buildPercent} /> : null}
         {/* Reminders before sign-in: it asks for a permission, and a plan the
             athlete just chose is the strongest reason they will ever have to
             grant it. */}
-        {step === 19 ? (
-          <Reminders username={username} weeklyGoal={weeklyGoal} onNext={next} />
+        {id === 'reminders' ? (
+          <Reminders
+            username={username}
+            weeklyGoal={weeklyGoal}
+            hour={preferredHourFor(when)}
+            onNext={next}
+          />
         ) : null}
         {/* Sign-in immediately before the paywall: the plan is built, and a
             subscription needs an account to attach to. */}
-        {step === 20 ? (
+        {id === 'sign-in' ? (
           <SignIn
             onSignedIn={() => {
               signedInRef.current = true;
@@ -628,7 +730,7 @@ export default function OnboardingScreen() {
                  on the username step rather than 15 screens ahead of it. */
               if (cameToSignInEarly) {
                 setCameToSignInEarly(false);
-                setStep(useProfileStore.getState().username ? 6 : 5);
+                setStep(useProfileStore.getState().username ? PHOTO_STEP : USERNAME_STEP);
                 return;
               }
               void (async () => {
@@ -651,16 +753,24 @@ export default function OnboardingScreen() {
                 }
                 setRefusedAtSignIn(username);
                 setUsernameError(check.reason);
-                setStep(5);
+                setStep(USERNAME_STEP);
               })();
             }}
           />
         ) : null}
-        {step === 21 ? <Paywall plan={plan} goal={goal} onSelect={setPlan} onNext={next} /> : null}
+        {id === 'price-why' ? (
+          <PriceWhyStep
+            username={username}
+            weeklyGoal={weeklyGoal}
+            circle={circle}
+            onNext={next}
+          />
+        ) : null}
+        {id === 'paywall' ? <Paywall plan={plan} goal={goal} onSelect={setPlan} onNext={next} /> : null}
         {/* The last two land right before the first set, which is where the
             advice actually gets used — a framing tip read fifteen screens
             earlier would be forgotten by the time the camera opens. */}
-        {step === 22 ? (
+        {id === 'how-reps-count' ? (
           <HowRepsCount
             username={username}
             weeklyGoal={weeklyGoal}
@@ -668,18 +778,18 @@ export default function OnboardingScreen() {
             onNext={next}
           />
         ) : null}
-        {step === 23 ? <SetUpYourSpace username={username} onNext={next} /> : null}
+        {id === 'set-up-your-space' ? <SetUpYourSpace username={username} onNext={next} /> : null}
         {/* The widget, just before the offer: the plan is set and the partner
             is the reason to come back, so this is when a home-screen spot
             for them makes the most sense. Skips itself where unsupported. */}
-        {step === 24 ? <HomeWidgetStep onNext={next} username={username} /> : null}
+        {id === 'home-widget' ? <HomeWidgetStep onNext={next} username={username} /> : null}
         {/* The partner features are the reason to stay, so the offer follows a
             moment of feeling them rather than a description of them. */}
-        {step === 25 ? <TogetherStep onNext={next} /> : null}
+        {id === 'together-preview' ? <TogetherStep onNext={next} /> : null}
         {/* The Reps widget closes the home-screen setup, just before the offer.
             Skips itself where unsupported. */}
-        {step === 26 ? <RepsWidgetStep onNext={next} /> : null}
-        {step === 27 ? (
+        {id === 'reps-widget' ? <RepsWidgetStep onNext={next} /> : null}
+        {id === 'ready-to-race' ? (
           <ReadyToRace username={username} avatarUri={avatarUri} onDone={finish} />
         ) : null}
       </Animated.View>
@@ -1268,8 +1378,14 @@ function Username({
         </Text>
       ) : null}
 
-      <View style={{ flex: 1 }} />
-      <PrimaryButton label="Continue" onPress={onNext} disabled={!isValidUsername(value)} />
+      {/* Under the field, not pinned to the bottom of the screen. This window
+          does not resize for the keyboard (edge-to-edge), so a bottom-pinned
+          button sat behind it and the only way on was the keyboard's own enter
+          key. Here it is always above the keyboard, as in a standard sign-up
+          form. */}
+      <View style={{ marginTop: 28 }}>
+        <PrimaryButton label="Continue" onPress={onNext} disabled={!isValidUsername(value)} />
+      </View>
 
       {/* Sign-in lives fifteen steps later, which is the wrong order for anyone
           who already has an account: they invent a second handle, and the app
@@ -1588,10 +1704,13 @@ function QuestionStep<T extends string>({
 function YourPlan({
   goal,
   weeklyGoal,
+  recap,
   onNext,
 }: {
   goal: string | null;
   weeklyGoal: number;
+  /** Their own answers, shown as what the plan was built from. */
+  recap?: ReactNode;
   onNext: () => void;
 }) {
   const plan = useMemo(() => goalPlan(goal), [goal]);
@@ -1599,12 +1718,11 @@ function YourPlan({
   return (
     <View style={[styles.step, styles.stepPadded]}>
       <Animated.View entering={FadeInUp.duration(420)} style={{ alignItems: 'center' }}>
-        <View style={[styles.valueEyebrow, { backgroundColor: palette.green50 }]}>
-          <Text style={styles.valueEyebrowText}>YOUR PLAN</Text>
-        </View>
+        <Eyebrow label="YOUR PLAN" tint={palette.green500} />
         <Text style={[text.h1, { fontSize: 27, textAlign: 'center' }]}>{plan.title}</Text>
         <Text style={[text.body, styles.centeredCopy]}>{plan.blurb}</Text>
       </Animated.View>
+      {recap}
 
       {/* The athlete's actual week, drawn as training days — a schedule they
           can read beats an emoji standing in for the idea of one. */}
@@ -1700,9 +1818,7 @@ function YourProjection({
     <View style={[styles.step, styles.stepPadded]}>
       <Aurora tint={palette.green400} second={palette.amber300} />
       <Animated.View entering={FadeInUp.duration(420)} style={{ alignItems: 'center' }}>
-        <View style={[styles.valueEyebrow, { backgroundColor: palette.amber50 }]}>
-          <Text style={styles.valueEyebrowText}>YOUR PROJECTION</Text>
-        </View>
+        <Eyebrow label="YOUR PROJECTION" tint={palette.amber500} />
         <Text style={[text.h1, { fontSize: 26, textAlign: 'center' }]}>
           {username ? `${username}, here's\nyour next 6 weeks` : "Here's\nyour next 6 weeks"}
         </Text>
@@ -1810,9 +1926,7 @@ function YourFirstWeek({
   return (
     <View style={[styles.step, styles.stepPadded]}>
       <Animated.View entering={FadeInUp.duration(420)} style={{ alignItems: 'center' }}>
-        <View style={[styles.valueEyebrow, { backgroundColor: palette.blue150 }]}>
-          <Text style={styles.valueEyebrowText}>WEEK ONE</Text>
-        </View>
+        <Eyebrow label="WEEK ONE" tint={palette.blue500} />
         <Text style={[text.h1, { fontSize: 27, textAlign: 'center' }]}>
           {username ? `${username}, this is` : 'This is'} your week
         </Text>
@@ -2007,10 +2121,13 @@ function WeekDayBar({ day, peak, index }: { day: PlannedDay; peak: number; index
 function Reminders({
   username,
   weeklyGoal,
+  hour,
   onNext,
 }: {
   username: string;
   weeklyGoal: number;
+  /** The hour they said they train at, or null for the default. */
+  hour: number | null;
   onNext: () => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -2022,7 +2139,7 @@ function Reminders({
     try {
       const ok = await ensureNotificationPermission();
       if (ok) {
-        await scheduleDailyTrainingReminder();
+        await scheduleDailyTrainingReminder(0, hour ?? undefined);
         // Pick the push token up now rather than next launch. The root layout
         // only registers when permission already exists — deliberately, so it
         // never prompts cold — which leaves this the moment it was granted.
@@ -2043,35 +2160,50 @@ function Reminders({
     }
     setBusy(false);
     onNext();
-  }, [busy, onNext]);
+  }, [busy, onNext, hour]);
+
+  const timeLabel = hour === null ? 'your usual time' : hour < 12 ? `${hour} am` : `${hour === 12 ? 12 : hour - 12} pm`;
 
   return (
     <View style={[styles.step, styles.stepPadded]}>
-      <Animated.View entering={FadeInUp.duration(420)} style={{ alignItems: 'center' }}>
-        <View style={[styles.valueEyebrow, { backgroundColor: palette.green50 }]}>
-          <Text style={styles.valueEyebrowText}>STAY ON TRACK</Text>
-        </View>
-        <Text style={[text.h1, { fontSize: 27, textAlign: 'center' }]}>
-          One nudge a day
-        </Text>
-        <Text style={[text.body, styles.centeredCopy]}>
-          A single reminder on your {weeklyGoal} training days. No streaks-are-dying panic,
-          no marketing.
-        </Text>
-      </Animated.View>
+      <ScreenHead
+        eyebrow="STAY ON TRACK"
+        tint={palette.green500}
+        title="One nudge a day"
+        body={`Around ${timeLabel}, on your ${weeklyGoal} training days. Never more.`}
+      />
 
-      {granted ? (
-        <Animated.View entering={FadeInUp.duration(320)} style={styles.rulePayoff}>
-          <Text style={{ fontSize: 30 }}>🔔</Text>
-          <Text style={font('extrabold', 17, { color: palette.ink, marginTop: 6 })}>
-            You’re set{username ? `, ${username}` : ''}
-          </Text>
-          <Text style={font('regular', 12.5, { color: palette.grey600, textAlign: 'center' })}>
-            {weeklyGoal} nudges a week. Nothing else.
-          </Text>
-        </Animated.View>
-      ) : (
-        <View style={{ gap: 12, marginTop: 28 }}>
+      {/* What the one nudge looks like, so "turn on reminders" is a yes to
+          something specific rather than to an abstraction. */}
+      <View style={{ flex: 1, justifyContent: 'center' }}>
+        {granted ? (
+          <Animated.View entering={FadeInUp.duration(320)} style={styles.rulePayoff}>
+            <Text style={{ fontSize: 30 }}>🔔</Text>
+            <Text style={font('extrabold', 17, { color: palette.ink, marginTop: 6 })}>
+              You’re set{username ? `, ${username}` : ''}
+            </Text>
+            <Text style={font('regular', 12.5, { color: palette.grey600, textAlign: 'center' })}>
+              {weeklyGoal} nudges a week. Nothing else.
+            </Text>
+          </Animated.View>
+        ) : (
+          <Animated.View entering={springIn(3)} style={styles.nudgeCard}>
+            <View style={styles.nudgeIcon}>
+              <Text style={{ fontSize: 18 }}>💪</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.nudgeApp}>REPCHAMP · NOW</Text>
+              <Text style={styles.nudgeTitle}>
+                {username ? `${username}, your set is waiting` : 'Your set is waiting'}
+              </Text>
+              <Text style={styles.nudgeBody}>Two minutes keeps the streak alive.</Text>
+            </View>
+          </Animated.View>
+        )}
+      </View>
+
+      {granted ? null : (
+        <View style={{ gap: 12 }}>
           <PrimaryButton
             label={busy ? 'Setting up…' : 'Turn on reminders'}
             onPress={() => void onAllow()}
@@ -2223,9 +2355,7 @@ function YourAntidote({ blocker, onNext }: { blocker: Blocker | null; onNext: ()
   return (
     <View style={[styles.step, styles.stepPadded]}>
       <Animated.View entering={FadeInUp.duration(420)} style={{ alignItems: 'center' }}>
-        <View style={[styles.valueEyebrow, { backgroundColor: palette.green50 }]}>
-          <Text style={styles.valueEyebrowText}>WE BUILT FOR THIS</Text>
-        </View>
+        <Eyebrow label="WE BUILT FOR THIS" tint={palette.green500} />
         <Text style={[text.h1, { fontSize: 28, textAlign: 'center' }]}>{answer.title}</Text>
         <Text style={[text.body, styles.centeredCopy]}>{answer.blurb}</Text>
       </Animated.View>
@@ -2295,9 +2425,7 @@ function CoupleMode({ onNext }: { onNext: () => void }) {
   return (
     <View style={[styles.step, styles.stepPadded]}>
       <Animated.View entering={FadeInUp.duration(420)} style={{ alignItems: 'center' }}>
-        <View style={[styles.valueEyebrow, { backgroundColor: '#ffe4e6' }]}>
-          <Text style={styles.valueEyebrowText}>COUPLE MODE</Text>
-        </View>
+        <Eyebrow label="COUPLE MODE" tint={palette.red500} />
         <Text style={[text.h1, { fontSize: 27, textAlign: 'center' }]}>
           Skip a day and{'\n'}you let them down
         </Text>
@@ -2376,9 +2504,7 @@ function AiCoach({ onNext }: { onNext: () => void }) {
   return (
     <View style={[styles.step, styles.stepPadded]}>
       <Animated.View entering={FadeInUp.duration(420)} style={{ alignItems: 'center' }}>
-        <View style={[styles.valueEyebrow, { backgroundColor: palette.purple100 }]}>
-          <Text style={styles.valueEyebrowText}>AI FORM COACH</Text>
-        </View>
+        <Eyebrow label="AI FORM COACH" tint={palette.purple500} />
         <Text style={[text.h1, { fontSize: 27, textAlign: 'center' }]}>
           A coach that never{'\n'}sees your video
         </Text>
@@ -2464,6 +2590,9 @@ function DayThumb({ value }: { value: number }) {
   return <Animated.View style={[styles.dayThumb, style]} pointerEvents="none" />;
 }
 
+/** Matches `styles.versusAvatar`, so the drawn rival and the athlete's own avatar line up. */
+const VERSUS_AVATAR_SIZE = 92;
+
 function Challenge({
   username,
   avatarUri,
@@ -2489,15 +2618,16 @@ function Challenge({
         eyebrow="FIRST RIVAL"
         tint={palette.green50}
         title={`${rival.name} is ready\nto race you`}
-        body="He races at your pace, a touch faster. Out-rep him and the XP is yours."
+        body={`${rival.name} races at your pace, a touch faster. Out-rep them and the XP is yours.`}
       />
 
       <View style={styles.versusStage}>
         <Animated.View entering={springIn(3)} style={styles.versusCard}>
           <View style={styles.rivalCol}>
-            <View style={[styles.versusAvatar, { backgroundColor: palette.purple100 }]}>
-              <Text style={font('extrabold', 38, { color: rival.color })}>{rival.initial}</Text>
-            </View>
+            {/* The same drawn avatar Ada has everywhere else, so the first rival
+                looks like the one met on the Friends tab — and is plainly app
+                art with an AI tag, not someone's photograph. */}
+            <Avatar initial={rival.initial} ai={rival.id} size={VERSUS_AVATAR_SIZE} />
             <Text style={styles.rivalName}>{rival.name}</Text>
             <View style={styles.aiTag}>
               <Text style={font('extrabold', 9.5, { color: palette.green700 })}>AI RIVAL</Text>
@@ -2529,8 +2659,8 @@ function Challenge({
 
         <Animated.View entering={springIn(5)}>
           <InsetGroup>
-            <InsetRow glyph="🎯" tile={palette.blue50} title="Matched to you" sub="His pace is set from your own history" index={0} />
-            <InsetRow glyph="⚡" tile={palette.amber50} title="Win to earn XP" sub="Out-rep him to move up your league" index={1} last />
+            <InsetRow glyph="🎯" tile={palette.blue50} title="Matched to you" sub="Their pace is set from your own history" index={0} />
+            <InsetRow glyph="⚡" tile={palette.amber50} title="Win to earn XP" sub="Out-rep them to move up your league" index={1} last />
           </InsetGroup>
         </Animated.View>
       </View>
@@ -2772,9 +2902,7 @@ function Paywall({
           <Image source={TROPHY_GOLD} style={styles.paywallTrophy} contentFit="contain" />
         </Floating>
         {eyebrow ? (
-          <View style={[styles.valueEyebrow, { backgroundColor: palette.amber50, marginTop: 4 }]}>
-            <Text style={styles.valueEyebrowText}>{eyebrow}</Text>
-          </View>
+          <Eyebrow label={eyebrow} tint={palette.amber500} />
         ) : null}
         <Text style={[text.h1, { fontSize: 27, textAlign: 'center' }]}>{headline}</Text>
         <Text style={[text.body, styles.centeredCopy]}>
@@ -2989,6 +3117,27 @@ function ReadyToRace({
 
 const styles = StyleSheet.create({
   // iOS-kit screens
+  nudgeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: 22,
+    borderCurve: 'continuous',
+    backgroundColor: '#ffffff',
+  },
+  nudgeIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    borderCurve: 'continuous',
+    backgroundColor: palette.green50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nudgeApp: { ...font('bold', 10.5, { color: palette.grey600 }), letterSpacing: 0.8 },
+  nudgeTitle: { ...font('extrabold', 15, { color: palette.ink }), marginTop: 2 },
+  nudgeBody: { ...font('regular', 13, { color: palette.grey600 }), marginTop: 1 },
   goalGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 26 },
   freqDial: { alignItems: 'center', marginTop: 26 },
   freqNumber: { ...font('extrabold', 64, { color: palette.ink }), letterSpacing: -2.5, lineHeight: 70 },
@@ -3154,18 +3303,6 @@ const styles = StyleSheet.create({
   },
 
   // Value screens
-  valueEyebrow: {
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(15,31,23,0.06)',
-    paddingHorizontal: 14,
-    paddingVertical: 5,
-    marginBottom: 14,
-  },
-  valueEyebrowText: {
-    ...font('extrabold', 10.5, { color: palette.green700 }),
-    letterSpacing: 2,
-  },
   valueVisual: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 150, marginVertical: 8 },
   valuePoint: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   valuePointIcon: {
@@ -3298,16 +3435,15 @@ const styles = StyleSheet.create({
   },
   paywallTrophy: { width: 104, height: 69 },
   holdWrap: {
-    height: 60,
-    borderRadius: radius.xl,
-    backgroundColor: palette.green50,
-    borderWidth: 2,
-    borderColor: palette.green600,
+    height: 56,
+    borderRadius: 28,
+    borderCurve: 'continuous',
+    backgroundColor: palette.green100,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  holdFill: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: palette.green500 },
+  holdFill: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: palette.green600, opacity: 0.35 },
   holdLabel: { ...font('extrabold', 16, { color: palette.ink }), paddingHorizontal: 12, textAlign: 'center' },
 
   commitFootnote: {

@@ -10,6 +10,10 @@ const DRAFT: OnboardingDraft = {
   blocker: null,
   weeklyGoal: 5,
   plan: 'month',
+  feel: 'stuck',
+  circle: 'partner',
+  styles: ['strength', 'yoga'],
+  when: 'morning',
 };
 
 describe('onboarding draft', () => {
@@ -25,6 +29,12 @@ describe('onboarding draft', () => {
     expect(parseDraft(JSON.stringify({ ...DRAFT, v: 99, savedAt: NOW }), NOW)).toBeNull();
   });
 
+  /* The step list changed, so a draft written against the old one would resume
+     on the wrong screen. It must read as no draft. */
+  it('discards a draft saved against the previous step list', () => {
+    expect(parseDraft(JSON.stringify({ ...DRAFT, v: 1, savedAt: NOW }), NOW)).toBeNull();
+  });
+
   it('expires after two weeks, so a stale half-finished flow does not resurrect', () => {
     const raw = serializeDraft(DRAFT, NOW);
     expect(parseDraft(raw, NOW + 13 * 86_400_000)).not.toBeNull();
@@ -34,15 +44,19 @@ describe('onboarding draft', () => {
   it('sanitises what it reads from disk', () => {
     const raw = JSON.stringify({
       ...DRAFT,
-      v: 1,
+      v: 2,
       savedAt: NOW,
       username: 'ha na!!',
       weeklyGoal: 99,
       plan: 'weird',
+      circle: 'everyone',
+      styles: ['yoga', 7, null, 'mind'],
     });
     const d = parseDraft(raw, NOW)!;
     expect(d.username).toBe('hana');
     expect(d.weeklyGoal).toBe(4);
     expect(d.plan).toBe('year');
+    expect(d.circle).toBeNull();
+    expect(d.styles).toEqual(['yoga', 'mind']);
   });
 });

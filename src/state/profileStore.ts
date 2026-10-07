@@ -91,6 +91,8 @@ export interface ProfileState {
    * account. Without this, leave → re-pair after expiry farms unlimited Pro.
    */
   pairingBonusClaimed: boolean;
+  /** Hour (0–23) they said they train at, or null — see `setPreferredHour`. */
+  preferredHour: number | null;
 
   completeOnboarding: (input: {
     username: string;
@@ -103,6 +105,8 @@ export interface ProfileState {
   setAvatar: (uri: string | null) => void;
   setSex: (sex: 'male' | 'female') => void;
   setWeeklyGoal: (days: number) => void;
+  /** When the athlete said they train, as a local hour. Seeds the reminder until their own habit takes over. */
+  setPreferredHour: (hour: number | null) => void;
   recordSession: (summary: Omit<SessionSummary, 'id' | 'completedAt' | 'day'>) => SessionSummary;
   /** Enrol in a programme (or switch), starting from day 1. */
   startProgramme: (programmeId: string) => void;
@@ -135,6 +139,7 @@ const initialState = {
   programme: null as ProgrammeProgress | null,
   pairingBonusUntil: 0,
   pairingBonusClaimed: false,
+  preferredHour: null as number | null,
 };
 
 export const useProfileStore = create<ProfileState>()(
@@ -162,6 +167,11 @@ export const useProfileStore = create<ProfileState>()(
       setAvatar: (avatarUri) => set({ avatarUri }),
       setSex: (sex) => set({ sex }),
       setWeeklyGoal: (weeklyGoal) => set({ weeklyGoal }),
+      setPreferredHour: (hour) =>
+        set({
+          preferredHour:
+            hour !== null && Number.isInteger(hour) && hour >= 0 && hour <= 23 ? hour : null,
+        }),
 
       recordSession: (input) => {
         const summary: SessionSummary = {
@@ -224,10 +234,11 @@ export const useProfileStore = create<ProfileState>()(
     }),
     {
       name: 'repchamp.profile',
-      version: 4,
+      version: 5,
       storage: createJSONStorage(() => zustandStorage),
       // v1 → v2 added `programme`; v2 → v3 locks pairing Pro to a single grant;
-      // v3 → v4 adds the uncapped `lifetimeReps` counter, seeded from history.
+      // v3 → v4 adds the uncapped `lifetimeReps` counter, seeded from history;
+      // v4 → v5 adds `preferredHour`, null until the athlete says when they train.
       migrate: (persisted, version) => {
         const state = persisted as Partial<ProfileState>;
         let next = { ...state } as ProfileState;
@@ -243,6 +254,9 @@ export const useProfileStore = create<ProfileState>()(
         }
         if (version < 4) {
           next = { ...next, lifetimeReps: selectTotalReps({ sessions: next.sessions ?? [] }) };
+        }
+        if (version < 5) {
+          next = { ...next, preferredHour: next.preferredHour ?? null };
         }
         return next;
       },

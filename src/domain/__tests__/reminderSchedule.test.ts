@@ -6,6 +6,7 @@ import {
   LEAD_HOURS,
   SESSIONS_BEFORE_LEARNING,
   learnTrainingHour,
+  preferredHourFor,
   reminderHourFor,
 } from '@/domain/reminderSchedule';
 import type { SessionSummary } from '@/state/profileStore';
@@ -175,5 +176,31 @@ describe('reminderHourFor', () => {
 
   it('honours an explicit fallback for slots that do not send at 19:00', () => {
     expect(reminderHourFor([], 20)).toBe(20);
+  });
+});
+
+describe('preferredHourFor', () => {
+  it('maps what the athlete said to a reminder hour inside the waking window', () => {
+    expect(preferredHourFor('morning')).toBe(8);
+    expect(preferredHourFor('afternoon')).toBe(13);
+    expect(preferredHourFor('evening')).toBe(DEFAULT_REMINDER_HOUR);
+    for (const w of ['morning', 'afternoon', 'evening']) {
+      const h = preferredHourFor(w)!;
+      expect(h).toBeGreaterThanOrEqual(EARLIEST_REMINDER_HOUR);
+      expect(h).toBeLessThanOrEqual(LATEST_REMINDER_HOUR);
+    }
+  });
+
+  it('leaves the default alone for "it varies" and for anything it does not recognise', () => {
+    expect(preferredHourFor('varies')).toBeNull();
+    expect(preferredHourFor('midnight')).toBeNull();
+    expect(preferredHourFor(null)).toBeNull();
+    expect(preferredHourFor(undefined)).toBeNull();
+  });
+
+  it('is only a stand-in: an athlete\'s own habit overrides what they said', () => {
+    const said = preferredHourFor('evening')!;
+    expect(reminderHourFor([], said)).toBe(said);
+    expect(reminderHourFor(morningRoutine, said)).toBe(7 - LEAD_HOURS);
   });
 });

@@ -55,7 +55,9 @@ export function useNotificationSync(): void {
      Reduced to a number here so the effect below can depend on it: the schedule
      must follow a routine that moves, and nothing else in the dependency list
      changes when it does. */
-  const reminderHour = reminderHourFor(sessions);
+  /* What they told us in onboarding stands in until their history shows a habit. */
+  const preferredHour = useProfileStore((st) => st.preferredHour);
+  const reminderHour = reminderHourFor(sessions, preferredHour ?? undefined);
 
   /**
    * Bumped whenever the app returns to the foreground, to force a re-sync.
@@ -204,6 +206,7 @@ export function useNotificationSync(): void {
       partnerName: couple.partner?.displayName ?? null,
       streak,
       sessions,
+      preferredHour,
       daysSinceLastSession: daysAway,
       together: togetherWeek,
     });
@@ -233,6 +236,7 @@ export function useNotificationSync(): void {
     trainedToday,
     streak,
     reminderHour,
+    preferredHour,
     daysAway,
     foregroundTick,
     togetherKey,

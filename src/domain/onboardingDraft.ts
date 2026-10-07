@@ -1,7 +1,7 @@
 /**
  * Onboarding progress that survives the app being closed.
  *
- * Twenty-odd screens, a Google sign-in that leaves the app, and permission
+ * Thirty-odd screens, a Google sign-in that leaves the app, and permission
  * dialogs: a kill mid-flow is routine, and the answers lived only in React
  * state, so the athlete restarted at the welcome screen having typed their
  * username and picked a plan for nothing. A draft is saved on every step and
@@ -11,8 +11,11 @@
  * malformed value must mean "no draft", never a crash on the first screen.
  */
 
+import type { Circle } from './onboardingNav';
+
 export const ONBOARDING_DRAFT_KEY = 'onboarding.draft';
-const DRAFT_VERSION = 1;
+/** Bumped when the step list changes: a saved step number means nothing against a new list. */
+const DRAFT_VERSION = 2;
 const MAX_AGE_MS = 14 * 86_400_000;
 
 export interface OnboardingDraft {
@@ -24,6 +27,10 @@ export interface OnboardingDraft {
   blocker: string | null;
   weeklyGoal: number;
   plan: 'year' | 'month';
+  feel: string | null;
+  circle: Circle | null;
+  styles: string[];
+  when: string | null;
 }
 
 interface Stored extends OnboardingDraft {
@@ -38,6 +45,8 @@ export function serializeDraft(draft: OnboardingDraft, now: number): string {
 
 const str = (v: unknown, max = 200): string | null =>
   typeof v === 'string' && v.length <= max ? v : null;
+
+const CIRCLES: readonly string[] = ['solo', 'partner', 'friends', 'coach'];
 
 export function parseDraft(raw: string | null | undefined, now: number): OnboardingDraft | null {
   if (!raw) return null;
@@ -55,6 +64,7 @@ export function parseDraft(raw: string | null | undefined, now: number): Onboard
   }
   if (typeof o.step !== 'number' || !Number.isFinite(o.step)) return null;
   const weeklyGoal = typeof o.weeklyGoal === 'number' ? Math.round(o.weeklyGoal) : NaN;
+  const circle = str(o.circle, 20);
   return {
     step: Math.floor(o.step),
     username: (str(o.username, 20) ?? '').replace(/[^a-zA-Z0-9_]/g, ''),
@@ -64,5 +74,11 @@ export function parseDraft(raw: string | null | undefined, now: number): Onboard
     blocker: str(o.blocker, 40),
     weeklyGoal: weeklyGoal >= 1 && weeklyGoal <= 7 ? weeklyGoal : 4,
     plan: o.plan === 'month' ? 'month' : 'year',
+    feel: str(o.feel, 40),
+    circle: circle !== null && CIRCLES.includes(circle) ? (circle as Circle) : null,
+    styles: Array.isArray(o.styles)
+      ? o.styles.filter((s): s is string => typeof s === 'string' && s.length <= 20).slice(0, 8)
+      : [],
+    when: str(o.when, 40),
   };
 }

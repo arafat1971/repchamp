@@ -1,47 +1,20 @@
 /**
  * Names for the onboarding steps, so drop-off is readable.
  *
- * Onboarding fired one event, at the end. Twenty-five screens and the only
+ * Onboarding fired one event, at the end. Thirty-odd screens and the only
  * signal was "finished" or silence — which means nobody could say whether
  * people quit at the username, the paywall, or somewhere in the middle. Adding
  * screens to a funnel like that is guesswork, and every screen added is another
  * place to lose someone.
  *
  * A funnel reading `paywall` → `how-reps-count` is diagnosable. One reading
- * `21` → `22` is a puzzle nobody solves twice.
+ * `28` → `29` is a puzzle nobody solves twice.
+ *
+ * The names are the flow's own ids (`onboardingNav.FLOW`), so a screen cannot
+ * be renamed in one place and not the other.
  */
 
-/** Step index → stable slug. Indices match `app/onboarding.tsx`. */
-const STEP_NAMES: Readonly<Record<number, string>> = {
-  0: 'welcome',
-  1: 'value-counts-reps',
-  2: 'value-duels',
-  3: 'value-couple',
-  4: 'value-progress',
-  5: 'username',
-  6: 'photo',
-  7: 'goal',
-  8: 'frequency',
-  9: 'experience',
-  10: 'blocker',
-  11: 'antidote',
-  12: 'ai-coach',
-  13: 'couple-mode',
-  14: 'your-plan',
-  15: 'commitment',
-  16: 'social-proof',
-  17: 'challenge',
-  18: 'building',
-  19: 'reminders',
-  20: 'sign-in',
-  21: 'paywall',
-  22: 'how-reps-count',
-  23: 'set-up-your-space',
-  24: 'home-widget',
-  25: 'together-preview',
-  26: 'reps-widget',
-  27: 'ready-to-race',
-};
+import { FLOW } from './onboardingNav';
 
 /**
  * A stable slug for a step index.
@@ -50,11 +23,11 @@ const STEP_NAMES: Readonly<Record<number, string>> = {
  * measurable, and a crash in analytics would be far worse than a dull label.
  */
 export function onboardingStepName(step: number): string {
-  return STEP_NAMES[step] ?? `step-${step}`;
+  return FLOW[step] ?? `step-${step}`;
 }
 
 /** Total named steps, for computing how far through someone got. */
-export const ONBOARDING_STEP_COUNT = Object.keys(STEP_NAMES).length;
+export const ONBOARDING_STEP_COUNT = FLOW.length;
 
 /**
  * How far through onboarding a step is, 0–100.

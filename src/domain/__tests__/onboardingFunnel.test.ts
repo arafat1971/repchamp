@@ -3,13 +3,15 @@ import {
   onboardingProgressPercent,
   onboardingStepName,
 } from '../onboardingFunnel';
+import { FLOW, stepIndex } from '../onboardingNav';
 
 describe('onboardingStepName', () => {
   it('names the steps that decide whether someone stays or pays', () => {
     expect(onboardingStepName(0)).toBe('welcome');
-    expect(onboardingStepName(5)).toBe('username');
-    expect(onboardingStepName(20)).toBe('sign-in');
-    expect(onboardingStepName(21)).toBe('paywall');
+    expect(onboardingStepName(stepIndex('username'))).toBe('username');
+    expect(onboardingStepName(stepIndex('sign-in'))).toBe('sign-in');
+    expect(onboardingStepName(stepIndex('price-why'))).toBe('price-why');
+    expect(onboardingStepName(stepIndex('paywall'))).toBe('paywall');
   });
 
   /* An unnamed step must still be measurable. Throwing here would take the app
@@ -20,7 +22,7 @@ describe('onboardingStepName', () => {
   });
 
   it('covers every step the flow actually has', () => {
-    expect(ONBOARDING_STEP_COUNT).toBe(28);
+    expect(ONBOARDING_STEP_COUNT).toBe(FLOW.length);
     for (let i = 0; i < ONBOARDING_STEP_COUNT; i += 1) {
       expect(onboardingStepName(i)).not.toMatch(/^step-/);
     }
@@ -37,11 +39,11 @@ describe('onboardingStepName', () => {
 describe('onboardingProgressPercent', () => {
   it('runs 0 to 100 across the flow', () => {
     expect(onboardingProgressPercent(0)).toBe(0);
-    expect(onboardingProgressPercent(27)).toBe(100);
+    expect(onboardingProgressPercent(ONBOARDING_STEP_COUNT - 1)).toBe(100);
   });
 
   it('puts the paywall late, where it belongs', () => {
-    expect(onboardingProgressPercent(21)).toBeGreaterThan(75);
+    expect(onboardingProgressPercent(stepIndex('paywall'))).toBeGreaterThan(70);
   });
 
   /* Clamped rather than extrapolated: a stray index should not report 140%

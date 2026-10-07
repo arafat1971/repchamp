@@ -55,10 +55,11 @@ FONT_CANDIDATES = [
 # swiping in search results, so they carry the whole argument. Rationale for
 # each shot is in STORE_SCREENSHOTS.md.
 CAPTIONS: list[tuple[str, str]] = [
-    ("01-train", "Your camera counts every rep"),
-    ("02-arena", "Duel a rival, live"),
-    ("03-friends", "Train better together"),
-    ("04-home", "Every day, one clear plan"),
+    ("01-home", "Every day, one clear plan"),
+    ("02-train", "Build a week that sticks"),
+    ("03-arena", "Duel a rival, live"),
+    ("04-friends", "Train better together"),
+    ("05-profile", "Every rep earns XP"),
 ]
 
 

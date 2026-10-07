@@ -1,10 +1,10 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeInDown, FadeInUp, FadeOutUp } from 'react-native-reanimated';
 
 import { ModalHeader } from '@/components/ModalHeader';
-import { PressableScale, Screen, Toggle } from '@/components/ui';
+import { PressableScale, Screen, Toggle, Spinner } from '@/components/ui';
 import { HabitIcon } from '@/components/together/HabitIcon';
 import { LiveStage } from '@/components/together/LiveStage';
 import { ME, RitualCard, THEM } from '@/components/together/RitualCard';
@@ -342,7 +342,7 @@ export default function PartnerDashboardScreen() {
       <Screen>
         <ModalHeader title="Today, together" />
         <View style={styles.loading}>
-          <ActivityIndicator color={palette.slate500} />
+          <Spinner color={palette.slate500} />
         </View>
       </Screen>
     );

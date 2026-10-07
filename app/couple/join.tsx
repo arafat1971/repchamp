@@ -1,9 +1,9 @@
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { track } from '@/lib/analytics';
-import { PressableScale, Screen } from '@/components/ui';
+import { PressableScale, Screen, Spinner } from '@/components/ui';
 import { normalizePairCode } from '@/domain/couple';
 import { successHaptic } from '@/lib/feedback';
 import { joinCoupleByCode } from '@/services/coupleService';
@@ -96,7 +96,7 @@ export default function CoupleJoinScreen() {
                 <Text style={styles.seatGlyph}>🐼</Text>
               </View>
               <View style={styles.link}>
-                <ActivityIndicator color={palette.green600} size="small" />
+                <Spinner color={palette.green600} size="small" />
               </View>
               <View style={[styles.seat, styles.seatGhost]}>
                 <Text style={[styles.seatGlyph, { opacity: 0.45 }]}>🐼</Text>

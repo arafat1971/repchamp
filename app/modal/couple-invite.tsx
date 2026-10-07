@@ -15,7 +15,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Share,
   StyleSheet,
   Text,
@@ -38,7 +37,7 @@ import { SocialShareRow } from '@/components/SocialShareRow';
 import { coupleBondPresentation, inviteLink } from '@/domain/couple';
 import { dayKey, lastNDayKeys, weekdayLetter } from '@/domain/progression';
 import { ModalHeader } from '@/components/ModalHeader';
-import { Card, Divider, Eyebrow, PressableScale, Screen } from '@/components/ui';
+import { Card, Divider, Eyebrow, PressableScale, Screen, Spinner } from '@/components/ui';
 import { track } from '@/lib/analytics';
 import { captureError } from '@/lib/crash';
 import { cancelStreakReminder } from '@/lib/notifications';
@@ -333,7 +332,7 @@ export default function CoupleInviteScreen() {
 
       {loading ? (
         <View style={styles.loading}>
-          <ActivityIndicator color={palette.green500} />
+          <Spinner color={palette.green500} />
         </View>
       ) : null}
 

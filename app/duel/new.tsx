@@ -212,8 +212,7 @@ export default function DuelNewScreen() {
       return;
     }
 
-    console.warn('[RepChamp] challenge: navigating to waiting room');
-    go();
+        go();
 
     void (async () => {
       try {

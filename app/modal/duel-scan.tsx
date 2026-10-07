@@ -2,11 +2,11 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import type { BarcodeScanningResult } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ModalHeader } from '@/components/ModalHeader';
-import { PressableScale, Screen } from '@/components/ui';
+import { PressableScale, Screen, Spinner } from '@/components/ui';
 import { showDialog } from '@/state/useDialog';
 import { canJoinByLink, isOwnDuelInvite, parseDuelInvite } from '@/domain/duelInvite';
 import { classifyScan, landingHref } from '@/domain/scanTarget';
@@ -164,7 +164,7 @@ export default function DuelScanScreen() {
 
         {joining ? (
           <View style={[StyleSheet.absoluteFill, styles.center, styles.dim]}>
-            <ActivityIndicator color={palette.white} />
+            <Spinner color={palette.white} />
             <Text style={styles.joiningText}>Joining…</Text>
           </View>
         ) : null}

@@ -1,10 +1,10 @@
 import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { ModalHeader } from '@/components/ModalHeader';
-import { PressableScale, Screen } from '@/components/ui';
+import { PressableScale, Screen, Spinner } from '@/components/ui';
 import { JourneyCard } from '@/components/together/JourneyCard';
 import { ActionList, ActionRow, LineIcon, PairPitch, SectionTitle, Surface, TogetherHero } from '@/components/together/kit';
 import { ME, THEM } from '@/components/together/RitualCard';
@@ -97,7 +97,7 @@ export default function CoupleTrackerScreen() {
       <Screen>
         <ModalHeader title="Your bond" />
         <View style={styles.loading}>
-          <ActivityIndicator color={palette.green500} />
+          <Spinner color={palette.green500} />
         </View>
       </Screen>
     );

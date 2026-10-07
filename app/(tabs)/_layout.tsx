@@ -8,7 +8,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TouchableOpacity,
   useWindowDimensions,
   View,
   type ColorValue,
@@ -30,6 +29,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 
 import { reservedControlHeight } from '@/theme/fontScale';
 import { ExerciseGlyph } from '@/components/ExerciseGlyph';
+import { PressableScale } from '@/components/ui';
 import { selectStreak, selectTotalReps, useProfileStore } from '@/state/profileStore';
 import { useIncomingDuelCount } from '@/state/useIncomingDuelCount';
 import { buildFabModel } from '@/domain/fabActions';
@@ -597,8 +597,7 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
                   marginBottom: 8,
                 }}
               >
-                <TouchableOpacity
-                  activeOpacity={0.88}
+                <PressableScale
                   onPress={() => {
                     selectionHaptic();
                     close();
@@ -640,7 +639,7 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
                       <Text style={{ fontSize: 18 }}>{action.emoji}</Text>
                     )}
                   </View>
-                </TouchableOpacity>
+                </PressableScale>
               </Animated.View>
             ))}
           </View>
@@ -650,8 +649,7 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
 
       <Animated.View style={[styles.fabContainer, { bottom: bottomPosition }, scaleStyle]}>
         <Animated.View style={glowStyle}>
-          <TouchableOpacity
-            activeOpacity={0.85}
+          <PressableScale
             onPress={onFabPress}
             /* Kept, and now a synonym for the tap rather than the only way in.
                Athletes taught by the old hint still hold; that must not become
@@ -713,7 +711,7 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
                 </Text>
               </View>
             ) : null}
-          </TouchableOpacity>
+          </PressableScale>
         </Animated.View>
       </Animated.View>
     </>

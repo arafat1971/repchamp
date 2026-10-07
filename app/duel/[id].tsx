@@ -2,7 +2,6 @@ import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   BackHandler,
   StyleSheet,
   Text,
@@ -11,7 +10,7 @@ import {
 } from 'react-native';
 
 import { ModalHeader } from '@/components/ModalHeader';
-import { Avatar, PressableScale, Screen } from '@/components/ui';
+import { Avatar, PressableScale, Screen, Spinner } from '@/components/ui';
 import { seatOf, type Duel } from '@/domain/duel';
 import { BrandedQR } from '@/components/BrandedQR';
 import { parseDuelExercise } from '@/domain/duelExercises';
@@ -186,8 +185,7 @@ export default function DuelWaitingScreen() {
     // Proves the screen actually mounted. The log showed `go()` running and
     // `createDuel` starting, with the screen never changing and no create
     // result either way — which cannot all be true of one healthy mount.
-    console.warn('[RepChamp] waiting room mounted, self=', self ? 'yes' : 'no', 'role=', role);
-    if (!self) {
+        if (!self) {
       /* Waiting for identity is right on a cold start from a push, where auth
        * rehydrates a moment after mount. Waiting *forever* is not: a signed-out
        * athlete has no identity coming, and since sign-in moved to the end of
@@ -245,8 +243,7 @@ export default function DuelWaitingScreen() {
             if (!cancelled) setStatus('unavailable');
             return;
           }
-          console.warn('[RepChamp] duel created:', id);
-          // Keep the id on the cleanup ref immediately so a mid-create unmount
+                    // Keep the id on the cleanup ref immediately so a mid-create unmount
           // still cancels the pending doc (and cancel here if already gone).
           duelIdRef.current = id;
           if (cancelled) {
@@ -533,7 +530,7 @@ export default function DuelWaitingScreen() {
               />
             ) : (
               <View style={styles.pendingAvatar}>
-                <ActivityIndicator color={palette.green600} />
+                <Spinner color={palette.green600} />
               </View>
             )}
             <Text style={styles.vsName} numberOfLines={1}>

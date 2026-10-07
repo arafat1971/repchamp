@@ -2,11 +2,11 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import type { BarcodeScanningResult } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ModalHeader } from '@/components/ModalHeader';
-import { PressableScale, Screen } from '@/components/ui';
+import { PressableScale, Screen, Spinner } from '@/components/ui';
 import { normalizePairCode, parseInviteCode } from '@/domain/couple';
 import { classifyScan, landingHref } from '@/domain/scanTarget';
 import { track } from '@/lib/analytics';
@@ -147,7 +147,7 @@ export default function CoupleScanScreen() {
 
         {joining ? (
           <View style={[StyleSheet.absoluteFill, styles.center, styles.dim]}>
-            <ActivityIndicator color={palette.white} />
+            <Spinner color={palette.white} />
             <Text style={styles.joiningText}>Pairing…</Text>
           </View>
         ) : null}

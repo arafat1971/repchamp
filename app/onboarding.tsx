@@ -5,7 +5,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
-  ActivityIndicator,
   BackHandler,
   Pressable,
   ScrollView,
@@ -40,7 +39,7 @@ import { GoogleMark } from '@/components/GoogleMark';
 import { BarChart } from '@/components/charts/BarChart';
 import { GrowthChart } from '@/components/charts/GrowthChart';
 import { ProgressRing } from '@/components/session/ProgressRing';
-import { Card as BaseCard, PressableScale, PrimaryButton, ProgressBar } from '@/components/ui';
+import { Card as BaseCard, PressableScale, PrimaryButton, ProgressBar, Spinner } from '@/components/ui';
 import { captureError } from '@/lib/crash';
 import { pluralise } from '@/domain/plural';
 import { OPPONENTS } from '@/domain/opponent';
@@ -1011,7 +1010,7 @@ function GoogleButton({ busy, onPress }: { busy: boolean; onPress: () => void })
       ]}
     >
       <View style={styles.socialGlyph}>
-        {busy ? <ActivityIndicator size="small" color={palette.grey600} /> : <GoogleMark size={20} />}
+        {busy ? <Spinner size="small" color={palette.grey600} /> : <GoogleMark size={20} />}
       </View>
       <Text style={font('extrabold', 15, { color: palette.ink })} {...scaleForRole('control')}>
         {busy ? 'Signing in…' : 'Continue with Google'}
@@ -2773,7 +2772,7 @@ function Paywall({
       </View>
 
       {packages === null ? (
-        <ActivityIndicator color={palette.green500} style={{ marginVertical: 20 }} />
+        <Spinner color={palette.green500} style={{ marginVertical: 20 }} />
       ) : !billingReady || (!annual && !monthly) ? (
         <Text style={[text.captionMd, { textAlign: 'center', marginTop: 16 }]}>
           You can keep training free — Pro unlocks later from Profile when billing is connected.

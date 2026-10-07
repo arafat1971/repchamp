@@ -1,9 +1,9 @@
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { track } from '@/lib/analytics';
-import { PressableScale, Screen } from '@/components/ui';
+import { PressableScale, Screen, Spinner } from '@/components/ui';
 import { canJoinByLink, isOwnDuelInvite, parseDuelInvite } from '@/domain/duelInvite';
 import { fetchDuel } from '@/services/duelService';
 import { useAuthStore } from '@/state/authStore';
@@ -109,7 +109,7 @@ export default function DuelJoinScreen() {
           </>
         ) : (
           <>
-            <ActivityIndicator color={palette.green500} size="large" />
+            <Spinner color={palette.green500} size="large" />
             <Text style={styles.title}>Joining the duel…</Text>
             <Text style={[text.caption, styles.body]}>Taking your seat</Text>
             <PressableScale

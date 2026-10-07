@@ -1,7 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   BackHandler,
   Linking,
   StyleSheet,
@@ -15,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { track, truncateReason } from '@/lib/analytics';
 import { captureError } from '@/lib/crash';
 import { PRIVACY_URL, TERMS_URL } from '@/lib/urls';
-import { PressableScale, PrimaryButton, Screen } from '@/components/ui';
+import { PressableScale, PrimaryButton, Screen, Spinner } from '@/components/ui';
 import {
   hasFreeTrial,
   planTitle,
@@ -461,7 +460,7 @@ export default function PaywallScreen() {
               </View>
             ) : packages === null ? (
               <View style={styles.loadingBox}>
-                <ActivityIndicator color={palette.green500} />
+                <Spinner color={palette.green500} />
                 <Text style={styles.loadingLabel}>Fetching store prices…</Text>
               </View>
             ) : packages.length === 0 ? (

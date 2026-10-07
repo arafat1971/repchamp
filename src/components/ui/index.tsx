@@ -13,6 +13,7 @@ import {
   type StyleProp,
   type TextStyle,
   type ViewStyle,
+  Platform,
 } from 'react-native';
 import Animated, {
   Easing,
@@ -31,6 +32,7 @@ import { lightImpactHaptic } from '@/lib/feedback';
 import { AiAvatar, aiPersonaForEmoji, aiPersonaForId } from './AiAvatar';
 
 export { Skeleton, SkeletonCircle } from './Skeleton';
+export { Spinner } from './Spinner';
 export { EmptyState, ErrorState } from './EmptyState';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -112,6 +114,12 @@ export function Screen({
       // Lets a horizontal child (the home hero carousel) keep its own gesture
       // rather than having this vertical scroll claim it.
       directionalLockEnabled
+      // Forms: a tap on a button while the keyboard is up fires the button
+      // instead of just dismissing the keyboard, and iOS lifts the focused
+      // field clear of it (Android already resizes the window).
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+      automaticallyAdjustKeyboardInsets
       refreshControl={
         onRefresh ? (
           <RefreshControl

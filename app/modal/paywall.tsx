@@ -22,7 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { track, truncateReason } from '@/lib/analytics';
 import { captureError } from '@/lib/crash';
-import { PRIVACY_URL, TERMS_URL } from '@/lib/urls';
+import { PRIVACY_URL, TERMS_URL, manageSubscriptionsUrl } from '@/lib/urls';
 import { PressableScale, PrimaryButton, Screen, Spinner } from '@/components/ui';
 import {
   hasFreeTrial,
@@ -597,6 +597,21 @@ export default function PaywallScreen() {
           >
             <Text style={styles.footerLink}>Maybe later</Text>
           </PressableScale>
+          {/* Where an existing subscriber cancels. Findable here so nobody has
+              to ask the store for a refund just to stop a renewal. */}
+          {billingReady ? (
+            <>
+              <Text style={styles.footerSep}>·</Text>
+              <PressableScale
+                onPress={() => void Linking.openURL(manageSubscriptionsUrl()).catch(captureError)}
+                accessibilityRole="link"
+                accessibilityLabel="Manage or cancel subscription"
+                style={styles.footerLinkHit}
+              >
+                <Text style={styles.footerLink}>Manage</Text>
+              </PressableScale>
+            </>
+          ) : null}
           <Text style={styles.footerSep}>·</Text>
           <PressableScale
             onPress={() => void Linking.openURL(TERMS_URL)}

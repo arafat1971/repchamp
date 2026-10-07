@@ -645,7 +645,12 @@ export default function ResultScreen() {
         onLayout={(e) => setActionsHeight(e.nativeEvent.layout.height)}
         style={[styles.actions, { paddingBottom: insets.bottom + 12 }]}
       >
-        <SocialShareRow link={inviteUrl} text={shareLine()} tone="light" />
+        <SocialShareRow
+          link={inviteUrl}
+          text={shareLine()}
+          tone="light"
+          getImage={() => captureRef(shareCardRef, { format: 'png', quality: 1 })}
+        />
 
         <PressableScale
           onPress={rematch}

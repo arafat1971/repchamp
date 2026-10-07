@@ -823,22 +823,15 @@ function Welcome({ onNext }: { onNext: () => void }) {
       </Animated.View>
 
       <View style={styles.hero}>
-        {/* The same photograph Home's couple card uses, on the brand green, so
-            the first screen and the app read as one product. */}
-        <LinearGradient
-          colors={gradients.heroEmerald}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
+        {/* Fills the panel rather than floating on it — the artwork carries its
+            own backdrop, so letterboxing it would show two competing surfaces. */}
         <BreathingImage style={StyleSheet.absoluteFill}>
           <Image
-            source={require('../assets/couple-hero.png')}
+            source={require('../assets/hero-couple.png')}
             style={styles.heroImage}
             contentFit="cover"
-            contentPosition="bottom"
             transition={400}
-            accessibilityLabel="Two athletes pushing up, with pose tracking drawn over them"
+            accessibilityLabel="Two athletes ready to train"
           />
         </BreathingImage>
 

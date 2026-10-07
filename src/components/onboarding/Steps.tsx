@@ -95,7 +95,7 @@ export function FeelStep({
 
 export const CIRCLES = [
   { id: 'solo', emoji: '🎯', label: 'Just me', hint: 'Quiet focus', tint: palette.green50 },
-  { id: 'partner', emoji: '💞', label: 'My partner', hint: 'One shared streak', tint: '#ffe4e6' },
+  { id: 'partner', emoji: '👥', label: 'My partner', hint: 'One shared streak', tint: palette.amber50 },
   { id: 'friends', emoji: '🤝', label: 'Friends', hint: 'Friendly rivalry', tint: palette.blue50 },
   { id: 'coach', emoji: '🤖', label: 'AI coach', hint: 'Live form tips', tint: palette.purple100 },
 ] as const satisfies readonly { id: Circle; emoji: string; label: string; hint: string; tint: string }[];
@@ -518,7 +518,7 @@ export function PriceWhyStep({
         ) : null}
         <InsetGroup style={{ marginTop: 16 }}>
           <InsetRow glyph="🔓" tile={palette.green100} title="Everything unlocked" sub="Every exercise, programme and flow" index={0} />
-          <InsetRow glyph="💞" tile="#ffe4e6" title={together.title} sub={together.sub} index={1} />
+          <InsetRow glyph="👥" tile={palette.amber50} title={together.title} sub={together.sub} index={1} />
           <InsetRow glyph="🛡️" tile={palette.amber50} title="Keep what you build" sub="Streak, league and records on every phone" index={2} last />
         </InsetGroup>
         <Animated.View entering={springIn(6)} style={styles.note}>

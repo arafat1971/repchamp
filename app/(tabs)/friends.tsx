@@ -764,7 +764,7 @@ export default function FriendsScreen() {
 
       {seed.isSeeding && seed.phantomFriends.length > 0 ? (
         <StaggerIn index={3}>
-          <HomeSectionHeader title="Suggested training partners" />
+          <HomeSectionHeader title="Your AI friends & coaches" />
           <View style={styles.card}>
             {seed.phantomFriends.map((p, index) => (
               <View key={p.id}>
@@ -778,7 +778,7 @@ export default function FriendsScreen() {
                         <AiTag />
                       </View>
                       <Text style={font('semibold', 11.5, { color: p.online ? palette.green600 : palette.grey600 })} numberOfLines={1}>
-                        {p.tagline.replace(/^AI · /, '')} · Lv.{p.level}
+                        {p.tagline.replace(/^AI /, '')} · Lv.{p.level}
                       </Text>
                     </View>
                   </View>
@@ -799,7 +799,7 @@ export default function FriendsScreen() {
 
       {filteredOpponents.length > 0 ? (
         <StaggerIn index={4}>
-          <HomeSectionHeader title="Practice with AI partners" />
+          <HomeSectionHeader title="Practice with your AI friends" />
           <View style={styles.card}>{filteredOpponents.map((o, i) => botRow(o, i))}</View>
         </StaggerIn>
       ) : null}

@@ -24,8 +24,8 @@ export interface LeaderboardRow {
  */
 const RIVALS: readonly Omit<LeaderboardRow, 'rank' | 'isYou'>[] = [
   { id: 'mia', name: 'Mia', initial: 'M', xp: 4120, level: 7, background: '#fde68a', color: '#92400e' },
-  { id: 'adrian', name: 'Adrian', initial: 'A', xp: 3880, level: 4, background: '#ddd6fe', color: '#5b21b6' },
-  { id: 'zheng', name: 'Zheng', initial: 'Z', xp: 3540, level: 6, background: '#bfdbfe', color: '#1e40af' },
+  { id: 'adrian', name: 'Ada', initial: 'A', xp: 3880, level: 4, background: '#ddd6fe', color: '#5b21b6' },
+  { id: 'zheng', name: 'Zara', initial: 'Z', xp: 3540, level: 6, background: '#bfdbfe', color: '#1e40af' },
   { id: 'lena', name: 'Lena', initial: 'L', xp: 2910, level: 5, background: '#fecdd3', color: '#be123c' },
   { id: 'kojo', name: 'Kojo', initial: 'K', xp: 2640, level: 4, background: '#bbf7d0', color: '#15803d' },
   { id: 'dani', name: 'Dani', initial: 'D', xp: 2180, level: 3, background: '#e9d5ff', color: '#7c3aed' },

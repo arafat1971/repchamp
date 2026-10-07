@@ -324,7 +324,7 @@ function MiniPhone({
           {toast ? (
             <Animated.View
               key={toast.key}
-              entering={FadeInDown.springify().damping(14)}
+              entering={FadeInDown.duration(320)}
               exiting={FadeOutUp.duration(220)}
               style={styles.toast}
             >

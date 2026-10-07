@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraDenied } from '@/components/session/CameraDenied';
 import { CameraStage, StatusChip } from '@/components/session/CameraStage';
 import { CameraTutorial } from '@/components/session/CameraTutorial';
+import { PhoneRestNotice } from '@/components/session/PhoneRestNotice';
 import { PoseDebugHud } from '@/components/session/PoseDebugHud';
 import { PoseOverlay } from '@/components/session/PoseOverlay';
 import { ProgressRing, RingPercent } from '@/components/session/ProgressRing';
@@ -70,6 +71,7 @@ import { useSettingsStore } from '@/state/settingsStore';
 import { EXERCISES, getExercise, type ExerciseId } from '@/vision/exercises';
 import { buildFormReport } from '@/vision/formScore';
 import type { RepRecord } from '@/vision/repCounter';
+import { recentlyStrained } from '@/vision/thermal';
 import { usePoseSession } from '@/vision/usePoseSession';
 import { font, text } from '@/theme/typography';
 import { palette, radius } from '@/theme/tokens';
@@ -568,6 +570,8 @@ export default function SessionScreen() {
     poseFrame,
     recorder,
     cameraFps,
+    deviceStrained,
+    strainEpisode,
   } = usePoseSession({
     exercise,
     // Video recording disabled pending a VisionCamera v5 fix: the recorder
@@ -581,6 +585,17 @@ export default function SessionScreen() {
     onPose: handlePose,
     onFraming: handleFraming,
   });
+
+  /* Phone-needs-a-rest notices. dismissing the in-set one hides it for that
+     hot spell; a later spell is a new episode and shows it again. The next-set
+     note is decided once, on arrival, from whether the last set ran hot — a
+     fresh mount per set is what makes "recently" mean anything. */
+  const [dismissedEpisode, setDismissedEpisode] = useState(0);
+  const [nextSetNoteOpen, setNextSetNoteOpen] = useState(() => recentlyStrained(10 * 60 * 1000));
+  const restDismissed = dismissedEpisode === strainEpisode;
+  /* The next-set note belongs to the first calibration only; once the set has
+     moved on, a later re-calibration must not bring it back. */
+  if (phase !== 'calibrating' && nextSetNoteOpen) setNextSetNoteOpen(false);
 
   const startRecording = recorder.start;
   const stopRecording = recorder.stop;
@@ -1095,6 +1110,14 @@ export default function SessionScreen() {
             downThreshold={definition.downThreshold}
             upThreshold={definition.upThreshold}
           />
+        ) : null}
+
+        {/* A calm "your phone needs a rest" note — never over the tutorial or
+            the camera-denied screen, which own the whole display. */}
+        {!showTutorial && !cameraBlocked && phase !== 'finished' && deviceStrained && !restDismissed ? (
+          <PhoneRestNotice kind="during" top={insets.top + 96} onDismiss={() => setDismissedEpisode(strainEpisode)} />
+        ) : !showTutorial && !cameraBlocked && phase === 'calibrating' && nextSetNoteOpen ? (
+          <PhoneRestNotice kind="next-set" top={insets.top + 96} onDismiss={() => setNextSetNoteOpen(false)} />
         ) : null}
 
         {/* First-run coaching overlay — how to position the phone and stand for

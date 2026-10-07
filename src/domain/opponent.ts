@@ -30,7 +30,7 @@ export interface Opponent {
 export const OPPONENTS: readonly Opponent[] = [
   {
     id: 'adrian',
-    name: 'Adrian',
+    name: 'Ada',
     initial: 'A',
     color: '#5b21b6',
     borderColor: '#a855f7',
@@ -41,7 +41,7 @@ export const OPPONENTS: readonly Opponent[] = [
   },
   {
     id: 'zheng',
-    name: 'Zheng',
+    name: 'Zara',
     initial: 'Z',
     color: '#1e40af',
     borderColor: '#3b82f6',

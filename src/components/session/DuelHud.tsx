@@ -1,3 +1,4 @@
+import { partnerLine } from '@/domain/partnerVoice';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
@@ -202,7 +203,7 @@ export function DuelHud({
             pointerEvents="none"
           >
             <Text style={[styles.overtakeText, { color: palette.green300 }]}>
-              YOU TOOK THE LEAD
+              {partnerLine(opponent.id, 'tookLead', 'champ', reps) ?? 'YOU TOOK THE LEAD'}
             </Text>
           </Animated.View>
         ) : null}

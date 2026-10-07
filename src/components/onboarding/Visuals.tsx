@@ -12,7 +12,6 @@ import Animated, {
   withDelay,
   withRepeat,
   withSequence,
-  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import Svg, { Circle, Defs, Line, LinearGradient as SvgGradient, Path, Stop } from 'react-native-svg';
@@ -383,7 +382,7 @@ export function CrownBadge() {
 function Particle({ emoji, angle, dist, delay }: { emoji: string; angle: number; dist: number; delay: number }) {
   const t = useSharedValue(0);
   useEffect(() => {
-    t.value = withDelay(delay, withSpring(1, { damping: 9, stiffness: 70 }));
+    t.value = withDelay(delay, withTiming(1, { duration: 900 }));
   }, [t, delay]);
   const style = useAnimatedStyle(() => ({
     opacity: t.value < 0.05 ? 0 : 1 - Math.max(0, t.value - 0.8) * 5,

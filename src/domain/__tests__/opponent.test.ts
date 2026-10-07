@@ -5,7 +5,7 @@ const mia = OPPONENTS[2]!;
 
 describe('getOpponent', () => {
   it('finds a known opponent', () => {
-    expect(getOpponent('zheng').name).toBe('Zheng');
+    expect(getOpponent('zheng').name).toBe('Zara');
   });
 
   it('falls back rather than returning undefined for an unknown id', () => {

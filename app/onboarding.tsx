@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter, type Href } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   BackHandler,
@@ -31,7 +31,6 @@ import Animated, {
   withDelay,
   withRepeat,
   withSequence,
-  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -45,6 +44,7 @@ import { Card as BaseCard, PressableScale, PrimaryButton, ProgressBar } from '@/
 import { captureError } from '@/lib/crash';
 import { pluralise } from '@/domain/plural';
 import { OPPONENTS } from '@/domain/opponent';
+import { FREE_REP_LIMIT } from '@/domain/hardPaywall';
 import { track } from '@/lib/analytics';
 import { onboardingProgressPercent, onboardingStepName } from '@/domain/onboardingFunnel';
 import {
@@ -56,6 +56,7 @@ import {
   AFTER_PAYWALL_STEP,
   BUILD_STEP,
   PAYWALL_STEP,
+  SIGN_IN_STEP,
   afterSignInStep,
   barPercent,
   nextStep,
@@ -79,7 +80,6 @@ import {
 import {
   Burst,
   CoupleVisual,
-  CrownBadge,
   HalfRepDemo,
   RepCounterVisual,
   SpaceDiagram,
@@ -167,7 +167,7 @@ const BLOCKERS = [
 const BOARD_MOCK = [
   { medal: '🥇', emoji: '🏃‍♀️', name: 'Nova', xp: '1,240', tint: '#ede9fe', you: false },
   { medal: '🥈', emoji: '💪', name: 'You', xp: '1,180', tint: palette.green50, you: true },
-  { medal: '🥉', emoji: '🤾‍♂️', name: 'Titan', xp: '1,020', tint: '#dbeafe', you: false },
+  { medal: '🥉', emoji: '🤾‍♀️', name: 'Tia', xp: '1,020', tint: '#dbeafe', you: false },
 ] as const;
 
 /** The three commitments made during onboarding, restated at the finish. */
@@ -201,6 +201,10 @@ export default function OnboardingScreen() {
      goal, frequency or reminder questions yet, so completing sign-in has to
      return them to where they left off instead of dropping them at the paywall. */
   const [cameToSignInEarly, setCameToSignInEarly] = useState(false);
+  /* Set the moment Google sign-in succeeds. The auth store can still say
+     "anonymous" afterwards (linking onto the existing uid fires no auth-state
+     change), so it cannot be the only thing the skip check trusts. */
+  const signedInRef = useRef(false);
   /** The handle sign-in could not confirm, if any. Scopes the username step's
       leniency so the same unverifiable name cannot be waved through twice. */
   const [refusedAtSignIn, setRefusedAtSignIn] = useState<string | null>(null);
@@ -219,7 +223,18 @@ export default function OnboardingScreen() {
      username check finishing twice — used to advance two screens, skipping one
      the athlete never saw. Only the first call for a given step moves. */
   const next = useCallback(
-    () => setStep((s) => (s === step ? nextStep(s) : s)),
+    () =>
+      setStep((s) => {
+        if (s !== step) return s;
+        const target = nextStep(s);
+        /* Already signed in with Google — e.g. via "Already have an account?"
+           earlier — so asking again would loop them through sign-in twice. */
+        const user = useAuthStore.getState().user;
+        if (target === SIGN_IN_STEP && (signedInRef.current || (user && !user.isAnonymous))) {
+          return afterSignInStep(useProStore.getState().isPro);
+        }
+        return target;
+      }),
     [step],
   );
   /* Steps 12 (AI coach) and 13 (couple mode) restate what screens 1 and 3
@@ -550,7 +565,7 @@ export default function OnboardingScreen() {
             onNext={next}
           />
         ) : null}
-        {step === 17 ? <Challenge username={username} onNext={() => setStep(18)} /> : null}
+        {step === 17 ? <Challenge username={username} avatarUri={avatarUri} onNext={() => setStep(18)} /> : null}
         {step === 18 ? <Building percent={buildPercent} /> : null}
         {/* Reminders before sign-in: it asks for a permission, and a plan the
             athlete just chose is the strongest reason they will ever have to
@@ -562,6 +577,9 @@ export default function OnboardingScreen() {
             subscription needs an account to attach to. */}
         {step === 20 ? (
           <SignIn
+            onSignedIn={() => {
+              signedInRef.current = true;
+            }}
             onRestored={setUsername}
             onNext={() => {
               /* The handle was checked at step 5 and is not claimed until the
@@ -632,7 +650,9 @@ export default function OnboardingScreen() {
         {/* The Reps widget closes the home-screen setup, just before the offer.
             Skips itself where unsupported. */}
         {step === 26 ? <RepsWidgetStep onNext={next} /> : null}
-        {step === 27 ? <Offer onDone={finish} /> : null}
+        {step === 27 ? (
+          <ReadyToRace username={username} avatarUri={avatarUri} onDone={finish} />
+        ) : null}
       </Animated.View>
     </View>
   );
@@ -763,8 +783,11 @@ function Welcome({ onNext }: { onNext: () => void }) {
 function SignIn({
   onNext,
   onRestored,
+  onSignedIn,
 }: {
   onNext: () => void;
+  /** Called once Google sign-in has succeeded, before the confirmation beat. */
+  onSignedIn: () => void;
   /** Called with the handle a returning account already owns, so the parent's
       username state matches what was just restored from the cloud. */
   onRestored: (username: string) => void;
@@ -784,6 +807,12 @@ function SignIn({
     setAuthError(null);
     try {
       const account = await signInWithGoogle();
+      onSignedIn();
+      /* Linking onto the anonymous uid fires no auth-state change, so the store
+         would keep saying "anonymous". Same uid only — a different one reaches
+         the store through its listener, which runs the account-switch reset. */
+      const stored = useAuthStore.getState().user;
+      if (stored && stored.uid === account.uid) useAuthStore.setState({ user: account });
 
       /* Signing in can mean two things, and this used to treat them the same:
        * a new athlete creating an account, or someone coming back on a new
@@ -831,7 +860,7 @@ function SignIn({
     } finally {
       setBusy(false);
     }
-  }, [busy, onNext, onRestored]);
+  }, [busy, onNext, onRestored, onSignedIn]);
 
   /* The confirmation replaces the screen rather than appearing under it.
    *
@@ -919,7 +948,7 @@ function SignedIn({ message, holdMs }: { message: string; holdMs: number }) {
 
   useEffect(() => {
     successHaptic();
-    tick.value = withSpring(1, { damping: 7, stiffness: 150 });
+    tick.value = withTiming(1, { duration: 320 });
     /* Linear on purpose: this is a clock, not a flourish. Easing it would make
        the remaining wait misrepresent itself. */
     fill.value = withTiming(1, { duration: holdMs, easing: Easing.linear });
@@ -1077,7 +1106,7 @@ function ValueScreen({
 
       <View style={[styles.valueVisual, { minHeight: compact ? 200 : 250 }]}>
         <Animated.View
-          entering={ZoomIn.springify().damping(14).delay(140)}
+          entering={ZoomIn.duration(320).delay(140)}
           style={compact ? { transform: [{ scale: 0.78 }] } : undefined}
         >
           {visual}
@@ -1247,7 +1276,7 @@ function Photo({
   useEffect(() => {
     if (!avatarUri) return;
     successHaptic();
-    pop.value = withSequence(withTiming(1.14, { duration: 130 }), withSpring(1, { damping: 6, stiffness: 220 }));
+    pop.value = withSequence(withTiming(1.03, { duration: 140 }), withTiming(1, { duration: 200 }));
   }, [avatarUri, pop]);
 
   const ringStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${spin.value * 360}deg` }] }));
@@ -1269,7 +1298,7 @@ function Photo({
           accessibilityRole="button"
           accessibilityLabel={avatarUri ? 'Change your photo' : 'Choose a photo from your library'}
         >
-          <Animated.View entering={ZoomIn.springify().damping(12).delay(120)} style={popStyle}>
+          <Animated.View entering={ZoomIn.duration(320).delay(120)} style={popStyle}>
             <View style={styles.photoRingBox}>
               <Animated.View style={[StyleSheet.absoluteFill, ringStyle]}>
                 <LinearGradient
@@ -1415,9 +1444,9 @@ function Frequency({
         body="Be honest. A goal you hit beats a goal you admire."
       />
 
-      <Animated.View entering={ZoomIn.springify().damping(13).delay(140)} style={styles.freqDial}>
+      <Animated.View entering={ZoomIn.duration(320).delay(140)} style={styles.freqDial}>
         <ProgressDial size={196} stroke={16} progress={value / 7} color={tone}>
-          <Animated.View key={emoji} entering={ZoomIn.springify().damping(8)}>
+          <Animated.View key={emoji} entering={ZoomIn.duration(320)}>
             <Text style={{ fontSize: 26 }}>{emoji}</Text>
           </Animated.View>
           <PopOnChange trigger={value} scale={1.16}>
@@ -1635,12 +1664,13 @@ function YourProjection({
 
   return (
     <View style={[styles.step, styles.stepPadded]}>
+      <Aurora tint={palette.green400} second={palette.amber300} />
       <Animated.View entering={FadeInUp.duration(420)} style={{ alignItems: 'center' }}>
         <View style={[styles.valueEyebrow, { backgroundColor: palette.amber50 }]}>
           <Text style={styles.valueEyebrowText}>YOUR PROJECTION</Text>
         </View>
         <Text style={[text.h1, { fontSize: 26, textAlign: 'center' }]}>
-          {username ? `${username}, here's` : "Here's"} your next 6 weeks
+          {username ? `${username}, here's\nyour next 6 weeks` : "Here's\nyour next 6 weeks"}
         </Text>
         <Text style={[text.body, styles.centeredCopy]}>
           Training {weeklyGoal} {weeklyGoal === 1 ? 'day' : 'days'} a week, this is the XP you
@@ -1673,7 +1703,7 @@ function YourProjection({
             </Floating>
           </View>
 
-          <GrowthChart data={weeks.map((w) => w.xp)} width={264} height={122} />
+          <GrowthChart data={weeks.map((w) => w.xp)} width={264} height={140} />
 
           <View style={styles.chartAxis}>
             {weeks.map((w) => (
@@ -1685,33 +1715,31 @@ function YourProjection({
         </Card>
       </View>
 
-      {nextLeague ? (
-        <StaggerIn index={0} step={140}>
-          <View style={styles.projectionNote}>
-            <Text style={{ fontSize: 18 }}>⬆️</Text>
-            <Text style={[text.captionMd, { flex: 1 }]}>
-              Add a session or two a week to climb into{' '}
-              <Text style={font('extrabold', 12.5, { color: palette.green700 })}>
-                {nextLeague.league}
-              </Text>
-              .
-            </Text>
-          </View>
-        </StaggerIn>
-      ) : null}
-
-      {/* Conversion beat: the chart shows what they gain by starting; this line
-          names what it costs to not. Loss aversion converts harder than a
-          restatement of the upside, and the claim is true — the streak and
-          weekly league both reset if they don't train. */}
-      <StaggerIn index={1} step={140}>
-        <View style={styles.commitRow}>
-          <Text style={{ fontSize: 16 }}>🔥</Text>
-          <Text style={[text.captionMd, { flex: 1 }]}>
-            Your first session starts the streak. Miss a week and the league resets to Bronze.
-          </Text>
-        </View>
-      </StaggerIn>
+      {/* One grouped list rather than two differently coloured pills: the
+          upside (climb a league) and the cost of not starting (the reset) read
+          as a pair. */}
+      <Animated.View entering={springIn(4)}>
+        <InsetGroup>
+          {nextLeague ? (
+            <InsetRow
+              glyph="⬆️"
+              tile={palette.green100}
+              title={`Climb into ${nextLeague.league}`}
+              sub="Add a session or two a week"
+              index={0}
+              last={false}
+            />
+          ) : null}
+          <InsetRow
+            glyph="🔥"
+            tile={palette.amber50}
+            title="Your first session starts the streak"
+            sub="Miss a week and the league resets to Bronze"
+            index={1}
+            last
+          />
+        </InsetGroup>
+      </Animated.View>
 
       <View style={{ flex: 1 }} />
       <PrimaryButton label={`Start my ${weeklyGoal}-day plan`} onPress={onNext} />
@@ -2057,19 +2085,21 @@ function HowRepsCount({
   return (
     <View style={[styles.step, styles.stepPadded]}>
       <Aurora tint={palette.blue400} second={palette.green400} />
-      <ScreenHead
-        eyebrow="WHAT COUNTS"
-        tint={palette.blue50}
-        title={'Half reps\ndon’t count'}
-        body="Depth, tempo and alignment all have to land. A rep that misses is scored, not silently dropped, so you know why."
-      />
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingTop: 22, paddingBottom: 12, gap: 14 }}
+        contentContainerStyle={{ paddingBottom: 32, gap: 14 }}
         showsVerticalScrollIndicator={false}
+        overScrollMode="always"
+        nestedScrollEnabled
       >
-        <Animated.View entering={ZoomIn.springify().damping(14).delay(160)}>
+        <ScreenHead
+          eyebrow="WHAT COUNTS"
+          tint={palette.blue50}
+          title={'Half reps\ndon’t count'}
+          body="Depth, tempo and alignment all have to land. A rep that misses is scored, not silently dropped, so you know why."
+        />
+        <Animated.View entering={ZoomIn.duration(320).delay(160)}>
           <HalfRepDemo />
         </Animated.View>
 
@@ -2125,10 +2155,10 @@ function SetUpYourSpace({ username, onNext }: { username: string; onNext: () => 
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingTop: 26, paddingBottom: 12, gap: 20 }}
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingTop: 12, paddingBottom: 12, gap: 24 }}
         showsVerticalScrollIndicator={false}
       >
-        <Animated.View entering={ZoomIn.springify().damping(14).delay(160)}>
+        <Animated.View entering={ZoomIn.duration(320).delay(160)}>
           <SpaceDiagram />
         </Animated.View>
 
@@ -2390,7 +2420,7 @@ function DayThumb({ value }: { value: number }) {
   const offset = useSharedValue(slot);
 
   useEffect(() => {
-    offset.value = withSpring(slot, { damping: 16, stiffness: 220 });
+    offset.value = withTiming(slot, { duration: 180 });
   }, [slot, offset]);
 
   const style = useAnimatedStyle(() => ({
@@ -2400,7 +2430,15 @@ function DayThumb({ value }: { value: number }) {
   return <Animated.View style={[styles.dayThumb, style]} pointerEvents="none" />;
 }
 
-function Challenge({ username, onNext }: { username: string; onNext: () => void }) {
+function Challenge({
+  username,
+  avatarUri,
+  onNext,
+}: {
+  username: string;
+  avatarUri: string | null;
+  onNext: () => void;
+}) {
   const { fontScale } = useWindowDimensions();
   const rival = OPPONENTS[0]!;
   /* The pace they will actually face: bots race from the athlete's own
@@ -2408,62 +2446,61 @@ function Challenge({ username, onNext }: { username: string; onNext: () => void 
      this athlete never meets. */
   const sessions = useProfileStore((s) => s.sessions);
   const pace = Math.round(matchedPace(rival.repsPerMinute, sessions, 'push'));
-  const pulse = useSharedValue(0);
-
-  useEffect(() => {
-    pulse.value = withRepeat(
-      withSequence(
-        withTiming(1, { duration: 900, easing: Easing.out(Easing.quad) }),
-        withTiming(0, { duration: 900, easing: Easing.in(Easing.quad) }),
-      ),
-      -1,
-      false,
-    );
-  }, [pulse]);
-
-  const boltStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: 1 + pulse.value * 0.16 }],
-    opacity: 0.75 + pulse.value * 0.25,
-  }));
+  const handle = username || 'You';
 
   return (
     <View style={[styles.step, styles.stepPadded]}>
-      <View style={styles.challengeChip}>
-        <Text style={font('extrabold', 11, { color: palette.green600 })}>FIRST RIVAL</Text>
+      <Aurora tint={palette.purple400} second={palette.green400} />
+      <ScreenHead
+        eyebrow="FIRST RIVAL"
+        tint={palette.green50}
+        title={`${rival.name} is ready\nto race you`}
+        body="He races at your pace, a touch faster. Out-rep him and the XP is yours."
+      />
+
+      <View style={styles.versusStage}>
+        <Animated.View entering={springIn(3)} style={styles.versusCard}>
+          <View style={styles.rivalCol}>
+            <View style={[styles.versusAvatar, { backgroundColor: palette.purple100 }]}>
+              <Text style={font('extrabold', 38, { color: rival.color })}>{rival.initial}</Text>
+            </View>
+            <Text style={styles.rivalName}>{rival.name}</Text>
+            <View style={styles.aiTag}>
+              <Text style={font('extrabold', 9.5, { color: palette.green700 })}>AI RIVAL</Text>
+            </View>
+            <Text style={styles.rivalPace}>{pace} reps/min</Text>
+          </View>
+
+          <View style={styles.vsPill}>
+            <Text style={font('extrabold', 12, { color: palette.grey600 })}>VS</Text>
+          </View>
+
+          <View style={styles.rivalCol}>
+            {avatarUri ? (
+              <Image source={{ uri: avatarUri }} style={[styles.versusAvatar, styles.versusAvatarYou]} />
+            ) : (
+              <View style={[styles.versusAvatar, styles.versusAvatarYou, { backgroundColor: palette.green50 }]}>
+                <Text style={font('extrabold', 38, { color: palette.green700 })}>
+                  {handle.charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
+            <Text style={styles.rivalName} numberOfLines={1}>{handle}</Text>
+            <View style={[styles.aiTag, { backgroundColor: palette.amber50, borderColor: '#fde68a' }]}>
+              <Text style={font('extrabold', 9.5, { color: palette.amber600 })}>YOU</Text>
+            </View>
+            <Text style={styles.rivalPace}>your pace</Text>
+          </View>
+        </Animated.View>
+
+        <Animated.View entering={springIn(5)}>
+          <InsetGroup>
+            <InsetRow glyph="🎯" tile={palette.blue50} title="Matched to you" sub="His pace is set from your own history" index={0} />
+            <InsetRow glyph="⚡" tile={palette.amber50} title="Win to earn XP" sub="Out-rep him to move up your league" index={1} last />
+          </InsetGroup>
+        </Animated.View>
       </View>
-      <Text style={[text.h1, { fontSize: 29, marginTop: 12, textAlign: 'center' }]}>
-        {rival.name} is ready{'\n'}to race you
-      </Text>
-      <Text style={[text.body, styles.centeredCopy]}>
-        He races at your pace, a touch faster. Out-rep him and the XP is yours.
-      </Text>
 
-      <View style={styles.versusRow}>
-        <View style={styles.rivalCol}>
-          <View style={[styles.versusAvatar, { backgroundColor: palette.purple100 }]}>
-            <Text style={font('extrabold', 28, { color: rival.color })}>{rival.initial}</Text>
-          </View>
-          <View style={styles.aiTag}>
-            <Text style={font('extrabold', 9.5, { color: palette.green700 })}>AI</Text>
-          </View>
-          <Text style={styles.rivalName}>{rival.name}</Text>
-          <Text style={styles.rivalPace}>{pace}/min</Text>
-        </View>
-
-        <Animated.Text style={[{ fontSize: 30 }, boltStyle]}>⚡</Animated.Text>
-
-        <View style={styles.rivalCol}>
-          <View style={[styles.versusAvatar, { backgroundColor: palette.green50 }]}>
-            <Text style={font('extrabold', 26, { color: palette.green700 })}>
-              {(username || 'You').charAt(0).toUpperCase()}
-            </Text>
-          </View>
-          <Text style={styles.rivalName}>{username || 'You'}</Text>
-          <Text style={styles.rivalPace}>your pace</Text>
-        </View>
-      </View>
-
-      <View style={{ flex: 1 }} />
       <PrimaryButton label={`Race ${rival.name}`} onPress={onNext} />
       <Pressable
         onPress={onNext}
@@ -2635,7 +2672,7 @@ function Paywall({
     console.warn('[RepChamp] onboarding purchase failed:', result.message);
     showDialog({
       title: 'Could not start',
-      message: result.message ?? 'Please try again, or continue with the free staples.',
+      message: result.message ?? 'Please try again, or continue with your free reps.',
       tone: 'info',
       actions: [{ label: 'Continue free', variant: 'primary', onPress: onNext }],
     });
@@ -2777,7 +2814,7 @@ function Paywall({
       <Text style={[text.captionMd, { textAlign: 'center', marginTop: 12 }]}>
         {selected
           ? renewDisclosure(selected)
-          : 'Push-ups, squats, duels and couple mode stay free.'}
+          : `Start free with ${FREE_REP_LIMIT} reps. Couple mode is always free.`}
       </Text>
     </ScrollView>
 
@@ -2850,176 +2887,66 @@ function PlanOption({
 }
 
 /**
- * Closing offer — the annual plan at its real store price.
+ * The last screen: the athlete's own face and handle, ready to race.
  *
- * Everything shown here comes from the live RevenueCat offering and the button
- * runs a real purchase: a "Start Free Trial" control that starts no trial, or a
- * hardcoded price that disagrees with what the store charges, is both an App
- * Review rejection and a promise the app cannot keep. When billing isn't
- * configured yet the screen degrades to a plain finish step rather than showing
- * an offer that cannot be taken.
+ * It is the only thing between the plan and the first set. The paywall already
+ * had its one chance at step 21; a second sales page here was the same offer
+ * twice, so this screen sells nothing and just closes the loop on the profile
+ * the athlete built.
  */
-function Offer({ onDone }: { onDone: () => void }) {
-  const setPro = useProStore((s) => s.setPro);
-  const uid = useAuthStore((s) => s.user?.uid ?? null);
-  const [annual, setAnnual] = useState<PurchasesPackage | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const billingReady = isPurchasesConfigured();
-
-  useEffect(() => {
-    if (!billingReady) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-    fetchOffering()
-      .then((offering) => {
-        if (cancelled) return;
-        const pkgs = sortPackagesForPaywall(offering?.availablePackages ?? []);
-        setAnnual(pkgs.find((p) => p.packageType === 'ANNUAL') ?? pkgs[0] ?? null);
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) captureError(error);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [billingReady]);
-
-  const onStart = useCallback(async () => {
-    if (!annual || busy) return;
-    setBusy(true);
-    const result = await purchase(annual, uid);
-    setBusy(false);
-    if (result.cancelled) return;
-    if (result.ok && result.isPro) {
-      setPro(true);
-      if (hasFreeTrial(annual)) {
-        track('trial_started', { plan: annual.packageType, source: 'onboarding' });
-      }
-      track('subscribed', { plan: annual.packageType, source: 'onboarding' });
-      onDone();
-      return;
-    }
-    showDialog({
-      title: 'Purchase failed',
-      message: result.message ?? 'Please try again.',
-      tone: 'danger',
-      actions: [{ label: 'Try again', variant: 'primary' }],
-    });
-  }, [annual, busy, setPro, onDone, uid]);
-
-  // No live offer to show — finish onboarding rather than fake a discount.
-  const showOffer = billingReady && annual !== null;
-
+function ReadyToRace({
+  username,
+  avatarUri,
+  onDone,
+}: {
+  username: string;
+  avatarUri: string | null;
+  onDone: () => void;
+}) {
+  const handle = username || 'champion';
   return (
     <View style={[styles.step, styles.stepPadded]}>
-      <Aurora tint={showOffer ? palette.green400 : palette.amber300} second={palette.purple400} />
-      <Pressable
-        onPress={onDone}
-        accessibilityRole="button"
-        accessibilityLabel="Close offer"
-        // Drawn at 34pt; slop brings the tap area to the 44pt minimum. This is
-        // the only way out of the offer step, so a missed tap reads as a trap.
-        hitSlop={5}
-        style={styles.closeButton}
-      >
-        <Text style={{ fontSize: 16, color: palette.ink }}>✕</Text>
-      </Pressable>
-
+      <Aurora tint={palette.green400} second={palette.amber300} />
       <StepScroll>
-      <ScreenHead
-        title={showOffer ? 'Unlock everything' : "You're all set"}
-        body={showOffer ? undefined : 'Your plan is built. The next rep is yours.'}
-      />
-
-      <View style={styles.offerMiddle}>
-        {loading ? (
-          <ActivityIndicator color={palette.green500} />
-        ) : showOffer ? (
-          <>
-            <Animated.View entering={ZoomIn.springify().damping(11).delay(120)}>
-              <CrownBadge />
-            </Animated.View>
-            {/* The store's own localised price string — never a hardcoded figure. */}
-            <Animated.Text entering={springIn(3)} style={styles.offerPrice} {...scaleForRole('display')}>
-              {annual.product.priceString}
-            </Animated.Text>
-            <Animated.Text entering={springIn(4)} style={[text.captionMd, { marginTop: 2, textAlign: 'center' }]}>
-              {annual.product.description || 'Full access to every exercise and programme.'}
-            </Animated.Text>
-            <InsetGroup style={{ alignSelf: 'stretch', marginTop: 18 }}>
-              {[
-                { glyph: '🏋️', tile: palette.green100, title: 'Every Pro exercise', sub: 'Unlocked from day one' },
-                { glyph: '🗓️', tile: palette.blue50, title: 'Every programme', sub: 'Structured weeks, not guesswork' },
-                { glyph: '✋', tile: palette.amber50, title: 'Cancel anytime', sub: 'In Google Play or App Store settings' },
-              ].map((rule, i, all) => (
-                <InsetRow key={rule.title} {...rule} index={i + 2} last={i === all.length - 1} />
-              ))}
-            </InsetGroup>
-          </>
-        ) : (
-          <>
-            {/* Ends onboarding on the plan they just built rather than a stray
-                emoji on a blank page — the three numbers are what they agreed
-                to, restated as a commitment. */}
-            <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-              <Burst />
-              <Floating distance={7}>
-                <Animated.View entering={ZoomIn.springify().damping(8)} style={styles.offerReadyBubble}>
-                  <Image source={TROPHY_GOLD} style={{ width: 126, height: 84 }} contentFit="contain" />
-                </Animated.View>
-              </Floating>
+        <View style={styles.offerMiddle}>
+          <Animated.View entering={FadeIn.duration(400)} style={styles.readyAvatarWrap}>
+            {avatarUri ? (
+              <Image source={{ uri: avatarUri }} style={styles.readyAvatar} />
+            ) : (
+              <View style={[styles.readyAvatar, styles.photoPlaceholder]}>
+                <Text style={font('extrabold', 48, { color: palette.green600 })}>
+                  {handle.charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
+            <View style={styles.readyAvatarBadge}>
+              <Text style={{ fontSize: 16, color: palette.white }}>✓</Text>
             </View>
-            <Animated.Text entering={springIn(2)} style={font('extrabold', 21, { color: palette.ink, marginTop: 20 })}>
-              Your plan is ready
-            </Animated.Text>
-
-            <View style={styles.readyStats}>
-              {READY_STATS.map((stat, i) => (
-                <Animated.View key={stat.label} entering={springIn(i + 3, 110)}>
-                  <View style={styles.readyStat}>
-                    <Text style={{ fontSize: 20 }}>{stat.emoji}</Text>
-                    <Text style={font('extrabold', 17, { color: palette.ink, marginTop: 4 })}>
-                      {stat.value}
-                    </Text>
-                    <Text style={styles.readyStatLabel}>{stat.label}</Text>
-                  </View>
-                </Animated.View>
-              ))}
-            </View>
-          </>
-        )}
-      </View>
-      </StepScroll>
-
-      {showOffer ? (
-        <>
-          <PrimaryButton
-            label={busy ? 'Starting…' : annual ? subscribeCtaLabel(annual) : 'Continue'}
-            onPress={() => void onStart()}
-            disabled={busy}
-          />
-          <Text style={[text.captionMd, { textAlign: 'center', marginTop: 8 }]}>
-            {annual ? renewDisclosure(annual) : null}
-          </Text>
-          <Pressable
-            onPress={onDone}
-            accessibilityRole="button"
-            accessibilityLabel="Maybe later"
-            style={styles.skip}
+          </Animated.View>
+          <Animated.Text
+            entering={springIn(2)}
+            style={font('extrabold', 28, { color: palette.ink, marginTop: 22, textAlign: 'center' })}
+            {...scaleForRole('heading')}
           >
-            <Text style={font('extrabold', 14, { color: palette.grey600 })}>Maybe later</Text>
-          </Pressable>
-        </>
-      ) : (
-        <PrimaryButton label="Start training" onPress={onDone} />
-      )}
+            Ready to race, @{handle}
+          </Animated.Text>
+          <Animated.Text entering={springIn(3)} style={[text.body, styles.centeredCopy]}>
+            Your plan is built. Your first set starts the moment you tap below.
+          </Animated.Text>
+          <View style={styles.readyStats}>
+            {READY_STATS.map((stat, i) => (
+              <Animated.View key={stat.label} entering={springIn(i + 4, 90)}>
+                <View style={styles.readyStat}>
+                  <Text style={{ fontSize: 20 }}>{stat.emoji}</Text>
+                  <Text style={font('extrabold', 17, { color: palette.ink, marginTop: 4 })}>{stat.value}</Text>
+                  <Text style={styles.readyStatLabel}>{stat.label}</Text>
+                </View>
+              </Animated.View>
+            ))}
+          </View>
+        </View>
+      </StepScroll>
+      <PrimaryButton label="Start my first set" onPress={onDone} />
     </View>
   );
 }
@@ -3740,8 +3667,7 @@ const styles = StyleSheet.create({
      than one more row in the list above it. */
   rulePayoff: {
     alignItems: 'center',
-    marginTop: 20,
-    padding: 18,
+    padding: 14,
     borderRadius: radius['3xl'],
     backgroundColor: palette.green50,
     borderWidth: 1,
@@ -3864,21 +3790,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: radius['2xl'],
   },
-  versusRow: {
+  versusStage: { flex: 1, justifyContent: 'center', gap: 20 },
+  versusCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
-    marginVertical: 24,
+    justifyContent: 'space-between',
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+    borderRadius: radius['4xl'],
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: 'rgba(15,31,23,0.06)',
+    ...surfaceShadow,
   },
   versusAvatar: {
-    width: 74,
-    height: 74,
-    borderRadius: 37,
+    width: 92,
+    height: 92,
+    borderRadius: 46,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rivalCol: { alignItems: 'center', gap: 4 },
+  versusAvatarYou: { borderWidth: 3, borderColor: palette.green500 },
+  vsPill: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: palette.canvas,
+    borderWidth: 1,
+    borderColor: palette.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rivalCol: { flex: 1, alignItems: 'center', gap: 6 },
   // Matches the AI pill used on the Arena leaderboard, so a labelled partner
   // reads the same everywhere in the app.
   aiTag: {
@@ -3886,12 +3829,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#bfeccb',
     borderRadius: radius.xs,
-    paddingHorizontal: 4,
-    paddingVertical: 4,
-    marginTop: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
   },
-  rivalName: { ...font('extrabold', 14, { color: palette.ink }), marginTop: 4 },
-  rivalPace: { ...font('bold', 11, { color: palette.grey600 }) },
+  rivalName: { ...font('extrabold', 16, { color: palette.ink }), marginTop: 10 },
+  rivalPace: { ...font('bold', 11.5, { color: palette.grey600 }) },
   declineButton: {
     // `minHeight` at render time — see `@/theme/fontScale`.
     marginTop: 8,
@@ -3974,6 +3916,21 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
   },
   offerMiddle: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  readyAvatarWrap: { width: 132, height: 132 },
+  readyAvatar: { width: 132, height: 132, borderRadius: 66, borderWidth: 4, borderColor: palette.white },
+  readyAvatarBadge: {
+    position: 'absolute',
+    right: 2,
+    bottom: 2,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: palette.green600,
+    borderWidth: 3,
+    borderColor: palette.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   readyStats: {
     flexDirection: 'row',
     justifyContent: 'center',

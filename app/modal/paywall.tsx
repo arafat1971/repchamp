@@ -71,8 +71,8 @@ const BENEFITS: Record<BenefitId, { title: string; detail: string }> = {
     detail: 'Depth, tempo and alignment after every set',
   },
   'free-staples': {
-    title: 'Always free staples',
-    detail: 'Push-ups, squats, duels & couple mode stay free',
+    title: 'Free to start',
+    detail: `${FREE_REP_LIMIT} free reps to try it, and couple mode is free forever`,
   },
 };
 

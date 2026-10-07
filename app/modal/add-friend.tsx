@@ -5,6 +5,7 @@ import { Share, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'r
 import Svg, { Path } from 'react-native-svg';
 
 import { ModalHeader } from '@/components/ModalHeader';
+import { SocialShareRow } from '@/components/SocialShareRow';
 import { Avatar, Card, Divider, Eyebrow, PressableScale, Screen } from '@/components/ui';
 import { isValidUsername, normalizeUsername } from '@/domain/input';
 import {
@@ -309,6 +310,8 @@ export default function AddFriendScreen() {
             Share link
           </Text>
         </PressableScale>
+
+        <SocialShareRow link={inviteLink} />
       </LinearGradient>
 
       {candidates ? (

@@ -40,7 +40,7 @@ export function paywallLead(
     case 'reports':
       return { title: 'See exactly how you move', sub: 'Depth, tempo and alignment after every set.' };
     default:
-      return { title: 'Train without limits', sub: 'Depth when you want it. The staples stay free.' };
+      return { title: 'Train without limits', sub: 'Depth when you want it. Couple mode stays free.' };
   }
 }
 

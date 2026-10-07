@@ -85,7 +85,7 @@ export function priceAnchor(plan: PlanPrice): string | null {
  */
 export function commitmentLine(hasTrial: boolean, trialLabel?: string | null): string {
   if (hasTrial && trialLabel) return `${trialLabel} free · Cancel anytime · No charge until it ends`;
-  return 'Cancel anytime · Keep the free staples either way';
+  return 'Cancel anytime in Google Play · Couple mode stays free either way';
 }
 
 /**

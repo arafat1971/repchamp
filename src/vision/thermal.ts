@@ -11,10 +11,62 @@ const EMA_ALPHA = 0.2;
 let rollingInferMs = 28;
 let frameIndex = 0;
 
+/**
+ * "The phone needs a rest" detection.
+ *
+ * Slow inference is the only thermal signal React Native gives us, and a single
+ * slow frame (a GC pause, a notification) says nothing about the device. So
+ * strain is declared only once the smoothed time has stayed high for
+ * `STRAIN_HOLD_MS`, and cleared only after it has stayed clearly low for as
+ * long — the gap between the two thresholds stops the notice flickering on and
+ * off around the boundary.
+ */
+const STRAIN_ENTER_MS = 48;
+const STRAIN_EXIT_MS = 38;
+const STRAIN_HOLD_MS = 20_000;
+/** A longer silence than this means frames stopped (paused, backgrounded); the
+ * hold timer must not span it. */
+const STRAIN_MAX_GAP_MS = 2_000;
+
+let strained = false;
+/** When the opposite condition started holding; 0 when it is not. */
+let flipSince = 0;
+/** Survives `resetThermalTelemetry` — it is how the *next* session knows. */
+let lastStrainedAt = 0;
+let lastSampleAt = 0;
+
 /** Record one inference duration (ms) from the frame worklet / JS bridge. */
-export function noteInferenceMs(ms: number): void {
+export function noteInferenceMs(ms: number, now: number = Date.now()): void {
   if (!Number.isFinite(ms) || ms <= 0) return;
   rollingInferMs = rollingInferMs * (1 - EMA_ALPHA) + ms * EMA_ALPHA;
+
+  if (lastSampleAt !== 0 && now - lastSampleAt > STRAIN_MAX_GAP_MS) flipSince = 0;
+  lastSampleAt = now;
+
+  const wantsFlip = strained ? rollingInferMs < STRAIN_EXIT_MS : rollingInferMs > STRAIN_ENTER_MS;
+  if (!wantsFlip) {
+    flipSince = 0;
+  } else if (flipSince === 0) {
+    flipSince = now;
+  } else if (now - flipSince >= STRAIN_HOLD_MS) {
+    strained = !strained;
+    flipSince = 0;
+  }
+  if (strained) lastStrainedAt = now;
+}
+
+/** True once the device has been working too hard for long enough to say so. */
+export function isDeviceStrained(): boolean {
+  return strained;
+}
+
+/**
+ * Whether the device was strained recently enough that the next set should
+ * start with a gentle heads-up. Used at session start, so a quick restart
+ * doesn't walk straight back into the same heat.
+ */
+export function recentlyStrained(withinMs: number, now: number = Date.now()): boolean {
+  return lastStrainedAt > 0 && now - lastStrainedAt <= withinMs;
 }
 
 export function rollingInferenceMs(): number {
@@ -43,8 +95,22 @@ export function shouldRunInference(): boolean {
   return true;
 }
 
-/** Test / session-start reset. */
+/**
+ * Test / session-start reset.
+ *
+ * Deliberately leaves `lastStrainedAt` alone: this runs when a session starts,
+ * which is exactly when "was the last set a hot one?" has to still be known.
+ */
 export function resetThermalTelemetry(): void {
   rollingInferMs = 28;
   frameIndex = 0;
+  strained = false;
+  flipSince = 0;
+  lastSampleAt = 0;
+}
+
+/** Tests only — forget that the device was ever strained. */
+export function resetThermalHistoryForTests(): void {
+  resetThermalTelemetry();
+  lastStrainedAt = 0;
 }

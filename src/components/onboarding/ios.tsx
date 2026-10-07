@@ -11,8 +11,6 @@ import Animated, {
   useSharedValue,
   withDelay,
   withRepeat,
-  withSequence,
-  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
@@ -55,10 +53,8 @@ export function StepScroll({ children }: { children: ReactNode }) {
 /** A spring entrance: rises, overshoots a hair, settles. `i` staggers siblings. */
 export const springIn = (i = 0, step = 70) =>
   FadeInDown.delay(i * step)
-    .springify()
-    .damping(15)
-    .stiffness(130)
-    .withInitialValues({ opacity: 0, transform: [{ translateY: 22 }] });
+    .duration(380)
+    .withInitialValues({ opacity: 0, transform: [{ translateY: 12 }] });
 
 /* ------------------------------------------------------------------------- */
 
@@ -133,7 +129,7 @@ export function Aurora({ tint = palette.green400, second = palette.blue400 }: { 
 /** Small tracked-caps label above a title, as a frosted pill. */
 export function Eyebrow({ label, tint }: { label: string; tint: string }) {
   return (
-    <Animated.View entering={ZoomIn.springify().damping(14)} style={[s.eyebrow, { backgroundColor: tint }]}>
+    <Animated.View entering={ZoomIn.duration(320)} style={[s.eyebrow, { backgroundColor: tint }]}>
       <Text style={s.eyebrowText} {...scaleForRole('control')}>{label}</Text>
     </Animated.View>
   );
@@ -265,7 +261,7 @@ function Scrim({ on, round }: { on: boolean; round: number }) {
 export function SpringCheck({ size = 24 }: { size?: number }) {
   return (
     <Animated.View
-      entering={ZoomIn.springify().damping(9).stiffness(220)}
+      entering={ZoomIn.duration(320)}
       style={[s.check, { width: size, height: size, borderRadius: size / 2 }]}
     >
       <Text style={font('extrabold', size * 0.55, { color: palette.white })} allowFontScaling={false}>✓</Text>
@@ -293,7 +289,7 @@ export function ChoiceRow({
 }) {
   const lift = useSharedValue(0);
   useEffect(() => {
-    lift.value = withSpring(selected ? 1 : 0, { damping: 11, stiffness: 220 });
+    lift.value = withTiming(selected ? 1 : 0, { duration: 160 });
   }, [selected, lift]);
   const liftStyle = useAnimatedStyle(() => ({
     transform: [{ scale: 1 + lift.value * 0.025 }],
@@ -346,7 +342,7 @@ export function ChoiceTile({
   const pop = useSharedValue(0);
   useEffect(() => {
     pop.value = selected
-      ? withSequence(withTiming(1.18, { duration: 120 }), withSpring(1, { damping: 6, stiffness: 240 }))
+      ? withTiming(1, { duration: 180 })
       : withTiming(0, { duration: 150 });
   }, [selected, pop]);
   const emojiStyle = useAnimatedStyle(() => ({
@@ -428,7 +424,7 @@ export function PopChip({
 }) {
   const v = useSharedValue(0);
   useEffect(() => {
-    v.value = withDelay(delay, withSpring(1, { damping: 10, stiffness: 180 }));
+    v.value = withDelay(delay, withTiming(1, { duration: 320 }));
   }, [v, delay]);
   const a = useAnimatedStyle(() => ({ opacity: v.value, transform: [{ scale: 0.6 + 0.4 * v.value }] }));
   return <Animated.View style={[style, a]}>{children}</Animated.View>;
@@ -452,7 +448,7 @@ export function ProgressDial({
   const c = 2 * Math.PI * r;
   const p = useSharedValue(0);
   useEffect(() => {
-    p.value = withSpring(progress, { damping: 14, stiffness: 110 });
+    p.value = withTiming(progress, { duration: 420 });
   }, [progress, p]);
   const props = useAnimatedProps(() => ({ strokeDashoffset: c * (1 - p.value) }));
   return (

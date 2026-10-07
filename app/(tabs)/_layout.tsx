@@ -790,6 +790,9 @@ export default function TabsLayout() {
             route stays, so every link to it still lands. */}
         <Tabs.Screen name="profile" options={{ title: 'Profile', href: null }} />
       </Tabs>
+      {/* The bar floats 4pt above the screen edge (`marginBottom`), and scrolled
+          content showed through that sliver. A canvas-coloured strip closes it. */}
+      <View pointerEvents="none" style={styles.tabBarGapFill} />
       {/* +25 rather than +10 — lifts the FAB 15pt clear of the tab bar so it
           reads as floating above it rather than sitting on its edge. */}
       <TrainFab bottomPosition={tabBarHeight + 25} />
@@ -815,6 +818,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 16,
     paddingTop: 8,
+  },
+  tabBarGapFill: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 4,
+    backgroundColor: palette.canvas,
   },
   tabItem: {
     paddingVertical: 4,

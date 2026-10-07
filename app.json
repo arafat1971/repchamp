@@ -78,7 +78,6 @@
       "./plugins/withUploadSigning",
       "./plugins/withVersionCode",
       "./plugins/withGradleHeap",
-      "./plugins/withResourceKeep",
       "./plugins/withPartnerWidget",
       "./plugins/withDailyWidgetIOS",
       "./plugins/withStepCounter",
@@ -102,7 +101,7 @@
           "android": {
             "minSdkVersion": 26,
             "enableMinifyInReleaseBuilds": true,
-            "enableShrinkResourcesInReleaseBuilds": true
+            "enableShrinkResourcesInReleaseBuilds": false
           }
         }
       ],

@@ -35,9 +35,11 @@ import { lightImpactHaptic, playGestureSound, playSparkleSound, selectionHaptic,
 import { ACTION_META, PANDA_ACTIONS, type PandaAction } from '@/domain/pandaActions';
 import { hydrationPace } from '@/domain/hydrationPace';
 import { pandaMood } from '@/domain/pandaMood';
+import { storage } from '@/lib/storage';
 import { font } from '@/theme/typography';
 
-/** Mine rose, theirs lavender — two bears, two personalities. */
+/** Set once the how-it-works guide has been read; absent on a first visit. */
+const GUIDE_SEEN_KEY = 'home.hydrationGuideSeenAt';
 
 interface Person {
   name: string;
@@ -121,6 +123,26 @@ export function HydrationCard({
     phase.value = (phase.value + (phaseAcc.value * 2 * Math.PI) / 3) % (2 * Math.PI);
     phaseAcc.value = 0;
   }, false);
+
+  /* How it works. Open on a first visit — the card's best controls are holds,
+     which nothing on screen gives away — and behind the (i) ever after. Read
+     from MMKV synchronously so a returning athlete never sees it flash. */
+  const [guide, setGuide] = useState(() => !storage.getString(GUIDE_SEEN_KEY));
+  const closeGuide = () => {
+    storage.set(GUIDE_SEEN_KEY, String(Date.now()));
+    setGuide(false);
+  };
+  const guideSteps = [
+    { title: 'Tap Drink', body: 'Logs one glass. Undo appears beside it.' },
+    { title: 'Hold Drink', body: 'Pick another drink or size, and set your daily goal.' },
+    { title: 'Hold your panda', body: 'Keep holding to pour any amount, then let go.' },
+    partner
+      ? { title: `Tap ${partner.name}'s panda`, body: 'Or a gesture below — it plays on their phone, live.' }
+      : onPair
+        ? { title: 'Add a partner', body: 'Tap the empty seat to fill your bottles together.' }
+        : { title: 'Watch the bar', body: 'The small tick is where you should be by now.' },
+  ];
+
   /* The "+": tap repeats the last choice; hold opens the picker. */
   const [choice, setChoice] = useState<{ kind: DrinkKind; ml: number }>({ kind: 'water', ml: 250 });
   const [picking, setPicking] = useState(false);
@@ -283,8 +305,51 @@ export function HydrationCard({
         icon={<DropIcon size={16} color={IOS.water} />}
         title="Hydration"
         tint={IOS.water}
+        accessory={
+          <Pressable
+            onPress={() => {
+              selectionHaptic();
+              if (guide) closeGuide();
+              else setGuide(true);
+            }}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel={guide ? 'Close how hydration works' : 'How hydration works'}
+            accessibilityState={{ expanded: guide }}
+            style={[styles.info, guide && styles.infoOn]}
+          >
+            <Text style={[styles.infoGlyph, guide && { color: '#ffffff' }]}>i</Text>
+          </Pressable>
+        }
         trailing={`${duoStreak > 0 ? `${duoStreak}-day streak · ` : ''}${water.met ? 'Goal met' : `${formatMl(water.remainingMl)} to go`}`}
       >
+        {guide ? (
+          <Animated.View entering={FadeIn.duration(180)} exiting={FadeOut.duration(140)} style={styles.guide}>
+            <Text style={styles.guideTitle}>How it works</Text>
+            {guideSteps.map((step, i) => (
+              <View key={step.title} style={styles.guideRow}>
+                <View style={styles.guideNum}>
+                  <Text style={styles.guideNumText}>{i + 1}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.guideStep}>{step.title}</Text>
+                  <Text style={styles.guideBody}>{step.body}</Text>
+                </View>
+              </View>
+            ))}
+            <Pressable
+              onPress={() => {
+                selectionHaptic();
+                closeGuide();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Got it — close the guide"
+              style={({ pressed }) => [styles.guideDone, pressed && { opacity: 0.8 }]}
+            >
+              <Text style={styles.guideDoneText}>Got it</Text>
+            </Pressable>
+          </Animated.View>
+        ) : null}
         {partner ? (
           /* Face to face: two bears, two numbers, and who is ahead between
              them — one glance says whether it is your turn to drink. */
@@ -828,6 +893,43 @@ function PourButton({
 }
 
 const styles = StyleSheet.create({
+  info: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: IOS.water,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  infoOn: { backgroundColor: IOS.water },
+  infoGlyph: { ...font('extrabold', 13, { color: IOS.water }), lineHeight: 16 },
+  guide: { marginTop: 12, padding: 14, borderRadius: 18, backgroundColor: 'rgba(50,173,230,0.09)', gap: 10 },
+  guideTitle: font('extrabold', 14, { color: IOS.label }),
+  guideRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  guideNum: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: IOS.water,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  guideNumText: { ...font('extrabold', 12, { color: '#ffffff' }), lineHeight: 15 },
+  guideStep: font('bold', 13.5, { color: IOS.label }),
+  guideBody: { ...font('medium', 12.5, { color: IOS.secondary }), lineHeight: 17, marginTop: 1 },
+  guideDone: {
+    alignSelf: 'flex-start',
+    height: 36,
+    paddingHorizontal: 18,
+    borderRadius: 18,
+    backgroundColor: IOS.water,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  guideDoneText: font('bold', 13.5, { color: '#ffffff' }),
   metricRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, marginBottom: 10 },
   news: font('semibold', 12, { color: IOS.secondary, marginTop: -2 }),
   partner: {

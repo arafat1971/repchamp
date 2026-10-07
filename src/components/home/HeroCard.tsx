@@ -85,6 +85,7 @@ function contentFor(focus: HomeFocus): HeroContent {
         cta: 'Start now',
         colors: gradients.heroEmerald,
         glow: 'brand',
+        art: EXERCISE_ART.push,
       };
     case 'streak-at-risk':
       return {

@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Children, forwardRef, useEffect, useState, type ReactNode } from 'react';
+import { Children, forwardRef, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Pressable,
   RefreshControl,
@@ -9,6 +9,8 @@ import {
   Text,
   useWindowDimensions,
   View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   type PressableProps,
   type StyleProp,
   type TextStyle,
@@ -29,6 +31,7 @@ import { reservedControlHeight } from '@/theme/fontScale';
 import { scaleFor, scaleForRole, text } from '@/theme/typography';
 import { gradients, motion, palette, radius, shadow, space, SCREEN_GUTTER, type Gradient } from '@/theme/tokens';
 import { lightImpactHaptic } from '@/lib/feedback';
+import { useFabStore } from '@/state/fabStore';
 import { AiAvatar, aiPersonaForEmoji, aiPersonaForId } from './AiAvatar';
 import { createViewportPing, ViewportPingContext } from './useOnScreen';
 
@@ -55,6 +58,7 @@ export function Screen({
   onRefresh,
   refreshing = false,
   enter = false,
+  tuckFabOnScroll = false,
 }: {
   children: ReactNode;
   scroll?: boolean;
@@ -70,9 +74,25 @@ export function Screen({
   /** Adds pull-to-refresh. Omit it and the screen scrolls exactly as before. */
   onRefresh?: () => void;
   refreshing?: boolean;
+  /** Tuck the floating Train button away while scrolling down; see `fabStore`. */
+  tuckFabOnScroll?: boolean;
 }) {
   const insets = useSafeAreaInsets();
   const [viewport] = useState(createViewportPing);
+  const lastY = useRef(0);
+  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+    const y = contentOffset.y;
+    const dy = y - lastY.current;
+    // Ignore the rubber-band past either end: it reads as a direction change.
+    const atEnd = y + layoutMeasurement.height >= contentSize.height - 4;
+    if (y <= 60) useFabStore.getState().setTucked(false);
+    else if (atEnd) return;
+    else if (dy > 6) useFabStore.getState().setTucked(true);
+    else if (dy < -6) useFabStore.getState().setTucked(false);
+    else return;
+    lastY.current = y;
+  };
   /*
    * Bottom clearance keeps the floating Train FAB off the last tiles.
    *
@@ -117,8 +137,11 @@ export function Screen({
       showsVerticalScrollIndicator={false}
       // Tells rows that scrolled out of view (see `useOnScreen`) to re-measure,
       // so endless animation can stop while nobody can see it.
-      onScroll={() => viewport.ping()}
-      scrollEventThrottle={100}
+      onScroll={(e) => {
+        viewport.ping();
+        if (tuckFabOnScroll) onScroll(e);
+      }}
+      scrollEventThrottle={tuckFabOnScroll ? 32 : 100}
       // Lets a horizontal child (the home hero carousel) keep its own gesture
       // rather than having this vertical scroll claim it.
       directionalLockEnabled

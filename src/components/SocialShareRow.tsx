@@ -1,4 +1,5 @@
 import * as Clipboard from 'expo-clipboard';
+import * as Sharing from 'expo-sharing';
 import { useState } from 'react';
 import { Linking, Share, StyleSheet, Text, View } from 'react-native';
 
@@ -23,12 +24,19 @@ export function SocialShareRow({
   link,
   text,
   tone = 'dark',
+  getImage,
 }: {
   link: string;
   /** What to say; defaults to the standard invite. The link is appended. */
   text?: string;
   /** `dark` sits on the brand gradient, `light` on a pale screen. */
   tone?: 'dark' | 'light';
+  /**
+   * Renders the screen's share card to a local PNG uri (or null). Instagram and
+   * TikTok can't pre-fill a post, so when this is given they get the picture —
+   * the thing worth posting — with the caption copied, instead of text only.
+   */
+  getImage?: () => Promise<string | null>;
 }) {
   const light = tone === 'light';
   const [hint, setHint] = useState<string | null>(null);
@@ -49,6 +57,17 @@ export function SocialShareRow({
       await Clipboard.setStringAsync(target.message);
       setHint(target.hint);
       setTimeout(() => setHint(null), 5000);
+      if (getImage && (await Sharing.isAvailableAsync())) {
+        const uri = await getImage().catch(() => null);
+        if (uri) {
+          await Sharing.shareAsync(uri, {
+            mimeType: 'image/png',
+            dialogTitle: `Share to ${SOCIAL_LABEL[platform]}`,
+          });
+          setHint(`Card ready — caption copied, paste it in ${SOCIAL_LABEL[platform]}.`);
+          return;
+        }
+      }
       await Linking.openURL(target.appUrl);
     } catch {
       /* App not installed or link blocked: the system sheet always works. */

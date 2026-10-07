@@ -28,7 +28,7 @@ import { isPurchasesConfigured, resetPurchases, restore } from '@/services/purch
 import { track } from '@/lib/analytics';
 import { useAuthStore } from '@/state/authStore';
 import { useEffectivePro, useProStore } from '@/state/proStore';
-import { SUPPORT_EMAIL } from '@/lib/urls';
+import { SUPPORT_EMAIL, manageSubscriptionsUrl } from '@/lib/urls';
 import { showDialog } from '@/state/useDialog';
 import { daysSinceLastSession } from '@/domain/dormantReminder';
 import { dayKey } from '@/domain/progression';
@@ -437,11 +437,7 @@ export default function SettingsScreen() {
               detail={isPro ? 'Active' : 'Free plan'}
               onPress={() =>
                 isPro
-                  ? void Linking.openURL(
-                      Platform.OS === 'ios'
-                        ? 'https://apps.apple.com/account/subscriptions'
-                        : 'https://play.google.com/store/account/subscriptions',
-                    ).catch(captureError)
+                  ? void Linking.openURL(manageSubscriptionsUrl()).catch(captureError)
                   : router.push({ pathname: '/modal/paywall', params: { source: 'settings' } })
               }
             />

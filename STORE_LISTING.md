@@ -84,10 +84,9 @@ Appears under the icon in search results, and is the second-highest ranking
 field. It is also the only body text most people read.
 
 ```
-AI rep counter for push-ups & squats. Challenge friends, keep a daily streak.
+AI push-up & squat counter. Duel friends, share a streak with your partner.
 ```
-76 characters. Carries "AI rep counter", "push-ups", "squats", "challenge
-friends", "daily streak" — five searchable terms in one readable sentence.
+75 characters (rewritten 2026-10-07 after competitor research: front-loads "AI push-up & squat counter", which matches how people search for this category). Carries "push-up counter", "squat counter", "duel friends", "streak" — five searchable terms in one readable sentence.
 
 ### Alternatives
 
@@ -109,60 +108,39 @@ The first ~170 characters show before the "read more" fold. Everything that
 matters for both search and conversion goes there.
 
 ```
-Turn your phone camera into an AI rep counter. Count push-ups and squats
-automatically, challenge friends to live workout duels, and build a daily
-streak that actually sticks.
+Count push-ups and squats with your phone camera: no wearable, no tapping. RepChamp is an AI rep counter that turns every workout into a live duel with friends or a shared streak with your partner.
 
-No equipment. No wearable. No manual tapping. Just prop up your phone and
-train.
+Prop up your phone, step back and start. On-device pose detection tracks your joints in real time, counts every rep and scores your depth and alignment, so you know which reps actually count. A real push-up counter and squat counter, not a timer you tap.
 
-COUNTED, NOT ESTIMATED
-Pose detection runs entirely on your phone. Step back and start — the app
-tracks your joints in real time, counts each rep, and scores your depth and
-alignment so you know which reps actually counted. A real push-up counter and
-squat counter, not a timer you tap.
+Duel friends in real time
+Challenge a friend to a timed workout challenge and watch both scores climb live. Most reps before the clock runs out wins the XP. Nobody online yet? Race an AI training partner, always clearly labelled as AI.
 
-DUEL A RIVAL — LIVE
-Challenge a friend to a timed workout challenge and watch both scores climb in
-real time. Most reps before the clock runs out takes it. No friends online yet?
-An AI workout partner is always ready to race — clearly labelled, never
-pretending to be someone it isn't.
+Couples workout and shared streak
+Pair with your partner and keep one streak together. It only survives if you both show up, which makes it much harder to quit than a streak of your own. Nudge each other when one of you falls behind. Couple mode is free, always.
 
-COUPLES WORKOUT MODE
-Pair with your partner and share one streak. It survives only if you both show
-up, which turns out to be far harder to abandon than a streak of your own.
-Nudge them when they're falling behind. Couple mode is free, always.
+Drink water with your panda
+Log a glass in one tap (250, 500 or 750 ml) and watch your panda fill its bottle, with your partner's panda right beside it. Send a hug, a high five or a cheer, and add the Android home-screen widget to log water without opening the app.
 
-CLIMB THE LEAGUES
-Bronze, Silver, Gold and Platinum, reset weekly. Earn XP for every set, hold
-your streak, and take badges for your first duel win, a 100-rep session, and
-perfect form. A fitness leaderboard that resets often enough to stay winnable.
+A plan that sticks
+Choose Strength, Yoga, Mind or Together. Follow the 4-week programme that builds you toward 50 push-ups, join the weekly challenge, and see your week at a glance. Guided yoga flows with voice cues and breathing exercises (box breathing, 4-7-8 for sleep) are built in.
 
-HOME WORKOUT, NO EQUIPMENT
-Every exercise is bodyweight. No gym, no dumbbells, no subscription box — your
-phone, some floor space, and a few minutes.
+Climb the leagues
+Bronze, Silver, Gold and Platinum, reset weekly. Earn XP for every set, hold your streak and collect badges for your first duel win, a 100-rep session and perfect form. A fitness leaderboard that resets often enough to stay winnable.
 
-WHAT YOU GET FREE
-Try it free: your first 50 reps, no card needed. Couples mode is free, always.
-Leaderboards, streaks and badges are included.
+Home workout, no equipment
+Every exercise is bodyweight: push-ups, squats, lunges, sit-ups, glute bridges, pike push-ups, high knees, jumping jacks, shoulder rolls and a full-body stretch. No gym, no dumbbells, just your phone and some floor space.
 
-REPCHAMP PRO (auto-renewing monthly subscription, price shown in the app and
-Google Play before you pay; cancel any time in Google Play)
-Keeps you training past the free reps and unlocks the full exercise library: lunges, sit-ups, glute bridges, pike
-push-ups, high knees, jumping jacks, shoulder rolls and full-body stretches.
+Free and Pro
+Try it free: your first 50 reps, no card needed. Couple mode is free, always.
+RepChamp Pro is an auto-renewing subscription (price shown in the app and Google Play before you pay; cancel any time in Google Play). It keeps you training past the free reps and unlocks the full exercise library and detailed form reports.
 
-YOUR VIDEO NEVER LEAVES YOUR PHONE
-This is the part worth reading twice. Pose detection is on-device. Your camera
-feed is never recorded, never uploaded, and never shared — in any mode,
-including live duels. The only photo we store is the profile picture you choose
-yourself.
+Your video never leaves your phone
+Pose detection runs on your device. Your camera feed is never recorded, never uploaded and never shared, in any mode, including live duels. The only photo we store is the profile picture you choose yourself.
 
 Train hard. Train honestly.
 
 ---
-Rep counts and form scores are estimates from on-device pose detection and can
-be wrong. RepChamp is a fitness tool, not medical advice. Warm up, train within
-your ability, and stop if you feel pain or dizziness.
+Rep counts and form scores are estimates from on-device pose detection and can be wrong. RepChamp is a fitness tool, not medical advice. Warm up, train within your ability, and stop if you feel pain or dizziness.
 
 Privacy policy: https://repchamp.web.app/privacy
 Delete your account: https://repchamp.web.app/delete-account
@@ -212,7 +190,7 @@ Default store listing**.
 | Field | Value |
 | --- | --- |
 | App name (30) | `Fitness Duel: RepChamp` |
-| Short description (80) | `AI rep counter for push-ups & squats. Challenge friends, keep a daily streak.` |
+| Short description (80) | `AI push-up & squat counter. Duel friends, share a streak with your partner.` |
 | Full description (4000) | The block above |
 | App icon | `store/icon-512.png` |
 | Feature graphic | `store/feature-graphic.png` |
@@ -244,8 +222,9 @@ every word above.
 - ✅ **App icon** — `store/icon-512.png`, 512×512, 32-bit with alpha
 - ✅ **Feature graphic** — `store/feature-graphic.png`, 1024×500, no
   transparency. Play will not publish without it.
-- ✅ **Phone screenshots** — three in `store/screenshots/` (Arena, Home,
-  Profile), composited to 1080×1920. Clears Play's two-shot minimum.
+- ✅ **Phone screenshots** — four in `store/screenshots/` (Train, Arena,
+  Friends, Home), captured 2026-10-07 on the emulator from the current release
+  build and composited to 1080×1920. Clears Play's two-shot minimum.
   Two more are still worth capturing, and both need a second person in
   frame: a live session with the pose skeleton, and a couple streak. The
   session shot is the clearest single image of what the app does and should

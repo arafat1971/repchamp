@@ -6,6 +6,7 @@ import {
   yearComparison,
   granularPrice,
   monthlyEquivalent,
+  weeklyEquivalent,
   priceAnchor,
   savingsPercent,
   type PlanPrice,
@@ -195,5 +196,23 @@ describe('yearComparison', () => {
   });
   it('claims nothing when the annual plan is not cheaper', () => {
     expect(yearComparison(monthly(4), annual(60))).toBeNull();
+  });
+});
+
+describe('weeklyEquivalent', () => {
+  it('puts a yearly plan in weekly units and keeps the real charge', () => {
+    const w = weeklyEquivalent({ price: 49.99, weeks: 52, symbol: '$' }, '$49.99', 'ANNUAL');
+    expect(w?.perWeek).toBe('$0.96');
+    expect(w?.billedAs).toBe('$49.99 billed yearly');
+  });
+
+  it('handles a monthly plan', () => {
+    const w = weeklyEquivalent({ price: 9.99, weeks: 4.345, symbol: '$' }, '$9.99', 'MONTHLY');
+    expect(w?.perWeek).toBe('$2.30');
+    expect(w?.billedAs).toBe('$9.99 billed monthly');
+  });
+
+  it('says nothing for a weekly plan', () => {
+    expect(weeklyEquivalent({ price: 4.99, weeks: 1, symbol: '$' }, '$4.99', 'WEEKLY')).toBeNull();
   });
 });

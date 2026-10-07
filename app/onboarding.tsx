@@ -5,7 +5,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
-  ActivityIndicator,
   BackHandler,
   Pressable,
   ScrollView,
@@ -40,7 +39,7 @@ import { GoogleMark } from '@/components/GoogleMark';
 import { BarChart } from '@/components/charts/BarChart';
 import { GrowthChart } from '@/components/charts/GrowthChart';
 import { ProgressRing } from '@/components/session/ProgressRing';
-import { Card as BaseCard, PressableScale, PrimaryButton, ProgressBar } from '@/components/ui';
+import { Card as BaseCard, PressableScale, PrimaryButton, ProgressBar, Spinner } from '@/components/ui';
 import { captureError } from '@/lib/crash';
 import { pluralise } from '@/domain/plural';
 import { OPPONENTS } from '@/domain/opponent';
@@ -580,7 +579,12 @@ export default function OnboardingScreen() {
             onSignedIn={() => {
               signedInRef.current = true;
             }}
-            onRestored={setUsername}
+            onRestored={(restoredName, restoredAvatar) => {
+              setUsername(restoredName);
+              /* finish() writes this component's avatarUri over the store, so a
+                 restored photo has to land here too or it is wiped to null. */
+              if (restoredAvatar) setAvatarUri(restoredAvatar);
+            }}
             onNext={() => {
               /* The handle was checked at step 5 and is not claimed until the
                * profile write at the very end, so fifteen steps of onboarding
@@ -790,7 +794,7 @@ function SignIn({
   onSignedIn: () => void;
   /** Called with the handle a returning account already owns, so the parent's
       username state matches what was just restored from the cloud. */
-  onRestored: (username: string) => void;
+  onRestored: (username: string, avatarUrl: string | null) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -833,7 +837,7 @@ function SignIn({
       if (plan.kind === 'returning') {
         store.setUsername(plan.username);
         if (plan.avatarUrl) store.setAvatar(plan.avatarUrl);
-        onRestored(plan.username);
+        onRestored(plan.username, plan.avatarUrl);
       }
 
       /* Show the confirmation, then advance — not both at once. Setting state
@@ -1011,7 +1015,7 @@ function GoogleButton({ busy, onPress }: { busy: boolean; onPress: () => void })
       ]}
     >
       <View style={styles.socialGlyph}>
-        {busy ? <ActivityIndicator size="small" color={palette.grey600} /> : <GoogleMark size={20} />}
+        {busy ? <Spinner size="small" color={palette.grey600} /> : <GoogleMark size={20} />}
       </View>
       <Text style={font('extrabold', 15, { color: palette.ink })} {...scaleForRole('control')}>
         {busy ? 'Signing in…' : 'Continue with Google'}
@@ -2773,7 +2777,7 @@ function Paywall({
       </View>
 
       {packages === null ? (
-        <ActivityIndicator color={palette.green500} style={{ marginVertical: 20 }} />
+        <Spinner color={palette.green500} style={{ marginVertical: 20 }} />
       ) : !billingReady || (!annual && !monthly) ? (
         <Text style={[text.captionMd, { textAlign: 'center', marginTop: 16 }]}>
           You can keep training free — Pro unlocks later from Profile when billing is connected.

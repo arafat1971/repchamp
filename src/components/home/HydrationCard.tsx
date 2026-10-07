@@ -7,17 +7,17 @@ import Animated, {
   FadeInDown,
   FadeOut,
   FadeOutUp,
-  cancelAnimation,
   useAnimatedProps,
   useAnimatedStyle,
+  useFrameCallback,
   useReducedMotion,
   useSharedValue,
-  withRepeat,
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
 import Svg, { Circle, ClipPath, Defs, Path, Rect } from 'react-native-svg';
 
+import { useOnScreen } from '@/components/ui/useOnScreen';
 import { PandaJar } from '@/components/home/PandaJar';
 import { HealthCard, IOS, Metric } from '@/components/home/HealthCard';
 import { DropIcon } from '@/components/home/Icons';
@@ -104,20 +104,25 @@ export function HydrationCard({
   const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
 
   /* Tabs stay mounted, so everything that loops stops while Home is not the
-     tab on show. The gravity sensor that used to run here at 30 Hz fed a tilt
-     value nothing read. */
+     tab on show — and while this card is scrolled out of sight. It sits below
+     the fold, and an animated SVG that nobody can see still costs a full
+     redraw every frame: with it running, an idle Home dropped to ~40 fps and
+     86% janky frames; without, a steady 90. */
   const focused = useIsFocused();
-  const still = reduced || !focused;
-  /* Shared liquid motion: drift. */
+  const rootRef = useRef<View>(null);
+  const onScreen = useOnScreen(rootRef);
+  const animating = focused && onScreen;
+  const still = reduced || !animating;
+  /* Shared liquid motion: drift. Stepped at ~30 Hz rather than every frame —
+     a slow surface wave reads the same, and each step repaints the jar. */
   const phase = useSharedValue(0);
-  useEffect(() => {
-    if (still) {
-      cancelAnimation(phase);
-      return;
-    }
-    phase.value = withRepeat(withTiming(2 * Math.PI, { duration: 3000, easing: Easing.linear }), -1);
-    return () => cancelAnimation(phase);
-  }, [still, phase]);
+  const phaseAcc = useSharedValue(0);
+  const drift = useFrameCallback((frame) => {
+    phaseAcc.value += (frame.timeSincePreviousFrame ?? 16) / 1000;
+    if (phaseAcc.value < 1 / 30) return;
+    phase.value = (phase.value + (phaseAcc.value * 2 * Math.PI) / 3) % (2 * Math.PI);
+    phaseAcc.value = 0;
+  }, false);
 
   /* How it works. Open on a first visit — the card's best controls are holds,
      which nothing on screen gives away — and behind the (i) ever after. Read
@@ -155,6 +160,17 @@ export function HydrationCard({
   const lastPartner = useRef<number | null>(partnerMl);
   const [theirPour, setTheirPour] = useState(0);
   const [live, setLive] = useState<{ id: number; ml: number } | null>(null);
+
+  /* The surface only stirs for a moment after a pour — still water between. */
+  useEffect(() => {
+    if (still || myPour + theirPour === 0) return;
+    drift.setActive(true);
+    const t = setTimeout(() => drift.setActive(false), 2600);
+    return () => {
+      clearTimeout(t);
+      drift.setActive(false);
+    };
+  }, [still, myPour, theirPour, drift]);
   useEffect(() => {
     const before = lastPartner.current;
     lastPartner.current = partnerMl;
@@ -284,7 +300,7 @@ export function HydrationCard({
   }, [incomingGesture?.key]);
 
   return (
-    <View onLayout={onLayout}>
+    <View ref={rootRef} onLayout={onLayout}>
       <HealthCard
         icon={<DropIcon size={16} color={IOS.water} />}
         title="Hydration"
@@ -346,7 +362,7 @@ export function HydrationCard({
                   remaining={100 - heldPercent}
                   width={116}
                   phase={phase}
-                  paused={!focused}
+                  paused={!animating}
                   sipKey={myPour}
                   mood={myMood}
                   gesture={myGesture}
@@ -402,7 +418,7 @@ export function HydrationCard({
                 onPoke={() => gesture('tickle', true)}
                 gesture={theirGesture}
                 phase={phase}
-                paused={!focused}
+                paused={!animating}
                 sipKey={theirPour}
                 mood={theirMood}
               />
@@ -432,7 +448,7 @@ export function HydrationCard({
                     remaining={100 - heldPercent}
                     width={116}
                     phase={phase}
-                    paused={!focused}
+                    paused={!animating}
                     sipKey={myPour}
                     mood={myMood}
                   />
@@ -468,7 +484,9 @@ export function HydrationCard({
                     outfit="hoodie"
                     mirrored
                     phase={phase}
-                    paused={!focused}
+                    /* A veiled placeholder: it never needs to move, and a live
+                       jar here doubled the card's per-frame repaint. */
+                    paused
                     sipKey={0}
                     mood="sleepy"
                   />
@@ -495,7 +513,7 @@ export function HydrationCard({
                 remaining={100 - heldPercent}
                 width={96}
                 phase={phase}
-                paused={!focused}
+                paused={!animating}
                 sipKey={myPour}
                 mood={myMood}
               />

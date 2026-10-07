@@ -148,6 +148,36 @@ export function monthlyEquivalent(
   };
 }
 
+/**
+ * The weekly-equivalent headline for a plan billed less often than weekly.
+ *
+ * Weekly is the one unit all three plans divide into cleanly, so "$0.96 / wk"
+ * beside "$2.31 / wk" beside "$4.99 / wk" is an honest like-for-like — and the
+ * real charge stays attached underneath. Null for a weekly plan (already its
+ * own rate) and for anything with no recurring period.
+ */
+export interface WeeklyEquivalent {
+  /** What a week of this plan costs, e.g. "$0.96". */
+  perWeek: string;
+  /** The charge that actually lands, e.g. "$49.99 billed yearly". */
+  billedAs: string;
+}
+
+export function weeklyEquivalent(
+  plan: PlanPrice,
+  priceString: string,
+  packageType: string,
+): WeeklyEquivalent | null {
+  if (!plan.price || !plan.weeks || plan.weeks < 4) return null;
+  const perWeek = plan.price / plan.weeks;
+  if (!Number.isFinite(perWeek) || perWeek <= 0) return null;
+  const cadence = packageType === 'ANNUAL' ? 'yearly' : 'monthly';
+  return {
+    perWeek: `${plan.symbol}${perWeek.toFixed(2)}`,
+    billedAs: `${priceString} billed ${cadence}`,
+  };
+}
+
 /* ---------------------------------------------------------------------------
  * "How little is this, really?"
  *

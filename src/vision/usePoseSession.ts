@@ -90,7 +90,43 @@ function reportFrameOnce(
 let convertTotal = 0;
 let inferTotal = 0;
 let timingSamples = 0;
+/**
+ * Release-safe frame-rate probe: one `console.warn` line every 2s with the real
+ * frame rate and the cost of each pipeline stage. `console.log` is stripped from
+ * release builds, so the only way to read these off a device that is running
+ * the shipping bundle is a warn. TEMPORARY — keep false for any build a user
+ * will hold, or for Play.
+ */
+export const PERF_PROBE = false;
+let probeStart = 0;
+let probeFrames = 0;
+let probeConvert = 0;
+let probeInfer = 0;
+let probeInferMax = 0;
+function probeTimings(convertMs: number, inferMs: number): void {
+  const now = Date.now();
+  if (probeStart === 0) probeStart = now;
+  probeFrames += 1;
+  probeConvert += convertMs;
+  probeInfer += inferMs;
+  if (inferMs > probeInferMax) probeInferMax = inferMs;
+  const elapsed = now - probeStart;
+  if (elapsed < 2000) return;
+  console.warn(
+    `[perf] pose ${((probeFrames * 1000) / elapsed).toFixed(1)}fps ` +
+      `convert=${(probeConvert / probeFrames).toFixed(1)}ms ` +
+      `infer=${(probeInfer / probeFrames).toFixed(1)}ms max=${probeInferMax.toFixed(0)}ms ` +
+      `frames=${probeFrames}`,
+  );
+  probeStart = now;
+  probeFrames = 0;
+  probeConvert = 0;
+  probeInfer = 0;
+  probeInferMax = 0;
+}
+
 function recordTimings(convertMs: number, inferMs: number): void {
+  if (PERF_PROBE) probeTimings(convertMs, inferMs);
   convertTotal += convertMs;
   inferTotal += inferMs;
   timingSamples += 1;
@@ -286,6 +322,36 @@ export function usePoseSession({
      later frame sends zeros instead of a string and four more numbers through
      the worklets serializer — about 30 queued calls a second that did nothing. */
   const diagSentSv = useSharedValue(0);
+  /**
+   * PERF_PROBE accumulators, a pooled array mutated in place from the frame
+   * worklet (same pattern as the crop buffers). Slots: 0 window start, 1 frames
+   * handled, 2 skipped by the thermal throttle, 3 sum of gaps between frame
+   * starts, 4 largest gap, 5 sum of whole-worklet time, 6 sum of pre-convert
+   * time, 7 sum of post-inference time, 8 previous frame start, 9 frames that
+   * ran the model.
+   */
+  const probeSv = useSharedValue(new Float64Array(10));
+  const probeReport = useCallback(
+    (
+      windowMs: number,
+      handled: number,
+      skipped: number,
+      ran: number,
+      gapAvg: number,
+      gapMax: number,
+      busyAvg: number,
+      preAvg: number,
+      postAvg: number,
+    ) => {
+      console.warn(
+        `[perf2] handled=${((handled * 1000) / windowMs).toFixed(1)}/s ran=${((ran * 1000) / windowMs).toFixed(1)}/s ` +
+          `skipped=${skipped} gap=${gapAvg.toFixed(1)}ms(max ${gapMax.toFixed(0)}) busy=${busyAvg.toFixed(1)}ms ` +
+          `idle=${Math.max(0, gapAvg - busyAvg).toFixed(1)}ms pre=${preAvg.toFixed(1)}ms post=${postAvg.toFixed(1)}ms ` +
+          `reqFps=${cameraFpsRef.current}`,
+      );
+    },
+    [],
+  );
 
   const counterRef = useRef<RepCounter>(
     new RepCounter(definition, { requireFullDepth: competitive }),
@@ -410,6 +476,22 @@ export function usePoseSession({
   const onFrame = useCallback(
     (frame: Frame) => {
       'worklet';
+      const probeT0 = PERF_PROBE ? performance.now() : 0;
+      let probePre = 0;
+      let probeInferEnd = 0;
+      /* eslint-disable react-hooks/immutability -- in-place writes to a pooled shared array, as with the crop buffers */
+      if (PERF_PROBE) {
+        const a = probeSv.value;
+        if (a[8] !== 0) {
+          const gap = probeT0 - (a[8] as number);
+          a[3] = (a[3] as number) + gap;
+          if (gap > (a[4] as number)) a[4] = gap;
+        }
+        a[8] = probeT0;
+        if (a[0] === 0) a[0] = probeT0;
+        a[1] = (a[1] as number) + 1;
+      }
+      /* eslint-enable react-hooks/immutability */
       try {
         if (!interpreter) return;
 
@@ -417,6 +499,7 @@ export function usePoseSession({
         frameTick.value = frameTick.value + 1;
         const every = inferEveryN.value;
         if (every > 1 && frameTick.value % every !== 0) {
+          if (PERF_PROBE) probeSv.value[2] = (probeSv.value[2] as number) + 1;
           return;
         }
 
@@ -443,6 +526,7 @@ export function usePoseSession({
         if (!plane) return;
 
         const tConvertStart = performance.now();
+        probePre = tConvertStart - probeT0;
         const source = new Uint8Array(plane.getPixelBuffer());
         const frameWidth = frame.width;
         const frameHeight = frame.height;
@@ -497,6 +581,7 @@ export function usePoseSession({
 
         const outputs = interpreter.runSync([modelBuffer]);
         const tInferEnd = performance.now();
+        probeInferEnd = tInferEnd;
         const output = outputs[0];
         if (!output) return;
 
@@ -610,9 +695,40 @@ export function usePoseSession({
         // Always dispose, even if inference threw — a leaked frame stalls the
         // whole camera pipeline after a handful of drops.
         frame.dispose();
+        if (PERF_PROBE) {
+          const a = probeSv.value;
+          const end = performance.now();
+          a[5] = (a[5] as number) + (end - probeT0);
+          a[6] = (a[6] as number) + probePre;
+          if (probeInferEnd > 0) {
+            a[7] = (a[7] as number) + (end - probeInferEnd);
+            a[9] = (a[9] as number) + 1;
+          }
+          const windowMs = end - (a[0] as number);
+          if (windowMs >= 2000) {
+            const n = Math.max(1, a[1] as number);
+            const ran = Math.max(1, a[9] as number);
+            scheduleOnRN(
+              probeReport,
+              windowMs,
+              a[1] as number,
+              a[2] as number,
+              a[9] as number,
+              (a[3] as number) / Math.max(1, n - 1),
+              a[4] as number,
+              (a[5] as number) / n,
+              (a[6] as number) / ran,
+              (a[7] as number) / ran,
+            );
+            a.fill(0);
+            a[8] = end;
+          }
+        }
       }
     },
     [
+      probeSv,
+      probeReport,
       interpreter,
       inputDataType,
       handleTensor,

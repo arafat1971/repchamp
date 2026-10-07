@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Children, forwardRef, useEffect, useRef, type ReactNode } from 'react';
+import { Children, forwardRef, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Pressable,
   RefreshControl,
@@ -15,6 +15,7 @@ import {
   type StyleProp,
   type TextStyle,
   type ViewStyle,
+  Platform,
 } from 'react-native';
 import Animated, {
   Easing,
@@ -32,8 +33,11 @@ import { gradients, motion, palette, radius, shadow, space, SCREEN_GUTTER, type 
 import { lightImpactHaptic } from '@/lib/feedback';
 import { useFabStore } from '@/state/fabStore';
 import { AiAvatar, aiPersonaForEmoji, aiPersonaForId } from './AiAvatar';
+import { createViewportPing, ViewportPingContext } from './useOnScreen';
 
 export { Skeleton, SkeletonCircle } from './Skeleton';
+export { Spinner } from './Spinner';
+export { useOnScreen } from './useOnScreen';
 export { EmptyState, ErrorState } from './EmptyState';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -74,6 +78,7 @@ export function Screen({
   tuckFabOnScroll?: boolean;
 }) {
   const insets = useSafeAreaInsets();
+  const [viewport] = useState(createViewportPing);
   const lastY = useRef(0);
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
@@ -125,15 +130,27 @@ export function Screen({
   }
 
   return (
+    <ViewportPingContext.Provider value={viewport}>
     <ScrollView
       style={[styles.screen, style]}
       contentContainerStyle={[styles.screenContent, padding, contentStyle]}
       showsVerticalScrollIndicator={false}
+      // Tells rows that scrolled out of view (see `useOnScreen`) to re-measure,
+      // so endless animation can stop while nobody can see it.
+      onScroll={(e) => {
+        viewport.ping();
+        if (tuckFabOnScroll) onScroll(e);
+      }}
+      scrollEventThrottle={tuckFabOnScroll ? 32 : 100}
       // Lets a horizontal child (the home hero carousel) keep its own gesture
       // rather than having this vertical scroll claim it.
       directionalLockEnabled
-      onScroll={tuckFabOnScroll ? onScroll : undefined}
-      scrollEventThrottle={tuckFabOnScroll ? 32 : undefined}
+      // Forms: a tap on a button while the keyboard is up fires the button
+      // instead of just dismissing the keyboard, and iOS lifts the focused
+      // field clear of it (Android already resizes the window).
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+      automaticallyAdjustKeyboardInsets
       refreshControl={
         onRefresh ? (
           <RefreshControl
@@ -160,6 +177,7 @@ export function Screen({
           ))
         : children}
     </ScrollView>
+    </ViewportPingContext.Provider>
   );
 }
 

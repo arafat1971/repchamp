@@ -1,3 +1,4 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -7,7 +8,15 @@ import {
   Text,
   View,
 } from 'react-native';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import type { PurchasesPackage } from 'react-native-purchases';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -43,8 +52,8 @@ import { CheckIcon } from '@/components/home/Icons';
 import {
   commitmentLine,
   granularPrice,
-  monthlyEquivalent,
   savingsPercent,
+  weeklyEquivalent,
 } from '@/domain/paywallFraming';
 import { paywallLead, priceInsight, trialTimeline } from '@/domain/paywallInsight';
 import { font, text } from '@/theme/typography';
@@ -349,6 +358,17 @@ export default function PaywallScreen() {
   const leadBenefit = blockedBenefit(params.source);
   const wallPct = Math.min(1, totalReps / FREE_REP_LIMIT);
 
+  /* A slow breathing pulse on the button: the one thing on the screen that
+     moves, so the eye ends up there. Small enough not to read as a gimmick. */
+  const pulse = useSharedValue(1);
+  useEffect(() => {
+    pulse.value = withRepeat(
+      withSequence(withTiming(1.025, { duration: 900 }), withTiming(1, { duration: 900 })),
+      -1,
+    );
+  }, [pulse]);
+  const pulseStyle = useAnimatedStyle(() => ({ transform: [{ scale: pulse.value }] }));
+
   return (
     <Screen scroll={false} style={styles.root} contentStyle={styles.rootContent}>
       <View style={styles.body}>
@@ -384,59 +404,31 @@ export default function PaywallScreen() {
           contentContainerStyle={styles.scrollContent}
         >
           <Animated.View entering={FadeInDown.duration(360)}>
-            <Text style={styles.eyebrow}>REPCHAMP PRO</Text>
-            <Text style={styles.title} accessibilityRole="header">
-              {lead.title}
-            </Text>
-            <Text style={styles.sub}>{lead.sub}</Text>
+            <LinearGradient
+              colors={[palette.green900, palette.green600]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.hero}
+            >
+              <Text style={styles.eyebrow}>REPCHAMP PRO</Text>
+              <Text style={styles.title} accessibilityRole="header">
+                {lead.title}
+              </Text>
+              <Text style={styles.sub}>{lead.sub}</Text>
 
-            {/* The rep wall as a fact, not a lock: their own count, full. */}
-            {fromRepWall ? (
-              <View style={styles.wallTrack} accessibilityLabel={`${totalReps} of ${FREE_REP_LIMIT} free reps used`}>
-                <View style={[styles.wallFill, { width: `${Math.round(wallPct * 100)}%` }]} />
-              </View>
-            ) : ownProof ? (
-              <Text style={styles.ownProof}>{ownProof}</Text>
-            ) : null}
-          </Animated.View>
-
-          {/* Ordered by what this source blocked; the refused one is marked.
-              All four promises always render in the same words — only the
-              order and the marker move. See `domain/paywallBenefits`. */}
-          <View style={styles.benefits}>
-            {order.map((id, i) => {
-              const b = BENEFITS[id];
-              const free = id === 'free-staples';
-              return (
-                <Animated.View
-                  key={id}
-                  entering={FadeInDown.delay(100 + i * 50).duration(320)}
-                  style={[styles.benefit, free && styles.benefitFree]}
+              {/* The rep wall as a fact, not a lock: their own count, full. */}
+              {fromRepWall ? (
+                <View
+                  style={styles.wallTrack}
+                  accessibilityLabel={`${totalReps} of ${FREE_REP_LIMIT} free reps used`}
                 >
-                  <View style={[styles.benefitDot, free && styles.benefitDotFree]}>
-                    <CheckIcon
-                      size={12}
-                      color={free ? palette.grey600 : palette.white}
-                      strokeWidth={3.2}
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <View style={styles.benefitTitleRow}>
-                      <Text style={[styles.benefitTitle, free && styles.benefitTitleFree]}>
-                        {b.title}
-                      </Text>
-                      {id === leadBenefit ? (
-                        <View style={styles.forYou}>
-                          <Text style={styles.forYouText}>WHAT YOU TAPPED</Text>
-                        </View>
-                      ) : null}
-                    </View>
-                    <Text style={styles.benefitDetail}>{b.detail}</Text>
-                  </View>
-                </Animated.View>
-              );
-            })}
-          </View>
+                  <View style={[styles.wallFill, { width: `${Math.round(wallPct * 100)}%` }]} />
+                </View>
+              ) : ownProof ? (
+                <Text style={styles.ownProof}>{ownProof}</Text>
+              ) : null}
+            </LinearGradient>
+          </Animated.View>
 
           <View style={styles.plans}>
             {/* No billing key on this build. This renders on every dev visit,
@@ -485,13 +477,13 @@ export default function PaywallScreen() {
                        charge are the two that matter; a third restatement of
                        the same price reads as sales patter. */
                     subtitle={
-                      monthlyFor(pkg)
-                        ? (monthlyFor(pkg)?.billedAs ?? 'cancel anytime')
+                      weeklyFor(pkg)
+                        ? (weeklyFor(pkg)?.billedAs ?? 'cancel anytime')
                         : (perWeekHint(pkg) ?? pkg.product.description ?? 'Full Pro access')
                     }
                     price={pkg.product.priceString}
-                    perMonth={monthlyFor(pkg)?.perMonth}
-                    billedAs={monthlyFor(pkg)?.billedAs}
+                    perWeek={weeklyFor(pkg)?.perWeek}
+                    billedAs={weeklyFor(pkg)?.billedAs}
                     badge={
                       pkg.packageType === 'ANNUAL'
                         ? [trialRibbon(pkg), savingsBadge(pkg, packages)]
@@ -500,6 +492,8 @@ export default function PaywallScreen() {
                         : trialRibbon(pkg)
                     }
                     featured={pkg.packageType === 'ANNUAL'}
+                    ribbon={pkg.packageType === 'ANNUAL' ? 'MOST POPULAR' : null}
+                    unit={pkg.packageType === 'WEEKLY' ? ' / wk' : undefined}
                   />
                 </Animated.View>
               ))
@@ -527,15 +521,55 @@ export default function PaywallScreen() {
               />
             </Animated.View>
           ) : null}
+
+          {/* Ordered by what this source blocked; the refused one is marked.
+              All four promises always render in the same words — only the
+              order and the marker move. See `domain/paywallBenefits`. */}
+          <View style={styles.benefits}>
+            {order.map((id, i) => {
+              const b = BENEFITS[id];
+              const free = id === 'free-staples';
+              return (
+                <Animated.View
+                  key={id}
+                  entering={FadeInDown.delay(100 + i * 50).duration(320)}
+                  style={[styles.benefit, free && styles.benefitFree]}
+                >
+                  <View style={[styles.benefitDot, free && styles.benefitDotFree]}>
+                    <CheckIcon
+                      size={12}
+                      color={free ? palette.grey600 : palette.white}
+                      strokeWidth={3.2}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.benefitTitleRow}>
+                      <Text style={[styles.benefitTitle, free && styles.benefitTitleFree]}>
+                        {b.title}
+                      </Text>
+                      {id === leadBenefit ? (
+                        <View style={styles.forYou}>
+                          <Text style={styles.forYouText}>WHAT YOU TAPPED</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text style={styles.benefitDetail}>{b.detail}</Text>
+                  </View>
+                </Animated.View>
+              );
+            })}
+          </View>
         </Animated.ScrollView>
       </View>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-        <PrimaryButton
-          label={ctaLabel}
-          onPress={onPrimary}
-          disabled={busy || (billingReady && !showRetry && !plansReady && packages === null)}
-        />
+        <Animated.View style={plansReady && !busy ? pulseStyle : undefined}>
+          <PrimaryButton
+            label={ctaLabel}
+            onPress={onPrimary}
+            disabled={busy || (billingReady && !showRetry && !plansReady && packages === null)}
+          />
+        </Animated.View>
 
         {/* The reassurance sits directly under the button, where the hesitation
             is, and it only promises a trial when the plan carries one. */}
@@ -619,22 +653,28 @@ function PlanRow({
   title,
   subtitle,
   price,
-  perMonth,
+  perWeek,
   billedAs,
   badge,
   featured,
+  ribbon,
+  unit,
 }: {
   selected: boolean;
   onPress: () => void;
   title: string;
   subtitle: string;
   price: string;
-  /** Monthly-equivalent headline, e.g. "$5" — absent for already-monthly plans. */
-  perMonth?: string | null;
-  /** The charge that actually lands, e.g. "paid $60 annually". */
+  /** Weekly-equivalent headline, e.g. "$0.96" — absent for weekly plans. */
+  perWeek?: string | null;
+  /** The charge that actually lands, e.g. "$49.99 billed yearly". */
   billedAs?: string | null;
   badge?: string | null;
   featured?: boolean;
+  /** Floating tag on the card's top edge, e.g. "MOST POPULAR". */
+  ribbon?: string | null;
+  /** Suffix for a plan shown at its plain price, e.g. " / wk". */
+  unit?: string;
 }) {
   return (
     <PressableScale
@@ -644,12 +684,17 @@ function PlanRow({
       /* The spoken label always carries the real charge. A screen-reader user
          must not hear "$5 a month" and be billed $60 without being told. */
       accessibilityLabel={
-        perMonth && billedAs
-          ? `${title}, ${perMonth} per month, ${billedAs}${badge ? `, ${badge}` : ''}`
+        perWeek && billedAs
+          ? `${title}, ${perWeek} per week, ${billedAs}${badge ? `, ${badge}` : ''}`
           : `${title}, ${price}${badge ? `, ${badge}` : ''}`
       }
-      style={[styles.plan, selected && styles.planSelected]}
+      style={[styles.plan, featured && styles.planFeatured, selected && styles.planSelected]}
     >
+      {ribbon ? (
+        <View style={styles.ribbon}>
+          <Text style={styles.ribbonText}>{ribbon}</Text>
+        </View>
+      ) : null}
       <View style={[styles.radio, selected && styles.radioOn]}>
         {selected ? <View style={styles.radioDot} /> : null}
       </View>
@@ -669,24 +714,29 @@ function PlanRow({
           unit, so both in one unit makes the comparison honest, and the real
           charge stays attached because finding it out at the store sheet is
           what produces refunds. */}
-      {perMonth && billedAs ? (
+      {perWeek && billedAs ? (
         <View style={{ alignItems: 'flex-end' }}>
           <View style={styles.planRateRow}>
-            <Text style={styles.planPrice}>{perMonth}</Text>
-            <Text style={styles.planRateUnit}> / mo</Text>
+            <Text style={styles.planPrice}>{perWeek}</Text>
+            <Text style={styles.planRateUnit}> / wk</Text>
           </View>
           <Text style={styles.planBilledAs}>{billedAs}</Text>
         </View>
       ) : (
-        <Text style={styles.planPrice}>{price}</Text>
+        <View style={{ alignItems: 'flex-end' }}>
+          <View style={styles.planRateRow}>
+            <Text style={styles.planPrice}>{price}</Text>
+            {unit ? <Text style={styles.planRateUnit}>{unit}</Text> : null}
+          </View>
+        </View>
       )}
     </PressableScale>
   );
 }
 
-/** The monthly-rate split for a plan, or null when it is already monthly. */
-function monthlyFor(pkg: PurchasesPackage) {
-  return monthlyEquivalent(toPlanPrice(pkg), pkg.product.priceString, pkg.packageType);
+/** The weekly-rate split for a plan, or null when it is already weekly. */
+function weeklyFor(pkg: PurchasesPackage) {
+  return weeklyEquivalent(toPlanPrice(pkg), pkg.product.priceString, pkg.packageType);
 }
 
 function perWeekHint(pkg: PurchasesPackage): string | null {
@@ -711,7 +761,7 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   rootContent: { flex: 1, paddingBottom: 0 },
   body: { flex: 1 },
-  scrollContent: { paddingBottom: 20 },
+  scrollContent: { paddingBottom: 20, paddingTop: 6 },
 
   topBar: {
     flexDirection: 'row',
@@ -736,29 +786,45 @@ const styles = StyleSheet.create({
     backgroundColor: palette.ink,
   },
 
-  eyebrow: {
-    ...font('extrabold', 11, { color: palette.green600 }),
-    letterSpacing: 2.4,
-    marginTop: 12,
-  },
-  title: {
-    ...font('extrabold', 32, { color: palette.ink }),
-    letterSpacing: -1,
-    lineHeight: 37,
-    marginTop: 8,
-  },
-  sub: { ...font('medium', 15, { color: palette.grey600 }), lineHeight: 21, marginTop: 6 },
-  ownProof: { ...font('bold', 13, { color: palette.green700 }), marginTop: 10, lineHeight: 18 },
-  wallTrack: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: palette.divider,
-    marginTop: 16,
+  hero: {
+    borderRadius: radius['4xl'],
+    paddingHorizontal: 18,
+    paddingTop: 14,
+    paddingBottom: 16,
     overflow: 'hidden',
   },
-  wallFill: { height: 4, borderRadius: 2, backgroundColor: palette.green500 },
+  eyebrow: {
+    ...font('extrabold', 11, { color: palette.green100 }),
+    letterSpacing: 2.4,
+  },
+  title: {
+    ...font('extrabold', 28, { color: palette.white }),
+    letterSpacing: -0.8,
+    lineHeight: 33,
+    marginTop: 6,
+  },
+  sub: { ...font('medium', 14, { color: palette.green100 }), lineHeight: 19, marginTop: 4 },
+  ownProof: {
+    ...font('bold', 12.5, { color: palette.white }),
+    marginTop: 10,
+    lineHeight: 17,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.xs,
+    overflow: 'hidden',
+  },
+  wallTrack: {
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    marginTop: 14,
+    overflow: 'hidden',
+  },
+  wallFill: { height: 5, borderRadius: 3, backgroundColor: palette.white },
 
-  benefits: { marginTop: 24, gap: 14 },
+  benefits: { marginTop: 22, gap: 12 },
   benefit: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   benefitFree: {
     marginTop: 2,
@@ -788,7 +854,7 @@ const styles = StyleSheet.create({
   },
   forYouText: { ...font('extrabold', 9, { color: palette.green700 }), letterSpacing: 0.8 },
 
-  plans: { gap: 10, marginTop: 28 },
+  plans: { gap: 10, marginTop: 20 },
   plan: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -796,11 +862,22 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: palette.border,
     borderRadius: radius['4xl'],
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     backgroundColor: palette.white,
   },
-  planSelected: { borderColor: palette.ink, backgroundColor: palette.white },
+  planFeatured: { borderColor: palette.green500, backgroundColor: palette.green50 },
+  planSelected: { borderColor: palette.green600, borderWidth: 2.5 },
+  ribbon: {
+    position: 'absolute',
+    top: -9,
+    right: 14,
+    backgroundColor: palette.ink,
+    borderRadius: radius.xs,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  ribbonText: { ...font('extrabold', 9, { color: palette.white }), letterSpacing: 1 },
   planTitle: font('extrabold', 16, { color: palette.ink }),
   planBadge: {
     alignSelf: 'flex-start',
@@ -817,7 +894,7 @@ const styles = StyleSheet.create({
      not shouting; tabular numerals keep digits the same width so the two plans
      line up, and tight tracking stops large numerals looking loose. */
   planPrice: {
-    ...font('semibold', 22, { color: palette.ink }),
+    ...font('semibold', 20, { color: palette.ink }),
     letterSpacing: -0.6,
     fontVariant: ['tabular-nums'],
   },
@@ -837,8 +914,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  radioOn: { borderColor: palette.ink },
-  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: palette.ink },
+  radioOn: { borderColor: palette.green600 },
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: palette.green600 },
 
   insight: {
     ...font('semibold', 13, { color: palette.green700 }),

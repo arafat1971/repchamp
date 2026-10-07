@@ -1,7 +1,6 @@
 import { Image } from 'expo-image';
 import { forwardRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import Svg, { Circle, Line, G } from 'react-native-svg';
 
 import type { SessionMode } from '@/domain/progression';
 import { font } from '@/theme/typography';
@@ -12,12 +11,10 @@ export interface ResultShareCardProps {
   avatarUri?: string | null;
   reps: number;
   exerciseLabel: string;
-  exerciseId?: string;
   streak: number;
   formScore?: number;
   peakDepthPct?: number;
   fullDepthReps?: number;
-  trackingStatus?: string;
   /** True when pose tracking actually counted reps this set. */
   aiVerified?: boolean;
   /** Live versus ended level — neither side is WINNER. */
@@ -53,12 +50,10 @@ export const ResultShareCard = forwardRef<View, ResultShareCardProps>(
       avatarUri,
       reps,
       exerciseLabel,
-      exerciseId = 'push',
       streak,
       formScore,
       peakDepthPct = 100,
       fullDepthReps,
-      trackingStatus = 'AI POSE TRACKED',
       aiVerified = false,
       drew = false,
       durationSec = 60,
@@ -208,38 +203,25 @@ export const ResultShareCard = forwardRef<View, ResultShareCardProps>(
             </>
           ) : (
             <>
-              {/* Hero */}
-              <View style={styles.hero}>
-                <Text style={styles.heroNumber}>{reps}</Text>
+              {/* Hero — one number, one label */}
+              <View style={styles.soloHero}>
+                <Text style={styles.soloNumber}>{reps}</Text>
                 <Text style={styles.heroLabel}>{exerciseLabel.toUpperCase()}</Text>
               </View>
 
-              {/* AI pose stage.
-                  The profile photo used to sit behind this, blurred. It read as
-                  a muddy smear rather than a backdrop -- the skeleton is the
-                  subject, and a face at 10px blur only fought it for contrast. */}
-              <View style={styles.stage}>
-                <View style={styles.stageEmpty} />
-                <View style={styles.skeletonWrap}>
-                  <PoseSkeletonSvg exerciseId={exerciseId} />
-                </View>
-                <View style={styles.stageTag}>
-                  <View style={styles.liveDot} />
-                  <Text style={styles.stageTagText}>{trackingStatus}</Text>
-                </View>
-              </View>
-
-              {/* Metrics */}
-              <View style={styles.statsRow}>
-                <View style={styles.statPill}>
+              {/* Metrics — a hairline strip, not three boxes */}
+              <View style={styles.statsStrip}>
+                <View style={styles.statCell}>
                   <Text style={styles.statValue}>{displayForm}%</Text>
                   <Text style={styles.statLabel}>FORM</Text>
                 </View>
-                <View style={styles.statPill}>
+                <View style={styles.statDivider} />
+                <View style={styles.statCell}>
                   <Text style={styles.statValue}>{displayFullReps}/{reps}</Text>
                   <Text style={styles.statLabel}>FULL DEPTH</Text>
                 </View>
-                <View style={styles.statPill}>
+                <View style={styles.statDivider} />
+                <View style={styles.statCell}>
                   <Text style={styles.statValue}>{streak}d</Text>
                   <Text style={styles.statLabel}>STREAK</Text>
                 </View>
@@ -281,93 +263,6 @@ export const ResultShareCard = forwardRef<View, ResultShareCardProps>(
     );
   },
 );
-
-/** Minimal single-accent pose overlay. */
-function PoseSkeletonSvg({ exerciseId }: { exerciseId: string }) {
-  const isSquat = exerciseId === 'squat';
-
-  const joints = isSquat
-    ? [
-        { x: 140, y: 30 },
-        { x: 130, y: 55 },
-        { x: 150, y: 55 },
-        { x: 115, y: 80 },
-        { x: 165, y: 80 },
-        { x: 110, y: 105 },
-        { x: 170, y: 105 },
-        { x: 132, y: 115 },
-        { x: 148, y: 115 },
-        { x: 120, y: 155 },
-        { x: 160, y: 155 },
-        { x: 125, y: 188 },
-        { x: 155, y: 188 },
-      ]
-    : [
-        { x: 50, y: 110 },
-        { x: 80, y: 115 },
-        { x: 80, y: 125 },
-        { x: 85, y: 145 },
-        { x: 85, y: 155 },
-        { x: 95, y: 175 },
-        { x: 95, y: 180 },
-        { x: 150, y: 120 },
-        { x: 150, y: 128 },
-        { x: 210, y: 122 },
-        { x: 210, y: 130 },
-        { x: 260, y: 125 },
-        { x: 260, y: 132 },
-      ];
-
-  const bones: [number, number][] = isSquat
-    ? [
-        [0, 1], [0, 2], [1, 2], [1, 3], [3, 5], [2, 4], [4, 6],
-        [1, 7], [2, 8], [7, 8], [7, 9], [9, 11], [8, 10], [10, 12],
-      ]
-    : [
-        [0, 1], [1, 2], [1, 3], [3, 5], [2, 4], [4, 6],
-        [1, 7], [2, 8], [7, 8], [7, 9], [9, 11], [8, 10], [10, 12],
-      ];
-
-  return (
-    <Svg width="280" height="150" viewBox="0 0 280 150">
-      <G>
-        {bones.map(([b1, b2], idx) => {
-          const p1 = joints[b1];
-          const p2 = joints[b2];
-          if (!p1 || !p2) return null;
-          return (
-            <G key={`bone-${idx}`}>
-              <Line
-                x1={p1.x}
-                y1={p1.y}
-                x2={p2.x}
-                y2={p2.y}
-                stroke={palette.green400}
-                strokeWidth="10"
-                strokeOpacity="0.35"
-              />
-              <Line
-                x1={p1.x}
-                y1={p1.y}
-                x2={p2.x}
-                y2={p2.y}
-                stroke={palette.green400}
-                strokeWidth="5"
-              />
-            </G>
-          );
-        })}
-
-        {joints.map((j, idx) => (
-          <G key={`joint-${idx}`}>
-            <Circle cx={j.x} cy={j.y} r="12" fill={palette.green400} fillOpacity="0.35" />
-            <Circle cx={j.x} cy={j.y} r="9" fill={palette.white} />
-          </G>
-        ))}
-      </G>
-    </Svg>
-  );
-}
 
 const styles = StyleSheet.create({
   // Transparent so the rounded card's corners aren't backed by a white square
@@ -421,49 +316,27 @@ const styles = StyleSheet.create({
   },
   heroLabel: font('extrabold', 12, { color: MUTED, letterSpacing: 3, marginTop: 4 }),
 
-  /* Stage (solo) */
-  stage: {
-    width: 296,
-    height: 160,
-    borderRadius: radius['2xl'],
-    overflow: 'hidden',
-    position: 'relative',
-    backgroundColor: palette.slate900,
-    marginBottom: 16,
+  /* Solo hero + metrics */
+  soloHero: { alignItems: 'center', marginTop: 8, marginBottom: 24 },
+  soloNumber: {
+    ...font('extrabold', 112, { color: INK }),
+    lineHeight: 112,
+    letterSpacing: -5,
   },
-  /* A flat panel, not a backdrop: the vignette that used to sit over this only
-     existed to hold a blurred photo back, and over a solid fill it just muddied
-     the green of the skeleton. */
-  stageEmpty: { ...StyleSheet.absoluteFill, backgroundColor: palette.slate800 },
-  skeletonWrap: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
-  stageTag: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
+  statsStrip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: radius.pill,
-  },
-  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: palette.green400 },
-  stageTagText: font('extrabold', 9.5, { color: palette.white, letterSpacing: 0.8 }),
-
-  /* Stats (solo) */
-  statsRow: { flexDirection: 'row', gap: 8, width: '100%', marginBottom: 16 },
-  statPill: {
-    flex: 1,
-    backgroundColor: SURFACE,
-    paddingVertical: 12,
-    borderRadius: radius.lg,
-    alignItems: 'center',
-    borderWidth: 1,
+    width: '100%',
+    paddingVertical: 14,
+    marginBottom: 20,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
     borderColor: BORDER,
   },
-  statValue: font('extrabold', 17, { color: ACCENT }),
-  statLabel: font('bold', 9.5, { color: MUTED, letterSpacing: 0.8, marginTop: 4 }),
+  statCell: { flex: 1, alignItems: 'center' },
+  statDivider: { width: 1, height: 28, backgroundColor: BORDER },
+  statValue: font('extrabold', 18, { color: INK }),
+  statLabel: font('bold', 9.5, { color: MUTED, letterSpacing: 1, marginTop: 4 }),
 
   /* Versus / together */
   resultKicker: font('extrabold', 11, { color: MUTED, letterSpacing: 3, marginBottom: 4 }),

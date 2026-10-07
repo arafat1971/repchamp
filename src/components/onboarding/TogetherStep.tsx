@@ -10,8 +10,8 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { PopOnChange } from '@/components/motion';
-import { PressableScale, PrimaryButton } from '@/components/ui';
-import { Aurora, PulseRing, ScreenHead, springIn } from './ios';
+import { PressableScale } from '@/components/ui';
+import { PrimaryButton, Aurora, PulseRing, ScreenHead, springIn } from './ios';
 import { Burst } from './Visuals';
 import { HABITS, POKES, toggleTick, type HabitId } from '@/domain/ritual';
 import { previewCta, previewLine } from '@/domain/togetherPreview';

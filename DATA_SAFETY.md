@@ -1,7 +1,14 @@
 # Play Store — Data Safety form answers
 
-Fill the Play Console → App content → Data safety form with these answers. They're
-derived from an audit of what the code **actually** collects — accurate declarations
+Fill the Play Console → App content → Data safety form with these answers.
+
+> **Audit 2026-10-07:** the form live on Play declared only *Approximate location*. Everything
+> below except that row was missing. Code audit also corrected the Health and fitness answer
+> (steps, water and reps are Fitness info). Sentry and PostHog are declared as collected; they
+> only run when `EXPO_PUBLIC_SENTRY_DSN` / `EXPO_PUBLIC_POSTHOG_KEY` are set in the build —
+> remove those rows if neither is ever set.
+
+They're derived from an audit of what the code **actually** collects — accurate declarations
 avoid rejection. Re-check if you add features (e.g. real analytics, ads, location).
 
 Key fact to get right: **the camera/video feed is processed entirely on-device and is
@@ -75,15 +82,36 @@ purpose + optionality as noted.
 > state, it does not store card/payment data. If Play flags it, declare "Purchase history:
 > Yes, purpose Account management" and note it's handled by the billing provider.
 
+### Location
+| Data | Collected | Shared | Purpose | Optional? |
+|---|---|---|---|---|
+| **Approximate location** | Yes | **Yes** — Open-Meteo (third party, not a processor) | App functionality (widget weather) | Optional: only when "Real weather" is switched on; coordinates rounded to ~10 km before leaving the phone (`src/services/weather.ts`) |
+
+### Health and fitness  *(added 2026-10-07 after a code audit)*
+| Data | Collected | Purpose | Optional? |
+|---|---|---|---|
+| **Fitness info** — reps and sets, daily steps (pedometer), water intake | Yes | App functionality, analytics | Steps and water are shared with the paired partner by default (`DEFAULT_SHARING` in `src/domain/partnerSharing.ts` is `{ steps: true, water: true }`), each with its own switch; rep counts sync for leaderboards and history |
+| **Health info** (medical / clinical) | No | — | — |
+
+Steps and water used to be answered "No / app activity". They are not: they leave the
+device, are stored, and are shown to another user, so Play's *Fitness info* applies.
+
+### Device or other IDs  *(added 2026-10-07)*
+| Data | Collected | Purpose | Optional? |
+|---|---|---|---|
+| **Device or other IDs** — Expo push token, Firebase installation / App Check identifiers | Yes | App functionality (push notifications, abuse protection), account | Push token only after the notification permission is granted |
+
+### Financial info *(confirm)*
+| Data | Collected | Purpose | Optional? |
+|---|---|---|---|
+| **Purchase history** | Yes — subscription state held by RevenueCat against the user ID | App functionality, account | Only for subscribers |
+
 ### Data types you must answer NO to (not collected)
-- **Location** — **Approximate location: Yes (optional, shared).** Only when the athlete turns on "Real weather"; coordinates are rounded to ~10 km and sent to Open-Meteo (`src/services/weather.ts`). Precise location: No (blocked in the manifest). Declare Approximate location → Shared, optional, purpose App functionality.
+- **Precise location** — No (`ACCESS_FINE_LOCATION` and background location are blocked in the manifest). Approximate location is **Yes**; see the Location table.
 - **Contacts** — No
 - **Calendar** — No
-- **Health and fitness** — ⚠️ Judgement call: you track *reps/workouts*, which is activity
-  data, but you do NOT collect medical/health-record data. Declare rep counts under **App
-  activity**, and answer **No** to Play's "Health and fitness → Health info" (that category
-  is for medical/clinical data). If unsure, Play's category is narrow — rep counts are app
-  activity, not health records.
+- **Health and fitness → Health info** — No (no medical or clinical data). See the
+  **Fitness info** row above, which is Yes.
 - **Financial → payment info / credit score** — No (billing provider handles payment)
 - **Messages / audio / files / web browsing** — No
 

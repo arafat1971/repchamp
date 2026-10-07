@@ -25,6 +25,17 @@
 /**
  * Free reps a non-Pro athlete may do, lifetime, before the wall.
  *
+ * **0 as of 2026-10-07 — a true hard paywall, owner decision.** The first solo
+ * set is already behind the wall; there is no free trial either. Done on the
+ * strength of the 2026 RevenueCat benchmark (hard paywalls ~10.7% download-to-
+ * paid vs ~2.1% freemium, near-identical 1-year retention), accepting that an
+ * athlete now meets the pitch before seeing a form report or a streak. Couple
+ * mode, Pro and no-billing builds stay exempt, so the invite loop is intact and
+ * nobody is locked out of a build that cannot sell anything. The wall is still
+ * dismissible to Home (see the session redirect) — never an inescapable loop,
+ * which is the shape Play rejected. Raising this number is the retreat; the
+ * history below explains the earlier 5 and 50.
+ *
  * Raised from 5 to 50 on 2026-09-13. At 5 the wall landed on the *second*
  * session: onboarding's last tap drops the athlete straight into a practice set
  * (`app/onboarding.tsx`), and five reps is about twenty seconds of push-ups, so
@@ -37,7 +48,7 @@
  * countdown, the warning, the tests) reads this constant, so moving the number
  * is the whole change.
  */
-export const FREE_REP_LIMIT = 50;
+export const FREE_REP_LIMIT = 0;
 
 /**
  * Master switch — **on** as of 2026-09-20.

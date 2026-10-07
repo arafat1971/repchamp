@@ -27,6 +27,12 @@ export function paywallLead(
   opts: { fromRepWall: boolean; freeLimit: number; totalReps: number },
 ): PaywallLead {
   if (opts.fromRepWall) {
+    if (opts.freeLimit <= 0) {
+      return {
+        title: 'Unlock RepChamp Pro',
+        sub: 'Count every rep and get a form report after each set. Couple mode stays free.',
+      };
+    }
     return {
       title: `You’ve used your ${opts.freeLimit} free reps`,
       sub: `${opts.totalReps.toLocaleString()} reps counted. Pro keeps you going.`,

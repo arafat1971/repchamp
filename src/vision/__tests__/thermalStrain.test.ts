@@ -31,6 +31,13 @@ describe('device strain detection', () => {
     expect(isDeviceStrained()).toBe(false);
   });
 
+  it('does not let the hold timer span a pause in frames', () => {
+    let t = run(70, 5, 1_000); // slow, but not yet 20s
+    t += 60_000; // frames stop: backgrounded or between phases
+    run(70, 5, t); // only 5s of slow frames since resuming
+    expect(isDeviceStrained()).toBe(false);
+  });
+
   it('flags a phone that stays slow for a sustained spell', () => {
     run(70, 40, 1_000);
     expect(isDeviceStrained()).toBe(true);

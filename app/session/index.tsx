@@ -15,8 +15,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CameraDenied } from '@/components/session/CameraDenied';
 import { CameraStage, StatusChip } from '@/components/session/CameraStage';
-import { PhoneRestNotice } from '@/components/session/PhoneRestNotice';
 import { CameraTutorial } from '@/components/session/CameraTutorial';
+import { PhoneRestNotice } from '@/components/session/PhoneRestNotice';
 import { PoseDebugHud } from '@/components/session/PoseDebugHud';
 import { PoseOverlay } from '@/components/session/PoseOverlay';
 import { ProgressRing, RingPercent } from '@/components/session/ProgressRing';
@@ -593,6 +593,9 @@ export default function SessionScreen() {
   const [dismissedEpisode, setDismissedEpisode] = useState(0);
   const [nextSetNoteOpen, setNextSetNoteOpen] = useState(() => recentlyStrained(10 * 60 * 1000));
   const restDismissed = dismissedEpisode === strainEpisode;
+  /* The next-set note belongs to the first calibration only; once the set has
+     moved on, a later re-calibration must not bring it back. */
+  if (phase !== 'calibrating' && nextSetNoteOpen) setNextSetNoteOpen(false);
 
   const startRecording = recorder.start;
   const stopRecording = recorder.stop;
@@ -1109,8 +1112,6 @@ export default function SessionScreen() {
           />
         ) : null}
 
-        {/* First-run coaching overlay — how to position the phone and stand for
-            a clean read. Skippable at any moment; sits above every phase. */}
         {/* A calm "your phone needs a rest" note — never over the tutorial or
             the camera-denied screen, which own the whole display. */}
         {!showTutorial && !cameraBlocked && phase !== 'finished' && deviceStrained && !restDismissed ? (
@@ -1119,6 +1120,8 @@ export default function SessionScreen() {
           <PhoneRestNotice kind="next-set" top={insets.top + 96} onDismiss={() => setNextSetNoteOpen(false)} />
         ) : null}
 
+        {/* First-run coaching overlay — how to position the phone and stand for
+            a clean read. Skippable at any moment; sits above every phase. */}
         {showTutorial && !cameraBlocked ? <CameraTutorial onDismiss={dismissTutorial} /> : null}
 
         {/* Camera blocked — the athlete denied access or the OS restricted it.

@@ -24,17 +24,24 @@ let frameIndex = 0;
 const STRAIN_ENTER_MS = 48;
 const STRAIN_EXIT_MS = 38;
 const STRAIN_HOLD_MS = 20_000;
+/** A longer silence than this means frames stopped (paused, backgrounded); the
+ * hold timer must not span it. */
+const STRAIN_MAX_GAP_MS = 2_000;
 
 let strained = false;
 /** When the opposite condition started holding; 0 when it is not. */
 let flipSince = 0;
 /** Survives `resetThermalTelemetry` — it is how the *next* session knows. */
 let lastStrainedAt = 0;
+let lastSampleAt = 0;
 
 /** Record one inference duration (ms) from the frame worklet / JS bridge. */
 export function noteInferenceMs(ms: number, now: number = Date.now()): void {
   if (!Number.isFinite(ms) || ms <= 0) return;
   rollingInferMs = rollingInferMs * (1 - EMA_ALPHA) + ms * EMA_ALPHA;
+
+  if (lastSampleAt !== 0 && now - lastSampleAt > STRAIN_MAX_GAP_MS) flipSince = 0;
+  lastSampleAt = now;
 
   const wantsFlip = strained ? rollingInferMs < STRAIN_EXIT_MS : rollingInferMs > STRAIN_ENTER_MS;
   if (!wantsFlip) {
@@ -99,6 +106,7 @@ export function resetThermalTelemetry(): void {
   frameIndex = 0;
   strained = false;
   flipSince = 0;
+  lastSampleAt = 0;
 }
 
 /** Tests only — forget that the device was ever strained. */

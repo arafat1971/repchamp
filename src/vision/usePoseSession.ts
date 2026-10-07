@@ -90,7 +90,43 @@ function reportFrameOnce(
 let convertTotal = 0;
 let inferTotal = 0;
 let timingSamples = 0;
+/**
+ * Release-safe frame-rate probe: one `console.warn` line every 2s with the real
+ * frame rate and the cost of each pipeline stage. `console.log` is stripped from
+ * release builds, so the only way to read these off a device that is running
+ * the shipping bundle is a warn. TEMPORARY — keep false for any build a user
+ * will hold, or for Play.
+ */
+export const PERF_PROBE = true;
+let probeStart = 0;
+let probeFrames = 0;
+let probeConvert = 0;
+let probeInfer = 0;
+let probeInferMax = 0;
+function probeTimings(convertMs: number, inferMs: number): void {
+  const now = Date.now();
+  if (probeStart === 0) probeStart = now;
+  probeFrames += 1;
+  probeConvert += convertMs;
+  probeInfer += inferMs;
+  if (inferMs > probeInferMax) probeInferMax = inferMs;
+  const elapsed = now - probeStart;
+  if (elapsed < 2000) return;
+  console.warn(
+    `[perf] pose ${((probeFrames * 1000) / elapsed).toFixed(1)}fps ` +
+      `convert=${(probeConvert / probeFrames).toFixed(1)}ms ` +
+      `infer=${(probeInfer / probeFrames).toFixed(1)}ms max=${probeInferMax.toFixed(0)}ms ` +
+      `frames=${probeFrames}`,
+  );
+  probeStart = now;
+  probeFrames = 0;
+  probeConvert = 0;
+  probeInfer = 0;
+  probeInferMax = 0;
+}
+
 function recordTimings(convertMs: number, inferMs: number): void {
+  if (PERF_PROBE) probeTimings(convertMs, inferMs);
   convertTotal += convertMs;
   inferTotal += inferMs;
   timingSamples += 1;

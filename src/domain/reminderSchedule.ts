@@ -185,6 +185,27 @@ export function reminderHourFor(
 }
 
 /**
+ * The hour an athlete's own answer to "when do you train best?" stands for.
+ *
+ * "It varies" and anything unrecognised return null, so the reminder keeps the
+ * default rather than guessing. The returned hour is the *reminder* hour, a
+ * touch before the session it is meant to prompt, and is clamped to the same
+ * waking window as a learned one.
+ */
+export function preferredHourFor(when: string | null | undefined): number | null {
+  switch (when) {
+    case 'morning':
+      return clampToWakingHours(8);
+    case 'afternoon':
+      return clampToWakingHours(13);
+    case 'evening':
+      return clampToWakingHours(DEFAULT_REMINDER_HOUR);
+    default:
+      return null;
+  }
+}
+
+/**
  * Local hours of the most recent sessions, newest first.
  *
  * `completedAt` is an ISO instant; `new Date(...).getHours()` reads it back in

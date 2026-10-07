@@ -358,6 +358,8 @@ export interface ReminderContext {
    * — the recap claims nothing `progressProof` will not stand behind.
    */
   sessions?: readonly SessionSummary[];
+  /** The hour the athlete said they train at; used until their own history shows a habit. */
+  preferredHour?: number | null;
   /** The ritual week, when paired — see `buildWeeklyRecap`. */
   together?: { name: string; perfectDays: number; trend: { now: number; before: number } | null } | null;
   /**
@@ -382,7 +384,7 @@ export async function syncLocalReminders(ctx: ReminderContext): Promise<void> {
        of them cannot drift apart. `reminderHourFor` returns the hour the app
        has always used whenever history has not earned anything else, so an
        athlete with no clear routine sees exactly the schedule they saw before. */
-    const reminderHour = reminderHourFor(ctx.sessions ?? []);
+    const reminderHour = reminderHourFor(ctx.sessions ?? [], ctx.preferredHour ?? undefined);
 
     /* Weekly summary — always one quiet ping (not gated by daily toggle).
        Monday rather than Sunday, and deliberately NOT the learned hour: see

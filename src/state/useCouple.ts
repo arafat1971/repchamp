@@ -36,7 +36,7 @@ import {
   flushCoupleCreditOutbox,
   promotePendingCoupleCredit,
 } from '@/services/coupleCreditOutbox';
-import { syncCouplePushToken, watchMyCouple } from '@/services/coupleService';
+import { stripPendingPushToken, syncCouplePushToken, watchMyCouple } from '@/services/coupleService';
 import { syncHydrationNow } from '@/services/hydrationSync';
 import { fetchExpoPushToken } from '@/services/userService';
 import { useAuthStore } from '@/state/authStore';
@@ -191,6 +191,16 @@ export function useCouple(): CoupleView {
   // stranger could read it and push to the device, which is exactly what keeping
   // it off the public profile was meant to prevent. Nothing is lost by waiting:
   // there is no partner to nudge until someone takes the second seat.
+  // Invites made before that gate may still hold a token; clear ours once.
+  const strayTokenCoupleId =
+    uid && couple?.pending && couple.members.some((m) => m.uid === uid && m.expoPushToken != null)
+      ? couple.id
+      : undefined;
+  useEffect(() => {
+    if (!uid || !strayTokenCoupleId) return;
+    void stripPendingPushToken(strayTokenCoupleId, uid).catch(() => {});
+  }, [uid, strayTokenCoupleId]);
+
   const pairedCoupleId = isPaired(couple) ? couple?.id : undefined;
   useEffect(() => {
     if (!uid || !pairedCoupleId) return;

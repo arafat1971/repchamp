@@ -29,8 +29,8 @@ export function paywallLead(
   if (opts.fromRepWall) {
     if (opts.freeLimit <= 0) {
       return {
-        title: 'Unlock RepChamp Pro',
-        sub: 'Count every rep and get a form report after each set. Couple mode stays free.',
+        title: 'Every rep. Counted.',
+        sub: '',
       };
     }
     return {

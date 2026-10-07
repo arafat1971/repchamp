@@ -60,6 +60,7 @@ CAPTIONS: list[tuple[str, str]] = [
     ("03-arena", "Duel a rival, live"),
     ("04-friends", "Train better together"),
     ("05-profile", "Every rep earns XP"),
+    ("06-hydration", "Keep your panda hydrated"),
 ]
 
 

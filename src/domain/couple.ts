@@ -179,8 +179,24 @@ export function nudgeAt(couple: Couple | null): number | null {
 export const PAIR_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const PAIR_CODE_LENGTH = 6;
 
+/**
+ * A uniform [0, 1) from the platform CSPRNG when there is one. The code is the
+ * only secret guarding a pending invite, so it must not come from `Math.random`,
+ * whose output is predictable from a few observed values. Falls back to
+ * `Math.random` only where `crypto.getRandomValues` does not exist.
+ */
+function secureRandom(): number {
+  const c = (globalThis as { crypto?: { getRandomValues?: (a: Uint32Array) => Uint32Array } }).crypto;
+  if (c?.getRandomValues) {
+    const buf = new Uint32Array(1);
+    c.getRandomValues(buf);
+    return (buf[0] as number) / 4294967296;
+  }
+  return Math.random();
+}
+
 /** A fresh pair code. `random` is injectable so tests are deterministic. */
-export function makePairCode(random: () => number = Math.random): string {
+export function makePairCode(random: () => number = secureRandom): string {
   let code = '';
   for (let i = 0; i < PAIR_CODE_LENGTH; i++) {
     const index = Math.floor(random() * PAIR_CODE_ALPHABET.length) % PAIR_CODE_ALPHABET.length;

@@ -102,6 +102,35 @@ describe('own-slice enforcement', () => {
   });
 });
 
+describe('push token on a pending invite', () => {
+  it('refuses creating an invite that carries a push token', async () => {
+    await assertFails(
+      setDoc(doc(asUser(ALICE), 'couples', CODE), {
+        id: CODE,
+        memberUids: [ALICE],
+        members: [member(ALICE, { expoPushToken: 'ExponentPushToken[abc]' })],
+        pending: true,
+      }),
+    );
+  });
+
+  it('refuses the sole member publishing a token while pending', async () => {
+    await seedPending();
+    await assertFails(
+      updateDoc(doc(asUser(ALICE), 'couples', CODE), {
+        members: [member(ALICE, { expoPushToken: 'ExponentPushToken[abc]' })],
+      }),
+    );
+  });
+
+  it('lets the sole member strip a token left from before', async () => {
+    await seedPending({ expoPushToken: 'ExponentPushToken[abc]' });
+    await assertSucceeds(
+      updateDoc(doc(asUser(ALICE), 'couples', CODE), { members: [member(ALICE)] }),
+    );
+  });
+});
+
 describe('join', () => {
   it('lets a second athlete take the open seat', async () => {
     await seedPending();

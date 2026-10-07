@@ -34,6 +34,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { CoupleQR } from '@/components/CoupleQR';
+import { SocialShareRow } from '@/components/SocialShareRow';
 import { coupleBondPresentation, inviteLink } from '@/domain/couple';
 import { dayKey, lastNDayKeys, weekdayLetter } from '@/domain/progression';
 import { ModalHeader } from '@/components/ModalHeader';
@@ -552,6 +553,7 @@ export default function CoupleInviteScreen() {
               </LinearGradient>
             </PressableScale>
           </Animated.View>
+          <SocialShareRow link={inviteLink(code)} text="Train with me on RepChamp 💪 Tap to pair:" tone="light" />
           <PressableScale
             onPress={() => {
               if (!couple) return;

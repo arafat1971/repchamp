@@ -43,6 +43,7 @@ import {
   partnerHabitsToday,
   partnerStepsToday,
   partnerWaterToday,
+  inviteLink,
 } from '@/domain/couple';
 import { drinksOnDay, hydrationProgress, stepGoalMl , DEFAULT_DAILY_GOAL_ML } from '@/domain/hydration';
 import { lightImpactHaptic, playPopSound, selectionHaptic } from '@/lib/feedback';
@@ -966,6 +967,7 @@ export default function HomeScreen() {
               router.push('/modal/couple-invite');
             }}
             onDismiss={dismissInviteCard}
+            pairLink={couple.code ? inviteLink(couple.code) : null}
           />
         </StaggerIn>
       ) : null}

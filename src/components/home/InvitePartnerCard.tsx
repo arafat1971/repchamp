@@ -2,6 +2,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { DropIcon, DuelIcon, FlameIcon } from '@/components/home/Icons';
+import { SocialShareRow } from '@/components/SocialShareRow';
 import { PressableScale } from '@/components/ui';
 import { font } from '@/theme/typography';
 import { gradients, palette } from '@/theme/tokens';
@@ -23,9 +24,12 @@ const BENEFITS = [
 export function InvitePartnerCard({
   onInvite,
   onDismiss,
+  pairLink,
 }: {
   onInvite: () => void;
   onDismiss: () => void;
+  /** The pairing link of an invite that is already open. Absent until one is made. */
+  pairLink?: string | null;
 }) {
   return (
     <LinearGradient colors={gradients.heroEmerald} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.card}>
@@ -75,6 +79,7 @@ export function InvitePartnerCard({
           <Text style={font('bold', 13, { color: 'rgba(255,255,255,0.75)' })}>Not now</Text>
         </PressableScale>
       </View>
+      {pairLink ? <SocialShareRow link={pairLink} text="Train with me on RepChamp 💪 Tap to pair:" /> : null}
     </LinearGradient>
   );
 }

@@ -6,8 +6,9 @@ Fill the Play Console → App content → Data safety form with these answers.
 > below except that row was missing. Code audit also corrected the Health and fitness answer
 > (steps, water and reps are Fitness info). Sentry and PostHog are declared as collected; they
 > only run when `EXPO_PUBLIC_SENTRY_DSN` / `EXPO_PUBLIC_POSTHOG_KEY` are set in the build —
-> remove those rows if neither is ever set. They're
-derived from an audit of what the code **actually** collects — accurate declarations
+> remove those rows if neither is ever set.
+
+They're derived from an audit of what the code **actually** collects — accurate declarations
 avoid rejection. Re-check if you add features (e.g. real analytics, ads, location).
 
 Key fact to get right: **the camera/video feed is processed entirely on-device and is
@@ -110,7 +111,7 @@ device, are stored, and are shown to another user, so Play's *Fitness info* appl
 - **Contacts** — No
 - **Calendar** — No
 - **Health and fitness → Health info** — No (no medical or clinical data). See the
-  **Fitness info** row below, which is Yes.
+  **Fitness info** row above, which is Yes.
 - **Financial → payment info / credit score** — No (billing provider handles payment)
 - **Messages / audio / files / web browsing** — No
 

@@ -193,29 +193,17 @@ export function HeroCard({
         {c.image ? (
           <>
             <Image source={c.image} style={styles.photo} contentFit="cover" />
-            {/* The photo's top edge is a hard horizontal line, which puts the
-                card back to reading as two stacked blocks. This short gradient
-                sits *on* that edge and dissolves it into the green above. */}
+            {/* Compact card: the couple sits in the right of the frame and the copy
+                in the left, so nothing is drawn across their faces. This fade
+                carries the card's green across from the left and clears by
+                the middle, which also hides the photo's hard left edge. */}
             <LinearGradient
-              colors={['rgba(23,66,20,1)', 'rgba(23,66,20,0)']}
-              locations={[0, 1]}
-              style={styles.seamFade}
-              pointerEvents="none"
-            />
-            {/* Four stops, not three, and none of them reaching full opacity at
-                the bottom: the copy needs contrast at the top, the faces need
-                to be untouched in the middle, and the floor of the frame needs
-                a slight darkening so the card reads as one object rather than a
-                photo that stops. */}
-            <LinearGradient
-              colors={[
-                'rgba(20,58,17,0.96)',
-                'rgba(22,64,19,0.82)',
-                'rgba(26,72,22,0.10)',
-                'rgba(18,52,15,0.34)',
-              ]}
-              locations={[0, 0.22, 0.42, 1]}
+              colors={['rgba(20,58,17,1)', 'rgba(20,58,17,1)', 'rgba(22,64,19,0.45)', 'rgba(22,64,19,0)']}
+              locations={[0, 0.47, 0.6, 0.76]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
               style={StyleSheet.absoluteFill}
+              pointerEvents="none"
             />
           </>
         ) : null}
@@ -232,7 +220,7 @@ export function HeroCard({
             </>
           )}
         </View>
-        <Text style={[styles.title, c.image ? styles.textOverPhoto : null]}>{c.title}</Text>
+        <Text style={[styles.title, c.image ? styles.titleOverPhoto : null, c.image ? styles.textOverPhoto : null]}>{c.title}</Text>
         {/* The supporting line would fall across the couple's faces. On a photo
             card the image does that work, so the copy stays title + CTA. */}
         {/* A bonus with a deadline beats a general line about rhythm, so it
@@ -289,7 +277,7 @@ function ProgressFill({ fraction }: { fraction: number }) {
 const styles = StyleSheet.create({
   /* A plain shadow. A coloured one reads as a glow, which reads as generated. */
   shadowWrap: {
-    borderRadius: radius['4xl'],
+    borderRadius: radius['6xl'],
     shadowColor: '#000',
     shadowOpacity: 0.12,
     shadowRadius: 14,
@@ -297,7 +285,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   card: {
-    borderRadius: radius['4xl'],
+    borderRadius: radius['6xl'],
     padding: 18,
     justifyContent: 'space-between',
     /* The photo is absolutely positioned; without this they square
@@ -309,12 +297,12 @@ const styles = StyleSheet.create({
   /* Editorial proportions for the photo variant: room for the couple to be
      people rather than a strip, with the copy in the top third where the scrim
      is strongest. */
-  cardWithPhoto: { minHeight: 290, justifyContent: 'flex-start' },
+  cardWithPhoto: { minHeight: 180, justifyContent: 'flex-start' },
   ctaRowOverPhoto: { marginTop: 12 },
   /* Starts below the copy rather than filling the card, so the couple's faces
      land in the clear zone of the scrim instead of under its darkest part. */
-  photo: { position: 'absolute', left: 0, right: 0, bottom: 0, top: '30%' },
-  seamFade: { position: 'absolute', left: 0, right: 0, top: '26%', height: 72 },
+  photo: { position: 'absolute', right: 0, top: 0, bottom: 0, width: '62%' },
+  titleOverPhoto: { maxWidth: '50%' },
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   eyebrow: {
     ...font('semibold', 12, { color: 'rgba(255,255,255,0.72)' }),

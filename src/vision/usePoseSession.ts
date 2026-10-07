@@ -10,7 +10,12 @@ import { useAcceleratedModel } from './useAcceleratedModel';
 import { useSessionRecorder } from './useSessionRecorder';
 import { MODEL_INPUT_SIZE, decodePoseTensor, framingConfidence } from './poseDetector';
 import { RepCounter } from './repCounter';
-import { noteInferenceMs, suggestedCameraFps } from './thermal';
+import {
+  isDeviceStrained,
+  noteInferenceMs,
+  resetThermalTelemetry,
+  suggestedCameraFps,
+} from './thermal';
 import type { Pose } from './keypoints';
 import { TARGET_FPS } from '@/components/session/CameraStage';
 
@@ -24,6 +29,19 @@ import { TARGET_FPS } from '@/components/session/CameraStage';
  * each frame, and all bookkeeping happens here.
  */
 let diagnosticsReported = false;
+
+/**
+ * Requested camera frame size, kept at module scope on purpose.
+ *
+ * `useFrameOutput` memoises the native frame output — and, from its thread, a
+ * whole Hermes worklet runtime — on `targetResolution`'s *identity*. Written
+ * inline as `{ width, height }` it was a new object every render, so every
+ * re-render of the session screen (framing ticks, rep counts) created a fresh
+ * frame output and worklet runtime while the old ones waited for GC. On a Pixel
+ * 7a that showed as native heap sawtoothing 340–720 MB and native SIGSEGVs in
+ * libworklets about a minute into a session. Do not inline this again.
+ */
+const FRAME_TARGET_RESOLUTION = { width: 640, height: 480 } as const;
 
 /** Status of one frame's conversion, decided in the worklet. */
 export type FrameStatus = 'ok' | 'unsupported-format' | 'unexpected-output';
@@ -219,6 +237,21 @@ export function usePoseSession({
   const frameTick = useSharedValue(0);
   const cameraFpsRef = useRef(TARGET_FPS);
   const [cameraFps, setCameraFps] = useState(TARGET_FPS);
+  /* Only ever set when the value *changes* — never per frame — so it costs the
+     session screen at most a couple of renders per workout. */
+  /* A new session starts with a clean thermal slate. Without this the previous
+     set's "strained" flag carried over, so a restart straight after a hot set
+     opened with the mid-set message ("reps so far are safe") in the first
+     second, before this set had done anything. The *memory* that the last set
+     ran hot is kept separately — that is what drives the gentler next-set note. */
+  useEffect(() => {
+    resetThermalTelemetry();
+  }, []);
+  const strainedRef = useRef(false);
+  const [deviceStrained, setDeviceStrained] = useState(false);
+  /* Counts hot spells, so the screen can remember "dismissed this one" without
+     an effect that resets state. */
+  const [strainEpisode, setStrainEpisode] = useState(0);
 
   /**
    * Per-frame scratch buffers, pooled instead of allocated fresh every frame.
@@ -248,6 +281,11 @@ export function usePoseSession({
   const pointsA = useSharedValue<number[]>(new Array(51).fill(0));
   const pointsB = useSharedValue<number[]>(new Array(51).fill(0));
   const bridgeFlip = useSharedValue(0);
+  /* Set after the first 'ok' frame has carried the frame-geometry diagnostics.
+     `reportFrameOnce` only ever reads them once (and only in dev), so every
+     later frame sends zeros instead of a string and four more numbers through
+     the worklets serializer — about 30 queued calls a second that did nothing. */
+  const diagSentSv = useSharedValue(0);
 
   const counterRef = useRef<RepCounter>(
     new RepCounter(definition, { requireFullDepth: competitive }),
@@ -309,6 +347,12 @@ export function usePoseSession({
       reportFrameOnce(status, format, width, height, bytesPerRow, outputBytes);
       recordTimings(convertMs, inferMs);
       noteInferenceMs(inferMs);
+      const strainedNow = isDeviceStrained();
+      if (strainedNow !== strainedRef.current) {
+        strainedRef.current = strainedNow;
+        setDeviceStrained(strainedNow);
+        if (strainedNow) setStrainEpisode((n) => n + 1);
+      }
       const thermalEvery = inferMs > 48 ? 3 : inferMs > 38 ? 2 : 1;
       /* Writing `.value` is how a Reanimated shared value is set — the whole
          point of one is that both the JS thread and the frame processor can
@@ -542,6 +586,8 @@ export function usePoseSession({
           now - lastJsPushSv.value >= FRAMING_JS_INTERVAL_MS
         ) {
           lastJsPushSv.value = now;
+          const firstOk = diagSentSv.value === 0;
+          diagSentSv.value = 1;
           // `scheduleOnRN` serializes its arguments synchronously before
           // returning (`__serializer(args)` in react-native-worklets), so
           // `values`'s current contents are captured here — safe to pass the
@@ -551,11 +597,11 @@ export function usePoseSession({
             values,
             now,
             'ok',
-            frame.pixelFormat,
-            frame.width,
-            frame.height,
-            plane.bytesPerRow,
-            output.byteLength,
+            firstOk ? frame.pixelFormat : '',
+            firstOk ? frame.width : 0,
+            firstOk ? frame.height : 0,
+            firstOk ? plane.bytesPerRow : 0,
+            firstOk ? output.byteLength : 0,
             tInferStart - tConvertStart,
             tInferEnd - tInferStart,
           );
@@ -584,6 +630,7 @@ export function usePoseSession({
       pointsA,
       pointsB,
       bridgeFlip,
+      diagSentSv,
     ],
   );
 
@@ -600,7 +647,7 @@ export function usePoseSession({
      * This costs nothing extra to convert: the frame worklet samples exactly
      * MODEL_INPUT_SIZE^2 source pixels regardless of how large the frame is.
      */
-    targetResolution: { width: 640, height: 480 },
+    targetResolution: FRAME_TARGET_RESOLUTION,
     // Drop rather than queue: a stale frame is worse than no frame for rep timing.
     dropFramesWhileBusy: true,
     /**
@@ -667,6 +714,14 @@ export function usePoseSession({
     modelError: model.state === 'error' ? model.error : undefined,
     /** Adaptive camera FPS for long sessions (thermal / battery). */
     cameraFps,
+    /**
+     * True once the phone has been working too hard for long enough that the
+     * athlete should be told to give it a rest. Sustained and hysteretic — see
+     * `thermal.ts` — so it will not flicker.
+     */
+    deviceStrained,
+    /** Increments each time a new hot spell begins. */
+    strainEpisode,
     /** Rep records accumulated so far, for the end-of-session form report. */
     getRepHistory: () => counterRef.current.history,
     resetCounter,

@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Share, StyleSheet, Text, useWindowDimensions, View, ScrollView } from 'react-native';
-import Animated, { FadeInDown, FadeInUp, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { captureRef } from 'react-native-view-shot';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -28,6 +28,8 @@ import {
 } from '@/services/liveResultSettle';
 import { emitRetention, retentionSnapshot } from '@/services/recordSessionWithRetention';
 import { shareWorthyLine } from '@/domain/progressProof';
+import { SocialShareRow } from '@/components/SocialShareRow';
+import { WEB_BASE, friendInviteLink } from '@/lib/urls';
 import { setHighlight } from '@/domain/setHighlight';
 import { HighlightCard } from '@/components/session/HighlightCard';
 import { ProMomentCard } from '@/components/session/ProMomentCard';
@@ -491,13 +493,17 @@ export default function ResultScreen() {
      is a number. Falls back to the rep count, which is still perfectly
      shareable — `shareWorthyLine` returns null on an ordinary day rather than
      dressing one up. */
-  const shareText = () => {
+  const shareLine = () => {
     const proud = shareWorthyLine(useProfileStore.getState().sessions, streak);
-    const message = proud
-      ? `${proud} — think you can beat me? repchamp.web.app`
-      : `💪 I just completed ${session.reps} ${definition.label} on RepChamp — think you can beat me? repchamp.web.app`;
-    void Share.share({ message });
+    return proud
+      ? `${proud} — think you can beat me?`
+      : `💪 I just completed ${session.reps} ${definition.label} on RepChamp — think you can beat me?`;
   };
+  const shareText = () => {
+    void Share.share({ message: `${shareLine()} repchamp.web.app` });
+  };
+  const username = useProfileStore.getState().username;
+  const inviteUrl = username ? friendInviteLink(username) : WEB_BASE;
 
   const shareResult = async () => {
     track('share_opened', { kind: 'result-card' });
@@ -543,17 +549,6 @@ export default function ResultScreen() {
           { paddingTop: Math.max(insets.top, 44) + 8, paddingBottom: actionsHeight + 24 },
         ]}
       >
-        {/* Trophy — reserved for genuine wins. */}
-        {session.won ? (
-          <Animated.View entering={ZoomIn.duration(500)} style={styles.trophyWrapper}>
-            <Image
-              source={require('../../assets/trophy-gold.png')}
-              style={styles.trophyHeroImg}
-              contentFit="contain"
-            />
-          </Animated.View>
-        ) : null}
-
         <Animated.View entering={FadeInDown.duration(450).delay(100)} style={styles.titleSection}>
           <Text style={styles.screenTitleText}>{title}</Text>
           <Text style={styles.screenSubtitleText}>{subtitle}</Text>
@@ -628,12 +623,10 @@ export default function ResultScreen() {
             avatarUri={avatarUri}
               reps={session.reps}
             exerciseLabel={definition.label}
-            exerciseId={exercise}
             streak={streak}
             formScore={formScore}
             fullDepthReps={fullDepthReps}
             peakDepthPct={peakDepth}
-            trackingStatus={aiVerified ? 'AI POSE TRACKED' : 'SESSION'}
             aiVerified={aiVerified}
             drew={session.drew}
             durationSec={session.config.duration}
@@ -652,37 +645,7 @@ export default function ResultScreen() {
         onLayout={(e) => setActionsHeight(e.nativeEvent.layout.height)}
         style={[styles.actions, { paddingBottom: insets.bottom + 12 }]}
       >
-        <View style={styles.secondaryRow}>
-          <PressableScale
-            onPress={() => {
-              /* Always the report screen, Pro or not. It now shows a non-Pro
-                 athlete their real score with the detail locked, instead of
-                 bouncing them to a price list having seen nothing — the
-                 curiosity right after a set is the whole asset, and the old
-                 redirect spent it. That screen still forwards to the paywall
-                 when there is genuinely nothing to show. */
-              router.push('/session/form-report');
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="View form report"
-            style={[styles.secondaryButtonLight, { minHeight: reservedControlHeight(50, fontScale) }]}
-          >
-            <Text style={styles.secondaryLabelLight} {...scaleForRole('control')}>
-              {canUse(isPro, 'advanced-stats') ? 'Form Report' : 'Form Report · Pro'}
-            </Text>
-          </PressableScale>
-
-          <PressableScale
-            onPress={shareResult}
-            accessibilityRole="button"
-            accessibilityLabel="Share workout achievement"
-            style={[styles.secondaryButtonLight, { minHeight: reservedControlHeight(50, fontScale) }]}
-          >
-            <Text style={styles.secondaryLabelLight} {...scaleForRole('control')}>
-              Share Card
-            </Text>
-          </PressableScale>
-        </View>
+        <SocialShareRow link={inviteUrl} text={shareLine()} tone="light" />
 
         <PressableScale
           onPress={rematch}
@@ -697,6 +660,37 @@ export default function ResultScreen() {
             Play Again
           </Text>
         </PressableScale>
+
+        <View style={styles.secondaryRow}>
+          <PressableScale
+            onPress={() => {
+              /* Always the report screen, Pro or not. It shows a non-Pro athlete
+                 their real score with the detail locked; the screen itself
+                 forwards to the paywall when there is nothing to show. */
+              router.push('/session/form-report');
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="View form report"
+            style={[styles.secondaryButtonLight, { minHeight: reservedControlHeight(44, fontScale) }]}
+          >
+            <Text style={styles.secondaryLabelLight} {...scaleForRole('control')}>
+              {canUse(isPro, 'advanced-stats') ? 'Form report' : 'Form report · Pro'}
+            </Text>
+          </PressableScale>
+
+          <View style={styles.secondaryDivider} />
+
+          <PressableScale
+            onPress={shareResult}
+            accessibilityRole="button"
+            accessibilityLabel="Share workout achievement"
+            style={[styles.secondaryButtonLight, { minHeight: reservedControlHeight(44, fontScale) }]}
+          >
+            <Text style={styles.secondaryLabelLight} {...scaleForRole('control')}>
+              Share
+            </Text>
+          </PressableScale>
+        </View>
 
         <PressableScale
           onPress={done}
@@ -721,33 +715,31 @@ const styles = StyleSheet.create({
     ...surfaceShadow,
     shadowOpacity: 0.12,
   },
-  trophyWrapper: { marginBottom: 12, alignItems: 'center' },
-  trophyHeroImg: { width: 112, height: 112 },
 
-  titleSection: { alignItems: 'center', alignSelf: 'stretch', width: '100%', marginBottom: 16 },
+  titleSection: { alignItems: 'center', alignSelf: 'stretch', width: '100%', marginBottom: 12 },
   screenTitleText: {
-    ...font('extrabold', 32, { color: palette.ink }),
+    ...font('extrabold', 26, { color: palette.ink }),
     textAlign: 'center',
-    letterSpacing: -1,
-    lineHeight: 36,
+    letterSpacing: -0.6,
+    lineHeight: 31,
   },
   screenSubtitleText: {
-    ...font('regular', 15, { color: palette.slate500 }),
+    ...font('regular', 14, { color: palette.slate500 }),
     textAlign: 'center',
-    marginTop: 8,
+    marginTop: 6,
     /* 24, not 22. The copy wraps to two lines on a normal phone, and at 15pt
        the tighter leading clipped the descenders on the second one -- "today!"
        lost the tail of its "y". */
-    lineHeight: 24,
-    paddingHorizontal: 16,
+    lineHeight: 21,
+    paddingHorizontal: 12,
   },
   rewardRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
     gap: 8,
-    marginTop: 8,
-    marginBottom: 20,
+    marginTop: 4,
+    marginBottom: 16,
     paddingHorizontal: 8,
   },
   rewardChip: {
@@ -755,7 +747,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: palette.green500,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 6,
     borderRadius: 999,
   },
   chipIcon: { width: 18, height: 18 },
@@ -789,24 +781,20 @@ const styles = StyleSheet.create({
     bottom: 0,
     paddingHorizontal: 20,
     paddingTop: 16,
-    gap: 12,
+    gap: 4,
     backgroundColor: palette.canvas,
     borderTopWidth: 1,
     borderTopColor: 'rgba(15,31,23,0.06)',
   },
-  secondaryRow: { flexDirection: 'row', gap: 12 },
+  secondaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   secondaryButtonLight: {
     // `minHeight` at render time — see `@/theme/fontScale`.
     flex: 1,
-    borderRadius: radius.pill,
-    backgroundColor: palette.white,
-    borderWidth: 1,
-    borderColor: 'rgba(15,31,23,0.08)',
     alignItems: 'center',
     justifyContent: 'center',
-    ...surfaceShadow,
   },
-  secondaryLabelLight: font('extrabold', 14, { color: palette.ink }),
+  secondaryDivider: { width: 1, height: 18, backgroundColor: 'rgba(15,31,23,0.12)' },
+  secondaryLabelLight: font('bold', 14, { color: palette.ink }),
 
   playAgainButton: {
     // `minHeight` at render time — see `@/theme/fontScale`.
@@ -824,6 +812,6 @@ const styles = StyleSheet.create({
   doneLinkButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 4,
+    paddingVertical: 8,
   },
 });

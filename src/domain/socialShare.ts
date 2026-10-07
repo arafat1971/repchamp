@@ -21,9 +21,12 @@ export const SOCIAL_LABEL: Record<SocialPlatform, string> = {
   x: 'X',
 };
 
-/** The invite text sent with the link. */
-export function inviteMessage(link: string): string {
-  return `Race me on RepChamp — count reps, beat my score, and train together. Join here: ${link}`;
+/** The default invite text; the link is appended to it. */
+export const INVITE_TEXT = 'Race me on RepChamp — count reps, beat my score, and train together. Join here:';
+
+/** The text and link together, as one message. */
+export function inviteMessage(link: string, text: string = INVITE_TEXT): string {
+  return `${text} ${link}`;
 }
 
 export type ShareTarget =
@@ -32,18 +35,18 @@ export type ShareTarget =
   /** Copy the message, open the app, and ask the athlete to paste. */
   | { kind: 'paste'; message: string; appUrl: string; hint: string };
 
-export function shareTarget(platform: SocialPlatform, link: string): ShareTarget {
-  const message = inviteMessage(link);
+export function shareTarget(platform: SocialPlatform, link: string, text: string = INVITE_TEXT): ShareTarget {
+  const message = inviteMessage(link, text);
   switch (platform) {
     case 'x':
       return {
         kind: 'prefilled',
-        url: `https://twitter.com/intent/tweet?text=${encodeURIComponent(message.replace(` ${link}`, ''))}&url=${encodeURIComponent(link)}`,
+        url: `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(link)}`,
       };
     case 'facebook':
       return {
         kind: 'prefilled',
-        url: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(link)}&quote=${encodeURIComponent(message.replace(` ${link}`, ''))}`,
+        url: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(link)}&quote=${encodeURIComponent(text)}`,
       };
     case 'instagram':
       return {

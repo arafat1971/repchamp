@@ -20,17 +20,28 @@ const MARK: Record<SocialPlatform, string> = { instagram: 'IG', tiktok: 'TT', fa
  * Invite buttons for Instagram, TikTok, Facebook and X, plus the system share
  * sheet for everything else. The athlete always taps Send/Post themselves.
  */
-export function SocialShareRow({ link }: { link: string }) {
+export function SocialShareRow({
+  link,
+  text,
+  tone = 'dark',
+}: {
+  link: string;
+  /** What to say; defaults to the standard invite. The link is appended. */
+  text?: string;
+  /** `dark` sits on the brand gradient, `light` on a pale screen. */
+  tone?: 'dark' | 'light';
+}) {
+  const light = tone === 'light';
   const [hint, setHint] = useState<string | null>(null);
 
   const systemShare = () => {
     track('share_opened', { kind: 'invite-system' });
-    void Share.share({ message: inviteMessage(link) });
+    void Share.share({ message: inviteMessage(link, text) });
   };
 
   const share = async (platform: SocialPlatform) => {
     track('share_opened', { kind: `invite-${platform}` });
-    const target = shareTarget(platform, link);
+    const target = shareTarget(platform, link, text);
     try {
       if (target.kind === 'prefilled') {
         await Linking.openURL(target.url);
@@ -55,23 +66,24 @@ export function SocialShareRow({ link }: { link: string }) {
             onPress={() => void share(p)}
             accessibilityRole="button"
             accessibilityLabel={`Invite on ${SOCIAL_LABEL[p]}`}
-            style={styles.chip}
+            style={[styles.chip, light && styles.chipLight]}
           >
-            <Text style={font('extrabold', 15, { color: palette.white })}>{MARK[p]}</Text>
-            <Text style={font('semibold', 10.5, { color: 'rgba(255,255,255,0.85)' })} numberOfLines={1}>
+            <Text style={font('extrabold', 15, { color: light ? palette.ink : palette.white })}>{MARK[p]}</Text>
+            <Text style={font('semibold', 10.5, { color: light ? palette.slate500 : 'rgba(255,255,255,0.85)' })} numberOfLines={1}>
               {SOCIAL_LABEL[p]}
             </Text>
           </PressableScale>
         ))}
       </View>
       {hint ? (
-        <Text style={font('semibold', 12, { color: palette.white, marginTop: 8, textAlign: 'center' })}>{hint}</Text>
+        <Text style={font('semibold', 12, { color: light ? palette.slate500 : palette.white, marginTop: 8, textAlign: 'center' })}>{hint}</Text>
       ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  chipLight: { backgroundColor: palette.white, borderWidth: 1, borderColor: palette.slate200 },
   row: { flexDirection: 'row', gap: 8 },
   chip: {
     flex: 1,

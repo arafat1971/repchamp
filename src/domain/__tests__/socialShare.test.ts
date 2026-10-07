@@ -36,6 +36,15 @@ describe('socialShare', () => {
     }
   });
 
+  it('uses custom text when given', () => {
+    const t = shareTarget('instagram', LINK, 'I did 20 push-ups!');
+    if (t.kind !== 'paste') throw new Error('expected paste');
+    expect(t.message).toBe(`I did 20 push-ups! ${LINK}`);
+    const x = shareTarget('x', LINK, 'I did 20 push-ups!');
+    if (x.kind !== 'prefilled') throw new Error('expected prefilled');
+    expect(new URL(x.url).searchParams.get('text')).toBe('I did 20 push-ups!');
+  });
+
   it('covers every platform', () => {
     expect(SOCIAL_PLATFORMS).toHaveLength(4);
     for (const p of SOCIAL_PLATFORMS) expect(shareTarget(p, LINK)).toBeTruthy();

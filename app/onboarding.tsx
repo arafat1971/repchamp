@@ -22,6 +22,8 @@ import Animated, {
   Easing,
   FadeIn,
   FadeInDown,
+  FadeInLeft,
+  FadeInRight,
   FadeInUp,
   ZoomIn,
   runOnJS,
@@ -39,7 +41,7 @@ import { GoogleMark } from '@/components/GoogleMark';
 import { BarChart } from '@/components/charts/BarChart';
 import { GrowthChart } from '@/components/charts/GrowthChart';
 import { ProgressRing } from '@/components/session/ProgressRing';
-import { Card as BaseCard, PressableScale, PrimaryButton, ProgressBar, Spinner } from '@/components/ui';
+import { Card as BaseCard, PressableScale, Spinner } from '@/components/ui';
 import { captureError } from '@/lib/crash';
 import { pluralise } from '@/domain/plural';
 import { OPPONENTS } from '@/domain/opponent';
@@ -70,8 +72,11 @@ import {
   ChoiceTile,
   InsetGroup,
   InsetRow,
+  BackChevron,
+  PrimaryButton,
   ProgressDial,
   ScreenHead,
+  StepProgress,
   StepScroll,
   springIn,
   useCommitChoice,
@@ -377,35 +382,38 @@ export default function OnboardingScreen() {
   // Hidden once the profile build takes over (13) — from there the flow is
   // automated and the paywall owns the screen.
   const showProgressBar = step > 0 && step < BUILD_STEP;
+  /* Steps slide in from the side they came from, the way a navigation stack
+     does: forward arrives from the right, back from the left. */
+  const [prevStep, setPrevStep] = useState(step);
+  const [goingBack, setGoingBack] = useState(false);
+  if (step !== prevStep) {
+    setPrevStep(step);
+    setGoingBack(step < prevStep);
+  }
   const progressPercent = barPercent(step);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <LinearGradient
         pointerEvents="none"
-        colors={['rgba(34,197,94,0.16)', 'rgba(34,197,94,0.05)', 'rgba(246,247,245,0)']}
-        locations={[0, 0.35, 0.7]}
+        colors={['rgba(34,197,94,0.07)', 'rgba(34,197,94,0.02)', 'rgba(246,247,245,0)']}
+        locations={[0, 0.3, 0.6]}
         style={StyleSheet.absoluteFill}
       />
       {showProgressBar ? (
         <View style={styles.progressRow}>
-          <PressableScale
-            onPress={back}
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            // Drawn at 30pt; slop brings the tap area to the 44pt minimum.
-            hitSlop={7}
-            style={styles.backButton}
-          >
-            <Text style={styles.backGlyph}>‹</Text>
-          </PressableScale>
-          <View style={{ flex: 1 }}>
-            <ProgressBar percent={progressPercent} height={8} />
-          </View>
+          <BackChevron onPress={back} />
+          <StepProgress percent={progressPercent} />
+          {/* Mirrors the chevron's width so the bar sits optically centred. */}
+          <View style={{ width: 44 }} />
         </View>
       ) : null}
 
-      <Animated.View key={step} entering={FadeInDown.duration(420)} style={styles.stepWrap}>
+      <Animated.View
+        key={step}
+        entering={(goingBack ? FadeInLeft : FadeInRight).duration(340)}
+        style={styles.stepWrap}
+      >
         {step === 0 ? <Welcome onNext={next} /> : null}
         {step === 1 ? <Showcase onNext={next} /> : null}
         {step === 2 ? (
@@ -676,7 +684,7 @@ function Welcome({ onNext }: { onNext: () => void }) {
 
   return (
     <View style={styles.step}>
-      <View style={styles.brandRow}>
+      <Animated.View entering={FadeInDown.duration(420)} style={styles.welcomeBrand}>
         <View style={styles.brandMark}>
           <Image
             source={require('../assets/logo.png')}
@@ -684,26 +692,32 @@ function Welcome({ onNext }: { onNext: () => void }) {
             contentFit="contain"
           />
         </View>
-        <Text style={font('extrabold', 18, { color: palette.ink })}>RepChamp</Text>
-      </View>
-      <Text style={styles.tagline}>Compete. Improve. Win.</Text>
+        <Text style={styles.welcomeWordmark}>RepChamp</Text>
+      </Animated.View>
 
       <View style={styles.hero}>
-        {/* Fills the panel rather than floating on it — the artwork carries its
-            own backdrop, so letterboxing it would show two competing surfaces. */}
+        {/* The same photograph Home's couple card uses, on the brand green, so
+            the first screen and the app read as one product. */}
+        <LinearGradient
+          colors={gradients.heroEmerald}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
         <BreathingImage style={StyleSheet.absoluteFill}>
           <Image
-            source={require('../assets/hero-couple.png')}
+            source={require('../assets/couple-hero.png')}
             style={styles.heroImage}
             contentFit="cover"
+            contentPosition="bottom"
             transition={400}
-            accessibilityLabel="Two athletes ready to train"
+            accessibilityLabel="Two athletes pushing up, with pose tracking drawn over them"
           />
         </BreathingImage>
 
         <Floating delay={120} style={styles.heroBadgeLeft}>
           <View style={styles.heroBadge}>
-            <Image source={require('../assets/fire-flame.png')} style={{ width: 22, height: 22 }} contentFit="contain" />
+            <Image source={require('../assets/fire-flame.png')} style={{ width: 20, height: 20 }} contentFit="contain" />
             <View>
               <Text style={font('extrabold', 14, { color: palette.ink })}>12</Text>
               <Text style={styles.heroBadgeLabel}>DAY STREAK</Text>
@@ -713,7 +727,7 @@ function Welcome({ onNext }: { onNext: () => void }) {
 
         <Floating delay={800} style={styles.heroBadgeRight}>
           <View style={styles.heroBadge}>
-            <Image source={require('../assets/trophy-gold.png')} style={{ width: 24, height: 24 }} contentFit="contain" />
+            <Image source={require('../assets/trophy-gold.png')} style={{ width: 22, height: 22 }} contentFit="contain" />
             <View>
               <Text style={font('extrabold', 14, { color: palette.ink })}>Gold</Text>
               <Text style={styles.heroBadgeLabel}>LEAGUE</Text>
@@ -722,11 +736,10 @@ function Welcome({ onNext }: { onNext: () => void }) {
         </Floating>
       </View>
 
-      <View style={{ alignItems: 'center', marginTop: 12 }}>
-        <Text style={[text.h1, { fontSize: 25 }]}>Your phone counts.{'\n'}You just move.</Text>
-        <Text style={[text.body, styles.centeredCopy]}>
-          Point the camera at yourself and every clean rep is counted — because your form is
-          scored live, not guessed afterwards.
+      <View style={styles.welcomeCopy}>
+        <Text style={styles.welcomeTitle}>Your phone counts.{'\n'}You just move.</Text>
+        <Text style={styles.welcomeBody}>
+          Point the camera at yourself. Every clean rep is counted and your form is scored live.
         </Text>
       </View>
 
@@ -738,7 +751,7 @@ function Welcome({ onNext }: { onNext: () => void }) {
           There was also a "Try a set now — no signup" link that jumped
           straight past onboarding. It advertised an absence, and the screens
           it skipped are the ones that personalise the app. */}
-      <View style={{ gap: 12, marginTop: 16 }}>
+      <View style={{ gap: 12, marginTop: 20 }}>
         <PrimaryButton label="Get started" onPress={onNext} />
       </View>
 
@@ -3007,23 +3020,11 @@ const styles = StyleSheet.create({
   progressRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 24,
-    paddingTop: 8,
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingTop: 4,
     zIndex: 5,
   },
-  backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: palette.white,
-    borderWidth: 1,
-    borderColor: 'rgba(15,31,23,0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...surfaceShadow,
-  },
-  backGlyph: { fontSize: 22, color: palette.ink, lineHeight: 24, marginTop: -2 },
   stepWrap: { flex: 1 },
   homeCard: {
     borderRadius: radius['4xl'],
@@ -3035,21 +3036,38 @@ const styles = StyleSheet.create({
   stepPadded: { paddingTop: 40 },
   brandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   brandMark: {
-    width: 32,
-    height: 32,
-    borderRadius: radius.sm,
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    borderCurve: 'continuous',
     overflow: 'hidden',
   },
-  brandMarkImg: { width: 32, height: 32 },
+  brandMarkImg: { width: 40, height: 40 },
   tagline: { ...text.caption, fontSize: 13, textAlign: 'center', marginTop: 4 },
+  welcomeBrand: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  welcomeWordmark: { ...font('extrabold', 22, { color: palette.ink }), letterSpacing: -0.5 },
+  welcomeCopy: { alignItems: 'center', marginTop: 20 },
+  welcomeTitle: {
+    ...font('extrabold', 30, { color: palette.ink }),
+    letterSpacing: -0.8,
+    lineHeight: 35,
+    textAlign: 'center',
+  },
+  welcomeBody: {
+    ...font('regular', 17, { color: palette.grey600 }),
+    lineHeight: 23,
+    textAlign: 'center',
+    marginTop: 10,
+    maxWidth: 320,
+  },
   hero: {
     flex: 1,
     minHeight: 0,
-    borderRadius: radius['6xl'],
-    marginTop: 14,
-    backgroundColor: palette.inkSoft,
+    borderRadius: 32,
+    borderCurve: 'continuous',
+    marginTop: 18,
+    backgroundColor: '#0f3d1d',
     overflow: 'hidden',
-    ...surfaceShadow,
   },
   heroImage: { width: '100%', height: '100%' },
   heroBadgeLeft: { position: 'absolute', top: 16, left: 16, zIndex: 2 },

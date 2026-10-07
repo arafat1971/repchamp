@@ -17,7 +17,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { LinearGradient as Backdrop } from 'expo-linear-gradient';
 
-import { PressableScale, PrimaryButton } from '@/components/ui';
+import { PressableScale } from '@/components/ui';
+import { PrimaryButton } from './ios';
 import { PandaJar } from '@/components/home/PandaJar';
 import type { PandaMood } from '@/domain/pandaMood';
 import { lightImpactHaptic } from '@/lib/feedback';

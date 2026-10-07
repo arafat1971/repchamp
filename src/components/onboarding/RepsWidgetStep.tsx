@@ -14,7 +14,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { LinearGradient as Backdrop } from 'expo-linear-gradient';
 
-import { PressableScale, PrimaryButton } from '@/components/ui';
+import { PressableScale } from '@/components/ui';
+import { PrimaryButton } from './ios';
 import { AthletePreview } from '@/components/widget/AthletePreview';
 import { lightImpactHaptic, selectionHaptic } from '@/lib/feedback';
 import { isWidgetSupported, placedWidgetCount, requestPinWidget } from '@/services/partnerWidget';

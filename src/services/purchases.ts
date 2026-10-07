@@ -69,9 +69,22 @@ export async function configurePurchases(uid: string | null): Promise<void> {
   await next;
 }
 
+/**
+ * The active Pro entitlement, if any. Looks up `PRO_ENTITLEMENT` first, then
+ * falls back to any active entitlement: RepChamp sells exactly one tier, so a
+ * dashboard identifier that drifted from `'pro'` (RevenueCat identifiers are not
+ * editable, and the display name reads "repchamp Pro") must not leave a paying
+ * athlete locked out with "Pro is not active".
+ */
+function activeProEntitlement(info: CustomerInfo | null) {
+  if (!info) return undefined;
+  const active = info.entitlements.active;
+  return active[PRO_ENTITLEMENT] ?? Object.values(active)[0];
+}
+
 /** Read Pro-ness from a customer-info snapshot. The one definition of "is pro". */
 export function isProFromInfo(info: CustomerInfo | null): boolean {
-  return info?.entitlements.active[PRO_ENTITLEMENT] != null;
+  return activeProEntitlement(info) != null;
 }
 
 /** Current entitlement, fetched fresh. False when unconfigured or on error. */
@@ -313,7 +326,7 @@ export async function fetchActiveSubscription(
   if (!isPurchasesConfigured()) return null;
   try {
     await configurePurchases(uid ?? configuredUid);
-    const info = (await Purchases.getCustomerInfo()).entitlements.active[PRO_ENTITLEMENT];
+    const info = activeProEntitlement(await Purchases.getCustomerInfo());
     if (!info) return null;
     return {
       productId: info.productIdentifier,
@@ -388,7 +401,7 @@ export async function fetchLapsedSubscription(
   try {
     await configurePurchases(uid ?? configuredUid);
     const info = await Purchases.getCustomerInfo();
-    if (info.entitlements.active[PRO_ENTITLEMENT]) return null;
+    if (activeProEntitlement(info)) return null;
     const past = info.entitlements.all[PRO_ENTITLEMENT];
     if (!past || past.isActive || !past.expirationDateMillis) return null;
     return {

@@ -5,21 +5,33 @@ in code** and **what needs your business decisions**.
 
 ---
 
-## The model (what changed)
+## The model (current, revised 2026-10-07)
 
-**Old:** hard rep wall — pay after 5 push-ups. This is anti-habit and anti-viral; it
-converts almost nobody on a new app and generates 1-star reviews.
+**Hard rep wall, couple mode exempt, annual-with-trial as the default offer.**
+- **Free download.** The only charge is the subscription (weekly / monthly / annual).
+- **Wall:** 50 free lifetime reps (`FREE_REP_LIMIT`), then training stops until Pro.
+  Pro, couple mode and `billingReady === false` are exempt (`src/domain/hardPaywall.ts`).
+- **Free forever:** couple mode / together sets / invites. This is the viral loop; never wall a guest.
+- **Annual is the default selection** on the paywall; weekly exists as a price anchor, not the push.
+- **Why a wall and not freemium:** RevenueCat 2026 data: hard paywalls reach ~10.7% download-to-paid
+  vs ~2.1% for freemium (~8-9x revenue per install), with near-identical 1-year retention
+  (27% vs 28%). Health & Fitness has the best trial-to-paid of any category (~35%) and is the
+  one category where annual dominates (~61% of subs). It also has the weakest first renewal (~30%).
+- The earlier note here ("a hard wall converts almost nobody") was wrong for this category.
 
-**New (shipped): habit-first freemium.**
-- **Free forever:** push-ups + squats, solo / versus / couple mode. This builds the daily
-  habit and powers the invite loop (couple + duel invites = installs).
-- **Pro sells depth:** the full exercise library, multi-week programmes, saved history and
-  advanced stats. The paywall is an *invitation shown at the point of desire* (tapping a
-  Pro exercise), always dismissible — never a trap.
-- **Convert on an annual trial**, not a wall.
+### Open items (owner action, not code)
+1. **Free trial on annual** (3-7 days): Play Console -> `annual-auto` -> add offer, new customers,
+   free trial. The paywall already shows "Start free trial" + timeline when the product carries one.
+2. **Device purchase test** of `annual-auto` with a licence tester; confirm Pro unlocks.
+   (Code now falls back to any active entitlement if the RevenueCat id is not `pro`.)
+3. **Review the funnel after 2-3 weeks** (see below) before touching `HARD_WALL_ENABLED` again.
 
-Why: every fitness app that hit real MRR (Strava, Ladder, Peloton, Fitbod) does freemium +
-annual trial, not a hard wall. Let them in, hook them, convert on value.
+### Wall review checklist (do not reverse on reasoning alone)
+PostHog events, source `rep-limit`: `paywall_shown` -> `paywall_dismissed` / `purchase_cancelled` /
+`purchase_failed` -> `trial_started` / `subscribed`.
+- Keep the wall if paywall-to-trial/subscribe is healthy and D7 retention of free users is not collapsing.
+- Raise `FREE_REP_LIMIT` (not remove the wall) if most dismissals happen before a first streak or form report.
+- Only reverse if dismissals dominate AND D1/D7 retention is clearly worse than before 2026-09-20.
 
 ---
 

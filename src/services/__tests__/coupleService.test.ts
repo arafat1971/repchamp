@@ -27,6 +27,7 @@ import {
   recordCoupleHydration,
   recordCoupleSession,
   recordCoupleSteps,
+  stripPendingPushToken,
   syncCouplePushToken,
   withdrawCoupleDaily,
   watchCouple,
@@ -412,6 +413,20 @@ describe('nudgePartner', () => {
     await syncCouplePushToken(code, 'ada', 'ExponentPushToken[ada]');
     const c = mockStore.couples.get(code) as unknown as Couple;
     expect(c.members[0]?.expoPushToken).toBeUndefined();
+  });
+
+  it('strips a leftover token from a pending invite, and only there', async () => {
+    const code = (await createCouple({ uid: 'cy', displayName: 'Cy' }))!;
+    const pending = mockStore.couples.get(code) as unknown as Couple;
+    pending.members[0]!.expoPushToken = 'ExponentPushToken[cy]';
+    await stripPendingPushToken(code, 'cy');
+    expect((mockStore.couples.get(code) as unknown as Couple).members[0]?.expoPushToken).toBeUndefined();
+
+    const paired = await pairedCode();
+    await syncCouplePushToken(paired, 'bea', 'ExponentPushToken[bea]');
+    await stripPendingPushToken(paired, 'bea');
+    const c = mockStore.couples.get(paired) as unknown as Couple;
+    expect(c.members.find((m) => m.uid === 'bea')?.expoPushToken).toBe('ExponentPushToken[bea]');
   });
 
   it('skips the push when the partner has no valid token on the couple', async () => {

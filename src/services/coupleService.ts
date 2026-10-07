@@ -157,6 +157,31 @@ export async function syncCouplePushToken(
   });
 }
 
+/**
+ * Remove this athlete's push token from a couple that is still pending.
+ *
+ * Invites made before tokens were kept off pending couples may still carry one,
+ * readable by anyone holding the code. No-ops on a paired couple, where the
+ * token belongs, and when there is nothing to strip.
+ */
+export async function stripPendingPushToken(coupleId: string, uid: string): Promise<void> {
+  if (!isFirebaseConfigured()) return;
+  const ref = coupleDoc(coupleId);
+  await firestore().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return;
+    const couple = snap.data() as Couple;
+    if (!couple.pending || !couple.memberUids.includes(uid)) return;
+    if (!couple.members.some((m) => m.uid === uid && m.expoPushToken != null)) return;
+    const members = couple.members.map((m) => {
+      if (m.uid !== uid) return m;
+      const { expoPushToken: _token, ...rest } = m;
+      return rest;
+    });
+    tx.set(ref, { members }, { merge: true });
+  });
+}
+
 /** Look up this athlete's couple (if any) and publish their push token onto it. */
 export async function syncMyCouplePushToken(uid: string, token: string): Promise<void> {
   if (!isFirebaseConfigured() || !token.startsWith('ExponentPushToken')) return;

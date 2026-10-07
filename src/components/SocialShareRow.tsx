@@ -2,6 +2,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useState } from 'react';
 import { Linking, Share, StyleSheet, Text, View } from 'react-native';
 
+import { SocialLogo } from '@/components/SocialLogo';
 import { PressableScale } from '@/components/ui';
 import {
   SOCIAL_LABEL,
@@ -13,8 +14,6 @@ import {
 import { track } from '@/lib/analytics';
 import { font } from '@/theme/typography';
 import { palette } from '@/theme/tokens';
-
-const MARK: Record<SocialPlatform, string> = { instagram: 'IG', tiktok: 'TT', facebook: 'f', x: 'X' };
 
 /**
  * Invite buttons for Instagram, TikTok, Facebook and X, plus the system share
@@ -68,7 +67,7 @@ export function SocialShareRow({
             accessibilityLabel={`Invite on ${SOCIAL_LABEL[p]}`}
             style={[styles.chip, light && styles.chipLight]}
           >
-            <Text style={font('extrabold', 15, { color: light ? palette.ink : palette.white })}>{MARK[p]}</Text>
+            <SocialLogo platform={p} color={light ? palette.ink : palette.white} />
             <Text style={font('semibold', 10.5, { color: light ? palette.slate500 : 'rgba(255,255,255,0.85)' })} numberOfLines={1}>
               {SOCIAL_LABEL[p]}
             </Text>

@@ -14,6 +14,7 @@ import { ResultShareCard } from '@/components/session/ResultShareCard';
 import { CountUp } from '@/components/motion';
 import { PressableScale } from '@/components/ui';
 import { getOpponent } from '@/domain/opponent';
+import { partnerLine } from '@/domain/partnerVoice';
 import { canUse } from '@/domain/pro';
 import { track } from '@/lib/analytics';
 import { LEAGUES, dayKey } from '@/domain/progression';
@@ -433,10 +434,10 @@ export default function ResultScreen() {
             : 'Target cleared! Your streak is on fire!'
           : 'Solid effort! Push a little harder on the next set.'
         : session.drew
-          ? `Tied with ${opponentLabel} — rematch to settle it.`
+          ? (partnerLine(opponentId, 'draw', userName, session.reps) ?? `Tied with ${opponentLabel} — rematch to settle it.`)
           : session.won
-            ? `You defeated ${opponentLabel}!`
-            : `Close match against ${opponentLabel}! Rematch now?`;
+            ? (partnerLine(opponentId, 'win', userName, session.reps) ?? `You defeated ${opponentLabel}!`)
+            : (partnerLine(opponentId, 'loss', userName, session.reps) ?? `Close match against ${opponentLabel}! Rematch now?`);
 
   const rematch = () => {
     // Live human duel — challenge setup with their uid when we have it.

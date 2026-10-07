@@ -41,7 +41,7 @@ import type { Opponent } from '@/domain/opponent';
  */
 export interface PhantomUser {
   id: string;
-  /** A coach/bot persona name — never a fabricated real person. */
+  /** A woman friend-and-coach persona name — never a fabricated real person. */
   name: string;
   initial: string;
   /** Emoji avatar (app-owned art). Never real-person photography. */
@@ -67,16 +67,17 @@ export interface PhantomUser {
 /**
  * The AI partner roster — a spread of difficulty tiers so a newcomer always has
  * someone to race at their level, and a ladder to climb. All are clearly AI
- * personas with app-owned emoji avatars; no external photos, no fake humans.
+ * personas — always women, written as a friendly training friend and coach (supportive,
+ * encouraging; never romantic or flirty, never pretending to be a real person) — with app-owned emoji avatars; no external photos, no fake humans.
  */
 export const PHANTOM_USERS: readonly PhantomUser[] = [
   {
     id: 'ai_spark',
     name: 'Coach Spark',
     initial: 'S',
-    emoji: '🏋️‍♂️',
+    emoji: '🏋️‍♀️',
     isAI: true,
-    tagline: 'AI · Warm-up pace',
+    tagline: 'AI friend & coach · Warm-up pace',
     level: 2,
     xp: 120,
     online: true,
@@ -86,11 +87,11 @@ export const PHANTOM_USERS: readonly PhantomUser[] = [
   },
   {
     id: 'ai_pulse',
-    name: 'Pulse Bot',
+    name: 'Pulse',
     initial: 'P',
     emoji: '🤸‍♀️',
     isAI: true,
-    tagline: 'AI · Steady pace',
+    tagline: 'AI friend & coach · Steady pace',
     level: 3,
     xp: 240,
     online: true,
@@ -104,7 +105,7 @@ export const PHANTOM_USERS: readonly PhantomUser[] = [
     initial: 'N',
     emoji: '🏃‍♀️',
     isAI: true,
-    tagline: 'AI · Balanced pace',
+    tagline: 'AI friend & coach · Balanced pace',
     level: 5,
     xp: 420,
     online: true,
@@ -114,11 +115,11 @@ export const PHANTOM_USERS: readonly PhantomUser[] = [
   },
   {
     id: 'ai_titan',
-    name: 'Titan',
+    name: 'Tia',
     initial: 'T',
-    emoji: '🤾‍♂️',
+    emoji: '🤾‍♀️',
     isAI: true,
-    tagline: 'AI · Strong pace',
+    tagline: 'AI friend & coach · Strong pace',
     level: 7,
     xp: 610,
     online: true,
@@ -132,7 +133,7 @@ export const PHANTOM_USERS: readonly PhantomUser[] = [
     initial: 'B',
     emoji: '🚴‍♀️',
     isAI: true,
-    tagline: 'AI · Fast pace',
+    tagline: 'AI friend & coach · Fast pace',
     level: 9,
     xp: 820,
     online: true,
@@ -142,11 +143,11 @@ export const PHANTOM_USERS: readonly PhantomUser[] = [
   },
   {
     id: 'ai_apex',
-    name: 'Apex',
+    name: 'Aria',
     initial: 'A',
-    emoji: '🏊‍♂️',
+    emoji: '🏊‍♀️',
     isAI: true,
-    tagline: 'AI · Elite pace',
+    tagline: 'AI friend & coach · Elite pace',
     level: 12,
     xp: 1180,
     online: true,
@@ -187,7 +188,7 @@ export const PHANTOM_CHALLENGES: readonly PhantomChallenge[] = [
     title: 'Push-Up Challenge',
     isAI: true,
     player1: PHANTOM_USERS[2]!, // Nova
-    player2: PHANTOM_USERS[3]!, // Titan
+    player2: PHANTOM_USERS[3]!, // Tia
     score1: 32,
     score2: 28,
     progress: 0.53,
@@ -198,7 +199,7 @@ export const PHANTOM_CHALLENGES: readonly PhantomChallenge[] = [
     exercise: 'squat',
     title: 'Squat Battle',
     isAI: true,
-    player1: PHANTOM_USERS[1]!, // Pulse Bot
+    player1: PHANTOM_USERS[1]!, // Pulse
     player2: PHANTOM_USERS[4]!, // Blaze
     score1: 18,
     score2: 22,

@@ -167,7 +167,7 @@ const BLOCKERS = [
 const BOARD_MOCK = [
   { medal: '🥇', emoji: '🏃‍♀️', name: 'Nova', xp: '1,240', tint: '#ede9fe', you: false },
   { medal: '🥈', emoji: '💪', name: 'You', xp: '1,180', tint: palette.green50, you: true },
-  { medal: '🥉', emoji: '🤾‍♂️', name: 'Titan', xp: '1,020', tint: '#dbeafe', you: false },
+  { medal: '🥉', emoji: '🤾‍♀️', name: 'Tia', xp: '1,020', tint: '#dbeafe', you: false },
 ] as const;
 
 /** The three commitments made during onboarding, restated at the finish. */

@@ -97,7 +97,7 @@ let timingSamples = 0;
  * the shipping bundle is a warn. TEMPORARY — keep false for any build a user
  * will hold, or for Play.
  */
-export const PERF_PROBE = true;
+export const PERF_PROBE = false;
 let probeStart = 0;
 let probeFrames = 0;
 let probeConvert = 0;

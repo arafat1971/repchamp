@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -11,11 +12,6 @@ import {
 import Animated, {
   FadeIn,
   FadeInDown,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withSequence,
-  withTiming,
 } from 'react-native-reanimated';
 import type { PurchasesPackage } from 'react-native-purchases';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -66,11 +62,11 @@ import { palette, radius } from '@/theme/tokens';
  * Keyed by id so `orderBenefits` can lead with whatever the athlete was just
  * refused. All four always render, in these exact words; only the order moves.
  */
-const BENEFITS: Record<BenefitId, { title: string; icon: string }> = {
-  library: { title: 'All exercises', icon: '🏋️' },
-  programmes: { title: 'Plans', icon: '🗓️' },
-  reports: { title: 'Form score', icon: '🎯' },
-  'free-staples': { title: 'Couple: free', icon: '💞' },
+const BENEFITS: Record<BenefitId, { title: string; icon: number }> = {
+  library: { title: 'All exercises', icon: require('../../assets/ic-dumbbell.png') },
+  programmes: { title: 'Plans', icon: require('../../assets/ic-train.png') },
+  reports: { title: 'Form score', icon: require('../../assets/ic-target.png') },
+  'free-staples': { title: 'Couple: free', icon: require('../../assets/badge-vs.png') },
 };
 
 /**
@@ -348,17 +344,6 @@ export default function PaywallScreen() {
   const leadBenefit = blockedBenefit(params.source);
   const wallPct = FREE_REP_LIMIT > 0 ? Math.min(1, totalReps / FREE_REP_LIMIT) : 1;
 
-  /* A slow breathing pulse on the button: the one thing on the screen that
-     moves, so the eye ends up there. Small enough not to read as a gimmick. */
-  const pulse = useSharedValue(1);
-  useEffect(() => {
-    pulse.value = withRepeat(
-      withSequence(withTiming(1.025, { duration: 900 }), withTiming(1, { duration: 900 })),
-      -1,
-    );
-  }, [pulse]);
-  const pulseStyle = useAnimatedStyle(() => ({ transform: [{ scale: pulse.value }] }));
-
   return (
     <Screen scroll={false} style={styles.root} contentStyle={styles.rootContent}>
       <View style={styles.body}>
@@ -534,7 +519,7 @@ export default function PaywallScreen() {
                   style={[styles.tile, free && styles.tileFree, refused && styles.tileRefused]}
                   accessibilityLabel={b.title}
                 >
-                  <Text style={styles.tileIcon}>{b.icon}</Text>
+                  <Image source={b.icon} style={styles.tileIcon} contentFit="contain" />
                   <Text style={[styles.tileLabel, free && styles.tileLabelFree]} numberOfLines={1}>
                     {b.title}
                   </Text>
@@ -546,13 +531,13 @@ export default function PaywallScreen() {
       </View>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-        <Animated.View style={plansReady && !busy ? pulseStyle : undefined}>
+        <View>
           <PrimaryButton
             label={ctaLabel}
             onPress={onPrimary}
             disabled={busy || (billingReady && !showRetry && !plansReady && packages === null)}
           />
-        </Animated.View>
+        </View>
 
         {/* The reassurance sits directly under the button, where the hesitation
             is, and it only promises a trial when the plan carries one. */}
@@ -769,6 +754,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   close: {
+    borderCurve: 'continuous',
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -785,6 +771,7 @@ const styles = StyleSheet.create({
   },
 
   hero: {
+    borderCurve: 'continuous',
     borderRadius: radius['4xl'],
     paddingHorizontal: 18,
     paddingTop: 14,
@@ -824,6 +811,7 @@ const styles = StyleSheet.create({
 
   benefits: { marginTop: 18, flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   tile: {
+    borderCurve: 'continuous',
     flexGrow: 1,
     flexBasis: '45%',
     flexDirection: 'row',
@@ -838,12 +826,13 @@ const styles = StyleSheet.create({
   },
   tileFree: { backgroundColor: palette.divider },
   tileRefused: { borderColor: palette.green500 },
-  tileIcon: { fontSize: 26 },
+  tileIcon: { width: 28, height: 28 },
   tileLabel: font('extrabold', 14, { color: palette.ink }),
   tileLabelFree: { color: palette.grey600 },
 
   plans: { gap: 10, marginTop: 20 },
   plan: {
+    borderCurve: 'continuous',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -857,6 +846,7 @@ const styles = StyleSheet.create({
   planFeatured: { borderColor: palette.green500, backgroundColor: palette.green50 },
   planSelected: { borderColor: palette.green600, borderWidth: 2.5 },
   ribbon: {
+    borderCurve: 'continuous',
     position: 'absolute',
     top: -9,
     right: 14,
@@ -929,6 +919,7 @@ const styles = StyleSheet.create({
   tlDetail: { ...text.caption, marginTop: 1, lineHeight: 17 },
 
   statusCard: {
+    borderCurve: 'continuous',
     borderRadius: radius['4xl'],
     backgroundColor: palette.white,
     borderWidth: 1,

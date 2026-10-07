@@ -46,6 +46,7 @@ import { captureError } from '@/lib/crash';
 import { pluralise } from '@/domain/plural';
 import { OPPONENTS } from '@/domain/opponent';
 import { FREE_REP_LIMIT } from '@/domain/hardPaywall';
+import { reminderTapIsWalled } from '@/domain/reminderRoute';
 import { track } from '@/lib/analytics';
 import { onboardingProgressPercent, onboardingStepName } from '@/domain/onboardingFunnel';
 import {
@@ -127,7 +128,7 @@ import {
   scheduleDailyTrainingReminder,
 } from '@/lib/notifications';
 import { isValidUsername, usernameError as usernameValidationError } from '@/domain/input';
-import { useProfileStore } from '@/state/profileStore';
+import { selectPairingBonusActive, selectTotalReps, useProfileStore } from '@/state/profileStore';
 import { matchedPace } from '@/domain/adaptivePace';
 import { reservedControlHeight } from '@/theme/fontScale';
 import { font, scaleForRole, text } from '@/theme/typography';
@@ -345,6 +346,22 @@ export default function OnboardingScreen() {
     // biggest lever on activation; landing on Home and hunting for a button is
     // exactly the friction we're removing. The Home tabs sit under it, so the
     // back-swipe from the session lands the athlete on their home as normal.
+    /* A free athlete is walled from the first rep (FREE_REP_LIMIT is 0), and the
+       paywall step just before this already pitched them. Pushing the session
+       would only bounce them to a second paywall, so they stay on Home; Pro
+       and the pairing bonus still drop straight in. Asked the same way a
+       reminder tap asks it, and "entitlement unresolved" counts as not walled
+       so a just-restored subscriber is never sent to Home by mistake. */
+    const pro = useProStore.getState();
+    const profile = useProfileStore.getState();
+    const walled = reminderTapIsWalled({
+      proReady: pro.ready,
+      isPro: pro.isPro,
+      bonusActive: selectPairingBonusActive(profile),
+      repsSoFar: selectTotalReps(profile),
+      billingReady: isPurchasesConfigured(),
+    });
+    if (walled) return;
     router.push({ pathname: '/session', params: { exercise: 'push', mode: 'practice' } });
   }, [completeOnboarding, username, weeklyGoal, avatarUri, level, blocker, router]);
 

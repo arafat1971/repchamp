@@ -878,12 +878,12 @@ export default function HomeScreen() {
         style={styles.feedEntry}
       >
         <View style={styles.feedIcon}>
-          <PlayIcon size={15} color={palette.green700} />
+          <PlayIcon size={18} color={palette.green700} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={font('bold', 14.5, { color: palette.ink })}>Your day</Text>
-          <Text style={font('medium', 12, { color: palette.grey700 })} numberOfLines={1}>
-            Swipe through today, one card at a time
+          <Text style={font('bold', 16, { color: palette.ink })}>Your day</Text>
+          <Text style={font('medium', 12.5, { color: palette.grey700, marginTop: 2 })} numberOfLines={1}>
+            Swipe through today, card by card
           </Text>
         </View>
         <ArrowIcon size={15} color={palette.grey500} strokeWidth={2.2} />
@@ -1266,10 +1266,11 @@ const styles = StyleSheet.create({
   feedEntry: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 14,
     marginTop: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    minHeight: 88,
+    paddingHorizontal: 18,
+    paddingVertical: 20,
     borderRadius: radius['4xl'],
     backgroundColor: palette.white,
     borderWidth: 1,
@@ -1277,9 +1278,9 @@ const styles = StyleSheet.create({
     ...surfaceShadow,
   },
   feedIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: palette.green50,
     alignItems: 'center',
     justifyContent: 'center',

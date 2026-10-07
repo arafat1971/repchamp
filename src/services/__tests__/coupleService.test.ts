@@ -407,6 +407,13 @@ describe('nudgePartner', () => {
     expect(body.data.kind).toBe('water');
   });
 
+  it('does not publish a push token onto a pending invite', async () => {
+    const code = (await createCouple({ uid: 'ada', displayName: 'Ada' }))!;
+    await syncCouplePushToken(code, 'ada', 'ExponentPushToken[ada]');
+    const c = mockStore.couples.get(code) as unknown as Couple;
+    expect(c.members[0]?.expoPushToken).toBeUndefined();
+  });
+
   it('skips the push when the partner has no valid token on the couple', async () => {
     const code = await pairedCode();
     await syncCouplePushToken(code, 'bea', 'not-a-real-token');

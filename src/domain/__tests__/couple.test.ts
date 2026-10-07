@@ -52,6 +52,18 @@ describe('pair code', () => {
     for (const ch of code) expect(PAIR_CODE_ALPHABET).toContain(ch);
   });
 
+  it('draws from the platform CSPRNG by default, not Math.random', () => {
+    const spy = jest.spyOn(Math, 'random').mockImplementation(() => {
+      throw new Error('Math.random must not seed a pair code');
+    });
+    try {
+      const code = makePairCode();
+      expect(code).toHaveLength(PAIR_CODE_LENGTH);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it('never emits characters people misread', () => {
     // 0/O and 1/I are the pairs that get mistyped off someone else's screen.
     for (const bad of ['O', '0', 'I', '1']) expect(PAIR_CODE_ALPHABET).not.toContain(bad);

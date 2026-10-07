@@ -147,6 +147,9 @@ export async function syncCouplePushToken(
     if (!snap.exists()) return;
     const couple = snap.data() as Couple;
     if (!couple.memberUids.includes(uid)) return;
+    /* A pending invite is readable by anyone holding its code, so the token
+       must not be published there. `useCouple` re-publishes once paired. */
+    if (couple.pending) return;
     const members = couple.members.map((m) =>
       m.uid === uid ? { ...m, expoPushToken: token, widgetPush: WIDGET_PUSH_VERSION } : m,
     );

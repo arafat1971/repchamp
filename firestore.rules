@@ -551,6 +551,13 @@ service cloud.firestore {
           : memberShapeOk(request.resource.data.members[1]);
       }
 
+      // A pending invite is readable by anyone holding its code (`get` above),
+      // so no push token may sit on it. The token is published onto a member
+      // slice only once the couple is paired.
+      function noPendingToken(m) {
+        return m.get('expoPushToken', null) == null;
+      }
+
       // Creator seats only themselves at zero reps.
       allow create: if isAuthed()
         && request.resource.data.memberUids == [request.auth.uid]
@@ -559,6 +566,7 @@ service cloud.firestore {
         && request.resource.data.members[0].uid == request.auth.uid
         && memberZeroed(request.resource.data.members[0])
         && memberShapeOk(request.resource.data.members[0])
+        && noPendingToken(request.resource.data.members[0])
         && request.resource.data.keys().hasOnly(
              ['id', 'memberUids', 'members', 'pending', 'createdAt']);
 
@@ -724,6 +732,8 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys()
                .hasOnly(['members', 'nudge'])
           && memberUidsPinned()
+          && (resource.data.pending == false
+              || noPendingToken(request.resource.data.members[0]))
           && repsInSaneRange()
           && dailyInSaneRange()
           && nudgeSane()

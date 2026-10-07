@@ -136,7 +136,12 @@ Nudge them when they're falling behind. Couple mode is free, always.
 CLIMB THE LEAGUES
 Bronze, Silver, Gold and Platinum, reset weekly. Earn XP for every set, hold
 your streak, and take badges for your first duel win, a 100-rep session, and
-perfect form. A fitness leaderboard that resets often enough to stay winnable.
+perfect form. Add a weekly challenge, like 300 squats by Sunday, and a fitness
+leaderboard that resets often enough to stay winnable.
+
+A PLAN, NOT JUST A COUNTER
+Pick Strength, Yoga, Mind or Together from the Train tab, see your week at a
+glance, and follow a 4-week programme that builds you toward 50 push-ups.
 
 HOME WORKOUT, NO EQUIPMENT
 Every exercise is bodyweight. No gym, no dumbbells, no subscription box — your
@@ -244,8 +249,9 @@ every word above.
 - ✅ **App icon** — `store/icon-512.png`, 512×512, 32-bit with alpha
 - ✅ **Feature graphic** — `store/feature-graphic.png`, 1024×500, no
   transparency. Play will not publish without it.
-- ✅ **Phone screenshots** — three in `store/screenshots/` (Arena, Home,
-  Profile), composited to 1080×1920. Clears Play's two-shot minimum.
+- ✅ **Phone screenshots** — four in `store/screenshots/` (Train, Arena,
+  Friends, Home), captured 2026-10-07 on the emulator from the current release
+  build and composited to 1080×1920. Clears Play's two-shot minimum.
   Two more are still worth capturing, and both need a second person in
   frame: a live session with the pose skeleton, and a couple streak. The
   session shot is the clearest single image of what the app does and should

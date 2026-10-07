@@ -341,7 +341,11 @@ export function PandaJar({
   const earR = useSharedValue(0);
   useEffect(() => {
     if (reduced || paused) return;
-    idle.value = withRepeat(withTiming(1, { duration: mood === 'sleepy' ? 3600 : 2600, easing: Easing.inOut(Easing.sin) }), -1, true);
+    /* Calm idle: settle at neutral and stay there. This used to be a
+       never-ending sway, and an animated SVG re-records its whole drawing every
+       frame it changes — it cost ~30 ms a frame while the card was on screen.
+       Between the blinks, ear flicks and tilts below, the jar is now still. */
+    idle.value = withTiming(0.5, { duration: 500 });
     const shut = () => withSequence(withTiming(1, { duration: 70 }), withDelay(60, withTiming(0, { duration: 90 })));
     blink.value = withRepeat(withSequence(withDelay(2800, shut()), withDelay(3400, shut()), withDelay(160, shut())), -1, false);
     glance.value = withRepeat(
@@ -417,11 +421,23 @@ export function PandaJar({
     if (furAcc.value < 1 / 30) return;
     const dt = Math.min(0.05, furAcc.value);
     furAcc.value = 0;
-    furClock.value += dt;
     const headAngle = (idle.value - 0.5) * sway + tilt.value * 11 + lift.value * 5 + Math.sin(hop.value * Math.PI * 3) * 4 * hop.value;
     const headVel = (headAngle - lastHead.value) / Math.max(dt, 0.001);
     lastHead.value = headAngle;
-    const breeze = reduced ? 0 : Math.sin(furClock.value * 0.9) * 0.18 + Math.sin(furClock.value * 2.3) * 0.06;
+    // At rest, write nothing: a write re-draws the whole jar. The tuft wakes
+    // again the moment the head moves, a hop lands or a finger ruffles it.
+    if (
+      Math.abs(furPos.value) < 0.004 &&
+      Math.abs(furVel.value) < 0.004 &&
+      Math.abs(furLift.value) < 0.004 &&
+      Math.abs(furLiftVel.value) < 0.004 &&
+      Math.abs(headVel) < 0.05 &&
+      Math.abs(hop.value) < 0.001
+    ) {
+      return;
+    }
+    furClock.value += dt;
+    const breeze = 0;
     // Spring toward rest (plus breeze), pushed by the head's motion.
     const k = 38;
     const c = 5.5;

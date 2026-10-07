@@ -121,11 +121,6 @@ export function HydrationCard({
     phase.value = (phase.value + (phaseAcc.value * 2 * Math.PI) / 3) % (2 * Math.PI);
     phaseAcc.value = 0;
   }, false);
-  useEffect(() => {
-    drift.setActive(!still);
-    return () => drift.setActive(false);
-  }, [still, drift]);
-
   /* The "+": tap repeats the last choice; hold opens the picker. */
   const [choice, setChoice] = useState<{ kind: DrinkKind; ml: number }>({ kind: 'water', ml: 250 });
   const [picking, setPicking] = useState(false);
@@ -143,6 +138,17 @@ export function HydrationCard({
   const lastPartner = useRef<number | null>(partnerMl);
   const [theirPour, setTheirPour] = useState(0);
   const [live, setLive] = useState<{ id: number; ml: number } | null>(null);
+
+  /* The surface only stirs for a moment after a pour — still water between. */
+  useEffect(() => {
+    if (still || myPour + theirPour === 0) return;
+    drift.setActive(true);
+    const t = setTimeout(() => drift.setActive(false), 2600);
+    return () => {
+      clearTimeout(t);
+      drift.setActive(false);
+    };
+  }, [still, myPour, theirPour, drift]);
   useEffect(() => {
     const before = lastPartner.current;
     lastPartner.current = partnerMl;

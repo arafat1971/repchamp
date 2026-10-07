@@ -91,7 +91,7 @@ import {
 import { selectTodayMl, useHydrationStore } from '@/state/hydrationStore';
 import { useEffectivePro, useProStore } from '@/state/proStore';
 import { isPurchasesConfigured } from '@/services/purchases';
-import { isWalled } from '@/domain/hardPaywall';
+import { WALL_COPY, isWalled } from '@/domain/hardPaywall';
 import { useCouple } from '@/state/useCouple';
 import { useFabStore } from '@/state/fabStore';
 import { usePublicAvatar } from '@/state/usePublicAvatar';
@@ -706,7 +706,9 @@ export default function HomeScreen() {
   /* The hero's solo cases behind the rep wall. The daily challenge used to
      open its modal and start a session that unmounted itself into the paywall
      — the same bounce `startSolo` exists to prevent, on the biggest card. */
-  const heroLocked = soloWalled && (focus.kind === 'daily-challenge' || focus.kind === 'goal-met');
+  const heroLocked =
+    soloWalled &&
+    (focus.kind === 'first-session' || focus.kind === 'daily-challenge' || focus.kind === 'goal-met');
 
   const onHeroPress = () => {
     track('home_hero_tapped', { kind: focus.kind });
@@ -1164,13 +1166,13 @@ function QuickTile({
      pressable, because the paywall is where the tap should go — what it must
      not do is look like a normal "Start set" and bounce off a session that
      unmounts itself. */
-  const pillLabel = locked ? 'Free reps used' : deltaLabel;
+  const pillLabel = locked ? WALL_COPY.pill : deltaLabel;
 
   return (
     <PressableScale
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={locked ? `${label} — free reps used, see Pro` : `Practice ${label}`}
+      accessibilityLabel={locked ? `${label} — ${WALL_COPY.a11y}` : `Practice ${label}`}
       style={styles.quickTileWrap}
     >
       {/* A soft wash of the exercise's colour, fading to white: the tile reads

@@ -86,6 +86,25 @@ export const FREE_REP_LIMIT = 0;
  */
 export const HARD_WALL_ENABLED = true;
 
+/**
+ * What a walled solo entry point says, in one place so the tiles, the hero and
+ * the screen-reader labels cannot drift apart. With a zero allowance the
+ * athlete never had free reps, so "used" would be untrue — the copy then says
+ * what is actually needed.
+ */
+export const WALL_COPY =
+  FREE_REP_LIMIT > 0
+    ? {
+        pill: 'Free reps used',
+        heroBody: 'Your free reps are used up.',
+        a11y: 'free reps used, see Pro',
+      }
+    : {
+        pill: 'Pro to start',
+        heroBody: 'Subscribe to Pro to count your reps.',
+        a11y: 'Pro required, see Pro',
+      };
+
 export interface HardWallInput {
   /** RevenueCat entitlement truth. Pro is never walled. */
   isPro: boolean;

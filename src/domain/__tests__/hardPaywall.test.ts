@@ -2,6 +2,7 @@ import {
   FREE_REP_LIMIT,
   HARD_WALL_ENABLED,
   NEARING_WALL_REPS,
+  WALL_COPY,
   evaluateHardWall,
   evaluateHardWallRule,
   isNearingWall,
@@ -131,5 +132,14 @@ describe('HARD_WALL_ENABLED', () => {
   it('records the allowance athletes actually get', () => {
     expect(FREE_REP_LIMIT).toBe(0);
     expect(NEARING_WALL_REPS).toBe(8);
+  });
+
+  /* With no allowance, "free reps used" would claim something that never
+     happened, so the locked copy must not mention free reps. */
+  it('words the locked state without claiming free reps were used', () => {
+    expect(FREE_REP_LIMIT).toBe(0);
+    for (const line of Object.values(WALL_COPY)) {
+      expect(line.toLowerCase()).not.toContain('free reps');
+    }
   });
 });

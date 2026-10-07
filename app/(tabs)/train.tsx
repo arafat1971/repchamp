@@ -28,7 +28,7 @@ import { useCouple } from '@/state/useCouple';
 import { showDialog } from '@/state/useDialog';
 import { selectDaysTrainedThisWeek, selectStreak, selectTotalReps, useProfileStore } from '@/state/profileStore';
 import { useEffectivePro } from '@/state/proStore';
-import { isWalled } from '@/domain/hardPaywall';
+import { WALL_COPY, isWalled } from '@/domain/hardPaywall';
 import { exerciseHomeStats } from '@/domain/exerciseHomeStats';
 import { dayKey, lastNDayKeys } from '@/domain/progression';
 import {
@@ -488,7 +488,7 @@ function PracticeTile({
     <PressableScale
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={locked ? `${title} — free reps used, see Pro` : `Practice ${title}`}
+      accessibilityLabel={locked ? `${title} — ${WALL_COPY.a11y}` : `Practice ${title}`}
     >
       <View style={styles.practiceRow}>
         <View style={[styles.practiceGlyph, { backgroundColor: `${accent}1A` }]}>
@@ -508,7 +508,7 @@ function PracticeTile({
           <View style={styles.statRow}>
             <View style={[styles.pbPill, { backgroundColor: locked ? palette.divider : `${accent}14` }]}>
               <Text style={font('bold', 11, { color: locked ? palette.grey600 : accent })}>
-                {locked ? 'Free reps used' : pb > 0 ? `PB ${pb}` : 'No PB yet'}
+                {locked ? WALL_COPY.pill : pb > 0 ? `PB ${pb}` : 'No PB yet'}
               </Text>
             </View>
             <Text style={font('semibold', 12, { color: palette.grey600 })}>

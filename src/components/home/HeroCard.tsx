@@ -12,6 +12,7 @@ import Animated, {
 
 import { ArrowIcon } from '@/components/home/Icons';
 import { PressableScale } from '@/components/ui';
+import { WALL_COPY } from '@/domain/hardPaywall';
 import type { HomeFocus } from '@/domain/homeFocus';
 import { getExercise, type ExerciseId } from '@/vision/exercises';
 import { font } from '@/theme/typography';
@@ -176,7 +177,7 @@ export function HeroCard({
   locked?: boolean;
 }) {
   const base = contentFor(focus);
-  const c = locked ? { ...base, body: 'Your free reps are used up.', cta: 'See Pro' } : base;
+  const c = locked ? { ...base, body: WALL_COPY.heroBody, cta: 'See Pro' } : base;
   const showProgress = !c.image && focus.kind === 'daily-challenge' && !!progress;
   const pct = showProgress && progress ? Math.min(1, progress.value / Math.max(1, progress.target)) : 0;
   return (

@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { WALL_COPY } from '@/domain/hardPaywall';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -82,7 +83,7 @@ export function UpNextCard({
         <PressableScale
           onPress={onStart}
           accessibilityRole="button"
-          accessibilityLabel={locked ? 'Free reps used, see Pro' : `Start ${name}`}
+          accessibilityLabel={locked ? WALL_COPY.a11y : `Start ${name}`}
           style={styles.cta}
         >
           <Text style={styles.ctaText}>{locked ? 'See Pro' : `Start ${name}`}</Text>

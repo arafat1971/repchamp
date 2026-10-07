@@ -2836,9 +2836,9 @@ function Paywall({
     console.warn('[RepChamp] onboarding purchase failed:', result.message);
     showDialog({
       title: 'Could not start',
-      message: result.message ?? 'Please try again, or continue with your free reps.',
+      message: result.message ?? 'Please try again in a moment.',
       tone: 'info',
-      actions: [{ label: 'Continue free', variant: 'primary', onPress: onNext }],
+      actions: [{ label: 'Continue', variant: 'primary', onPress: onNext }],
     });
   }, [busy, selected, onNext]);
 

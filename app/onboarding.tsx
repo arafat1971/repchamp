@@ -579,7 +579,12 @@ export default function OnboardingScreen() {
             onSignedIn={() => {
               signedInRef.current = true;
             }}
-            onRestored={setUsername}
+            onRestored={(restoredName, restoredAvatar) => {
+              setUsername(restoredName);
+              /* finish() writes this component's avatarUri over the store, so a
+                 restored photo has to land here too or it is wiped to null. */
+              if (restoredAvatar) setAvatarUri(restoredAvatar);
+            }}
             onNext={() => {
               /* The handle was checked at step 5 and is not claimed until the
                * profile write at the very end, so fifteen steps of onboarding
@@ -789,7 +794,7 @@ function SignIn({
   onSignedIn: () => void;
   /** Called with the handle a returning account already owns, so the parent's
       username state matches what was just restored from the cloud. */
-  onRestored: (username: string) => void;
+  onRestored: (username: string, avatarUrl: string | null) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -832,7 +837,7 @@ function SignIn({
       if (plan.kind === 'returning') {
         store.setUsername(plan.username);
         if (plan.avatarUrl) store.setAvatar(plan.avatarUrl);
-        onRestored(plan.username);
+        onRestored(plan.username, plan.avatarUrl);
       }
 
       /* Show the confirmation, then advance — not both at once. Setting state

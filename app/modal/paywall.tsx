@@ -48,7 +48,6 @@ import { blockedBenefit, orderBenefits, type BenefitId } from '@/domain/paywallB
 import { toPlanPrice } from '@/domain/subscriptionOffering';
 import { selectStreak, selectTotalReps, useProfileStore } from '@/state/profileStore';
 import { FREE_REP_LIMIT } from '@/domain/hardPaywall';
-import { CheckIcon } from '@/components/home/Icons';
 import {
   commitmentLine,
   granularPrice,
@@ -57,6 +56,8 @@ import {
 } from '@/domain/paywallFraming';
 import { paywallLead, priceInsight, trialTimeline } from '@/domain/paywallInsight';
 import { font, text } from '@/theme/typography';
+import * as Haptics from 'expo-haptics';
+
 import { palette, radius } from '@/theme/tokens';
 
 /**
@@ -65,26 +66,11 @@ import { palette, radius } from '@/theme/tokens';
  * Keyed by id so `orderBenefits` can lead with whatever the athlete was just
  * refused. All four always render, in these exact words; only the order moves.
  */
-const BENEFITS: Record<BenefitId, { title: string; detail: string }> = {
-  library: {
-    title: 'Full exercise library',
-    detail: 'Every movement beyond push-ups & squats',
-  },
-  programmes: {
-    title: 'Guided programmes',
-    detail: 'Adaptive multi-week plans that scale with you',
-  },
-  reports: {
-    title: 'Form reports',
-    detail: 'Depth, tempo and alignment after every set',
-  },
-  'free-staples': {
-    title: 'Free to start',
-    detail:
-      FREE_REP_LIMIT > 0
-        ? `${FREE_REP_LIMIT} free reps to try it, and couple mode is free forever`
-        : 'Couple mode is free forever',
-  },
+const BENEFITS: Record<BenefitId, { title: string; icon: string }> = {
+  library: { title: 'All exercises', icon: '🏋️' },
+  programmes: { title: 'Plans', icon: '🗓️' },
+  reports: { title: 'Form score', icon: '🎯' },
+  'free-staples': { title: 'Couple: free', icon: '💞' },
 };
 
 /**
@@ -321,6 +307,7 @@ export default function PaywallScreen() {
   })();
 
   const onPrimary = () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     if (!billingReady || showRetry) {
       if (showRetry) {
         setReloadKey((k) => k + 1);
@@ -417,7 +404,7 @@ export default function PaywallScreen() {
               <Text style={styles.title} accessibilityRole="header">
                 {lead.title}
               </Text>
-              <Text style={styles.sub}>{lead.sub}</Text>
+              {lead.sub ? <Text style={styles.sub}>{lead.sub}</Text> : null}
 
               {/* The rep wall as a fact, not a lock: their own count, full. */}
               {fromRepWall ? (
@@ -478,14 +465,17 @@ export default function PaywallScreen() {
                 >
                   <PlanRow
                     selected={pkg.identifier === selectedId}
-                    onPress={() => setSelectedId(pkg.identifier)}
+                    onPress={() => {
+                      void Haptics.selectionAsync().catch(() => {});
+                      setSelectedId(pkg.identifier);
+                    }}
                     title={planTitle(pkg)}
                     /* One framing per plan: the monthly rate and the real
                        charge are the two that matter; a third restatement of
                        the same price reads as sales patter. */
                     subtitle={
                       weeklyFor(pkg)
-                        ? (weeklyFor(pkg)?.billedAs ?? 'cancel anytime')
+                        ? ''
                         : (perWeekHint(pkg) ?? pkg.product.description ?? 'Full Pro access')
                     }
                     price={pkg.product.priceString}
@@ -536,32 +526,18 @@ export default function PaywallScreen() {
             {order.map((id, i) => {
               const b = BENEFITS[id];
               const free = id === 'free-staples';
+              const refused = id === leadBenefit;
               return (
                 <Animated.View
                   key={id}
-                  entering={FadeInDown.delay(100 + i * 50).duration(320)}
-                  style={[styles.benefit, free && styles.benefitFree]}
+                  entering={FadeInDown.delay(100 + i * 60).duration(320)}
+                  style={[styles.tile, free && styles.tileFree, refused && styles.tileRefused]}
+                  accessibilityLabel={b.title}
                 >
-                  <View style={[styles.benefitDot, free && styles.benefitDotFree]}>
-                    <CheckIcon
-                      size={12}
-                      color={free ? palette.grey600 : palette.white}
-                      strokeWidth={3.2}
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <View style={styles.benefitTitleRow}>
-                      <Text style={[styles.benefitTitle, free && styles.benefitTitleFree]}>
-                        {b.title}
-                      </Text>
-                      {id === leadBenefit ? (
-                        <View style={styles.forYou}>
-                          <Text style={styles.forYouText}>WHAT YOU TAPPED</Text>
-                        </View>
-                      ) : null}
-                    </View>
-                    <Text style={styles.benefitDetail}>{b.detail}</Text>
-                  </View>
+                  <Text style={styles.tileIcon}>{b.icon}</Text>
+                  <Text style={[styles.tileLabel, free && styles.tileLabelFree]} numberOfLines={1}>
+                    {b.title}
+                  </Text>
                 </Animated.View>
               );
             })}
@@ -846,35 +822,25 @@ const styles = StyleSheet.create({
   },
   wallFill: { height: 5, borderRadius: 3, backgroundColor: palette.white },
 
-  benefits: { marginTop: 22, gap: 12 },
-  benefit: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  benefitFree: {
-    marginTop: 2,
-    paddingTop: 14,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: palette.borderStrong,
-  },
-  benefitDot: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: palette.green500,
+  benefits: { marginTop: 18, flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  tile: {
+    flexGrow: 1,
+    flexBasis: '45%',
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 1,
-  },
-  benefitDotFree: { backgroundColor: palette.divider },
-  benefitTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  benefitTitle: font('extrabold', 15, { color: palette.ink }),
-  benefitTitleFree: { color: palette.grey600 },
-  benefitDetail: { ...text.caption, marginTop: 2, lineHeight: 17 },
-  forYou: {
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: radius.lg,
     backgroundColor: palette.green50,
-    borderRadius: radius.xs,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
   },
-  forYouText: { ...font('extrabold', 9, { color: palette.green700 }), letterSpacing: 0.8 },
+  tileFree: { backgroundColor: palette.divider },
+  tileRefused: { borderColor: palette.green500 },
+  tileIcon: { fontSize: 26 },
+  tileLabel: font('extrabold', 14, { color: palette.ink }),
+  tileLabelFree: { color: palette.grey600 },
 
   plans: { gap: 10, marginTop: 20 },
   plan: {

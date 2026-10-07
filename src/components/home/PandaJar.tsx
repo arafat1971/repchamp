@@ -602,7 +602,9 @@ export function PandaJar({
   /* Celebrating: cheeks stay warm. */
   useEffect(() => {
     if (reduced) return;
-    glow.set(mood === 'celebrate' ? withRepeat(withTiming(0.7, { duration: 1600, easing: Easing.inOut(Easing.sin) }), -1, true) : withTiming(0, { duration: 400 }));
+    // A few pulses, then rest: this glow is an SVG prop, so an endless one would
+    // repaint the jar all day once the goal is met.
+    glow.set(mood === 'celebrate' ? withRepeat(withTiming(0.7, { duration: 1600, easing: Easing.inOut(Easing.sin) }), 4, true) : withTiming(0, { duration: 400 }));
   }, [mood, reduced, glow]);
 
   /* A blep now and then when content: the tongue pokes out for a moment. */

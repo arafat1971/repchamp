@@ -40,7 +40,7 @@ jest.mock('expo-notifications', () => ({
   requestPermissionsAsync: jest.fn().mockResolvedValue({ granted: true }),
   scheduleNotificationAsync: (...args: unknown[]) => mockSchedule(...args),
   cancelScheduledNotificationAsync: (...args: unknown[]) => mockCancel(...args),
-  SchedulableTriggerInputTypes: { DAILY: 'daily', WEEKLY: 'weekly' },
+  SchedulableTriggerInputTypes: { DAILY: 'daily', WEEKLY: 'weekly', DATE: 'date' },
   AndroidImportance: { DEFAULT: 3, HIGH: 4 },
 }));
 
@@ -488,5 +488,41 @@ describe('streakReminderHour', () => {
       .filter((id) => id === WORKOUT_REMINDER_ID || id === DORMANT_REMINDER_ID);
     expect(armed).toEqual([]);
     expect(scheduledHourFor(STREAK_REMINDER_ID)).toBe(LATEST_REMINDER_HOUR);
+  });
+});
+
+describe('syncLocalReminders — the upgrade pitch', () => {
+  const ids = () => mockSchedule.mock.calls.map(([a]) => (a as { identifier?: string }).identifier);
+
+  it('replaces the training nag with three one-shot pitches for a walled athlete', async () => {
+    await syncLocalReminders({
+      dailyReminderEnabled: true,
+      trainedToday: false,
+      coupleAtRisk: false,
+      upgradePitch: true,
+    });
+    expect(ids()).toEqual(expect.arrayContaining(['upgrade-pitch-1d', 'upgrade-pitch-3d', 'upgrade-pitch-7d']));
+    expect(ids()).not.toContain(WORKOUT_REMINDER_ID);
+    expect(ids()).not.toContain(DORMANT_REMINDER_ID);
+    const pitch = mockSchedule.mock.calls.map(([a]) => a).find((a) => a.identifier === 'upgrade-pitch-3d');
+    expect(pitch.trigger.type).toBe('date');
+    expect(pitch.content.data.type).toBe('upgrade-pitch');
+  });
+
+  it('schedules no pitch and cancels any old one otherwise', async () => {
+    await syncLocalReminders({ dailyReminderEnabled: true, trainedToday: false, coupleAtRisk: false });
+    expect(ids().some((id) => String(id).startsWith('upgrade-pitch'))).toBe(false);
+    expect(mockCancel).toHaveBeenCalledWith('upgrade-pitch-1d');
+    expect(ids()).toContain(WORKOUT_REMINDER_ID);
+  });
+
+  it('respects the reminders toggle', async () => {
+    await syncLocalReminders({
+      dailyReminderEnabled: false,
+      trainedToday: false,
+      coupleAtRisk: false,
+      upgradePitch: true,
+    });
+    expect(ids().some((id) => String(id).startsWith('upgrade-pitch'))).toBe(false);
   });
 });

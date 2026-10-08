@@ -8,6 +8,7 @@
  * | Workout reminder        | ≤1 / day               | Learned hour, only if not trained today|
  * | Couple streak reminder  | ≤1 / day               | Learned hour, only if streak at risk   |
  * | Dormant reminder        | ≤1 / day (replaces ↑)  | Learned hour, only after 3 days away   |
+ * | Upgrade pitch           | 3 total (day 1, 3, 7)  | Walled + unpaid only; replaces ↑, then silent |
  * | Weekly summary          | 1 / week (Monday 18:00)| Always (low-frequency payoff)          |
  * | Challenge invitation    | Event-driven           | When a friend challenges you (push)    |
  * | Couple nudge            | Event-driven           | Partner taps Nudge (push + in-app)     |
@@ -62,6 +63,7 @@ import { isDuplicateNudge } from '@/domain/nudgeDedupe';
 import { reminderNotification, type ReminderKind } from '@/domain/partnerReminder';
 import { parseInviteKind } from '@/domain/presence';
 import { buildDailyReminder, buildWeeklyRecap } from '@/domain/reminderCopy';
+import { pitchDate, upgradePitchSequence } from '@/domain/upgradeReminder';
 import {
   DEFAULT_REMINDER_HOUR,
   LATEST_REMINDER_HOUR,
@@ -129,6 +131,7 @@ const WORKOUT_REMINDER_ID = 'workout-reminder-daily';
 const STREAK_REMINDER_ID = 'couple-streak-reminder-eve';
 const DORMANT_REMINDER_ID = 'dormant-reminder-eve';
 const WEEKLY_RECAP_ID = 'weekly-recap';
+const UPGRADE_PITCH_IDS = upgradePitchSequence().map((step) => `upgrade-pitch-${step.id}`);
 /* One id per hydration slot, so each can be cancelled independently the
    moment its own condition stops holding. */
 const HYDRATION_REMINDER_IDS = HYDRATION_SLOTS.map((h) => `hydration-reminder-${h}`);
@@ -367,6 +370,13 @@ export interface ReminderContext {
    * Past `DORMANT_AFTER_DAYS` the dormant slot replaces the evening nag.
    */
   daysSinceLastSession?: number | null;
+  /**
+   * Walled and unpaid: the evening training nag leads to a refusal, so the
+   * three-step upgrade pitch takes its place. See `domain/upgradeReminder`.
+   */
+  upgradePitch?: boolean;
+  /** Rotates equally true phrasings of the daily reminder; see `buildDailyReminder`. */
+  copySeed?: number;
 }
 
 /**
@@ -395,6 +405,16 @@ export async function syncLocalReminders(ctx: ReminderContext): Promise<void> {
       streak: ctx.streak ?? 0,
       together: ctx.together ?? null,
     });
+
+    if (ctx.upgradePitch && ctx.dailyReminderEnabled) {
+      /* A training reminder for someone the wall will refuse is an invitation
+         to a dead end. The pitch replaces it — never joins it — and is dated
+         from now, so opening the app pushes it out and silence ends it. */
+      await cancelIds([WORKOUT_REMINDER_ID, STREAK_REMINDER_ID, DORMANT_REMINDER_ID]);
+      await scheduleUpgradePitch(reminderHour);
+      return;
+    }
+    await cancelIds(UPGRADE_PITCH_IDS);
 
     if (ctx.trainedToday) {
       // Back in the app — a win-back push aimed at someone training today is
@@ -436,9 +456,32 @@ export async function syncLocalReminders(ctx: ReminderContext): Promise<void> {
       ctx.streak ?? 0,
       reminderHour,
       ctx.daysSinceLastSession ?? null,
+      ctx.copySeed,
     );
   } catch {
     // Best-effort.
+  }
+}
+
+/** Three one-shot pushes (day 1, 3, 7 after the last open), then nothing. */
+async function scheduleUpgradePitch(hour: number): Promise<void> {
+  const now = new Date();
+  for (const step of upgradePitchSequence()) {
+    const id = `upgrade-pitch-${step.id}`;
+    try {
+      await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
+      await Notifications.scheduleNotificationAsync({
+        identifier: id,
+        content: { title: step.copy.title, body: step.copy.body, data: { type: 'upgrade-pitch' } },
+        trigger: {
+          ...(Platform.OS === 'android' ? { channelId: channelIdFor('reminders') } : {}),
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: pitchDate(now, step, hour),
+        },
+      });
+    } catch {
+      // Best-effort, like every other slot here.
+    }
   }
 }
 
@@ -480,6 +523,7 @@ export async function scheduleDailyTrainingReminder(
   streak = 0,
   hour = DEFAULT_REMINDER_HOUR,
   daysAway: number | null = null,
+  seed?: number,
 ): Promise<void> {
   if (!(await ensureNotificationPermission())) return;
   try {
@@ -487,7 +531,7 @@ export async function scheduleDailyTrainingReminder(
     /* `daysAway` distinguishes an ordinary evening from the last night of a
        streak that has already spent its rest day. Optional and defaulted to
        null, so the deprecated call sites below send exactly what they did. */
-    const copy = buildDailyReminder({ streak, daysAway });
+    const copy = buildDailyReminder({ streak, daysAway, seed });
     await Notifications.scheduleNotificationAsync({
       identifier: WORKOUT_REMINDER_ID,
       content: {

@@ -21,7 +21,10 @@ import { readStepsToday } from '@/services/pedometer';
 import { syncHydrationReminders, syncLocalReminders, syncRitualReminder } from '@/lib/notifications';
 import { selectTodayMl, useHydrationStore } from '@/state/hydrationStore';
 import { useCouple } from '@/state/useCouple';
-import { selectStreak, useProfileStore } from '@/state/profileStore';
+import { selectPairingBonusActive, selectStreak, selectTotalReps, useProfileStore } from '@/state/profileStore';
+import { useProStore } from '@/state/proStore';
+import { isPurchasesConfigured } from '@/services/purchases';
+import { shouldPitchUpgrade } from '@/domain/upgradeReminder';
 import { useSettingsStore } from '@/state/settingsStore';
 
 export function useNotificationSync(): void {
@@ -198,8 +201,29 @@ export function useNotificationSync(): void {
   const togetherWeek = couple.paired && partnerName ? { name: partnerName, perfectDays: week.perfectDays, trend: week.trend } : null;
   const togetherKey = JSON.stringify(togetherWeek);
 
+  /* Walled and unpaid → the upgrade pitch takes the evening slot. Reduced to a
+     boolean so the effect re-runs when it flips (purchase, pairing) and not on
+     every rep. */
+  const proReady = useProStore((s) => s.ready);
+  const isPro = useProStore((s) => s.isPro);
+  const bonusActive = useProfileStore(selectPairingBonusActive);
+  const totalReps = useProfileStore(selectTotalReps);
+  const upgradePitch = shouldPitchUpgrade({
+    proReady,
+    isPro,
+    bonusActive,
+    paired: couple.paired,
+    repsSoFar: totalReps,
+    billingReady: isPurchasesConfigured(),
+    remindersEnabled: dailyReminder,
+  });
+  /* Day number, so the daily wording changes day to day but is stable within one. */
+  const copySeed = Math.floor(Date.now() / 86_400_000);
+
   useEffect(() => {
     void syncLocalReminders({
+      upgradePitch,
+      copySeed,
       dailyReminderEnabled: dailyReminder,
       trainedToday,
       coupleAtRisk: couple.paired && couple.atRisk,
@@ -233,6 +257,8 @@ export function useNotificationSync(): void {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     dailyReminder,
+    upgradePitch,
+    copySeed,
     trainedToday,
     streak,
     reminderHour,

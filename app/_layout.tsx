@@ -157,6 +157,18 @@ export default function RootLayout() {
             ? '/(tabs)'
             : { pathname: '/session', params: { exercise: 'push', mode: 'practice' } },
         );
+      } else if (type === 'upgrade-pitch') {
+        /* The one reminder that *is* a sales message, said so in its own copy
+           ("Pro counts every rep…"), so landing on the paywall is what the tap
+           promised — unlike a training nag, which must not. Pro is checked
+           first: a subscriber who tapped a stale pitch gets Home, not a pitch. */
+        const pro = useProStore.getState();
+        const bonus = selectPairingBonusActive(useProfileStore.getState());
+        router.push(
+          pro.ready && (pro.isPro || bonus)
+            ? '/(tabs)'
+            : { pathname: '/modal/paywall', params: { source: 'reminder-upgrade' } },
+        );
       } else if (type === 'hydration-reminder') {
         /* Home, not a session. The water card is on Home and logging a glass
            is a one-tap action there — sending someone to the camera because

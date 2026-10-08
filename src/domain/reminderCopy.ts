@@ -65,6 +65,11 @@ export function buildDailyReminder(input: {
   streak: number;
   /** Whole days since the last recorded session; null or absent when unknown. */
   daysAway?: number | null;
+  /**
+   * Picks between equally true phrasings so a DAILY slot does not read
+   * identically for weeks. Absent, the copy is exactly what it always was.
+   */
+  seed?: number;
 }): ReminderCopy {
   const streak = Number.isFinite(input.streak) ? Math.floor(input.streak) : 0;
   const daysAway = Number.isFinite(input.daysAway ?? NaN)
@@ -74,6 +79,7 @@ export function buildDailyReminder(input: {
   /* The grace day is spent: they trained two days ago, missed yesterday, and
      have not trained today. Tonight is the last night this streak exists. */
   const lastNight = daysAway !== null && daysAway >= 2;
+  const variant = Number.isFinite(input.seed ?? NaN) ? Math.abs(Math.floor(input.seed as number)) : 0;
 
   if (streak >= STREAK_WORTH_NAMING) {
     if (lastNight) {
@@ -88,16 +94,20 @@ export function buildDailyReminder(input: {
         body: 'Your rest day is already used — one set keeps the streak alive.',
       };
     }
-    return {
-      title: `Day ${streak} — keep it going`,
-      body: 'One set today and the streak holds.',
-    };
+    const streakVariants: ReminderCopy[] = [
+      { title: `Day ${streak} — keep it going`, body: 'One set today and the streak holds.' },
+      { title: `${streak} days strong 🔥`, body: "Don't let today be the gap — one set is enough." },
+      { title: `Your ${streak}-day streak is waiting`, body: 'One quick set and it is safe for another day.' },
+    ];
+    return streakVariants[variant % streakVariants.length]!;
   }
 
-  return {
-    title: 'Time for a quick set',
-    body: 'Two minutes of reps keeps your streak and form sharp.',
-  };
+  const variants: ReminderCopy[] = [
+    { title: 'Time for a quick set', body: 'Two minutes of reps keeps your streak and form sharp.' },
+    { title: 'Your next set is waiting', body: 'Two minutes: camera on, reps counted, form scored.' },
+    { title: 'Small set, big habit', body: 'Two minutes today is how a routine starts.' },
+  ];
+  return variants[variant % variants.length]!;
 }
 
 /**

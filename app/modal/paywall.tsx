@@ -439,6 +439,37 @@ export default function PaywallScreen() {
             </LinearGradient>
           </Animated.View>
 
+          {/* What you get, then what it costs: the benefits lead so the price is
+              read against them. Ordered by what this source blocked; the
+              refused one is marked. All four promises always render in the same
+              words — only the order and the marker move. See
+              `domain/paywallBenefits`. */}
+          <View style={styles.benefits}>
+            {order.map((id, i) => {
+              const b = BENEFITS[id];
+              const free = id === 'free-staples';
+              const refused = id === leadBenefit;
+              return (
+                <Animated.View
+                  key={id}
+                  entering={FadeInDown.delay(100 + i * 60).duration(320)}
+                  style={[styles.benefit, refused && styles.benefitRefused]}
+                  accessibilityLabel={b.title}
+                >
+                  <View style={[styles.benefitIcon, free && styles.benefitIconFree]}>
+                    <BenefitIcon id={id} color={free ? palette.grey600 : palette.green700} />
+                  </View>
+                  <Text
+                    style={[styles.benefitLabel, free && styles.benefitLabelFree]}
+                    numberOfLines={1}
+                  >
+                    {b.title}
+                  </Text>
+                </Animated.View>
+              );
+            })}
+          </View>
+
           <View style={styles.plans}>
             {/* No billing key on this build. This renders on every dev visit,
                 so it is the athlete's copy, not a developer note. The hard
@@ -534,29 +565,6 @@ export default function PaywallScreen() {
             </Animated.View>
           ) : null}
 
-          {/* Ordered by what this source blocked; the refused one is marked.
-              All four promises always render in the same words — only the
-              order and the marker move. See `domain/paywallBenefits`. */}
-          <View style={styles.benefits}>
-            {order.map((id, i) => {
-              const b = BENEFITS[id];
-              const free = id === 'free-staples';
-              const refused = id === leadBenefit;
-              return (
-                <Animated.View
-                  key={id}
-                  entering={FadeInDown.delay(100 + i * 60).duration(320)}
-                  style={[styles.tile, free && styles.tileFree, refused && styles.tileRefused]}
-                  accessibilityLabel={b.title}
-                >
-                  <BenefitIcon id={id} color={free ? palette.grey600 : palette.green700} />
-                  <Text style={[styles.tileLabel, free && styles.tileLabelFree]} numberOfLines={1}>
-                    {b.title}
-                  </Text>
-                </Animated.View>
-              );
-            })}
-          </View>
         </Animated.ScrollView>
       </View>
 
@@ -804,8 +812,8 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     borderRadius: radius['4xl'],
     paddingHorizontal: 18,
-    paddingTop: 14,
-    paddingBottom: 16,
+    paddingTop: 12,
+    paddingBottom: 14,
     overflow: 'hidden',
   },
   eyebrow: {
@@ -839,27 +847,32 @@ const styles = StyleSheet.create({
   },
   wallFill: { height: 5, borderRadius: 3, backgroundColor: palette.white },
 
-  benefits: { marginTop: 18, flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  tile: {
-    borderCurve: 'continuous',
-    flexGrow: 1,
-    flexBasis: '45%',
+  benefits: { marginTop: 12, flexDirection: 'row', flexWrap: 'wrap', rowGap: 2 },
+  benefit: {
+    width: '50%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: radius.lg,
-    backgroundColor: palette.green50,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderRadius: radius.md,
+    borderCurve: 'continuous',
   },
-  tileFree: { backgroundColor: palette.divider },
-  tileRefused: { borderColor: palette.green500 },
-  tileLabel: font('extrabold', 14, { color: palette.ink }),
-  tileLabelFree: { color: palette.grey600 },
+  benefitRefused: { backgroundColor: palette.green50 },
+  benefitIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.md,
+    borderCurve: 'continuous',
+    backgroundColor: palette.green50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  benefitIconFree: { backgroundColor: palette.divider },
+  benefitLabel: { ...font('bold', 14, { color: palette.ink }), flexShrink: 1 },
+  benefitLabelFree: { color: palette.grey600 },
 
-  plans: { gap: 10, marginTop: 20 },
+  plans: { gap: 10, marginTop: 18 },
   plan: {
     borderCurve: 'continuous',
     flexDirection: 'row',

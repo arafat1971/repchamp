@@ -526,3 +526,31 @@ describe('syncLocalReminders — the upgrade pitch', () => {
     expect(ids().some((id) => String(id).startsWith('upgrade-pitch'))).toBe(false);
   });
 });
+
+describe('syncLocalReminders — overlapping syncs', () => {
+  /* The cold-start race: an early sync (entitlement not loaded, no pitch) and a
+     later one (pitch) overlap. The later call must win — no daily nag left over. */
+  it('leaves only the pitch when a pitching sync follows a non-pitching one', async () => {
+    mockSchedule.mockClear();
+    mockCancel.mockClear();
+    const base = { dailyReminderEnabled: true, trainedToday: false, coupleAtRisk: false };
+    const first = syncLocalReminders(base);
+    const second = syncLocalReminders({ ...base, upgradePitch: true });
+    await Promise.all([first, second]);
+
+    const events = [
+      ...mockSchedule.mock.calls.map(([a], i) => ({ op: 'schedule', id: (a as { identifier: string }).identifier, n: i })),
+    ];
+    const lastWorkoutSchedule = events.filter((e) => e.id === 'workout-reminder-daily').pop();
+    const firstPitchSchedule = events.find((e) => e.id === 'upgrade-pitch-1d');
+    // Any daily-nag schedule must come from the first sync, i.e. strictly before the pitch sync's cancel.
+    expect(firstPitchSchedule).toBeDefined();
+    expect(lastWorkoutSchedule?.n ?? -1).toBeLessThan(firstPitchSchedule!.n);
+    // And the pitch sync cancelled the workout slot after the first sync scheduled it.
+    const cancelOrder = mockCancel.mock.invocationCallOrder;
+    const scheduleOrder = mockSchedule.mock.invocationCallOrder;
+    const lastWorkoutOrder = scheduleOrder[mockSchedule.mock.calls.findIndex(([a]) => (a as { identifier: string }).identifier === 'workout-reminder-daily')]!;
+    const cancelledAfter = mockCancel.mock.calls.some(([id], i) => id === 'workout-reminder-daily' && cancelOrder[i]! > lastWorkoutOrder);
+    expect(cancelledAfter).toBe(true);
+  });
+});

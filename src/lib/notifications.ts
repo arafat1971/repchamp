@@ -383,7 +383,20 @@ export interface ReminderContext {
  * Single entry point for local schedules. Call on launch, after a session, and
  * when couple risk / settings change. Idempotent via fixed identifiers.
  */
-export async function syncLocalReminders(ctx: ReminderContext): Promise<void> {
+export function syncLocalReminders(ctx: ReminderContext): Promise<void> {
+  /* One sync at a time, in call order. On a cold start two syncs overlap — one
+     before the entitlement has loaded, one after — and each is a series of
+     awaited cancel/schedule calls. Interleaved, the early (not-yet-pitching)
+     sync re-armed the daily training reminder *after* the pitch sync had
+     cancelled it, leaving both live. Queued, the last call always wins. */
+  const run = syncQueue.then(() => syncLocalRemindersNow(ctx));
+  syncQueue = run.catch(() => {});
+  return run;
+}
+
+let syncQueue: Promise<void> = Promise.resolve();
+
+async function syncLocalRemindersNow(ctx: ReminderContext): Promise<void> {
   if (!(await ensureNotificationPermission())) return;
 
   try {

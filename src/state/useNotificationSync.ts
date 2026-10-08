@@ -218,7 +218,8 @@ export function useNotificationSync(): void {
     remindersEnabled: dailyReminder,
   });
   /* Day number, so the daily wording changes day to day but is stable within one. */
-  const copySeed = Math.floor(Date.now() / 86_400_000);
+  const [y = 0, m = 1, d = 1] = today.split('-').map(Number);
+  const copySeed = Math.floor(Date.UTC(y, m - 1, d) / 86_400_000);
 
   useEffect(() => {
     void syncLocalReminders({

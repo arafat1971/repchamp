@@ -30,7 +30,8 @@ import { emitRetention, retentionSnapshot } from '@/services/recordSessionWithRe
 import { shareWorthyLine } from '@/domain/progressProof';
 import { SocialShareRow } from '@/components/SocialShareRow';
 import { WEB_BASE, friendInviteLink } from '@/lib/urls';
-import { setHighlight } from '@/domain/setHighlight';
+import { setHighlight, type HighlightTier } from '@/domain/setHighlight';
+import { maybeRequestReview } from '@/lib/storeReview';
 import { HighlightCard } from '@/components/session/HighlightCard';
 import { ProMomentCard } from '@/components/session/ProMomentCard';
 import { chooseProMoment, type ProMoment } from '@/domain/proMoment';
@@ -382,6 +383,29 @@ export default function ResultScreen() {
     return setHighlight(history, streak, exerciseLabel);
   }, [history, streak, session.reps, exerciseLabel, openedAt]);
   const highlightTitle = highlight?.title;
+  /* Read through refs so the delayed ask sees the screen as it is *then* — the
+     Pro offer is decided after the set settles and can land during the wait. */
+  const proMomentShownRef = useRef(false);
+  const highlightTierRef = useRef<HighlightTier | null>(null);
+  useEffect(() => {
+    proMomentShownRef.current = proMoment !== null;
+    highlightTierRef.current = highlight?.tier ?? null;
+  });
+  useEffect(() => {
+    if (!highlightTitle) return;
+    /* After the sparkle has landed, so the sheet arrives on top of a good
+       feeling rather than competing with the celebration. */
+    const id = setTimeout(() => {
+      const state = useSessionStore.getState();
+      void maybeRequestReview({
+        sessionCount: useProfileStore.getState().sessions.length,
+        highlightTier: highlightTierRef.current,
+        lostDuel: state.config?.mode === 'versus' && !state.won && !state.drew,
+        proMomentShown: proMomentShownRef.current,
+      });
+    }, 3500);
+    return () => clearTimeout(id);
+  }, [highlightTitle]);
   useEffect(() => {
     if (!highlightTitle) return;
     const id = setTimeout(() => {

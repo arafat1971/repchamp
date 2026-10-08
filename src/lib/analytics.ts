@@ -80,6 +80,7 @@ export interface AnalyticsEvents {
 
   /** A peak-moment Pro offer was shown on the result screen — see `domain/proMoment`. */
   pro_moment_shown: { kind: string };
+  review_prompt_requested: { tier: string; sessions: number };
   pro_moment_tapped: { kind: string };
   pro_moment_dismissed: { kind: string };
 

@@ -40,7 +40,7 @@ jest.mock('expo-notifications', () => ({
   requestPermissionsAsync: jest.fn().mockResolvedValue({ granted: true }),
   scheduleNotificationAsync: (...args: unknown[]) => mockSchedule(...args),
   cancelScheduledNotificationAsync: (...args: unknown[]) => mockCancel(...args),
-  SchedulableTriggerInputTypes: { DAILY: 'daily', WEEKLY: 'weekly' },
+  SchedulableTriggerInputTypes: { DAILY: 'daily', WEEKLY: 'weekly', DATE: 'date' },
   AndroidImportance: { DEFAULT: 3, HIGH: 4 },
 }));
 
@@ -488,5 +488,69 @@ describe('streakReminderHour', () => {
       .filter((id) => id === WORKOUT_REMINDER_ID || id === DORMANT_REMINDER_ID);
     expect(armed).toEqual([]);
     expect(scheduledHourFor(STREAK_REMINDER_ID)).toBe(LATEST_REMINDER_HOUR);
+  });
+});
+
+describe('syncLocalReminders — the upgrade pitch', () => {
+  const ids = () => mockSchedule.mock.calls.map(([a]) => (a as { identifier?: string }).identifier);
+
+  it('replaces the training nag with three one-shot pitches for a walled athlete', async () => {
+    await syncLocalReminders({
+      dailyReminderEnabled: true,
+      trainedToday: false,
+      coupleAtRisk: false,
+      upgradePitch: true,
+    });
+    expect(ids()).toEqual(expect.arrayContaining(['upgrade-pitch-1d', 'upgrade-pitch-3d', 'upgrade-pitch-7d']));
+    expect(ids()).not.toContain(WORKOUT_REMINDER_ID);
+    expect(ids()).not.toContain(DORMANT_REMINDER_ID);
+    const pitch = mockSchedule.mock.calls.map(([a]) => a).find((a) => a.identifier === 'upgrade-pitch-3d');
+    expect(pitch.trigger.type).toBe('date');
+    expect(pitch.content.data.type).toBe('upgrade-pitch');
+  });
+
+  it('schedules no pitch and cancels any old one otherwise', async () => {
+    await syncLocalReminders({ dailyReminderEnabled: true, trainedToday: false, coupleAtRisk: false });
+    expect(ids().some((id) => String(id).startsWith('upgrade-pitch'))).toBe(false);
+    expect(mockCancel).toHaveBeenCalledWith('upgrade-pitch-1d');
+    expect(ids()).toContain(WORKOUT_REMINDER_ID);
+  });
+
+  it('respects the reminders toggle', async () => {
+    await syncLocalReminders({
+      dailyReminderEnabled: false,
+      trainedToday: false,
+      coupleAtRisk: false,
+      upgradePitch: true,
+    });
+    expect(ids().some((id) => String(id).startsWith('upgrade-pitch'))).toBe(false);
+  });
+});
+
+describe('syncLocalReminders — overlapping syncs', () => {
+  /* The cold-start race: an early sync (entitlement not loaded, no pitch) and a
+     later one (pitch) overlap. The later call must win — no daily nag left over. */
+  it('leaves only the pitch when a pitching sync follows a non-pitching one', async () => {
+    mockSchedule.mockClear();
+    mockCancel.mockClear();
+    const base = { dailyReminderEnabled: true, trainedToday: false, coupleAtRisk: false };
+    const first = syncLocalReminders(base);
+    const second = syncLocalReminders({ ...base, upgradePitch: true });
+    await Promise.all([first, second]);
+
+    const events = [
+      ...mockSchedule.mock.calls.map(([a], i) => ({ op: 'schedule', id: (a as { identifier: string }).identifier, n: i })),
+    ];
+    const lastWorkoutSchedule = events.filter((e) => e.id === 'workout-reminder-daily').pop();
+    const firstPitchSchedule = events.find((e) => e.id === 'upgrade-pitch-1d');
+    // Any daily-nag schedule must come from the first sync, i.e. strictly before the pitch sync's cancel.
+    expect(firstPitchSchedule).toBeDefined();
+    expect(lastWorkoutSchedule?.n ?? -1).toBeLessThan(firstPitchSchedule!.n);
+    // And the pitch sync cancelled the workout slot after the first sync scheduled it.
+    const cancelOrder = mockCancel.mock.invocationCallOrder;
+    const scheduleOrder = mockSchedule.mock.invocationCallOrder;
+    const lastWorkoutOrder = scheduleOrder[mockSchedule.mock.calls.findIndex(([a]) => (a as { identifier: string }).identifier === 'workout-reminder-daily')]!;
+    const cancelledAfter = mockCancel.mock.calls.some(([id], i) => id === 'workout-reminder-daily' && cancelOrder[i]! > lastWorkoutOrder);
+    expect(cancelledAfter).toBe(true);
   });
 });

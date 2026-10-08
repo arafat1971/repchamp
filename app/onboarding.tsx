@@ -36,6 +36,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { WELCOME_HERO, WELCOME_HERO_ASPECT } from '@/components/onboarding/welcomeHeroData';
 import { BreathingImage, CountUp, Floating, PopOnChange, StaggerIn } from '@/components/motion';
 import { GoogleMark } from '@/components/GoogleMark';
 import { BarChart } from '@/components/charts/BarChart';
@@ -823,24 +824,20 @@ function Welcome({ onNext }: { onNext: () => void }) {
       </Animated.View>
 
       <View style={styles.hero}>
-        {/* The original welcome artwork. The green gradient behind it and the
-            bottom alignment are kept from the arrangement that drew correctly
-            in release builds; on its own this image rendered blank there. */}
-        <LinearGradient
-          colors={gradients.heroEmerald}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
+        {/* A soft green glow behind the couple, so they read as lit rather than
+            pasted on. The picture's own background is near-white and matches
+            the card, so no box shows around it. */}
+        <View style={styles.heroGlow} pointerEvents="none" />
         <BreathingImage style={StyleSheet.absoluteFill}>
-          <Image
-            source={require('../assets/hero-couple.png')}
-            style={styles.heroImage}
-            contentFit="cover"
-            contentPosition="bottom"
-            transition={400}
-            accessibilityLabel="Two athletes ready to train"
-          />
+          <View style={styles.heroStage}>
+            <Image
+              source={{ uri: WELCOME_HERO }}
+              style={styles.heroCouple}
+              contentFit="contain"
+              transition={250}
+              accessibilityLabel="Two athletes ready to train"
+            />
+          </View>
         </BreathingImage>
 
         <Floating delay={120} style={styles.heroBadgeLeft}>
@@ -3235,10 +3232,21 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     borderCurve: 'continuous',
     marginTop: 18,
-    backgroundColor: '#0f3d1d',
+    backgroundColor: '#f6f7f8',
     overflow: 'hidden',
+    ...surfaceShadow,
   },
-  heroImage: { width: '100%', height: '100%' },
+  heroGlow: {
+    position: 'absolute',
+    alignSelf: 'center',
+    bottom: -40,
+    width: 360,
+    height: 360,
+    borderRadius: 180,
+    backgroundColor: 'rgba(34,197,94,0.16)',
+  },
+  heroStage: { flex: 1, justifyContent: 'flex-end', alignItems: 'center' },
+  heroCouple: { width: '100%', aspectRatio: WELCOME_HERO_ASPECT },
   heroBadgeLeft: { position: 'absolute', top: 16, left: 16, zIndex: 2 },
   heroBadgeRight: { position: 'absolute', top: 16, right: 16, zIndex: 2 },
   heroBadge: {

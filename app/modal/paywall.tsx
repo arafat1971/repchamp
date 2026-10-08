@@ -1,4 +1,3 @@
-import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -15,6 +14,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import type { PurchasesPackage } from 'react-native-purchases';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
 import { track, truncateReason } from '@/lib/analytics';
 import { captureError } from '@/lib/crash';
@@ -62,12 +62,42 @@ import { palette, radius } from '@/theme/tokens';
  * Keyed by id so `orderBenefits` can lead with whatever the athlete was just
  * refused. All four always render, in these exact words; only the order moves.
  */
-const BENEFITS: Record<BenefitId, { title: string; icon: number }> = {
-  library: { title: 'All exercises', icon: require('../../assets/ic-dumbbell.png') },
-  programmes: { title: 'Plans', icon: require('../../assets/ic-train.png') },
-  reports: { title: 'Form score', icon: require('../../assets/ic-target.png') },
-  'free-staples': { title: 'Couple: free', icon: require('../../assets/badge-vs.png') },
+const BENEFITS: Record<BenefitId, { title: string }> = {
+  library: { title: 'All exercises' },
+  programmes: { title: 'Plans' },
+  reports: { title: 'Form score' },
+  'free-staples': { title: 'Couple: free' },
 };
+
+/** Line icons in one stroke weight, so the four tiles read as one family. */
+function BenefitIcon({ id, color }: { id: BenefitId; color: string }) {
+  const p = { stroke: color, strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', fill: 'none' } as const;
+  return (
+    <Svg width={26} height={26} viewBox="0 0 24 24" accessibilityElementsHidden>
+      {id === 'library' ? (
+        <>
+          <Path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11" {...p} />
+        </>
+      ) : id === 'programmes' ? (
+        <>
+          <Rect x={4} y={5.5} width={16} height={14} rx={3} {...p} />
+          <Path d="M4 10h16M8.5 3.5v4M15.5 3.5v4" {...p} />
+        </>
+      ) : id === 'reports' ? (
+        <>
+          <Circle cx={12} cy={12} r={8.5} {...p} />
+          <Circle cx={12} cy={12} r={4.5} {...p} />
+          <Circle cx={12} cy={12} r={0.8} {...p} />
+        </>
+      ) : (
+        <Path
+          d="M12 19.5s-7-4.2-7-9.4A4 4 0 0 1 12 7.7a4 4 0 0 1 7 2.4c0 5.2-7 9.4-7 9.4z"
+          {...p}
+        />
+      )}
+    </Svg>
+  );
+}
 
 /**
  * Pro upgrade screen — live RevenueCat packages, sticky CTA, honest empty states.
@@ -519,7 +549,7 @@ export default function PaywallScreen() {
                   style={[styles.tile, free && styles.tileFree, refused && styles.tileRefused]}
                   accessibilityLabel={b.title}
                 >
-                  <Image source={b.icon} style={styles.tileIcon} contentFit="contain" />
+                  <BenefitIcon id={id} color={free ? palette.grey600 : palette.green700} />
                   <Text style={[styles.tileLabel, free && styles.tileLabelFree]} numberOfLines={1}>
                     {b.title}
                   </Text>
@@ -826,7 +856,6 @@ const styles = StyleSheet.create({
   },
   tileFree: { backgroundColor: palette.divider },
   tileRefused: { borderColor: palette.green500 },
-  tileIcon: { width: 28, height: 28 },
   tileLabel: font('extrabold', 14, { color: palette.ink }),
   tileLabelFree: { color: palette.grey600 },
 

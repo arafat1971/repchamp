@@ -823,8 +823,9 @@ function Welcome({ onNext }: { onNext: () => void }) {
       </Animated.View>
 
       <View style={styles.hero}>
-        {/* The same photograph Home's couple card uses, on the brand green, so
-            the first screen and the app read as one product. */}
+        {/* The original welcome artwork. The green gradient behind it and the
+            bottom alignment are kept from the arrangement that drew correctly
+            in release builds; on its own this image rendered blank there. */}
         <LinearGradient
           colors={gradients.heroEmerald}
           start={{ x: 0, y: 0 }}
@@ -833,12 +834,12 @@ function Welcome({ onNext }: { onNext: () => void }) {
         />
         <BreathingImage style={StyleSheet.absoluteFill}>
           <Image
-            source={require('../assets/couple-hero.png')}
+            source={require('../assets/hero-couple.png')}
             style={styles.heroImage}
             contentFit="cover"
             contentPosition="bottom"
             transition={400}
-            accessibilityLabel="Two athletes pushing up, with pose tracking drawn over them"
+            accessibilityLabel="Two athletes ready to train"
           />
         </BreathingImage>
 

@@ -24,6 +24,9 @@ import { InvitePartnerCard } from '@/components/home/InvitePartnerCard';
 import { WinBackCard } from '@/components/WinBackCard';
 import { HydrationCard } from '@/components/home/HydrationCard';
 import { StepsCard } from '@/components/home/StepsCard';
+import { DEFAULT_STEP_GOAL } from '@/domain/steps';
+import { buildStepsWidgetSnapshot } from '@/domain/stepsWidget';
+import { useStepsStore } from '@/state/stepsStore';
 import { TodayBento } from '@/components/home/TodayBento';
 import { WeekDateStrip } from '@/components/home/WeekDateStrip';
 import { LiveTogetherBar } from '@/components/home/LiveTogetherBar';
@@ -256,6 +259,33 @@ export default function HomeScreen() {
     if (stepsToday.status !== 'ready') return;
     void syncStepsNow(coupleId, myUid, stepsToday.steps);
   }, [stepsToday, coupleId, myUid]);
+
+  /* The partner's count, kept day by day on this phone — they only share
+     today's, so their week on the Steps screen is built from these. */
+  const partnerUidForSteps = couple.paired ? (couple.partner?.uid ?? null) : null;
+  const partnerStepsNow = couple.paired && couple.partner ? partnerStepsToday(couple.partner, today) : null;
+  useEffect(() => {
+    if (!partnerUidForSteps || partnerStepsNow == null) return;
+    useStepsStore.getState().recordPartner(partnerUidForSteps, partnerStepsNow, DEFAULT_STEP_GOAL, today);
+  }, [partnerUidForSteps, partnerStepsNow, today]);
+
+  /* The Steps widget: me and my partner on two bars, phrased here. */
+  const stepGoal = useStepsStore((st) => st.goal);
+  const myStepsForWidget = stepsToday.status === 'ready' ? stepsToday.steps : null;
+  const partnerNameForSteps = couple.paired ? (couple.partner?.displayName?.trim().split(/\s+/)[0] ?? null) : null;
+  useEffect(() => {
+    publishWidgetSnapshot(
+      buildStepsWidgetSnapshot({
+        day: today,
+        mine: myStepsForWidget,
+        myGoal: stepGoal,
+        partner: partnerNameForSteps ? { name: partnerNameForSteps, steps: partnerStepsNow } : null,
+        theirGoal: DEFAULT_STEP_GOAL,
+        now: new Date(),
+      }),
+      'steps',
+    );
+  }, [today, myStepsForWidget, stepGoal, partnerNameForSteps, partnerStepsNow]);
 
   /* My reps today, for my partner's rings. Re-published whenever the session
      log changes, which is the moment a set finishes and Home comes back. */
@@ -1020,6 +1050,7 @@ export default function HomeScreen() {
           steps={stepsToday}
           onFixSteps={openStepSettings}
           onCheer={() => sendLivePoke('🔥', 'cheer')}
+          onOpen={() => router.push('/steps')}
           me={{ name: firstName || 'You', avatar: profile.avatarUri }}
           partner={
             couple.paired && couple.partner

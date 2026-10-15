@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Linking, Platform } from 'react-native';
 
-import { DEFAULT_STEP_GOAL, type StepsState } from '@/domain/steps';
+import { type StepsState } from '@/domain/steps';
 import {
   readStepsToday,
   requestAndroidStepPermission,
   setStepServiceEnabled,
 } from '@/services/pedometer';
 import { useSettingsStore } from '@/state/settingsStore';
+import { useStepsStore } from '@/state/stepsStore';
 
 /**
  * Today's step count, refreshed when it can have changed.
@@ -22,11 +23,13 @@ import { useSettingsStore } from '@/state/settingsStore';
  * neutral dash for the moment the first read takes instead of flashing an
  * "iPhone-only" line at an iPhone.
  */
-export function useStepsToday(goal: number = DEFAULT_STEP_GOAL): {
+export function useStepsToday(goalOverride?: number): {
   steps: StepsState;
   refresh: () => void;
   openSettings: () => void;
 } {
+  const storedGoal = useStepsStore((s) => s.goal);
+  const goal = goalOverride ?? storedGoal;
   const [steps, setSteps] = useState<StepsState>({ status: 'loading' });
 
   /* One flag shared by every in-flight read, rather than one per call.
@@ -45,6 +48,10 @@ export function useStepsToday(goal: number = DEFAULT_STEP_GOAL): {
   const refresh = useCallback(() => {
     void readStepsToday(goal).then((next) => {
       if (mounted.current) setSteps(next);
+      /* Every good read builds the history behind the week chart and badges.
+         A partial (post-reboot) figure is still recorded — the store keeps the
+         day's max, so it can only ever add. */
+      if (next.status === 'ready') useStepsStore.getState().record(next.steps);
       /* Start background counting once reading works — which means the
          permission is granted and the sensor exists. Started here, from the
          foreground, because Android 12+ refuses to start a foreground service

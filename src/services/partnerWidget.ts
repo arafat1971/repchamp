@@ -16,6 +16,7 @@ import { NativeModules, Platform } from 'react-native';
 
 import type { DashboardSnapshot } from '@/domain/dashboardSnapshot';
 import type { WaterWidgetSnapshot } from '@/domain/waterWidget';
+import type { StepsWidgetSnapshot } from '@/domain/stepsWidget';
 import type { RepsWidgetSnapshot, WidgetId, WidgetSnapshot } from '@/domain/widgetSnapshot';
 
 /**
@@ -30,7 +31,12 @@ import type { RepsWidgetSnapshot, WidgetId, WidgetSnapshot } from '@/domain/widg
  * Adding a widget means adding its type here, which is the intended friction:
  * the flat-primitives rule is enforced by each payload's own test.
  */
-export type WidgetPayload = WidgetSnapshot | DashboardSnapshot | WaterWidgetSnapshot | RepsWidgetSnapshot;
+export type WidgetPayload =
+  | WidgetSnapshot
+  | DashboardSnapshot
+  | WaterWidgetSnapshot
+  | RepsWidgetSnapshot
+  | StepsWidgetSnapshot;
 
 interface PartnerWidgetNative {
   setSnapshot(widget: string, json: string): void;

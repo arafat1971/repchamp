@@ -68,7 +68,7 @@ export interface WidgetSnapshot {
  * agree, because nothing else would catch a rename — a mismatched id resolves
  * to `null` natively and silently publishes nowhere.
  */
-export const WIDGET_IDS = ['partner', 'dashboard', 'water', 'glance', 'reps'] as const;
+export const WIDGET_IDS = ['partner', 'dashboard', 'water', 'glance', 'reps', 'steps'] as const;
 export type WidgetId = (typeof WIDGET_IDS)[number];
 
 /**
@@ -81,7 +81,7 @@ export type WidgetId = (typeof WIDGET_IDS)[number];
  * intended behaviour rather than an oversight — but it means the id contract
  * test must know which ids to expect in the plugin.
  */
-export const ANDROID_WIDGET_IDS: readonly WidgetId[] = ['partner', 'water', 'glance', 'reps'];
+export const ANDROID_WIDGET_IDS: readonly WidgetId[] = ['partner', 'water', 'glance', 'reps', 'steps'];
 
 /** Storage keys, shared with the native side. Changing one breaks the bridge. */
 export const WIDGET_SNAPSHOT_KEYS: Record<WidgetId, string> = {
@@ -94,6 +94,8 @@ export const WIDGET_SNAPSHOT_KEYS: Record<WidgetId, string> = {
   glance: 'repchamp.widget.water.v1',
   /* My athlete and today's reps — see `services/partnerWidget`. */
   reps: 'repchamp.widget.reps.v1',
+  /* Me and my partner's steps today — see `domain/stepsWidget`. */
+  steps: 'repchamp.widget.steps.v1',
 };
 
 /** The Reps widget's payload: which athlete, and today's reps. */

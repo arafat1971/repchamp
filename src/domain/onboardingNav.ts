@@ -49,6 +49,7 @@ export const FLOW = [
   'set-up-your-space',
   'home-widget',
   'together-preview',
+  'steps-together',
   'reps-widget',
   'ready-to-race',
 ] as const;

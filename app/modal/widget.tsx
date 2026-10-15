@@ -26,6 +26,7 @@ import {
 } from '@/domain/waterWidget';
 import { lightImpactHaptic, selectionHaptic } from '@/lib/feedback';
 import { isWidgetSupported, placedWidgetCount, requestPinWidget } from '@/services/partnerWidget';
+import { StepsWidgetPreview } from '@/components/widget/StepsWidgetPreview';
 import { AthletePreview } from '@/components/widget/AthletePreview';
 import { useProfileStore } from '@/state/profileStore';
 import { usePartnerTodaySnapshot, usePartnerWeekSnapshot } from '@/state/usePartnerTodaySnapshot';
@@ -277,6 +278,23 @@ export default function WidgetStudioScreen() {
       {supported ? (
         <>
           <SectionLabel>ALSO FOR YOUR HOME SCREEN</SectionLabel>
+          <Card style={styles.card}>
+            <View style={{ alignItems: 'center', marginBottom: 12 }}>
+              <StepsWidgetPreview width={290} />
+            </View>
+            <Text style={styles.cardTitle}>Steps together · 4×2</Text>
+            <Text style={[text.caption, styles.cardBody]}>
+              Your steps and your partner’s on two bars, who leads, and what’s left as a team. Their bar moves even with the app closed.
+            </Text>
+            <PressableScale
+              onPress={() => void requestPinWidget('steps').then((ok) => setPinFailed(!ok))}
+              accessibilityRole="button"
+              accessibilityLabel="Add the steps widget"
+              style={styles.glanceAdd}
+            >
+              <Text style={styles.inlineAddText}>＋ Add to home screen</Text>
+            </PressableScale>
+          </Card>
           <Card style={[styles.card, styles.glanceCard]}>
             <View style={styles.glanceStage}>
               <Backdrop

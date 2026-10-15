@@ -32,6 +32,7 @@ const path = require('path');
 
 const water = require('./waterWidgetTemplates');
 const reps = require('./repsWidgetTemplates');
+const stepsW = require('./stepsWidgetTemplates');
 
 /**
  * Every widget this plugin installs.
@@ -85,6 +86,15 @@ const WIDGETS = [
     layout: 'reps_widget',
     info: 'reps_widget_info',
     label: 'reps_widget_label',
+  },
+  {
+    /* Me and my partner on two bars to today's step goal; a tap opens Steps. */
+    id: 'steps',
+    className: 'StepsWidgetProvider',
+    prefsKey: 'repchamp.widget.steps.v1',
+    layout: 'steps_widget',
+    info: 'steps_widget_info',
+    label: 'steps_widget_label',
   },
 ];
 
@@ -746,6 +756,9 @@ const withWidgetSources = (config) =>
       for (const [file, contents] of Object.entries(repsRes.files)) {
         write(path.join(res, file), contents);
       }
+      for (const [file, contents] of Object.entries(stepsW.stepsResources())) {
+        write(path.join(res, file), contents);
+      }
       /* Realistic renders, when provided — see assets/athlete/README.md. */
       for (const file of fs.existsSync(path.join(res, 'drawable-nodpi')) ? fs.readdirSync(path.join(res, 'drawable-nodpi')) : []) {
         if (file.startsWith('rw_')) fs.rmSync(path.join(res, 'drawable-nodpi', file), { force: true });
@@ -767,7 +780,7 @@ const withWidgetSources = (config) =>
       let xml = fs.existsSync(stringsPath)
         ? fs.readFileSync(stringsPath, 'utf8')
         : '<resources></resources>';
-      for (const [name, value] of Object.entries({ ...STRINGS, ...water.WATER_STRINGS, ...reps.REPS_STRINGS })) {
+      for (const [name, value] of Object.entries({ ...STRINGS, ...water.WATER_STRINGS, ...reps.REPS_STRINGS, ...stepsW.STEPS_STRINGS })) {
         const escaped = value.replace(/&/g, '&amp;').replace(/'/g, "\\'");
         const line = `<string name="${name}">${escaped}</string>`;
         const existing = new RegExp(`<string name="${name}">[^<]*</string>`);
@@ -798,6 +811,9 @@ WIDGETS[2].infoXml = water.GLANCE_INFO_XML;
 WIDGETS[3].provider = reps.PROVIDER_KT;
 WIDGETS[3].layoutXml = reps.LAYOUT_XML;
 WIDGETS[3].infoXml = reps.INFO_XML;
+WIDGETS[4].provider = stepsW.PROVIDER_KT;
+WIDGETS[4].layoutXml = stepsW.LAYOUT_XML;
+WIDGETS[4].infoXml = stepsW.INFO_XML;
 
 /** Registers the provider so the launcher offers it in the widget picker. */
 const withWidgetManifest = (config) =>

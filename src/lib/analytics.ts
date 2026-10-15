@@ -55,7 +55,10 @@ export interface AnalyticsEvents {
   feed_card_viewed: { card: string; position: number };
   feed_cta: { card: string };
   invite_card_shown: Record<string, never>;
-  invite_card_tapped: { source: 'card' | 'rail' | 'hydration' };
+  invite_card_tapped: { source: 'card' | 'rail' | 'hydration' | 'steps' | 'onboarding-steps' };
+  steps_walk_started: Record<string, never>;
+  steps_walk_finished: { steps: number; minutes: number };
+  steps_goal_changed: { goal: number; source: 'screen' | 'onboarding' };
   invite_card_dismissed: Record<string, never>;
 
   couple_invite_created: Record<string, never>;

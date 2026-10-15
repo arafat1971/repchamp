@@ -34,8 +34,11 @@ export function StepsCard({
   me,
   partner,
   onCheer,
+  onOpen,
 }: {
   steps: StepsState;
+  /** Opens the full Steps screen. */
+  onOpen?: () => void;
   onFixSteps?: () => void;
   me?: { name: string; avatar?: string | null };
   /** Throw a live 🔥 at the partner; false when throttled. */
@@ -94,7 +97,7 @@ export function StepsCard({
   /* Paired: steps together — both rings face to face, live. */
   if (partner) {
     return (
-      <HealthCard icon={<StepsIcon size={16} color={IOS.steps} />} title="Steps together" tint={IOS.steps} trailing={read ? `Goal ${formatSteps(read.goal)}` : undefined}>
+      <HealthCard icon={<StepsIcon size={16} color={IOS.steps} />} title="Steps together" tint={IOS.steps} trailing={read ? `Goal ${formatSteps(read.goal)}` : undefined} onPress={onOpen} accessibilityLabel="Open steps">
         <StepsTogether
           mine={read ? read.steps : null}
           myGoal={read?.goal ?? DEFAULT_STEP_GOAL}
@@ -123,7 +126,7 @@ export function StepsCard({
   }
 
   return (
-    <HealthCard icon={<StepsIcon size={16} color={IOS.steps} />} title="Steps" tint={IOS.steps} trailing={read ? `Goal ${formatSteps(read.goal)}` : undefined}>
+    <HealthCard icon={<StepsIcon size={16} color={IOS.steps} />} title="Steps" tint={IOS.steps} trailing={read ? `Goal ${formatSteps(read.goal)}` : undefined} onPress={onOpen} accessibilityLabel="Open steps">
       {read ? (
         <>
           <View style={styles.metricRow}>

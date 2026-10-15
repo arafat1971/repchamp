@@ -2701,6 +2701,8 @@ class RepChampMessagingService : ExpoFirebaseMessagingService() {
                     }
                     prefs.apply()
                     WaterWidgetProvider.refresh(this)
+                    /* The same push carries their steps: move the Steps widget too. */
+                    if (widget != null) StepsWidgetProvider.partnerPush(this, widget)
                     return
                 }
             } catch (e: Exception) {

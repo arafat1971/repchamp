@@ -114,6 +114,7 @@ import { selectionHaptic, successHaptic } from '@/lib/feedback';
 import { HomeWidgetStep } from '@/components/onboarding/HomeWidgetStep';
 import { RepsWidgetStep } from '@/components/onboarding/RepsWidgetStep';
 import { TogetherStep } from '@/components/onboarding/TogetherStep';
+import { StepsTogetherStep } from '@/components/onboarding/StepsTogetherStep';
 import { checkHandleAtSignIn, mayPassUncheckedHandle } from '@/domain/signInHandle';
 import { fetchOffering, isPurchasesConfigured, purchase, sortPackagesForPaywall } from '@/services/purchases';
 import { checkUsername, fetchProfile } from '@/services/userService';
@@ -787,6 +788,8 @@ export default function OnboardingScreen() {
         {/* The partner features are the reason to stay, so the offer follows a
             moment of feeling them rather than a description of them. */}
         {id === 'together-preview' ? <TogetherStep onNext={next} /> : null}
+        {/* Steps, side by side: a live two-ring race, a goal, the permission. */}
+        {id === 'steps-together' ? <StepsTogetherStep onNext={next} /> : null}
         {/* The Reps widget closes the home-screen setup, just before the offer.
             Skips itself where unsupported. */}
         {id === 'reps-widget' ? <RepsWidgetStep onNext={next} /> : null}

@@ -35,6 +35,7 @@ import {
   uploadAvatar,
 } from '@/services/userService';
 import { useHydrationStore } from '@/state/hydrationStore';
+import { useStepsStore } from '@/state/stepsStore';
 import { useProfileStore, selectWeeklyXp, selectLevel, selectLeague } from '@/state/profileStore';
 import { useSettingsStore } from '@/state/settingsStore';
 import type { SessionSummary } from '@/state/profileStore';
@@ -101,6 +102,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         // Water is per-athlete too: one person's intake must not follow the
         // device onto someone else's account.
         useHydrationStore.getState().reset();
+        useStepsStore.getState().reset();
       }
 
       set({ user, status: 'syncing', lastUid: user.uid });

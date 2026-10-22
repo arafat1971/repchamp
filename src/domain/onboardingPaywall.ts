@@ -10,7 +10,7 @@
  * timers, no invented "was" price, no testimonials that did not happen.
  */
 
-import { firstWeekTarget, goalPlan, type Blocker, type FitnessLevel } from '@/domain/onboardingPlan';
+import { firstWeekTarget, type Blocker, type FitnessLevel } from '@/domain/onboardingPlan';
 
 export type PlanKey = 'year' | 'month' | 'week';
 
@@ -93,12 +93,12 @@ const LEAD: Record<Blocker, Benefit> = {
  * Three benefits, led by the answer to what they said stops them. The other
  * two are the core: unlimited AI counting, and the full library.
  */
-export function benefitsFor(blocker: Blocker | null, goal: string | null): Benefit[] {
+export function benefitsFor(blocker: Blocker | null): Benefit[] {
   const lead = blocker ? LEAD[blocker] : null;
   const counting: Benefit = {
     icon: '🤖',
     title: 'Unlimited AI rep counting',
-    body: `Every rep counted and banked — ${goalPlan(goal).focus.toLowerCase()}.`,
+    body: 'Every rep counted and banked — no limits, no counting in your head.',
   };
   const library: Benefit = {
     icon: '🔓',

@@ -239,7 +239,7 @@ export function HardPaywall({
   }, [busy, current, offerUsed, available, leave]);
 
   const climb = useMemo(() => sixWeekClimb(weeklyGoal, level), [weeklyGoal, level]);
-  const benefits = useMemo(() => benefitsFor(blocker, goal), [blocker, goal]);
+  const benefits = useMemo(() => benefitsFor(blocker), [blocker]);
   const handle = username.trim();
   const trial = selected && hasFreeTrial(selected) ? trialPeriodLabel(selected) : null;
   const cta = trial ? `Start my ${trial} free` : 'Unlock my plan';

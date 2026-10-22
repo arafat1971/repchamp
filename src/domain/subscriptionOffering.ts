@@ -40,6 +40,16 @@ export function toPlanPrice(pkg: PurchasesPackage): PlanPrice {
   return {
     price: pkg.product.price || 0,
     weeks: weeks[pkg.packageType] ?? 0,
-    symbol: pkg.product.priceString.replace(/[\d.,\s]/g, '') || '',
+    symbol: currencySymbol(pkg.product.priceString),
   };
+}
+
+/**
+ * The currency marker off a localised price, ready to prefix a number:
+ * "$4.99" → "$", "BDT 700.00" → "BDT " — a letter code keeps its space, as
+ * the store's own string does, so "BDT136.54" never appears beside "BDT 700.00".
+ */
+export function currencySymbol(priceString: string): string {
+  const sym = priceString.replace(/[\d.,\s]/g, '');
+  return /[A-Za-z]$/.test(sym) ? `${sym} ` : sym;
 }

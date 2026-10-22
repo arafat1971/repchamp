@@ -50,12 +50,12 @@ describe('exitOffer', () => {
 
 describe('benefitsFor', () => {
   it('leads with the answer to their blocker', () => {
-    expect(benefitsFor('form', 'strength')[0]?.title).toBe('Form checked on every rep');
-    expect(benefitsFor('time', null)[0]?.title).toBe('Two minutes, no gear');
+    expect(benefitsFor('form')[0]?.title).toBe('Form checked on every rep');
+    expect(benefitsFor('time')[0]?.title).toBe('Two minutes, no gear');
   });
   it('always gives three', () => {
-    expect(benefitsFor(null, null)).toHaveLength(3);
-    expect(benefitsFor('motivation', 'compete')).toHaveLength(3);
+    expect(benefitsFor(null)).toHaveLength(3);
+    expect(benefitsFor('motivation')).toHaveLength(3);
   });
 });
 

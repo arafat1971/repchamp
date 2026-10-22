@@ -16,7 +16,6 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import type { PurchasesPackage } from 'react-native-purchases';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import Animated, {
   Easing,
@@ -46,7 +45,6 @@ import { Avatar, Card as BaseCard, PressableScale, Spinner } from '@/components/
 import { captureError } from '@/lib/crash';
 import { pluralise } from '@/domain/plural';
 import { OPPONENTS } from '@/domain/opponent';
-import { FREE_REP_LIMIT } from '@/domain/hardPaywall';
 import { reminderTapIsWalled } from '@/domain/reminderRoute';
 import { preferredHourFor } from '@/domain/reminderSchedule';
 import { track } from '@/lib/analytics';
@@ -114,22 +112,14 @@ import { selectionHaptic, successHaptic } from '@/lib/feedback';
 import { HomeWidgetStep } from '@/components/onboarding/HomeWidgetStep';
 import { RepsWidgetStep } from '@/components/onboarding/RepsWidgetStep';
 import { TogetherStep } from '@/components/onboarding/TogetherStep';
+import { HardPaywall } from '@/components/onboarding/HardPaywall';
+import type { PlanKey } from '@/domain/onboardingPaywall';
 import { StepsTogetherStep } from '@/components/onboarding/StepsTogetherStep';
 import { checkHandleAtSignIn, mayPassUncheckedHandle } from '@/domain/signInHandle';
-import { fetchOffering, isPurchasesConfigured, purchase, sortPackagesForPaywall } from '@/services/purchases';
+import { isPurchasesConfigured } from '@/services/purchases';
 import { checkUsername, fetchProfile } from '@/services/userService';
-import {
-  hasFreeTrial,
-  planTitle,
-  renewDisclosure,
-  subscribeCtaLabel,
-  trialLengthDays,
-  trialPeriodLabel,
-  trialRibbon,
-} from '@/domain/subscriptionCopy';
 import { useAuthStore } from '@/state/authStore';
 import { useProStore } from '@/state/proStore';
-import { showDialog } from '@/state/useDialog';
 import {
   blockerAnswer,
   firstWeekPlan,
@@ -244,7 +234,7 @@ export default function OnboardingScreen() {
   const [blocker, setBlocker] = useState<Blocker | null>((draft?.blocker as Blocker | null) ?? null);
   const [weeklyGoal, setWeeklyGoal] = useState(draft?.weeklyGoal ?? 4);
   const [buildPercent, setBuildPercent] = useState(0);
-  const [plan, setPlan] = useState<'year' | 'month'>(draft?.plan ?? 'year');
+  const [plan, setPlan] = useState<PlanKey>(draft?.plan ?? 'year');
   /* The new questions. Each answer is kept, shown back to the athlete later,
      and — for the last two — decides which screens they see at all. */
   const [feel, setFeel] = useState<string | null>(draft?.feel ?? null);
@@ -466,7 +456,8 @@ export default function OnboardingScreen() {
   const id = stepIdAt(step);
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
+    /* The paywall is full-bleed and handles its own insets. */
+    <View style={[styles.root, { paddingTop: id === 'paywall' ? 0 : insets.top }]}>
       <LinearGradient
         pointerEvents="none"
         colors={['rgba(34,197,94,0.07)', 'rgba(34,197,94,0.02)', 'rgba(246,247,245,0)']}
@@ -768,7 +759,19 @@ export default function OnboardingScreen() {
             onNext={next}
           />
         ) : null}
-        {id === 'paywall' ? <Paywall plan={plan} goal={goal} onSelect={setPlan} onNext={next} /> : null}
+        {id === 'paywall' ? (
+          <HardPaywall
+            username={username}
+            avatarUri={avatarUri}
+            goal={goal}
+            weeklyGoal={weeklyGoal}
+            level={level}
+            blocker={blocker}
+            plan={plan}
+            onSelect={setPlan}
+            onNext={next}
+          />
+        ) : null}
         {/* The last two land right before the first set, which is where the
             advice actually gets used — a framing tip read fifteen screens
             earlier would be forgotten by the time the camera opens. */}
@@ -2753,301 +2756,6 @@ function Building({ percent }: { percent: number }) {
         </Animated.View>
       ) : null}
     </View>
-  );
-}
-
-function Paywall({
-  plan,
-  goal,
-  onSelect,
-  onNext,
-}: {
-  plan: 'year' | 'month';
-  goal: string | null;
-  onSelect: (p: 'year' | 'month') => void;
-  onNext: () => void;
-}) {
-  const [packages, setPackages] = useState<PurchasesPackage[] | null>(null);
-  const billingReady = isPurchasesConfigured();
-
-  useEffect(() => {
-    if (!billingReady) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPackages([]);
-      return;
-    }
-    let cancelled = false;
-    fetchOffering()
-      .then((offering) => {
-        if (cancelled) return;
-        setPackages(sortPackagesForPaywall(offering?.availablePackages ?? []));
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          captureError(error);
-          setPackages([]);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [billingReady]);
-
-  const annual = packages?.find((p) => p.packageType === 'ANNUAL') ?? null;
-  const monthly = packages?.find((p) => p.packageType === 'MONTHLY') ?? null;
-  const selected = plan === 'year' ? annual : monthly;
-
-  /* This button used to be `onPress={onNext}`.
-   *
-   * It said "Start free trial", showed a trial timeline and "No Payment Due
-   * Now", and then simply advanced the screen — no purchase was ever attempted,
-   * because the only `react-native-purchases` reference in this file was a type
-   * import. Everyone who tapped it continued for free believing they had
-   * started a trial, which is both why nothing ever converted here and a
-   * promise the app was not keeping.
-   *
-   * Now it buys. Declining or failing still continues into the app: the free
-   * staples are the product's floor, and trapping someone on a paywall they
-   * cannot complete would be worse than the bug it replaces. */
-  const [busy, setBusy] = useState(false);
-  const onBuy = useCallback(async () => {
-    if (busy) return;
-    if (!selected) return onNext();
-
-    setBusy(true);
-    const uid = useAuthStore.getState().user?.uid ?? null;
-    const result = await purchase(selected, uid);
-    setBusy(false);
-
-    // A cancel is a decision, not a failure — leave them on the screen so they
-    // can pick the other plan rather than shunting them onward.
-    if (result.cancelled) {
-      track('paywall_dismissed', { source: 'onboarding' });
-      return;
-    }
-
-    if (result.ok && result.isPro) {
-      useProStore.getState().setPro(true);
-      if (hasFreeTrial(selected)) track('trial_started', { plan: selected.packageType, source: 'onboarding' });
-      track('subscribed', { plan: selected.packageType, source: 'onboarding' });
-      onNext();
-      return;
-    }
-
-    console.warn('[RepChamp] onboarding purchase failed:', result.message);
-    showDialog({
-      title: 'Could not start',
-      message: result.message ?? 'Please try again in a moment.',
-      tone: 'info',
-      actions: [{ label: 'Continue', variant: 'primary', onPress: onNext }],
-    });
-  }, [busy, selected, onNext]);
-
-  const onSkip = useCallback(() => {
-    if (busy) return;
-    track('paywall_dismissed', { source: 'onboarding' });
-    onNext();
-  }, [busy, onNext]);
-
-  const trialDays = selected ? trialLengthDays(selected) : null;
-  const trialLabel = selected ? trialPeriodLabel(selected) : null;
-  const reminderDay =
-    trialDays != null && trialDays > 1 ? Math.max(1, trialDays - 1) : null;
-
-  const timeline = [
-    {
-      icon: '🔓',
-      color: palette.green600,
-      title: 'Today',
-      body: 'Unlock the full exercise library, programmes, and form reports.',
-    },
-    ...(reminderDay != null
-      ? [
-          {
-            icon: '🔔',
-            color: palette.green500,
-            title: `In ${reminderDay} day${reminderDay === 1 ? '' : 's'} — Reminder`,
-            body: "We'll remind you before your trial ends if you've allowed notifications.",
-          },
-        ]
-      : []),
-    {
-      icon: '👑',
-      color: palette.amber500,
-      title:
-        trialDays != null
-          ? `In ${trialDays} day${trialDays === 1 ? '' : 's'} — Billing starts`
-          : 'Billing',
-      body:
-        trialDays != null
-          ? 'You can cancel any time before then.'
-          : 'Cancel anytime in Google Play or App Store settings.',
-    },
-  ];
-
-  const eyebrow = selected ? trialRibbon(selected) : null;
-  const headline =
-    trialLabel != null
-      ? `${trialLabel.charAt(0).toUpperCase()}${trialLabel.slice(1)} free,\nbecause week one is the hard part`
-      : 'Go Pro when you’re ready';
-
-  return (
-    <View style={styles.step}>
-    <ScrollView
-      style={{ flex: 1 }}
-      contentContainerStyle={[styles.stepPadded, { paddingBottom: 8 }]}
-      showsVerticalScrollIndicator={false}
-    >
-      <Animated.View entering={FadeInUp.duration(420)} style={{ alignItems: 'center' }}>
-        <Floating distance={7}>
-          <Image source={TROPHY_GOLD} style={styles.paywallTrophy} contentFit="contain" />
-        </Floating>
-        {eyebrow ? (
-          <Eyebrow label={eyebrow} tint={palette.amber500} />
-        ) : null}
-        <Text style={[text.h1, { fontSize: 27, textAlign: 'center' }]}>{headline}</Text>
-        <Text style={[text.body, styles.centeredCopy]}>
-          {goal ? `Your plan — ${goalPlan(goal).title.toLowerCase()} — with every Pro exercise and programme unlocked. Cancel anytime.` : 'Every Pro exercise and programme, unlocked. Cancel anytime.'}
-        </Text>
-      </Animated.View>
-
-      <View style={{ marginTop: 24, gap: 4 }}>
-        {timeline.map((t, i) => (
-          <StaggerIn key={t.title} index={i} step={110} style={styles.timelineRow}>
-            <View style={{ alignItems: 'center' }}>
-              <View style={[styles.timelineDot, { backgroundColor: t.color }]}>
-                <Text style={{ fontSize: 18 }}>{t.icon}</Text>
-              </View>
-              {i < timeline.length - 1 ? (
-                <View
-                  style={[
-                    styles.timelineLine,
-                    { backgroundColor: i === 0 ? palette.green600 : palette.border },
-                  ]}
-                />
-              ) : null}
-            </View>
-            <View style={{ flex: 1, paddingBottom: 12 }}>
-              <Text style={font('extrabold', 16, { color: palette.ink })}>{t.title}</Text>
-              <Text style={text.captionMd}>{t.body}</Text>
-            </View>
-          </StaggerIn>
-        ))}
-      </View>
-
-      {packages === null ? (
-        <Spinner color={palette.green500} style={{ marginVertical: 20 }} />
-      ) : !billingReady || (!annual && !monthly) ? (
-        <Text style={[text.captionMd, { textAlign: 'center', marginTop: 16 }]}>
-          You can keep training free — Pro unlocks later from Profile when billing is connected.
-        </Text>
-      ) : (
-        <>
-          {annual ? (
-            <PlanOption
-              selected={plan === 'year'}
-              onPress={() => onSelect('year')}
-              title={planTitle(annual)}
-              subtitle="billed annually"
-              price={annual.product.priceString}
-              ribbon={trialRibbon(annual) ?? undefined}
-            />
-          ) : null}
-          {monthly ? (
-            <PlanOption
-              selected={plan === 'month'}
-              onPress={() => onSelect('month')}
-              title={planTitle(monthly)}
-              subtitle="billed monthly"
-              price={monthly.product.priceString}
-              ribbon={trialRibbon(monthly) ?? undefined}
-            />
-          ) : null}
-        </>
-      )}
-
-      {selected && hasFreeTrial(selected) ? (
-        <Text style={styles.noPayment}>✓ No Payment Due Now</Text>
-      ) : null}
-      <PrimaryButton
-        label={busy ? 'Starting…' : selected ? subscribeCtaLabel(selected) : 'Continue'}
-        onPress={onBuy}
-        disabled={busy}
-      />
-      <Text style={[text.captionMd, { textAlign: 'center', marginTop: 12 }]}>
-        {selected
-          ? renewDisclosure(selected)
-          : FREE_REP_LIMIT > 0
-            ? `Start free with ${FREE_REP_LIMIT} reps. Couple mode is always free.`
-            : 'Couple mode is always free.'}
-      </Text>
-    </ScrollView>
-
-    {/* The way out, pinned outside the ScrollView on purpose.
-     *
-     * Without it this step is a dead end whenever a plan resolves: `onBuy` only
-     * falls through to `onNext()` when there is nothing to sell, so cancelling
-     * the billing sheet returned here with no exit — which is what Google Play
-     * review flagged as a paywalled app.
-     *
-     * It has to stay out of the scroll region. Below the trophy, timeline and
-     * plan cards there is no room left on a short screen, and a reviewer who
-     * does not think to scroll sees the same wall the rejection was about. */}
-    <View style={styles.paywallSkipBar}>
-      <Pressable
-        onPress={onSkip}
-        accessibilityRole="button"
-        accessibilityLabel="Maybe later"
-        style={styles.paywallSkip}
-      >
-        <Text style={font('extrabold', 14, { color: palette.grey600 })}>Maybe later</Text>
-      </Pressable>
-    </View>
-    </View>
-  );
-}
-
-function PlanOption({
-  selected,
-  onPress,
-  title,
-  subtitle,
-  price,
-  ribbon,
-}: {
-  selected: boolean;
-  onPress: () => void;
-  title: string;
-  subtitle: string;
-  price: string;
-  ribbon?: string;
-}) {
-  return (
-    <PressableScale
-      onPress={onPress}
-      accessibilityRole="radio"
-      accessibilityState={{ selected }}
-      accessibilityLabel={`${title}, ${price}`}
-      style={[
-        styles.planOption,
-        { borderColor: selected ? palette.green500 : palette.border },
-        ribbon ? { marginTop: 20 } : { marginTop: 12 },
-      ]}
-    >
-      {ribbon ? (
-        <View style={styles.ribbon}>
-          <Text style={font('extrabold', 10, { color: palette.white })}>{ribbon}</Text>
-        </View>
-      ) : null}
-      <View style={[styles.radio, selected && { borderColor: palette.green600, backgroundColor: palette.green600 }]}>
-        {selected ? <Text style={{ color: palette.white, fontSize: 13 }}>✓</Text> : null}
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={font('extrabold', 16, { color: palette.ink })}>{title}</Text>
-        <Text style={text.caption}>{subtitle}</Text>
-      </View>
-      <Text style={font('extrabold', 16, { color: palette.ink })}>{price}</Text>
-    </PressableScale>
   );
 }
 

@@ -930,51 +930,14 @@ export default function HomeScreen() {
         <ArrowIcon size={15} color={palette.grey500} strokeWidth={2.2} />
       </PressableScale>
 
-      {/* The action people open the app for, straight under the hero rather
-          than below every scoreboard. */}
-      <HomeSectionHeader
-        title="Quick start"
-        right={
-          <PressableScale
-            onPress={() => router.push('/(tabs)/train')}
-            accessibilityRole="button"
-            accessibilityLabel="View all exercises"
-          >
-            <Text style={homeSectionLink}>View all ›</Text>
-          </PressableScale>
-        }
-      />
-      <StaggerIn index={1} style={styles.quickGrid}>
-        <QuickTile
-          label="Push-Ups"
-          locked={soloWalled}
-          image={IC_PUSHUP}
-          accent={palette.green600}
-          stats={pushStats}
-          onPress={() => startSolo('push')}
-        />
-        <QuickTile
-          label="Squats"
-          locked={soloWalled}
-          image={IC_SQUAT}
-          accent={palette.purple600}
-          stats={squatStats}
-          onPress={() => startSolo('squat')}
-        />
-      </StaggerIn>
-
-      {/* Faces to race, one tap from Home rather than a tab away. */}
-      <StaggerIn index={2}>
-        <ActiveNowRail live={`${activity.count} ${activity.label.split(' ').pop()}`} showPairCard={!couple.paired && !couple.loading && !inviteCardShown && focus.kind !== 'invite-partner'}
-          soloWalled={soloWalled} />
-      </StaggerIn>
-
+      {/* Right under Today: the partner is the strongest reason to open the
+          app, so the duo comes before the solo tiles. */}
       {/* The couple as one face-off — replaces the bond strip and the partner
           card, which told the same story twice. */}
       {/* The day's vitals as one set of Health-style cards under a single
           heading: the duo, water, steps. */}
       {couple.paired && couple.partner ? (
-        <StaggerIn index={3} style={styles.summaryGap}>
+        <StaggerIn index={2} style={styles.summaryGap}>
           <HomeSectionHeader title="Together" />
           <DuoCard
             me={couple.me}
@@ -1005,7 +968,7 @@ export default function HomeScreen() {
           />
         </StaggerIn>
       ) : inviteCardShown ? (
-        <StaggerIn index={3} style={styles.summaryGap}>
+        <StaggerIn index={2} style={styles.summaryGap}>
           <HomeSectionHeader title="Together" />
           <InvitePartnerCard
             onInvite={() => {
@@ -1017,6 +980,39 @@ export default function HomeScreen() {
           />
         </StaggerIn>
       ) : null}
+
+      {/* The action people open the app for, straight under the hero rather
+          than below every scoreboard. */}
+      <HomeSectionHeader
+        title="Quick start"
+        right={
+          <PressableScale
+            onPress={() => router.push('/(tabs)/train')}
+            accessibilityRole="button"
+            accessibilityLabel="View all exercises"
+          >
+            <Text style={homeSectionLink}>View all ›</Text>
+          </PressableScale>
+        }
+      />
+      <StaggerIn index={3} style={styles.quickGrid}>
+        <QuickTile
+          label="Push-Ups"
+          locked={soloWalled}
+          image={IC_PUSHUP}
+          accent={palette.green600}
+          stats={pushStats}
+          onPress={() => startSolo('push')}
+        />
+        <QuickTile
+          label="Squats"
+          locked={soloWalled}
+          image={IC_SQUAT}
+          accent={palette.purple600}
+          stats={squatStats}
+          onPress={() => startSolo('squat')}
+        />
+      </StaggerIn>
 
       <WinBackCard />
 
@@ -1071,6 +1067,13 @@ export default function HomeScreen() {
               : null
           }
         />
+      </StaggerIn>
+
+      {/* Faces to race. Last on Home: an occasional pick, below the things
+          done every day. */}
+      <StaggerIn index={5}>
+        <ActiveNowRail live={`${activity.count} ${activity.label.split(' ').pop()}`} showPairCard={!couple.paired && !couple.loading && !inviteCardShown && focus.kind !== 'invite-partner'}
+          soloWalled={soloWalled} />
       </StaggerIn>
 
       </Screen>

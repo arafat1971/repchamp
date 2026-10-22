@@ -255,6 +255,9 @@ export default function ProfileScreen() {
   const totalReps = selectTotalReps(profile);
   const duelsWon = selectDuelsWon(profile);
   const winRate = selectWinRate(profile);
+  /* No decided duel yet means no rate, not a 0% one: a zero reads as having
+     lost every race when there has not been one. */
+  const hasDecidedDuel = profile.sessions.some((s) => s.mode === 'versus' && !s.drew);
   const bestStreak = selectBestStreak(profile);
 
   const achievements = evaluateAchievements({
@@ -408,7 +411,7 @@ export default function ProfileScreen() {
             <View style={styles.statDivider} />
             <ProfileStat icon="duels" value={duelsWon} label="Duels won" />
             <View style={styles.statDivider} />
-            <ProfileStat icon="rate" value={`${winRate}%`} label="Win rate" />
+            <ProfileStat icon="rate" value={hasDecidedDuel ? `${winRate}%` : '—'} label="Win rate" />
             <View style={styles.statDivider} />
             <ProfileStat icon="streak" value={bestStreak} label="Best streak" />
           </View>

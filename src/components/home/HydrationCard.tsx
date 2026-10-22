@@ -325,29 +325,34 @@ export function HydrationCard({
       >
         {guide ? (
           <Animated.View entering={FadeIn.duration(180)} exiting={FadeOut.duration(140)} style={styles.guide}>
-            <Text style={styles.guideTitle}>How it works</Text>
+            {/* Title and "Got it" share a row, and each tip is one line of
+                text — the guide used to stand taller than the card it explains. */}
+            <View style={styles.guideHead}>
+              <Text style={styles.guideTitle}>How it works</Text>
+              <Pressable
+                onPress={() => {
+                  selectionHaptic();
+                  closeGuide();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Got it — close the guide"
+                hitSlop={8}
+                style={({ pressed }) => [styles.guideDone, pressed && { opacity: 0.8 }]}
+              >
+                <Text style={styles.guideDoneText}>Got it</Text>
+              </Pressable>
+            </View>
             {guideSteps.map((step, i) => (
               <View key={step.title} style={styles.guideRow}>
                 <View style={styles.guideNum}>
                   <Text style={styles.guideNumText}>{i + 1}</Text>
                 </View>
-                <View style={{ flex: 1 }}>
+                <Text style={styles.guideBody}>
                   <Text style={styles.guideStep}>{step.title}</Text>
-                  <Text style={styles.guideBody}>{step.body}</Text>
-                </View>
+                  {`  ${step.body}`}
+                </Text>
               </View>
             ))}
-            <Pressable
-              onPress={() => {
-                selectionHaptic();
-                closeGuide();
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Got it — close the guide"
-              style={({ pressed }) => [styles.guideDone, pressed && { opacity: 0.8 }]}
-            >
-              <Text style={styles.guideDoneText}>Got it</Text>
-            </Pressable>
           </Animated.View>
         ) : null}
         {partner ? (
@@ -904,7 +909,8 @@ const styles = StyleSheet.create({
   },
   infoOn: { backgroundColor: IOS.water },
   infoGlyph: { ...font('extrabold', 13, { color: IOS.water }), lineHeight: 16 },
-  guide: { marginTop: 12, padding: 14, borderRadius: 18, backgroundColor: 'rgba(50,173,230,0.09)', gap: 10 },
+  guide: { marginTop: 12, padding: 12, borderRadius: 18, backgroundColor: 'rgba(50,173,230,0.09)', gap: 8 },
+  guideHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   guideTitle: font('extrabold', 14, { color: IOS.label }),
   guideRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   guideNum: {
@@ -917,19 +923,17 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   guideNumText: { ...font('extrabold', 12, { color: '#ffffff' }), lineHeight: 15 },
-  guideStep: font('bold', 13.5, { color: IOS.label }),
-  guideBody: { ...font('medium', 12.5, { color: IOS.secondary }), lineHeight: 17, marginTop: 1 },
+  guideStep: font('bold', 12.5, { color: IOS.label }),
+  guideBody: { ...font('medium', 12.5, { color: IOS.secondary }), lineHeight: 18, flex: 1 },
   guideDone: {
-    alignSelf: 'flex-start',
-    height: 36,
-    paddingHorizontal: 18,
-    borderRadius: 18,
+    height: 30,
+    paddingHorizontal: 14,
+    borderRadius: 15,
     backgroundColor: IOS.water,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 2,
   },
-  guideDoneText: font('bold', 13.5, { color: '#ffffff' }),
+  guideDoneText: font('bold', 13, { color: '#ffffff' }),
   metricRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, marginBottom: 10 },
   news: font('semibold', 12, { color: IOS.secondary, marginTop: -2 }),
   partner: {

@@ -815,14 +815,23 @@ export default function HomeScreen() {
         </PressableScale>
 
         <View style={{ flex: 1 }}>
-          {/* The strip below carries the date, so the eyebrow is the greeting
-              and the name gets the full line. */}
-          <Text style={styles.dateEyebrow} numberOfLines={1} {...scaleForRole('control')}>
-            {greetingCopy.timeOfDay}
-          </Text>
+          {/* Greeting and name on one line; under it, where the day stands —
+              the coach line `selectHomeGreeting` writes (streak on the line,
+              trained already, nothing logged yet). */}
           <Text style={styles.greetingName} numberOfLines={1} {...scaleForRole('heading')}>
-            {firstName}
+            {greetingCopy.timeOfDay}, {firstName}
           </Text>
+          <View style={styles.hookRow}>
+            <View
+              style={[
+                styles.hookDot,
+                { backgroundColor: trainedToday ? palette.green500 : streak > 0 ? palette.amber500 : palette.grey500 },
+              ]}
+            />
+            <Text style={styles.hook} numberOfLines={1} {...scaleForRole('control')}>
+              {greetingCopy.hook}
+            </Text>
+          </View>
         </View>
 
         <View style={styles.headerActions}>
@@ -910,11 +919,11 @@ export default function HomeScreen() {
         style={styles.feedEntry}
       >
         <View style={styles.feedIcon}>
-          <PlayIcon size={18} color={palette.green700} />
+          <PlayIcon size={15} color={palette.white} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={font('bold', 16, { color: palette.ink })}>Your day</Text>
-          <Text style={font('medium', 12.5, { color: palette.grey700, marginTop: 2 })} numberOfLines={1}>
+          <Text style={font('bold', 15, { color: palette.ink })}>Your day, in stories</Text>
+          <Text style={font('medium', 12, { color: palette.grey700, marginTop: 1 })} numberOfLines={1}>
             Swipe through today, card by card
           </Text>
         </View>
@@ -1291,30 +1300,36 @@ const styles = StyleSheet.create({
     marginTop: 8,
     gap: 12,
   },
-  dateEyebrow: { ...font('semibold', 13, { color: palette.grey700 }) },
   greetingName: {
-    ...font('extrabold', 22, { color: palette.ink }),
-    letterSpacing: -0.6,
+    ...font('extrabold', 20, { color: palette.ink }),
+    letterSpacing: -0.5,
   },
+  hookRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  hookDot: { width: 7, height: 7, borderRadius: 4 },
+  hook: { ...font('semibold', 12.5, { color: palette.grey700 }), flexShrink: 1 },
   feedEntry: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 12,
     marginTop: 12,
-    minHeight: 88,
-    paddingHorizontal: 18,
-    paddingVertical: 20,
+    minHeight: 64,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     borderRadius: radius['4xl'],
     backgroundColor: palette.white,
     borderWidth: 1,
     borderColor: 'rgba(15,31,23,0.06)',
     ...surfaceShadow,
   },
+  /* A story ring: the brand green inside a pale halo, so the row reads as
+     "tap to play" without a second card's worth of height. */
   feedIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: palette.green50,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: palette.green600,
+    borderWidth: 3,
+    borderColor: palette.green100,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1347,7 +1362,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  afterWeek: { height: 0 },
+  afterWeek: { height: 14 },
   /**
    * Single-purpose circular control — one icon, one action. The border is
    * deliberately stronger than `palette.border`, which vanished on the canvas.

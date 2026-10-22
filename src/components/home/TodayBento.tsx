@@ -5,9 +5,10 @@ import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withTimi
 
 import { CountUp, PopOnChange } from '@/components/motion';
 import { PressableScale } from '@/components/ui';
-import { FlameIcon } from '@/components/home/Icons';
+import { CheckIcon, FlameIcon } from '@/components/home/Icons';
 import { ProgressRing } from '@/components/home/ProgressRing';
 import type { LeagueProgress } from '@/domain/leagueProgress';
+import { nextToClose } from '@/domain/nextToClose';
 import { isFixableByAthlete, type StepsState } from '@/domain/steps';
 import { font } from '@/theme/typography';
 import { palette, radius, surfaceShadow } from '@/theme/tokens';
@@ -68,6 +69,16 @@ export function TodayBento({
   const closed = [challenge.percent, water.percent, stepPct].filter((p) => p >= 100).length;
   const overall = Math.round((challenge.percent + water.percent + stepPct) / 3);
   const daysToGoal = Math.max(0, goal - daysTrained);
+  /* The nearest open ring as a next step — "2 glasses of water to go" says
+     what to do; an average percentage does not. */
+  const next = nextToClose({
+    challenge: { best: challenge.best, target: challenge.target, label: challenge.label ?? 'Push-Up' },
+    water,
+    steps: stepsReady ? { steps: steps.steps, goal: steps.goal } : null,
+  });
+  const perfect = next?.kind === 'perfect';
+  const nextColor =
+    next?.kind === 'water' ? RINGS.water.ink : next?.kind === 'steps' ? RINGS.steps.ink : RINGS.challenge.ink;
 
   return (
     <View style={styles.grid}>
@@ -75,20 +86,30 @@ export function TodayBento({
       <PressableScale
         onPress={onChallenge}
         accessibilityRole="button"
-        accessibilityLabel={`Today: ${closed} of 3 goals closed`}
+        accessibilityLabel={`Today: ${closed} of 3 goals closed${next ? `. ${next.text}` : ''}`}
         style={[styles.tile, styles.ringsTile, styles.left]}
       >
         <>
           <View style={styles.tileHead}>
             <Text style={styles.tileLabel}>Today</Text>
-            <Text style={styles.tileMeta}>{closed}/3</Text>
+            <Text style={styles.tileMeta}>{overall}%</Text>
           </View>
           <View style={styles.ringStack}>
             <Ring size={OUTER} percent={challenge.percent} tone={RINGS.challenge} />
             <Ring size={OUTER - 2 * (THICK + GAP)} percent={water.percent} tone={RINGS.water} />
             <Ring size={OUTER - 4 * (THICK + GAP)} percent={stepPct} tone={RINGS.steps} />
+            {/* Rings closed, not an average: three is the number to chase. */}
             <View style={styles.ringCenter} pointerEvents="none">
-              <Text style={styles.ringPct}>{overall}%</Text>
+              {perfect ? (
+                <PopOnChange trigger={closed} style={styles.perfectBadge}>
+                  <CheckIcon size={16} color={palette.white} strokeWidth={3} />
+                </PopOnChange>
+              ) : (
+                <Text style={styles.ringPct}>
+                  {closed}
+                  <Text style={styles.ringPctOf}>/3</Text>
+                </Text>
+              )}
             </View>
           </View>
           <View style={styles.legend}>
@@ -109,6 +130,16 @@ export function TodayBento({
               />
             )}
           </View>
+          {next ? (
+            <View style={[styles.nextPill, perfect && styles.nextPillPerfect]}>
+              <Text
+                style={[styles.nextText, { color: perfect ? palette.green700 : nextColor }]}
+                numberOfLines={2}
+              >
+                {perfect ? next.text : `Next: ${next.text}`}
+              </Text>
+            </View>
+          ) : null}
         </>
       </PressableScale>
 
@@ -259,7 +290,25 @@ const styles = StyleSheet.create({
   tileMeta: { ...font('bold', 12, { color: palette.grey700 }), fontVariant: ['tabular-nums'] },
   ringStack: { width: OUTER, height: OUTER, alignSelf: 'center', marginTop: 6 },
   ringCenter: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
-  ringPct: { ...font('extrabold', 13, { color: palette.ink }), fontVariant: ['tabular-nums'] },
+  ringPct: { ...font('extrabold', 15, { color: palette.ink }), fontVariant: ['tabular-nums'] },
+  ringPctOf: font('bold', 11, { color: palette.grey700 }),
+  perfectBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: palette.green600,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nextPill: {
+    marginTop: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 12,
+    backgroundColor: palette.canvas,
+  },
+  nextPillPerfect: { backgroundColor: palette.green50 },
+  nextText: { ...font('bold', 11.5), lineHeight: 15 },
   ringSlot: { alignItems: 'center', justifyContent: 'center' },
   legend: { marginTop: 8, gap: 3 },
   legendRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },

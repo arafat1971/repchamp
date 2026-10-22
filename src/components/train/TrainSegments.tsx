@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 
@@ -27,9 +27,22 @@ export function TrainSegments<T extends string>({
   const segment = width > 0 ? (width - PAD * 2) / options.length : 0;
   const index = Math.max(0, options.findIndex((o) => o.id === value));
 
-  /* Driven from the width + index each render so the thumb is right on first
-     layout and after a rotation, not only after a tap. */
-  x.value = withSpring(index * segment, { damping: 18, stiffness: 220, mass: 0.8 });
+  /* Placed from the width + index whenever either changes, so the thumb is
+     right on first layout and after a rotation, not only after a tap. It used
+     to be written during render, which the React Compiler is free to skip —
+     the thumb then never appeared and the active label (white) vanished on
+     the white track. The first placement snaps; only a change slides. */
+  const placed = useRef(false);
+  const target = index * segment;
+  useEffect(() => {
+    if (segment <= 0) return;
+    if (!placed.current) {
+      placed.current = true;
+      x.value = target;
+      return;
+    }
+    x.value = withSpring(target, { damping: 18, stiffness: 220, mass: 0.8 });
+  }, [target, segment, x]);
   const thumb = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
 
   return (

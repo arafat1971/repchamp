@@ -12,7 +12,7 @@ import { track } from '@/lib/analytics';
 import { useTabView } from '@/lib/useTabView';
 import { captureError } from '@/lib/crash';
 import { leagueProgressFromWeeklyXp } from '@/domain/leagueProgress';
-import { buildLeaderboard, type LeaderboardRow } from '@/domain/leaderboard';
+import { buildLeaderboard, podiumOf, type LeaderboardRow } from '@/domain/leaderboard';
 import { usePhantomSeed } from '@/domain/seedPhantoms';
 import { dailyChallengeFor } from '@/domain/dailyChallenge';
 import { dayKey } from '@/domain/progression';
@@ -119,11 +119,12 @@ export default function ArenaScreen() {
     : baseBoard;
   const leagueProgress = leagueProgressFromWeeklyXp(weeklyXp);
   const you = board.find((row) => row.isYou);
-  const top = board.slice(0, 3);
+  const podium = podiumOf(board);
+  const youOnPodium = podium.some((row) => row?.isYou);
   const myInitial = (profile.username || 'You').charAt(0).toUpperCase();
 
   return (
-    <Screen>
+    <Screen fadeStatusBar>
       <StaggerIn index={0}>
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
@@ -246,8 +247,9 @@ export default function ArenaScreen() {
             </View>
 
             <View style={styles.podium}>
-              {[top[1], top[0], top[2]].map((row, slot) => {
-                if (!row) return <View key={slot} style={{ flex: 1 }} />;
+              {[1, 0, 2].map((place) => {
+                const row = podium[place];
+                if (!row) return <OpenPlace key={`open-${place}`} rank={place + 1} />;
                 const first = row.rank === 1;
                 return (
                   <View key={row.id} style={[styles.podiumCol, first && styles.podiumColFirst]}>
@@ -270,10 +272,11 @@ export default function ArenaScreen() {
               })}
             </View>
 
-            {you && you.rank > 3 ? (
+            {you && !youOnPodium ? (
               <View style={styles.youRow}>
                 <View style={styles.youRankWrap}>
-                  <Text style={styles.youRank}>{you.rank}</Text>
+                  {/* No XP yet means no rank yet: a tie at zero is not a place. */}
+                  <Text style={styles.youRank}>{you.xp > 0 ? you.rank : '–'}</Text>
                 </View>
                 {profile.avatarUri ? (
                   <Image source={{ uri: profile.avatarUri }} style={styles.youAvatar} contentFit="cover" />
@@ -328,6 +331,29 @@ export default function ArenaScreen() {
   );
 }
 
+/**
+ * A podium place nobody has earned this week: a dashed seat and a nudge, so a
+ * fresh week reads as an open race rather than a board of zeros.
+ */
+function OpenPlace({ rank }: { rank: number }) {
+  const first = rank === 1;
+  const size = first ? 56 : 46;
+  return (
+    <View style={styles.podiumCol} accessibilityLabel={`Place ${rank} is open`}>
+      <View style={[styles.openSeat, { width: size, height: size, borderRadius: size / 2 }]}>
+        <Text style={styles.openSeatMark}>?</Text>
+      </View>
+      <Text style={[styles.podiumName, { color: palette.grey600 }]} numberOfLines={1}>
+        Open
+      </Text>
+      <Text style={styles.podiumXp}>{first ? 'Take 1st' : 'Up for grabs'}</Text>
+      <View style={[styles.podiumStep, styles.openStep, first && { height: 56 }]}>
+        <Text style={[styles.podiumRank, { color: palette.grey500 }]}>{rank}</Text>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   header: { marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 12 },
   eyebrow: font('semibold', 13, { color: palette.grey600 }),
@@ -373,6 +399,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   podiumStepFirst: { height: 56, backgroundColor: palette.green600 },
+  openSeat: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: palette.green300,
+    backgroundColor: palette.green50,
+  },
+  openSeatMark: font('extrabold', 18, { color: palette.green600 }),
+  openStep: {
+    backgroundColor: palette.white,
+    borderWidth: 1.5,
+    borderBottomWidth: 0,
+    borderStyle: 'dashed',
+    borderColor: palette.grey400,
+  },
   podiumRank: font('extrabold', 18, { color: palette.green700 }),
   leaguePill: {
     flexDirection: 'row',

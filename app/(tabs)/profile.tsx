@@ -271,7 +271,7 @@ export default function ProfileScreen() {
   const setCount = profile.sessions.length;
 
   return (
-    <Screen>
+    <Screen fadeStatusBar>
       {/* ── Identity hero ── the athlete, their level wrapped around their
           photo, and their numbers on a strip that overlaps the hero's foot. */}
       <StaggerIn index={0}>

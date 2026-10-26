@@ -176,3 +176,63 @@ describe('freezePanelCopy', () => {
     expect(freezePanelCopy({ banked: 3, streak: 3, isPro: true }).body).toMatch(/full/);
   });
 });
+
+describe('streakRepairOffer', () => {
+  const { streakRepairOffer, REPAIR_COOLDOWN_DAYS } = jest.requireActual(
+    '../streakFreeze',
+  ) as typeof import('../streakFreeze');
+  const trained = run('2026-10-20', 12);
+
+  it('offers a repair for a fresh break', () => {
+    // Missed 21, 22: the rest day and one more, so the streak is gone.
+    expect(streakRepairOffer({ trainedDays: trained, frozenDays: [], today: '2026-10-23', lastRepairDay: null })).toEqual({
+      lostStreak: 12,
+      lastTrained: '2026-10-20',
+      freeze: ['2026-10-22'],
+    });
+  });
+
+  it('a repair brings the streak back', () => {
+    const offer = streakRepairOffer({ trainedDays: trained, frozenDays: [], today: '2026-10-24', lastRepairDay: null })!;
+    expect(calculateStreak(trained, '2026-10-24')).toBe(0);
+    expect(calculateStreak(trained, '2026-10-24', offer.freeze)).toBe(12);
+    // Train today after repairing and the run continues.
+    expect(calculateStreak([...trained, '2026-10-24'], '2026-10-24', offer.freeze)).toBe(13);
+  });
+
+  it('still offers after a set today restarted the streak', () => {
+    const offer = streakRepairOffer({
+      trainedDays: [...trained, '2026-10-23'],
+      frozenDays: [],
+      today: '2026-10-23',
+      lastRepairDay: null,
+    });
+    expect(offer?.lostStreak).toBe(12);
+  });
+
+  it('offers nothing when nothing broke', () => {
+    expect(streakRepairOffer({ trainedDays: trained, frozenDays: [], today: '2026-10-22', lastRepairDay: null })).toBeNull();
+    // A freeze already covered it.
+    expect(
+      streakRepairOffer({ trainedDays: trained, frozenDays: ['2026-10-22'], today: '2026-10-23', lastRepairDay: null }),
+    ).toBeNull();
+  });
+
+  it('offers nothing for an old break, a short streak, or inside the cooldown', () => {
+    expect(streakRepairOffer({ trainedDays: trained, frozenDays: [], today: '2026-10-26', lastRepairDay: null })).toBeNull();
+    expect(
+      streakRepairOffer({ trainedDays: run('2026-10-20', 2), frozenDays: [], today: '2026-10-23', lastRepairDay: null }),
+    ).toBeNull();
+    expect(
+      streakRepairOffer({ trainedDays: trained, frozenDays: [], today: '2026-10-23', lastRepairDay: '2026-10-01' }),
+    ).toBeNull();
+    expect(
+      streakRepairOffer({
+        trainedDays: trained,
+        frozenDays: [],
+        today: '2026-10-23',
+        lastRepairDay: shiftDay('2026-10-23', -REPAIR_COOLDOWN_DAYS),
+      }),
+    ).not.toBeNull();
+  });
+});

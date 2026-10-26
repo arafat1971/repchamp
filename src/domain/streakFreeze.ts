@@ -163,3 +163,63 @@ export function freezePanelCopy(input: {
     body: `${what} Next one in ${days} ${days === 1 ? 'day' : 'days'} of training in a row.`,
   };
 }
+
+/* ------------------------------------------------------------------ *
+ * Streak repair — a Pro perk for a streak that broke anyway
+ * ------------------------------------------------------------------ */
+
+/** Unfrozen missed days a streak can be repaired across, rest day included. */
+export const REPAIR_MAX_MISSED = 4;
+/** Shorter streaks are not worth a repair prompt — the same bar reminders use. */
+export const REPAIR_MIN_STREAK = 3;
+/** One repair per this many days, so a repair rescues a bad week, not a habit of skipping. */
+export const REPAIR_COOLDOWN_DAYS = 30;
+
+export interface StreakRepairOffer {
+  /** The streak as it stood on the last trained day. */
+  lostStreak: number;
+  /** The last trained day before the break; identifies this break for dismissal. */
+  lastTrained: string;
+  /** Missed days a repair marks frozen — every one but the rest day. */
+  freeze: string[];
+}
+
+/**
+ * Whether a streak just broke and can still be repaired.
+ *
+ * Judged on the gap before today (a set today after a break still restarts at
+ * 1, and a repair reconnects it). Null when nothing broke, when the break is
+ * too old or the streak too short to be worth it, or inside the cooldown.
+ * Automatic freezes run first, so an offer only appears when the bank could
+ * not cover the gap.
+ */
+export function streakRepairOffer(input: {
+  trainedDays: readonly string[];
+  frozenDays: readonly string[];
+  today: string;
+  lastRepairDay: string | null;
+}): StreakRepairOffer | null {
+  const { trainedDays, frozenDays, today, lastRepairDay } = input;
+  if (lastRepairDay && daysBetween(lastRepairDay, today) < REPAIR_COOLDOWN_DAYS) return null;
+
+  let last: string | null = null;
+  for (const day of trainedDays) {
+    if (day < today && (last === null || day > last)) last = day;
+  }
+  if (last === null) return null;
+
+  const frozen = new Set(frozenDays);
+  const missed: string[] = [];
+  const gap = daysBetween(last, today) - 1;
+  for (let i = 1; i <= gap; i++) {
+    const day = shiftDay(last, i);
+    if (!frozen.has(day)) missed.push(day);
+  }
+  // One missed day is the rest day: nothing broke.
+  if (missed.length < 2 || missed.length > REPAIR_MAX_MISSED) return null;
+
+  const lostStreak = calculateStreak(trainedDays.filter((d) => d <= last), last, frozenDays);
+  if (lostStreak < REPAIR_MIN_STREAK) return null;
+
+  return { lostStreak, lastTrained: last, freeze: missed.slice(1) };
+}

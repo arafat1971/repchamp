@@ -1,5 +1,5 @@
 import { evaluateAchievements } from '../achievements';
-import { buildLeaderboard, podiumOf, standingLine } from '../leaderboard';
+import { buildLeaderboard, podiumOf, rankedBoard, standingLine } from '../leaderboard';
 import type { SessionSummary } from '@/state/profileStore';
 
 function session(overrides: Partial<SessionSummary> = {}): SessionSummary {
@@ -119,5 +119,29 @@ describe('standingLine', () => {
 
   it('states the rank once there is XP behind it', () => {
     expect(standingLine({ rank: 4, xp: 1200 })).toBe(`You're #4 with ${(1200).toLocaleString()} XP this week`);
+  });
+});
+
+describe('rankedBoard', () => {
+  const row = (id: string, xp: number, isYou = false) => ({ id, xp, isYou, rank: 99 });
+
+  it('ranks only rows with XP and drops idle strangers', () => {
+    const board = rankedBoard([row('a', 0), row('you', 0, true), row('b', 50), row('c', 0)], (r) => r.isYou);
+    expect(board.map((r) => [r.id, r.rank])).toEqual([
+      ['b', 1],
+      ['you', 0],
+    ]);
+  });
+
+  it('keeps every idle row, unranked, when asked to', () => {
+    const board = rankedBoard([row('a', 0), row('b', 10)], () => true);
+    expect(board.map((r) => [r.id, r.rank])).toEqual([
+      ['b', 1],
+      ['a', 0],
+    ]);
+  });
+
+  it('is empty on a fresh week when no idle row is kept', () => {
+    expect(rankedBoard([row('a', 0), row('b', 0)], () => false)).toEqual([]);
   });
 });

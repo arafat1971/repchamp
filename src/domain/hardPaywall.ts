@@ -51,6 +51,17 @@
 export const FREE_REP_LIMIT = 0;
 
 /**
+ * Free reps each partner gets, once per account, when a couple first pairs.
+ *
+ * Replaced the free Pro days on 2026-10-26 (owner decision): a timed Pro grant
+ * unlocked everything for days, while 10 reps is one short set together — a
+ * taste of counting reps side by side, then the wall. Counted from the
+ * athlete's lifetime total at the moment of pairing, so someone with history
+ * still gets all 10. See `freeRepCeiling` on `HardWallInput`.
+ */
+export const PAIRING_BONUS_REPS = 10;
+
+/**
  * On the rep wall, the top close (×) appears this long after the paywall opens.
  *
  * The standard hard-paywall move: the offer is read before the exit is. Only
@@ -107,8 +118,8 @@ export const HARD_WALL_ENABLED = true;
  *
  * Each partner pays: an athlete without Pro meets the paywall before a
  * together set exactly as before a solo one, invited guest included. Pairing
- * itself stays free, and the 2 free Pro days granted on pairing still apply
- * (they count as Pro), so a new couple trains together for those days first.
+ * itself stays free, and each partner gets `PAIRING_BONUS_REPS` free reps the
+ * first time they pair, so a new couple does one short set together first.
  *
  * The cost being accepted: the invite loop was the main free growth engine,
  * and an invited partner now has to subscribe to keep training with whoever
@@ -141,6 +152,12 @@ export interface HardWallInput {
   isPro: boolean;
   /** Lifetime reps banked, plus reps in the live session. */
   repsSoFar: number;
+  /**
+   * Lifetime rep count below which reps are free regardless of
+   * `FREE_REP_LIMIT` — set by the pairing bonus (`selectFreeRepCeiling`).
+   * 0 or absent for anyone without one.
+   */
+  freeRepCeiling?: number;
   /** Together-sets. Walled like solo while `COUPLE_WALL_ENABLED` is on. */
   isCoupleMode?: boolean;
   /**
@@ -181,8 +198,14 @@ export function evaluateHardWallRule(input: HardWallInput): WallDecision {
   if (input.isPro) return { walled: false };
   if (input.isCoupleMode && !COUPLE_WALL_ENABLED) return { walled: false };
   if (!input.billingReady) return { walled: false };
-  if (input.repsSoFar < FREE_REP_LIMIT) return { walled: false };
+  if (input.repsSoFar < freeAllowance(input)) return { walled: false };
   return { walled: true, reason: 'rep-limit' };
+}
+
+/** The lifetime rep count the free allowance runs to, bonus included. */
+function freeAllowance(input: HardWallInput): number {
+  const ceiling = Number.isFinite(input.freeRepCeiling) ? (input.freeRepCeiling as number) : 0;
+  return Math.max(FREE_REP_LIMIT, ceiling);
 }
 
 /** Convenience predicate for call sites that only need a boolean. */
@@ -206,7 +229,7 @@ export function repsRemainingRule(input: HardWallInput): number {
   if (input.isPro || (input.isCoupleMode && !COUPLE_WALL_ENABLED) || !input.billingReady) {
     return Number.POSITIVE_INFINITY;
   }
-  return Math.max(0, FREE_REP_LIMIT - input.repsSoFar);
+  return Math.max(0, freeAllowance(input) - input.repsSoFar);
 }
 
 /**
@@ -229,4 +252,35 @@ export const NEARING_WALL_REPS = 8;
 export function isNearingWall(input: HardWallInput): boolean {
   const left = repsRemaining(input);
   return Number.isFinite(left) && left > 0 && left <= NEARING_WALL_REPS;
+}
+
+/* ------------------------------------------------------------------ *
+ * Water
+ * ------------------------------------------------------------------ */
+
+/**
+ * Glasses a non-Pro athlete may log, lifetime, before water is walled.
+ *
+ * 1 as of 2026-10-26, owner decision: the first glass shows the panda fill
+ * (the moment that sells the habit), every glass after it needs Pro.
+ */
+export const FREE_WATER_LOGS = 1;
+
+/**
+ * Whether logging another glass should open the paywall instead.
+ *
+ * The same exemptions as the rep wall: Pro, a build with no billing, and an
+ * entitlement still resolving (a just-restored subscriber must never be
+ * walled by a race).
+ */
+export function isWaterWalled(input: {
+  isPro: boolean;
+  proReady: boolean;
+  billingReady: boolean;
+  /** Glasses this athlete has ever logged on this device. */
+  logsSoFar: number;
+}): boolean {
+  if (!HARD_WALL_ENABLED) return false;
+  if (input.isPro || !input.proReady || !input.billingReady) return false;
+  return input.logsSoFar >= FREE_WATER_LOGS;
 }

@@ -10,6 +10,9 @@ import {
   isWalled,
   repsRemaining,
   repsRemainingRule,
+  PAIRING_BONUS_REPS,
+  FREE_WATER_LOGS,
+  isWaterWalled,
 } from '../hardPaywall';
 
 /** `isNearingWall` without the master switch, mirroring its real logic. */
@@ -160,5 +163,46 @@ describe('closeDelayMs', () => {
     // Long enough to read the offer, short enough not to feel like a trap.
     expect(HARD_WALL_CLOSE_DELAY_MS).toBeGreaterThan(0);
     expect(HARD_WALL_CLOSE_DELAY_MS).toBeLessThanOrEqual(5000);
+  });
+});
+
+describe('pairing bonus free reps', () => {
+  const base = { isPro: false, billingReady: true };
+
+  it('lets reps below the ceiling through, then walls', () => {
+    expect(evaluateHardWallRule({ ...base, repsSoFar: 120, freeRepCeiling: 130 }).walled).toBe(false);
+    expect(evaluateHardWallRule({ ...base, repsSoFar: 129, freeRepCeiling: 130 }).walled).toBe(false);
+    expect(evaluateHardWallRule({ ...base, repsSoFar: 130, freeRepCeiling: 130 }).walled).toBe(true);
+  });
+
+  it('counts down to the ceiling', () => {
+    expect(repsRemainingRule({ ...base, repsSoFar: 124, freeRepCeiling: 130 })).toBe(6);
+    expect(repsRemainingRule({ ...base, repsSoFar: 140, freeRepCeiling: 130 })).toBe(0);
+  });
+
+  it('applies to together sets, which are walled too', () => {
+    expect(
+      evaluateHardWallRule({ ...base, repsSoFar: 3, freeRepCeiling: PAIRING_BONUS_REPS, isCoupleMode: true }).walled,
+    ).toBe(false);
+  });
+
+  it('ignores a missing or broken ceiling', () => {
+    expect(evaluateHardWallRule({ ...base, repsSoFar: 0 }).walled).toBe(true);
+    expect(evaluateHardWallRule({ ...base, repsSoFar: 0, freeRepCeiling: Number.NaN }).walled).toBe(true);
+  });
+});
+
+describe('water wall', () => {
+  const base = { isPro: false, proReady: true, billingReady: true };
+
+  it('lets the first glass through, then walls', () => {
+    expect(isWaterWalled({ ...base, logsSoFar: 0 })).toBe(HARD_WALL_ENABLED && false);
+    expect(isWaterWalled({ ...base, logsSoFar: FREE_WATER_LOGS })).toBe(HARD_WALL_ENABLED);
+  });
+
+  it('never walls Pro, an unresolved entitlement or a build with no billing', () => {
+    expect(isWaterWalled({ ...base, isPro: true, logsSoFar: 9 })).toBe(false);
+    expect(isWaterWalled({ ...base, proReady: false, logsSoFar: 9 })).toBe(false);
+    expect(isWaterWalled({ ...base, billingReady: false, logsSoFar: 9 })).toBe(false);
   });
 });

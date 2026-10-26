@@ -51,7 +51,7 @@ import {
 import { useAuthStore } from '@/state/authStore';
 import { useCouple } from '@/state/useCouple';
 import { showDialog } from '@/state/useDialog';
-import { selectPairingBonusActive, useProfileStore } from '@/state/profileStore';
+import { selectFreeRepCeiling, selectTotalReps, useProfileStore } from '@/state/profileStore';
 import { reservedControlHeight } from '@/theme/fontScale';
 import { font, scaleForRole, text } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
@@ -71,7 +71,10 @@ export default function CoupleInviteScreen() {
   const cloudConfigured = useAuthStore((s) => s.configured);
   const displayName = useProfileStore((s) => s.displayName);
   const avatarUri = useProfileStore((s) => s.avatarUri);
-  const bonusActive = useProfileStore(selectPairingBonusActive);
+  /* Free pairing reps still unspent — the banner shows only while they are. */
+  const bonusRepsLeft = useProfileStore(
+    (s) => Math.max(0, selectFreeRepCeiling(s) - selectTotalReps(s)),
+  );
 
   const router = useRouter();
   const { couple, paired, partner, me, streak, combined, code, loading, atRisk, level, badges } =
@@ -339,14 +342,14 @@ export default function CoupleInviteScreen() {
       {/* ═══════════════════ PAIRED STATE ═══════════════════ */}
       {!loading && paired && partner ? (
         <>
-          {bonusActive ? (
+          {bonusRepsLeft > 0 ? (
             <Animated.View entering={FadeInDown.duration(400)} style={styles.bonusBanner}>
               <View style={styles.bonusTile}>
                 <LineIcon name="gift" size={18} color={palette.amber800} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.bonusTitle}>You both unlocked 2 days of Pro free</Text>
-                <Text style={styles.bonusText}>The full library and programmes are on.</Text>
+                <Text style={styles.bonusTitle}>{`${bonusRepsLeft} free reps to train together`}</Text>
+                <Text style={styles.bonusText}>A pairing gift for you both. Pro keeps you going after.</Text>
               </View>
             </Animated.View>
           ) : null}

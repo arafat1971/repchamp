@@ -192,3 +192,19 @@ describe('persistence', () => {
     expect(JSON.parse(mockStore.get('repchamp.hydration')!).state.goalMl).toBe(3000);
   });
 });
+
+describe('lifetime glass count (water wall)', () => {
+  beforeEach(() => {
+    useHydrationStore.setState({ drinks: [], lifetimeLogs: 0 });
+  });
+
+  it('counts every glass and keeps counting through undo and reset', () => {
+    const s = useHydrationStore.getState();
+    s.logDrink(250);
+    expect(useHydrationStore.getState().lifetimeLogs).toBe(1);
+    useHydrationStore.getState().undoLast();
+    useHydrationStore.getState().reset();
+    expect(useHydrationStore.getState().drinks).toHaveLength(0);
+    expect(useHydrationStore.getState().lifetimeLogs).toBe(1);
+  });
+});

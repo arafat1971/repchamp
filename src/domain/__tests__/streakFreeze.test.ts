@@ -157,3 +157,22 @@ describe('skipTodayOutcome', () => {
     expect(skipTodayOutcome({ trainedDays: [], frozenDays: [], banked: 2, today: '2026-10-20' })).toBe('none');
   });
 });
+
+describe('freezePanelCopy', () => {
+  const { freezePanelCopy } = jest.requireActual('../streakFreeze') as typeof import('../streakFreeze');
+
+  it('names the count and the next milestone', () => {
+    expect(freezePanelCopy({ banked: 1, streak: 5, isPro: false })).toEqual({
+      title: '1 freeze banked',
+      body: 'A freeze covers a missed day after your rest day, so the streak survives. Next one in 2 days of training in a row.',
+    });
+    expect(freezePanelCopy({ banked: 0, streak: 6, isPro: false }).body).toMatch(/Next one in 1 day of/);
+    expect(freezePanelCopy({ banked: 0, streak: 0, isPro: false }).title).toBe('No freezes banked');
+  });
+
+  it('says the bank is full at the cap, which is higher for Pro', () => {
+    expect(freezePanelCopy({ banked: 2, streak: 3, isPro: false }).body).toMatch(/full/);
+    expect(freezePanelCopy({ banked: 2, streak: 3, isPro: true }).body).toMatch(/Next one/);
+    expect(freezePanelCopy({ banked: 3, streak: 3, isPro: true }).body).toMatch(/full/);
+  });
+});

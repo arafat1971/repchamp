@@ -6,7 +6,15 @@ import Svg, { Rect } from 'react-native-svg';
 import { track } from '@/lib/analytics';
 import { ModalHeader } from '@/components/ModalHeader';
 import { Card, PressableScale, Screen, SectionLabel, StatTile } from '@/components/ui';
-import { selectWeekSessions, useProfileStore, type SessionSummary } from '@/state/profileStore';
+import { StreakFreezeCard } from '@/components/StreakFreezeCard';
+import {
+  selectStreak,
+  selectStreakFreezes,
+  selectWeekSessions,
+  useProfileStore,
+  type SessionSummary,
+} from '@/state/profileStore';
+import { useEffectivePro } from '@/state/proStore';
 import { useCouple } from '@/state/useCouple';
 import { font, text } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
@@ -41,6 +49,7 @@ export default function WeeklyRecapScreen() {
   const couple = useCouple();
   const profile = useProfileStore();
   const week = selectWeekSessions(profile);
+  const isPro = useEffectivePro();
 
   const totalReps = week.reduce((acc, s) => acc + s.reps, 0);
   const xp = week.reduce((acc, s) => acc + s.xp, 0);
@@ -74,6 +83,13 @@ export default function WeeklyRecapScreen() {
             : 'Finish a session and your recap will fill in here.'}
         </Text>
       </LinearGradient>
+
+      <StreakFreezeCard
+        banked={selectStreakFreezes(profile)}
+        streak={selectStreak(profile)}
+        isPro={isPro}
+        onUpgrade={() => router.push({ pathname: '/modal/paywall', params: { source: 'streak-freeze' } })}
+      />
 
       <View style={styles.grid}>
         <View style={styles.gridRow}>

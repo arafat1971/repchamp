@@ -144,3 +144,22 @@ export function skipTodayOutcome(input: {
   if (plan.freeze.length > 0) return 'freeze';
   return calculateStreak(trainedDays, tomorrow, frozenDays) > 0 ? 'safe' : 'lost';
 }
+
+/** The words on the recap's freeze card, kept here so they stay testable. */
+export function freezePanelCopy(input: {
+  banked: number;
+  streak: number;
+  isPro: boolean;
+}): { title: string; body: string } {
+  const cap = freezeCap(input.isPro);
+  const banked = Math.max(0, Math.floor(input.banked));
+  const title =
+    banked === 0 ? 'No freezes banked' : `${banked} ${banked === 1 ? 'freeze' : 'freezes'} banked`;
+  const what = 'A freeze covers a missed day after your rest day, so the streak survives.';
+  if (banked >= cap) return { title, body: `${what} Your bank is full.` };
+  const days = daysToNextFreeze(input.streak);
+  return {
+    title,
+    body: `${what} Next one in ${days} ${days === 1 ? 'day' : 'days'} of training in a row.`,
+  };
+}

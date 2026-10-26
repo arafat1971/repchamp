@@ -45,6 +45,8 @@ export function paywallLead(
       return { title: 'A plan that adapts to you', sub: 'Multi-week programmes that scale as you do.' };
     case 'reports':
       return { title: 'See exactly how you move', sub: 'Depth, tempo and alignment after every set.' };
+    case 'freezes':
+      return { title: 'Protect your streak', sub: 'Bank 3 freezes, so a busy day never costs you the streak.' };
     default:
       return { title: 'Train without limits', sub: 'Solo or as a couple, every exercise unlocked.' };
   }

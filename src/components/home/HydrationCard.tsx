@@ -124,13 +124,17 @@ export function HydrationCard({
     phaseAcc.value = 0;
   }, false);
 
-  /* How it works. Open on a first visit — the card's best controls are holds,
-     which nothing on screen gives away — and behind the (i) ever after. Read
+  /* How it works lives behind the (i). On a first visit it used to open in
+     full — four numbered steps that stood taller than the bottle they
+     explain — so a new athlete now gets one line pointing at the holds
+     (which nothing on screen gives away) until they open or dismiss it. Read
      from MMKV synchronously so a returning athlete never sees it flash. */
-  const [guide, setGuide] = useState(() => !storage.getString(GUIDE_SEEN_KEY));
+  const [guide, setGuide] = useState(false);
+  const [hint, setHint] = useState(() => !storage.getString(GUIDE_SEEN_KEY));
   const closeGuide = () => {
     storage.set(GUIDE_SEEN_KEY, String(Date.now()));
     setGuide(false);
+    setHint(false);
   };
   const guideSteps = [
     { title: 'Tap Drink', body: 'Logs one glass. Undo appears beside it.' },
@@ -354,6 +358,22 @@ export function HydrationCard({
               </View>
             ))}
           </Animated.View>
+        ) : hint ? (
+          <Pressable
+            onPress={() => {
+              selectionHaptic();
+              setGuide(true);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Tip: hold Drink or the panda to pour more. Opens how hydration works."
+            style={({ pressed }) => [styles.hint, pressed && { opacity: 0.7 }]}
+          >
+            <Text style={styles.hintText} numberOfLines={1}>
+              <Text style={styles.guideStep}>Tip</Text>
+              {'  Hold Drink or the panda to pour more'}
+            </Text>
+            <Text style={styles.hintMore}>More</Text>
+          </Pressable>
         ) : null}
         {partner ? (
           /* Face to face: two bears, two numbers, and who is ahead between
@@ -910,6 +930,18 @@ const styles = StyleSheet.create({
   infoOn: { backgroundColor: IOS.water },
   infoGlyph: { ...font('extrabold', 13, { color: IOS.water }), lineHeight: 16 },
   guide: { marginTop: 12, padding: 12, borderRadius: 18, backgroundColor: 'rgba(50,173,230,0.09)', gap: 8 },
+  hint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: 'rgba(14,165,233,0.08)',
+  },
+  hintText: { ...font('medium', 12.5, { color: IOS.secondary }), flex: 1 },
+  hintMore: font('bold', 12, { color: '#0284C7' }),
   guideHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   guideTitle: font('extrabold', 14, { color: IOS.label }),
   guideRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },

@@ -72,6 +72,8 @@ export function TodayBento({
   const closed = [challenge.percent, water.percent, stepPct].filter((p) => p >= 100).length;
   const overall = Math.round((challenge.percent + water.percent + stepPct) / 3);
   const daysToGoal = Math.max(0, goal - daysTrained);
+  /* A live streak gets the dark tile; zero stays light. */
+  const live = streak > 0;
   /* The nearest open ring as a next step — "2 glasses of water to go" says
      what to do; an average percentage does not. */
   const next = nextToClose({
@@ -147,32 +149,34 @@ export function TodayBento({
       </PressableScale>
 
       <View style={styles.right}>
-        {/* Streak tile — the one dark surface, so the number you protect pops. */}
+        {/* Streak tile — the one dark surface, so the number you protect pops.
+            At zero there is nothing to protect yet, and a black slab saying
+            "0" was the heaviest thing on Home; it stays a plain tile then. */}
         <PressableScale
           onPress={onStreak}
           accessibilityRole="button"
           accessibilityLabel={`${streak} day streak, ${daysTrained} of ${goal} days this week${
             freezes > 0 ? `, ${freezes} streak ${freezes === 1 ? 'freeze' : 'freezes'} banked` : ''
           }`}
-          style={[styles.tile, styles.streakTile]}
+          style={[styles.tile, live && styles.streakTile]}
         >
           <>
             <View style={styles.bigRow}>
               <PopOnChange trigger={streak} style={styles.flameBubble}>
                 <FlameIcon size={15} color={streak > 0 ? palette.amber300 : palette.grey500} />
               </PopOnChange>
-              <CountUp value={streak} style={[styles.bigNumber, { color: palette.white }]} />
-              <Text style={[styles.bigUnit, { color: 'rgba(255,255,255,0.7)' }]}>
+              <CountUp value={streak} style={[styles.bigNumber, live && { color: palette.white }]} />
+              <Text style={[styles.bigUnit, live && { color: 'rgba(255,255,255,0.7)' }]}>
                 {streak === 1 ? 'day' : 'days'}
               </Text>
               {freezes > 0 ? (
                 <PopOnChange trigger={freezes} style={styles.freezeChip}>
-                  <SnowflakeIcon size={11} color={palette.blue300} strokeWidth={2.4} />
-                  <Text style={styles.freezeCount}>{freezes}</Text>
+                  <SnowflakeIcon size={11} color={live ? palette.blue300 : palette.blue600} strokeWidth={2.4} />
+                  <Text style={[styles.freezeCount, !live && { color: palette.blue600 }]}>{freezes}</Text>
                 </PopOnChange>
               ) : null}
             </View>
-            <Text style={[styles.tileFoot, { color: 'rgba(255,255,255,0.6)' }]} numberOfLines={1}>
+            <Text style={[styles.tileFoot, live && { color: 'rgba(255,255,255,0.6)' }]} numberOfLines={1}>
               {streak === 0
                 ? 'Start a streak today'
                 : daysToGoal === 0

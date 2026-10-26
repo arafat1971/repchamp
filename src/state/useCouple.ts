@@ -29,14 +29,21 @@ import {
   type CoupleLevel,
   type CoupleMember,
 } from '@/domain/couple';
+import { coupleFreezeBank, planCoupleFreeze } from '@/domain/coupleFreeze';
 import { dayKey } from '@/domain/progression';
+import { track } from '@/lib/analytics';
 import { presentNudge } from '@/lib/notifications';
 import { parseReminderKind } from '@/domain/partnerReminder';
 import {
   flushCoupleCreditOutbox,
   promotePendingCoupleCredit,
 } from '@/services/coupleCreditOutbox';
-import { stripPendingPushToken, syncCouplePushToken, watchMyCouple } from '@/services/coupleService';
+import {
+  applyCoupleFreeze,
+  stripPendingPushToken,
+  syncCouplePushToken,
+  watchMyCouple,
+} from '@/services/coupleService';
 import { syncHydrationNow } from '@/services/hydrationSync';
 import { fetchExpoPushToken } from '@/services/userService';
 import { useAuthStore } from '@/state/authStore';
@@ -58,6 +65,8 @@ export interface CoupleView {
   streak: number;
   /** True when today still needs a session from one of them to keep the streak. */
   atRisk: boolean;
+  /** Freezes in the couple's shared bank. */
+  freezes: number;
   /** Every rep the two of them have logged, all time. */
   combined: number;
   /** The next shareable combined-rep milestone, or null past the last one. */
@@ -79,6 +88,7 @@ const EMPTY: CoupleView = {
   me: null,
   streak: 0,
   atRisk: false,
+  freezes: 0,
   combined: 0,
   milestone: null,
   level: coupleLevel(0, 0),
@@ -86,6 +96,12 @@ const EMPTY: CoupleView = {
   code: null,
   loading: false,
 };
+
+/**
+ * The last freeze plan any `useCouple` instance sent, shared across them, so
+ * the many screens that mount this hook write the bank once, not once each.
+ */
+let lastFreezeAttempt: string | null = null;
 
 /** The newest nudge any `useCouple` instance has presented, shared across them. */
 let lastPresentedNudgeAt: number | null = null;
@@ -215,6 +231,27 @@ export function useCouple(): CoupleView {
     };
   }, [uid, pairedCoupleId]);
 
+  // Earn and spend the shared freeze bank whenever the doc or the day moves.
+  // The plan is pure, so a quick local check skips the transaction when
+  // nothing would change, which is almost every snapshot.
+  useEffect(() => {
+    if (!uid || !couple || !isPaired(couple)) return;
+    const today = dayKey();
+    const plan = planCoupleFreeze(couple, today);
+    if (!plan) return;
+    const key = `${couple.id}:${today}:${JSON.stringify(plan)}`;
+    if (key === lastFreezeAttempt) return;
+    lastFreezeAttempt = key;
+    void applyCoupleFreeze(couple.id, today)
+      .then((used) => {
+        if (used > 0) track('couple_freeze_used', { used });
+      })
+      .catch(() => {
+        // Offline, or rules not deployed yet. Not retried per snapshot (that
+        // would hammer a failing write); the next launch or a new plan retries.
+      });
+  }, [uid, couple]);
+
   return useMemo(() => {
     if (!couple || !uid) return { ...EMPTY, loading };
 
@@ -231,6 +268,7 @@ export function useCouple(): CoupleView {
       me: couple.members.find((m) => m.uid === uid) ?? null,
       streak,
       atRisk: streakAtRisk(couple, today),
+      freezes: paired ? coupleFreezeBank(couple).banked : 0,
       combined,
       milestone: nextMilestone(combined),
       level: coupleLevel(combined, streak),

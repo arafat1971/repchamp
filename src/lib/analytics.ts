@@ -166,6 +166,8 @@ export interface AnalyticsEvents {
   streak_continued: { length: number; previous: number };
   /** Banked freezes spent to keep a streak alive across a gap. */
   streak_freeze_used: { used: number };
+  /** Freezes from the couple's shared bank spent to save the shared streak. */
+  couple_freeze_used: { used: number };
   /** A broken streak restored with the Pro repair. */
   streak_repaired: { streak: number };
   /** Reported on the return *after* a gap — nothing runs on a day nobody opens. */

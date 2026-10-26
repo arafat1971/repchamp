@@ -158,7 +158,9 @@ export default function WeeklyRecapScreen() {
           <View style={styles.coupleStats}>
             <View>
               <Text style={styles.coupleValue}>{couple.streak}</Text>
-              <Text style={styles.coupleLabel}>SHARED STREAK</Text>
+              <Text style={styles.coupleLabel}>
+                SHARED STREAK{couple.freezes > 0 ? ` · ${couple.freezes} ❄` : ''}
+              </Text>
             </View>
             <View>
               <Text style={styles.coupleValue}>{couple.combined}</Text>

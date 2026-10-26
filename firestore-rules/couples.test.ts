@@ -651,3 +651,45 @@ describe('member and nudge payload bounds', () => {
     );
   });
 });
+
+describe('shared streak-freeze bank', () => {
+  const freeze = (over: Record<string, unknown> = {}) => ({
+    banked: 1,
+    frozenDays: ['2026-10-22'],
+    lastEarnedDay: '2026-10-20',
+    ...over,
+  });
+
+  it('lets either partner write the bank', async () => {
+    await seedPaired();
+    await assertSucceeds(updateDoc(doc(asUser(ALICE), 'couples', CODE), { freeze: freeze() }));
+    await assertSucceeds(updateDoc(doc(asUser(BOB), 'couples', CODE), { freeze: freeze({ banked: 0 }) }));
+  });
+
+  it('refuses a bank over the cap', async () => {
+    await seedPaired();
+    await assertFails(updateDoc(doc(asUser(ALICE), 'couples', CODE), { freeze: freeze({ banked: 3 }) }));
+  });
+
+  it('refuses unknown fields and an oversized day list', async () => {
+    await seedPaired();
+    await assertFails(updateDoc(doc(asUser(ALICE), 'couples', CODE), { freeze: freeze({ blob: 'x' }) }));
+    const days = Array.from({ length: 61 }, (_, i) => `2026-01-${String(i).padStart(2, '0')}`);
+    await assertFails(updateDoc(doc(asUser(ALICE), 'couples', CODE), { freeze: freeze({ frozenDays: days }) }));
+  });
+
+  it('refuses a stranger and a pending invite', async () => {
+    await seedPaired();
+    await assertFails(updateDoc(doc(asUser('mallory'), 'couples', CODE), { freeze: freeze() }));
+    await clearData();
+    await seedPending();
+    await assertFails(updateDoc(doc(asUser(ALICE), 'couples', CODE), { freeze: freeze() }));
+  });
+
+  it('refuses smuggling another key in with the bank', async () => {
+    await seedPaired();
+    await assertFails(
+      updateDoc(doc(asUser(ALICE), 'couples', CODE), { freeze: freeze(), pending: true }),
+    );
+  });
+});

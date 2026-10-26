@@ -139,7 +139,7 @@ function PartnerCard() {
             </Text>
             <Text style={styles.partnerSub} numberOfLines={1}>
               {couple.streak > 0
-                ? `${couple.streak}-day streak together${couple.atRisk ? ' · keep it alive today' : ''}`
+                ? `${couple.streak}-day streak together${couple.atRisk ? ' · keep it alive today' : couple.freezes > 0 ? ` · ${couple.freezes} ${couple.freezes === 1 ? 'freeze' : 'freezes'} banked` : ''}`
                 : 'Start your streak together today'}
             </Text>
           </View>

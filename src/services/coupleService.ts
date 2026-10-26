@@ -31,6 +31,7 @@ import { reminderNotification, type ReminderKind } from '@/domain/partnerReminde
 import { cleanPlan, cleanPoke, cleanTicks } from '@/domain/ritual';
 import { actionCode, cleanActionPoke, type PandaAction } from '@/domain/pandaActions';
 import { dayKey } from '@/domain/progression';
+import { planCoupleFreeze } from '@/domain/coupleFreeze';
 import { MAX_DAILY_STEPS } from '@/domain/steps';
 import {
   assertClientRateLimit,
@@ -936,4 +937,26 @@ export async function cancelCoupleInvite(
   } catch {
     return 'missing';
   }
+}
+
+/**
+ * Earn and spend the couple's shared streak freezes for `today`.
+ *
+ * Re-plans inside the transaction from the fresh document, so both partners'
+ * phones running this at once converge and a freeze is never spent twice.
+ * Resolves to how many freezes were spent (0 when nothing changed).
+ */
+export async function applyCoupleFreeze(coupleId: string, today: string = dayKey()): Promise<number> {
+  if (!isFirebaseConfigured()) return 0;
+  const ref = coupleDoc(coupleId);
+  return firestore().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return 0;
+    const couple = snap.data() as Couple;
+    const next = planCoupleFreeze(couple, today);
+    if (!next) return 0;
+    const before = couple.freeze?.frozenDays?.length ?? 0;
+    tx.update(ref, { freeze: next });
+    return Math.max(0, next.frozenDays.length - before);
+  });
 }

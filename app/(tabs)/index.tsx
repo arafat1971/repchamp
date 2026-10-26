@@ -999,6 +999,7 @@ export default function HomeScreen() {
             myAvatar={profile.avatarUri ?? null}
             partnerAvatar={partnerAvatar}
             streak={couple.streak}
+            freezes={couple.freezes}
             combined={couple.combined}
             atRisk={couple.atRisk}
             levelName={couple.level.name}

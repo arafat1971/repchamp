@@ -66,6 +66,12 @@ export function buildDailyReminder(input: {
   /** Whole days since the last recorded session; null or absent when unknown. */
   daysAway?: number | null;
   /**
+   * What skipping today does to the streak (see `skipTodayOutcome`). When
+   * given it decides the wording instead of `daysAway`, which cannot see
+   * streak freezes: with a freeze banked, "ends today" would be false.
+   */
+  ifSkipped?: 'safe' | 'freeze' | 'lost' | 'none' | null;
+  /**
    * Picks between equally true phrasings so a DAILY slot does not read
    * identically for weeks. Absent, the copy is exactly what it always was.
    */
@@ -78,10 +84,19 @@ export function buildDailyReminder(input: {
 
   /* The grace day is spent: they trained two days ago, missed yesterday, and
      have not trained today. Tonight is the last night this streak exists. */
-  const lastNight = daysAway !== null && daysAway >= 2;
+  const ifSkipped = input.ifSkipped ?? null;
+  const lastNight = ifSkipped ? ifSkipped === 'lost' : daysAway !== null && daysAway >= 2;
   const variant = Number.isFinite(input.seed ?? NaN) ? Math.abs(Math.floor(input.seed as number)) : 0;
 
   if (streak >= STREAK_WORTH_NAMING) {
+    if (ifSkipped === 'freeze') {
+      /* True and still a nudge: the streak survives either way, but training
+         keeps the freeze for a day that genuinely needs it. */
+      return {
+        title: `Day ${streak} — save your freeze`,
+        body: 'Your rest day is used. One set today, or a streak freeze covers it.',
+      };
+    }
     if (lastNight) {
       /* "Tonight" would be wrong for most of the people who see this. The
          learned hour puts a 07:00 athlete's reminder at 06:00, so a warning

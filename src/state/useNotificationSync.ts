@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 
 import { daysSinceLastSession } from '@/domain/dormantReminder';
+import { skipTodayOutcome } from '@/domain/streakFreeze';
 import { dayKey } from '@/domain/progression';
 import { reminderHourFor } from '@/domain/reminderSchedule';
 import { partnerGoalToday, partnerHabitsToday, partnerRepsToday, partnerStepsToday, partnerWaterToday } from '@/domain/couple';
@@ -32,6 +33,7 @@ export function useNotificationSync(): void {
   const hydrationReminder = useSettingsStore((s) => s.hydrationReminder);
   const sessions = useProfileStore((s) => s.sessions);
   const frozenDays = useProfileStore((s) => s.frozenDays);
+  const streakFreezes = useProfileStore((s) => s.streakFreezes);
   const couple = useCouple();
 
   /* Tie the on-phone couple history to this pairing: a new partner starts
@@ -49,6 +51,14 @@ export function useNotificationSync(): void {
   /* The athlete's own streak, which the evening reminder names. Derived here
      rather than subscribed as a selector so it recomputes with `sessions`. */
   const streak = selectStreak({ sessions, frozenDays }, today);
+  /* What tonight's reminder can truthfully say: with a freeze banked, a
+     missed rest day no longer means the streak "ends today". */
+  const ifSkipped = skipTodayOutcome({
+    trainedDays: sessions.map((s) => s.day),
+    frozenDays: frozenDays ?? [],
+    banked: streakFreezes ?? 0,
+    today,
+  });
   /* Days since the last recorded session, for the dormant slot. Max rather than
      last-element: `sessions` is not guaranteed sorted, and reading the wrong end
      of it would either fire a win-back push at an active athlete or never fire
@@ -234,6 +244,7 @@ export function useNotificationSync(): void {
       sessions,
       preferredHour,
       daysSinceLastSession: daysAway,
+      ifSkipped,
       together: togetherWeek,
     });
     /* `sessions` itself is intentionally not a dependency: it is a new array on
@@ -266,6 +277,7 @@ export function useNotificationSync(): void {
     reminderHour,
     preferredHour,
     daysAway,
+    ifSkipped,
     foregroundTick,
     togetherKey,
     couple.paired,

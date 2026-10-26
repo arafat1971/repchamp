@@ -16,6 +16,7 @@
  * up the rest-day tolerance. The streak counts days trained, not days covered.
  */
 
+import { calculateStreak } from './progression';
 import { daysBetween } from './retention';
 
 /** Most freezes a free athlete can hold at once. */
@@ -113,4 +114,33 @@ export function earnsFreeze(previous: number, next: number): boolean {
 export function daysToNextFreeze(streak: number): number {
   const s = Math.max(0, Math.floor(streak));
   return FREEZE_EARN_EVERY - (s % FREEZE_EARN_EVERY);
+}
+
+/**
+ * What happens to the streak if today passes with no set.
+ *
+ * - `safe`: it only uses the rest day, nothing spent.
+ * - `freeze`: banked freezes cover it; the streak survives but a freeze goes.
+ * - `lost`: nothing can cover it; the streak ends with today.
+ * - `none`: there is no live streak, or today is already trained.
+ *
+ * Asked by simulating tomorrow, the first day today's gap is judged on, with
+ * the same planner the app runs on open — so the reminder and the save agree.
+ */
+export type SkipTodayOutcome = 'safe' | 'freeze' | 'lost' | 'none';
+
+export function skipTodayOutcome(input: {
+  trainedDays: readonly string[];
+  frozenDays: readonly string[];
+  banked: number;
+  today: string;
+}): SkipTodayOutcome {
+  const { trainedDays, frozenDays, banked, today } = input;
+  if (trainedDays.includes(today)) return 'none';
+  if (calculateStreak(trainedDays, today, frozenDays) === 0) return 'none';
+
+  const tomorrow = shiftDay(today, 1);
+  const plan = planStreakFreezes({ trainedDays, frozenDays, banked, today: tomorrow });
+  if (plan.freeze.length > 0) return 'freeze';
+  return calculateStreak(trainedDays, tomorrow, frozenDays) > 0 ? 'safe' : 'lost';
 }

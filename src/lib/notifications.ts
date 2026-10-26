@@ -370,6 +370,8 @@ export interface ReminderContext {
    * Past `DORMANT_AFTER_DAYS` the dormant slot replaces the evening nag.
    */
   daysSinceLastSession?: number | null;
+  /** What skipping today does to the solo streak, freezes included; see `skipTodayOutcome`. */
+  ifSkipped?: 'safe' | 'freeze' | 'lost' | 'none' | null;
   /**
    * Walled and unpaid: the evening training nag leads to a refusal, so the
    * three-step upgrade pitch takes its place. See `domain/upgradeReminder`.
@@ -470,6 +472,7 @@ async function syncLocalRemindersNow(ctx: ReminderContext): Promise<void> {
       reminderHour,
       ctx.daysSinceLastSession ?? null,
       ctx.copySeed,
+      ctx.ifSkipped ?? null,
     );
   } catch {
     // Best-effort.
@@ -537,6 +540,7 @@ export async function scheduleDailyTrainingReminder(
   hour = DEFAULT_REMINDER_HOUR,
   daysAway: number | null = null,
   seed?: number,
+  ifSkipped: 'safe' | 'freeze' | 'lost' | 'none' | null = null,
 ): Promise<void> {
   if (!(await ensureNotificationPermission())) return;
   try {
@@ -544,7 +548,7 @@ export async function scheduleDailyTrainingReminder(
     /* `daysAway` distinguishes an ordinary evening from the last night of a
        streak that has already spent its rest day. Optional and defaulted to
        null, so the deprecated call sites below send exactly what they did. */
-    const copy = buildDailyReminder({ streak, daysAway, seed });
+    const copy = buildDailyReminder({ streak, daysAway, seed, ifSkipped });
     await Notifications.scheduleNotificationAsync({
       identifier: WORKOUT_REMINDER_ID,
       content: {

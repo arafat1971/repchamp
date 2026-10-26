@@ -135,3 +135,25 @@ describe('Pro freeze cap', () => {
     expect(bankAfterEarning(3, 2)).toBe(3);
   });
 });
+
+describe('skipTodayOutcome', () => {
+  const { skipTodayOutcome } = jest.requireActual('../streakFreeze') as typeof import('../streakFreeze');
+  const trained = run('2026-10-20', 5);
+
+  it('is safe when only the rest day would be used', () => {
+    expect(skipTodayOutcome({ trainedDays: trained, frozenDays: [], banked: 0, today: '2026-10-21' })).toBe('safe');
+  });
+
+  it('spends a freeze when the rest day is gone and one is banked', () => {
+    expect(skipTodayOutcome({ trainedDays: trained, frozenDays: [], banked: 1, today: '2026-10-22' })).toBe('freeze');
+  });
+
+  it('is lost when the rest day is gone and nothing is banked', () => {
+    expect(skipTodayOutcome({ trainedDays: trained, frozenDays: [], banked: 0, today: '2026-10-22' })).toBe('lost');
+  });
+
+  it('is none when today is trained or there is no streak', () => {
+    expect(skipTodayOutcome({ trainedDays: trained, frozenDays: [], banked: 2, today: '2026-10-20' })).toBe('none');
+    expect(skipTodayOutcome({ trainedDays: [], frozenDays: [], banked: 2, today: '2026-10-20' })).toBe('none');
+  });
+});

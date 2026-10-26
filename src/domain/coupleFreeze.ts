@@ -21,6 +21,9 @@ import {
   MAX_STREAK_FREEZES,
   STARTER_STREAK_FREEZES,
   planStreakFreezes,
+  shiftDay,
+  skipTodayOutcome,
+  type SkipTodayOutcome,
 } from './streakFreeze';
 
 /**
@@ -78,4 +81,71 @@ export function planCoupleFreeze(couple: Couple, today: string): CoupleFreezeBan
   }
 
   return changed ? { banked, frozenDays, lastEarnedDay: lastEarnedDay ?? null } : null;
+}
+
+/** What skipping today does to the shared streak, for the couple reminder. */
+export function coupleSkipTodayOutcome(couple: Couple, today: string): SkipTodayOutcome {
+  if (!isPaired(couple)) return 'none';
+  const bank = coupleFreezeBank(couple);
+  return skipTodayOutcome({
+    trainedDays: bothTrainedDays(couple),
+    frozenDays: bank.frozenDays,
+    banked: bank.banked,
+    today,
+  });
+}
+
+/** How far back a shared-freeze save is still news worth a Home card. */
+const SAVE_NEWS_DAYS = 3;
+
+export interface CoupleFreezeSave {
+  /** The newest frozen day; identifies this save so a dismissal sticks. */
+  day: string;
+  /** Freezes the save spent. */
+  used: number;
+}
+
+/**
+ * The shared freeze's latest save, while it is still news.
+ *
+ * Derived from the document rather than recorded by whichever phone spent it,
+ * so both partners see it: the partner who wasn't the one to open the app
+ * learns their streak was saved too.
+ */
+export function coupleFreezeSave(couple: Couple, today: string): CoupleFreezeSave | null {
+  if (!isPaired(couple)) return null;
+  const { frozenDays } = coupleFreezeBank(couple);
+  const day = frozenDays.filter((d) => d < today).sort().at(-1);
+  if (!day || day < shiftDay(today, -SAVE_NEWS_DAYS)) return null;
+
+  let lastTrained = '';
+  for (const d of bothTrainedDays(couple)) if (d < day && d > lastTrained) lastTrained = d;
+  const used = frozenDays.filter((d) => d > lastTrained && d <= day).length;
+  return { day, used: Math.max(1, used) };
+}
+
+/** The couple streak reminder, worded for what skipping today really costs. */
+export function coupleStreakReminderCopy(input: {
+  partnerName: string;
+  streak: number;
+  ifSkipped: SkipTodayOutcome | null;
+}): { title: string; body: string } {
+  const { partnerName, streak, ifSkipped } = input;
+  const run = streak > 0 ? `${streak}-day ` : '';
+  if (ifSkipped === 'freeze') {
+    return {
+      title: `Day ${streak + 1} together — save your freeze`,
+      body: `Skip today and your shared freeze covers it. Train with ${partnerName} and keep it banked.`,
+    };
+  }
+  if (ifSkipped === 'safe') {
+    return {
+      title: 'Keep the shared streak climbing',
+      body: `Your ${run}streak with ${partnerName} has its rest day, but a set from you both today adds a day.`,
+    };
+  }
+  return {
+    title: 'Shared streak needs you',
+    body: `You and ${partnerName} both need a set today to keep your ${run}streak alive.`,
+  };
 }

@@ -2,6 +2,9 @@ import { calculateCoupleStreak, type Couple, type CoupleFreezeBank } from '../co
 import {
   COUPLE_FREEZE_CAP,
   coupleFreezeBank,
+  coupleFreezeSave,
+  coupleSkipTodayOutcome,
+  coupleStreakReminderCopy,
   planCoupleFreeze,
 } from '../coupleFreeze';
 import { shiftDay } from '../streakFreeze';
@@ -93,5 +96,56 @@ describe('planCoupleFreeze', () => {
   it('does nothing for an unpaired invite', () => {
     const c: Couple = { ...couple([], []), pending: true, members: [couple([], []).members[0]!] };
     expect(planCoupleFreeze(c, '2026-10-20')).toBeNull();
+  });
+});
+
+describe('coupleSkipTodayOutcome', () => {
+  it('says a freeze will cover a skip after the rest day is gone', () => {
+    const days = run('2026-10-20', 5);
+    expect(coupleSkipTodayOutcome(couple(days, days, bank(1)), '2026-10-22')).toBe('freeze');
+    expect(coupleSkipTodayOutcome(couple(days, days, bank(0)), '2026-10-22')).toBe('lost');
+    expect(coupleSkipTodayOutcome(couple(days, days, bank(0)), '2026-10-21')).toBe('safe');
+  });
+});
+
+describe('coupleFreezeSave', () => {
+  const days = run('2026-10-20', 5);
+
+  it('reports a fresh save to both partners', () => {
+    const c = couple(days, days, bank(0, ['2026-10-22']));
+    expect(coupleFreezeSave(c, '2026-10-23')).toEqual({ day: '2026-10-22', used: 1 });
+  });
+
+  it('counts every freeze one save spent', () => {
+    const c = couple(days, days, bank(0, ['2026-10-22', '2026-10-23']));
+    expect(coupleFreezeSave(c, '2026-10-24')?.used).toBe(2);
+  });
+
+  it('goes quiet once the save is old news', () => {
+    const c = couple(days, days, bank(0, ['2026-10-22']));
+    expect(coupleFreezeSave(c, '2026-10-27')).toBeNull();
+  });
+
+  it('is null with no save', () => {
+    expect(coupleFreezeSave(couple(days, days, bank(1)), '2026-10-21')).toBeNull();
+  });
+});
+
+describe('coupleStreakReminderCopy', () => {
+  it('says the freeze will cover today when it will', () => {
+    const copy = coupleStreakReminderCopy({ partnerName: 'Sam', streak: 9, ifSkipped: 'freeze' });
+    expect(copy.title).toBe('Day 10 together — save your freeze');
+    expect(copy.body).toContain('shared freeze covers it');
+  });
+
+  it('does not claim the streak dies when a rest day is left', () => {
+    const copy = coupleStreakReminderCopy({ partnerName: 'Sam', streak: 9, ifSkipped: 'safe' });
+    expect(copy.body).not.toContain('keep your');
+    expect(copy.body).toContain('rest day');
+  });
+
+  it('warns plainly when the streak would end', () => {
+    const copy = coupleStreakReminderCopy({ partnerName: 'Sam', streak: 9, ifSkipped: 'lost' });
+    expect(copy.body).toBe('You and Sam both need a set today to keep your 9-day streak alive.');
   });
 });

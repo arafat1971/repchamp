@@ -42,6 +42,7 @@ jest.mock('@/lib/crash', () => ({ captureError: jest.fn() }));
 jest.mock('@/state/profileStore', () => ({
   useProfileStore: Object.assign(jest.fn(), { getState: () => ({}) }),
   selectPairingBonusActive: () => false,
+  setStreakFreezeCapSource: jest.fn(),
 }));
 
 import { useProStore } from '../proStore';

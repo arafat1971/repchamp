@@ -49,7 +49,7 @@ import {
   inviteLink,
 } from '@/domain/couple';
 import { drinksOnDay, hydrationProgress, stepGoalMl , DEFAULT_DAILY_GOAL_ML } from '@/domain/hydration';
-import { lightImpactHaptic, playPopSound, selectionHaptic } from '@/lib/feedback';
+import { lightImpactHaptic, playPopSound, selectionHaptic, successHaptic } from '@/lib/feedback';
 import { shareDrink, syncHydrationNow, syncRepsNow, syncStepsNow } from '@/services/hydrationSync';
 import { useStepsToday } from '@/state/useStepsToday';
 import { buildDashboardSnapshot } from '@/domain/dashboardSnapshot';
@@ -60,6 +60,8 @@ import { useWidgetStyleStore } from '@/state/widgetStyleStore';
 import { useDuoStreakStore } from '@/state/duoStreakStore';
 import { useRitualStore } from '@/state/ritualStore';
 import { MorningCard } from '@/components/together/MorningCard';
+import { FreezeSavedCard } from '@/components/home/FreezeSavedCard';
+import { StreakRepairCard } from '@/components/home/StreakRepairCard';
 import { useHomeClock } from '@/state/useHomeClock';
 import { useWeatherStore } from '@/state/weatherStore';
 import { refreshWeather } from '@/services/weather';
@@ -88,6 +90,8 @@ import {
   selectDaysTrainedThisWeek,
   selectLevel,
   selectStreak,
+  selectRepairOffer,
+  selectStreakFreezes,
   selectTotalReps,
   selectWeeklyXp,
 } from '@/state/profileStore';
@@ -130,8 +134,13 @@ export default function HomeScreen() {
       username: s.username,
       sex: s.sex,
       weeklyGoal: s.weeklyGoal,
+      frozenDays: s.frozenDays,
+      streakFreezes: s.streakFreezes,
+      lastRepairDay: s.lastRepairDay,
+      repairDismissedFor: s.repairDismissedFor,
     })),
   );
+  const freezeSave = useProfileStore((s) => s.freezeSave);
   const couple = useCouple();
   const self = useSelfPlayer();
 
@@ -139,6 +148,12 @@ export default function HomeScreen() {
   const weeklyXp = selectWeeklyXp(profile);
   const leagueProgress = useMemo(() => leagueProgressFromWeeklyXp(weeklyXp), [weeklyXp]);
   const streak = selectStreak(profile);
+  /* Recomputed with history, frozen days and the cooldown; cheap (one walk). */
+  const repairOffer = useMemo(
+    () => selectRepairOffer(profile),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [profile.sessions, profile.frozenDays, profile.lastRepairDay],
+  );
   /* Whether solo training is out of free reps. Couple mode is exempt, so this
      is deliberately asked without `isCoupleMode` — it governs the solo tiles
      and the hero's solo cases only. */
@@ -150,8 +165,8 @@ export default function HomeScreen() {
   });
   const daysTrained = selectDaysTrainedThisWeek(profile);
   const week = useMemo(
-    () => weekStrip(profile.sessions.map((x) => x.day)),
-    [profile.sessions],
+    () => weekStrip(profile.sessions.map((x) => x.day), undefined, profile.frozenDays),
+    [profile.sessions, profile.frozenDays],
   );
   const goal = profile.weeklyGoal;
   const initial = (profile.username || 'C').charAt(0).toUpperCase();
@@ -860,6 +875,44 @@ export default function HomeScreen() {
       />
       <View style={styles.afterWeek} />
 
+      {/* A break the freeze bank could not cover, still fresh enough to repair. */}
+      {!freezeSave && repairOffer && profile.repairDismissedFor !== repairOffer.lastTrained ? (
+        <View style={styles.morningGap}>
+          <StreakRepairCard
+            lostStreak={repairOffer.lostStreak}
+            isPro={isPro}
+            onRepair={() => {
+              if (!isPro) {
+                router.push({ pathname: '/modal/paywall', params: { source: 'streak-repair' } });
+                return;
+              }
+              const restored = useProfileStore.getState().repairStreak();
+              if (restored > 0) {
+                successHaptic();
+                track('streak_repaired', { streak: restored });
+              }
+            }}
+            onDismiss={() => useProfileStore.getState().dismissRepair()}
+          />
+        </View>
+      ) : null}
+
+      {freezeSave ? (
+        <View style={styles.morningGap}>
+          <FreezeSavedCard
+            used={freezeSave.used}
+            streak={freezeSave.streak}
+            left={selectStreakFreezes(profile)}
+            onDismiss={() => useProfileStore.getState().dismissFreezeSave()}
+            onUpgrade={
+              isPro
+                ? undefined
+                : () => router.push({ pathname: '/modal/paywall', params: { source: 'streak-freeze' } })
+            }
+          />
+        </View>
+      ) : null}
+
       {morning && morning.show && partnerGlass ? (
         <View style={styles.morningGap}>
           <MorningCard
@@ -898,6 +951,7 @@ export default function HomeScreen() {
           water={water}
           steps={stepsToday}
           streak={streak}
+          freezes={selectStreakFreezes(profile)}
           daysTrained={daysTrained}
           goal={goal}
           league={leagueProgress}

@@ -13,6 +13,8 @@ describe('paywallLead', () => {
     expect(paywallLead('programme', wall).title).toMatch(/plan/);
     expect(paywallLead('form-report', wall).title).toMatch(/move/);
     expect(paywallLead('exercise-library', wall).title).toMatch(/exercise/);
+    expect(paywallLead('streak-freeze', wall).title).toBe('Protect your streak');
+    expect(paywallLead('streak-repair', wall).title).toBe('Get your streak back');
   });
   it('falls back to the general line for browsing', () => {
     expect(paywallLead('profile', wall).title).toBe('Train without limits');

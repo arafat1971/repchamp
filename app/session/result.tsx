@@ -173,7 +173,9 @@ export default function ResultScreen() {
          retention claim was unfalsifiable. A second set on a day already
          trained reports `same-day` and emits nothing — three sets in an
          evening are one day of retention, not three. */
-      const streak = streakOutcome(beforeDays);
+      // Freezes spent by this write are already on the store; pass them so a
+      // saved streak reads as continued, not broken.
+      const streak = streakOutcome(beforeDays, undefined, useProfileStore.getState().frozenDays);
       if (streak.kind === 'continued') {
         track('streak_continued', { length: streak.length, previous: streak.previous });
       } else if (streak.kind === 'broken') {

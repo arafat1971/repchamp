@@ -1,4 +1,5 @@
 import {
+  COUPLE_WALL_ENABLED,
   FREE_REP_LIMIT,
   HARD_WALL_ENABLED,
   NEARING_WALL_REPS,
@@ -47,8 +48,13 @@ describe('evaluateHardWall', () => {
   /* The viral loop. Whoever reaches a together-set was invited by someone
      else, so walling them walls the referrer's pitch, not just their own
      session. */
-  it('never walls couple mode', () => {
-    expect(evaluateHardWallRule(input({ isCoupleMode: true, repsSoFar: 0 })).walled).toBe(false);
+  /* Owner decision 2026-10-26: each partner pays. Couple mode is walled like
+     solo, while Pro (incl. the pairing week) still trains together. */
+  it('walls couple mode for a non-Pro athlete', () => {
+    expect(COUPLE_WALL_ENABLED).toBe(true);
+    expect(evaluateHardWallRule(input({ isCoupleMode: true, repsSoFar: 0 })).walled).toBe(true);
+    expect(evaluateHardWallRule(input({ isCoupleMode: true, isPro: true })).walled).toBe(false);
+    expect(evaluateHardWallRule(input({ isCoupleMode: true, billingReady: false })).walled).toBe(false);
   });
 
   /* A wall on a build that cannot sell anything is a dead end with no way
@@ -61,7 +67,6 @@ describe('evaluateHardWall', () => {
   it('applies exemptions regardless of reps', () => {
     for (const repsSoFar of [0, 10_000]) {
       expect(evaluateHardWallRule(input({ repsSoFar, isPro: true })).walled).toBe(false);
-      expect(evaluateHardWallRule(input({ repsSoFar, isCoupleMode: true })).walled).toBe(false);
       expect(evaluateHardWallRule(input({ repsSoFar, billingReady: false })).walled).toBe(false);
     }
   });
@@ -75,7 +80,7 @@ describe('repsRemaining', () => {
 
   it('is unbounded for anyone the wall does not apply to', () => {
     expect(repsRemainingRule(input({ isPro: true }))).toBe(Number.POSITIVE_INFINITY);
-    expect(repsRemainingRule(input({ isCoupleMode: true }))).toBe(Number.POSITIVE_INFINITY);
+    expect(repsRemainingRule(input({ isCoupleMode: true }))).toBe(0);
     expect(repsRemainingRule(input({ billingReady: false }))).toBe(Number.POSITIVE_INFINITY);
   });
 });
@@ -108,9 +113,9 @@ describe('HARD_WALL_ENABLED', () => {
     });
   });
 
-  it('still exempts Pro, couple mode and unconfigured billing', () => {
+  it('still exempts Pro and unconfigured billing, and walls couple mode', () => {
     expect(isWalled(input({ isPro: true }))).toBe(false);
-    expect(isWalled(input({ isCoupleMode: true }))).toBe(false);
+    expect(isWalled(input({ isCoupleMode: true }))).toBe(true);
     expect(isWalled(input({ billingReady: false }))).toBe(false);
   });
 
@@ -118,7 +123,7 @@ describe('HARD_WALL_ENABLED', () => {
     expect(repsRemaining(input())).toBe(0);
     expect(isNearingWall(input())).toBe(false);
     expect(repsRemaining(input({ isPro: true }))).toBe(Number.POSITIVE_INFINITY);
-    expect(repsRemaining(input({ isCoupleMode: true }))).toBe(Number.POSITIVE_INFINITY);
+    expect(repsRemaining(input({ isCoupleMode: true }))).toBe(0);
   });
 
   it('passes the rules through unchanged', () => {
@@ -141,5 +146,19 @@ describe('HARD_WALL_ENABLED', () => {
     for (const line of Object.values(WALL_COPY)) {
       expect(line.toLowerCase()).not.toContain('free reps');
     }
+  });
+});
+
+describe('closeDelayMs', () => {
+  const { closeDelayMs: delay, HARD_WALL_CLOSE_DELAY_MS } = jest.requireActual(
+    '../hardPaywall',
+  ) as typeof import('../hardPaywall');
+
+  it('holds the × only on the rep wall, and only briefly', () => {
+    expect(delay(true)).toBe(HARD_WALL_CLOSE_DELAY_MS);
+    expect(delay(false)).toBe(0);
+    // Long enough to read the offer, short enough not to feel like a trap.
+    expect(HARD_WALL_CLOSE_DELAY_MS).toBeGreaterThan(0);
+    expect(HARD_WALL_CLOSE_DELAY_MS).toBeLessThanOrEqual(5000);
   });
 });

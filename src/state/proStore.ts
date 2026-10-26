@@ -6,7 +6,12 @@ import {
   fetchIsPro,
   watchCustomerInfo,
 } from '@/services/purchases';
-import { selectPairingBonusActive, useProfileStore } from '@/state/profileStore';
+import { freezeCap } from '@/domain/streakFreeze';
+import {
+  selectPairingBonusActive,
+  setStreakFreezeCapSource,
+  useProfileStore,
+} from '@/state/profileStore';
 
 /**
  * The athlete's Pro entitlement, kept live.
@@ -108,3 +113,11 @@ export function useEffectivePro(): boolean {
 export function useIsPro(): boolean {
   return useEffectivePro();
 }
+
+/* Pro banks more streak freezes. Registered here because profileStore cannot
+   import this store without a cycle. Same rule as `useEffectivePro`. */
+setStreakFreezeCapSource(() =>
+  freezeCap(
+    useProStore.getState().isPro || selectPairingBonusActive(useProfileStore.getState()),
+  ),
+);

@@ -5,7 +5,7 @@ import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withTimi
 
 import { CountUp, PopOnChange } from '@/components/motion';
 import { PressableScale } from '@/components/ui';
-import { CheckIcon, FlameIcon } from '@/components/home/Icons';
+import { CheckIcon, FlameIcon, SnowflakeIcon } from '@/components/home/Icons';
 import { ProgressRing } from '@/components/home/ProgressRing';
 import type { LeagueProgress } from '@/domain/leagueProgress';
 import { nextToClose } from '@/domain/nextToClose';
@@ -40,6 +40,7 @@ export function TodayBento({
   water,
   steps,
   streak,
+  freezes = 0,
   daysTrained,
   goal,
   league,
@@ -52,6 +53,8 @@ export function TodayBento({
   water: { ml: number; goalMl: number; percent: number };
   steps: StepsState;
   streak: number;
+  /** Streak freezes banked — shown as a small ice chip on the streak tile. */
+  freezes?: number;
   daysTrained: number;
   goal: number;
   league: LeagueProgress;
@@ -148,7 +151,9 @@ export function TodayBento({
         <PressableScale
           onPress={onStreak}
           accessibilityRole="button"
-          accessibilityLabel={`${streak} day streak, ${daysTrained} of ${goal} days this week`}
+          accessibilityLabel={`${streak} day streak, ${daysTrained} of ${goal} days this week${
+            freezes > 0 ? `, ${freezes} streak ${freezes === 1 ? 'freeze' : 'freezes'} banked` : ''
+          }`}
           style={[styles.tile, styles.streakTile]}
         >
           <>
@@ -160,6 +165,12 @@ export function TodayBento({
               <Text style={[styles.bigUnit, { color: 'rgba(255,255,255,0.7)' }]}>
                 {streak === 1 ? 'day' : 'days'}
               </Text>
+              {freezes > 0 ? (
+                <PopOnChange trigger={freezes} style={styles.freezeChip}>
+                  <SnowflakeIcon size={11} color={palette.blue300} strokeWidth={2.4} />
+                  <Text style={styles.freezeCount}>{freezes}</Text>
+                </PopOnChange>
+              ) : null}
             </View>
             <Text style={[styles.tileFoot, { color: 'rgba(255,255,255,0.6)' }]} numberOfLines={1}>
               {streak === 0
@@ -284,6 +295,17 @@ const styles = StyleSheet.create({
   },
   ringsTile: { alignItems: 'stretch', justifyContent: 'flex-start' },
   streakTile: { backgroundColor: palette.ink, borderColor: palette.ink },
+  freezeChip: {
+    marginLeft: 'auto',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: 'rgba(147,197,253,0.16)',
+  },
+  freezeCount: { ...font('extrabold', 11, { color: palette.blue300 }), fontVariant: ['tabular-nums'] },
   leagueTile: {},
   tileHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   tileLabel: { ...font('bold', 15, { color: palette.ink }), letterSpacing: -0.2 },

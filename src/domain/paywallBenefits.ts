@@ -25,15 +25,21 @@
  * Pure, so the ordering is provable without a store or a screen.
  */
 
-/** Stable ids for the four promises, so ordering never depends on prose. */
-export type BenefitId = 'library' | 'programmes' | 'reports' | 'free-staples';
+/**
+ * Stable ids for the promises, so ordering never depends on prose.
+ *
+ * `couple` replaced `free-staples` ("Couple: free") on 2026-10-26, when couple
+ * mode moved behind the wall: it is now something Pro gives, not a reassurance.
+ */
+export type BenefitId = 'library' | 'programmes' | 'reports' | 'freezes' | 'couple';
 
 /** The authored order — used as-is when nothing specific was blocked. */
 export const DEFAULT_BENEFIT_ORDER: readonly BenefitId[] = [
   'library',
   'programmes',
   'reports',
-  'free-staples',
+  'freezes',
+  'couple',
 ];
 
 /**
@@ -52,6 +58,9 @@ export function blockedBenefit(source: string | null | undefined): BenefitId | n
     case 'programme':
     case 'moment-streak':
       return 'programmes';
+    case 'streak-freeze':
+    case 'streak-repair':
+      return 'freezes';
     case 'form-report':
     case 'form-report-teaser':
     case 'moment-personal-best':
@@ -66,9 +75,7 @@ export function blockedBenefit(source: string | null | undefined): BenefitId | n
  *
  * Everything else keeps its relative order behind it — a stable sort, not a
  * reshuffle, so the screen still reads as one authored list rather than a
- * different page per source. `free-staples` is never promoted: it is the
- * reassurance that nothing was taken away, which only lands after the athlete
- * knows what they gain.
+ * different page per source.
  */
 export function orderBenefits(source: string | null | undefined): readonly BenefitId[] {
   const lead = blockedBenefit(source);

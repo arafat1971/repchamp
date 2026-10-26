@@ -38,6 +38,9 @@ export function paywallLead(
       sub: `${opts.totalReps.toLocaleString()} reps counted. Pro keeps you going.`,
     };
   }
+  if (source === 'streak-repair') {
+    return { title: 'Get your streak back', sub: 'Pro repairs a broken streak once a month, and banks 3 freezes.' };
+  }
   switch (blockedBenefit(source)) {
     case 'library':
       return { title: 'Every exercise, unlocked', sub: 'Go beyond push-ups and squats.' };
@@ -45,8 +48,10 @@ export function paywallLead(
       return { title: 'A plan that adapts to you', sub: 'Multi-week programmes that scale as you do.' };
     case 'reports':
       return { title: 'See exactly how you move', sub: 'Depth, tempo and alignment after every set.' };
+    case 'freezes':
+      return { title: 'Protect your streak', sub: 'Bank 3 freezes, so a busy day never costs you the streak.' };
     default:
-      return { title: 'Train without limits', sub: 'Depth when you want it. Couple mode stays free.' };
+      return { title: 'Train without limits', sub: 'Solo or as a couple, every exercise unlocked.' };
   }
 }
 

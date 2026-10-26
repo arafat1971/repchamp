@@ -43,11 +43,12 @@ export type StreakOutcome =
 export function streakOutcome(
   previousDays: readonly string[],
   today = dayKey(),
+  frozenDays: readonly string[] = [],
 ): StreakOutcome {
   if (previousDays.includes(today)) return { kind: 'same-day' };
 
-  const previous = calculateStreak(previousDays, today);
-  const next = calculateStreak([...previousDays, today], today);
+  const previous = calculateStreak(previousDays, today, frozenDays);
+  const next = calculateStreak([...previousDays, today], today, frozenDays);
 
   if (previous === 0) {
     // No live run coming in. If there is any history at all the athlete is

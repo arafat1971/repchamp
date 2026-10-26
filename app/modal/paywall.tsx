@@ -43,7 +43,7 @@ import { headlineProof } from '@/domain/progressProof';
 import { blockedBenefit, orderBenefits, type BenefitId } from '@/domain/paywallBenefits';
 import { toPlanPrice } from '@/domain/subscriptionOffering';
 import { selectStreak, selectTotalReps, useProfileStore } from '@/state/profileStore';
-import { FREE_REP_LIMIT } from '@/domain/hardPaywall';
+import { FREE_REP_LIMIT, closeDelayMs } from '@/domain/hardPaywall';
 import {
   commitmentLine,
   granularPrice,
@@ -66,7 +66,8 @@ const BENEFITS: Record<BenefitId, { title: string }> = {
   library: { title: 'All exercises' },
   programmes: { title: 'Plans' },
   reports: { title: 'Form score' },
-  'free-staples': { title: 'Couple: free' },
+  freezes: { title: '3 streak freezes' },
+  couple: { title: 'Train as a couple' },
 };
 
 /** Line icons in one stroke weight, so the four tiles read as one family. */
@@ -83,6 +84,11 @@ function BenefitIcon({ id, color }: { id: BenefitId; color: string }) {
           <Rect x={4} y={5.5} width={16} height={14} rx={3} {...p} />
           <Path d="M4 10h16M8.5 3.5v4M15.5 3.5v4" {...p} />
         </>
+      ) : id === 'freezes' ? (
+        <Path
+          d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.6 4.6 12 7l2.4-2.4M9.6 19.4 12 17l2.4 2.4"
+          {...p}
+        />
       ) : id === 'reports' ? (
         <>
           <Circle cx={12} cy={12} r={8.5} {...p} />
@@ -122,6 +128,14 @@ export default function PaywallScreen() {
      wall stays up, it just is not a trap. See `leave` for why that needs a
      different exit than the ordinary paywall. */
   const fromRepWall = params.hard === '1';
+  /* The × waits on the rep wall so the offer is read first; "Maybe later"
+     and Android Back do not. See `closeDelayMs`. */
+  const [closeShown, setCloseShown] = useState(() => closeDelayMs(fromRepWall) === 0);
+  useEffect(() => {
+    if (closeShown) return;
+    const t = setTimeout(() => setCloseShown(true), closeDelayMs(fromRepWall));
+    return () => clearTimeout(t);
+  }, [closeShown, fromRepWall]);
 
   /* Every way off this screen, whether the athlete subscribed or declined.
    *
@@ -382,15 +396,21 @@ export default function PaywallScreen() {
             straight back into this one. The close button is the same door as
             "Maybe later" (see `leave`). */}
         <View style={styles.topBar}>
-          <PressableScale
-            onPress={leaveWithoutBuying}
-            accessibilityRole="button"
-            accessibilityLabel="Close"
-            style={styles.close}
-          >
-            <View style={[styles.closeBar, { transform: [{ rotate: '45deg' }] }]} />
-            <View style={[styles.closeBar, { transform: [{ rotate: '-45deg' }] }]} />
-          </PressableScale>
+          {closeShown ? (
+            <Animated.View entering={FadeIn.duration(400)}>
+              <PressableScale
+                onPress={leaveWithoutBuying}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                style={styles.close}
+              >
+                <View style={[styles.closeBar, { transform: [{ rotate: '45deg' }] }]} />
+                <View style={[styles.closeBar, { transform: [{ rotate: '-45deg' }] }]} />
+              </PressableScale>
+            </Animated.View>
+          ) : (
+            <View style={styles.closePlaceholder} />
+          )}
           {billingReady ? (
             <PressableScale
               onPress={() => void onRestore()}
@@ -447,20 +467,23 @@ export default function PaywallScreen() {
           <View style={styles.benefits}>
             {order.map((id, i) => {
               const b = BENEFITS[id];
-              const free = id === 'free-staples';
               const refused = id === leadBenefit;
               return (
                 <Animated.View
                   key={id}
                   entering={FadeInDown.delay(100 + i * 60).duration(320)}
-                  style={[styles.benefit, refused && styles.benefitRefused]}
+                  style={[
+                    styles.benefit,
+                    order.length % 2 === 1 && i === order.length - 1 && styles.benefitWide,
+                    refused && styles.benefitRefused,
+                  ]}
                   accessibilityLabel={b.title}
                 >
-                  <View style={[styles.benefitIcon, free && styles.benefitIconFree]}>
-                    <BenefitIcon id={id} color={free ? palette.grey600 : palette.green700} />
+                  <View style={styles.benefitIcon}>
+                    <BenefitIcon id={id} color={palette.green700} />
                   </View>
                   <Text
-                    style={[styles.benefitLabel, free && styles.benefitLabelFree]}
+                    style={styles.benefitLabel}
                     numberOfLines={1}
                   >
                     {b.title}
@@ -800,6 +823,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  closePlaceholder: { width: 40, height: 40 },
   closeBar: {
     position: 'absolute',
     width: 16,
@@ -859,6 +883,7 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
   },
   benefitRefused: { backgroundColor: palette.green50 },
+  benefitWide: { width: '100%' },
   benefitIcon: {
     width: 34,
     height: 34,
@@ -868,9 +893,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  benefitIconFree: { backgroundColor: palette.divider },
   benefitLabel: { ...font('bold', 14, { color: palette.ink }), flexShrink: 1 },
-  benefitLabelFree: { color: palette.grey600 },
 
   plans: { gap: 10, marginTop: 18 },
   plan: {

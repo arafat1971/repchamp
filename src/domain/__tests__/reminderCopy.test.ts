@@ -160,3 +160,26 @@ describe('buildDailyReminder — the last night of a streak', () => {
     expect(copy.title).toBe('Time for a quick set');
   });
 });
+
+describe('buildDailyReminder — streak freezes', () => {
+  it('does not claim the streak ends when a freeze will cover today', () => {
+    const copy = buildDailyReminder({ streak: 12, daysAway: 2, ifSkipped: 'freeze' });
+    expect(copy.title).toBe('Day 12 — save your freeze');
+    expect(`${copy.title} ${copy.body}`).not.toMatch(/ends today/);
+  });
+
+  it('still warns on the real last night', () => {
+    expect(buildDailyReminder({ streak: 12, daysAway: 3, ifSkipped: 'lost' }).title).toBe('Day 12 ends today');
+  });
+
+  it('trusts the outcome over daysAway, which cannot see freezes', () => {
+    // A frozen day makes daysAway look like a lapse while the rest day is unused.
+    expect(buildDailyReminder({ streak: 12, daysAway: 2, ifSkipped: 'safe', seed: 0 }).title).toBe(
+      'Day 12 — keep it going',
+    );
+  });
+
+  it('keeps the old daysAway wording when no outcome is given', () => {
+    expect(buildDailyReminder({ streak: 12, daysAway: 2 }).title).toBe('Day 12 ends today');
+  });
+});

@@ -159,3 +159,44 @@ describe('hydrateSessionsFromCloudProgress', () => {
     expect(hydrated).toHaveLength(1);
   });
 });
+
+describe('streak freezes in cloud progress', () => {
+  const { restoredStreakFreezes, sanitizeStreakFreezes } = jest.requireActual(
+    '../cloudProgress',
+  ) as typeof import('../cloudProgress');
+
+  it('carries frozen days in the slice', () => {
+    const slice = buildCloudProgressSlice({
+      sessions: [],
+      programme: null,
+      frozenDays: ['2026-07-03', 'bad', '2026-07-01', '2026-07-03'],
+    });
+    expect(slice.frozenDays).toEqual(['2026-07-01', '2026-07-03']);
+  });
+
+  it('unions frozen days across devices', () => {
+    const base = buildCloudProgressSlice({ sessions: [], programme: null, frozenDays: ['2026-07-01'] });
+    const merged = mergeCloudProgressSlice(base, { frozenDays: ['2026-07-02'] });
+    expect(merged.frozenDays).toEqual(['2026-07-01', '2026-07-02']);
+    // An older cloud doc with no field changes nothing.
+    expect(mergeCloudProgressSlice(base, {}).frozenDays).toEqual(['2026-07-01']);
+  });
+
+  it('bounds a client-written freeze count', () => {
+    expect(sanitizeStreakFreezes(2)).toBe(2);
+    expect(sanitizeStreakFreezes(999)).toBe(3);
+    expect(sanitizeStreakFreezes(-4)).toBe(0);
+    expect(sanitizeStreakFreezes('2')).toBeNull();
+    expect(sanitizeStreakFreezes(undefined)).toBeNull();
+  });
+
+  it('restores the cloud count only on a fresh install', () => {
+    // Fresh install: take the cloud's count, not the starter freeze.
+    expect(restoredStreakFreezes(0, 1, 0)).toBe(0);
+    expect(restoredStreakFreezes(0, 1, 2)).toBe(2);
+    // A device with history keeps its own, so a spend is never undone.
+    expect(restoredStreakFreezes(12, 0, 2)).toBe(0);
+    // Nothing in the cloud yet: keep local.
+    expect(restoredStreakFreezes(0, 1, undefined)).toBe(1);
+  });
+});

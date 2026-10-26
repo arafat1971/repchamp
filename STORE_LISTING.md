@@ -116,7 +116,7 @@ Duel friends in real time
 Challenge a friend to a timed workout challenge and watch both scores climb live. Most reps before the clock runs out wins the XP. Nobody online yet? Race an AI training partner, always clearly labelled as AI.
 
 Couples workout and shared streak
-Pair with your partner and keep one streak together. It only survives if you both show up, which makes it much harder to quit than a streak of your own. Nudge each other when one of you falls behind. Couple mode is free, always.
+Pair with your partner and keep one streak together. It only survives if you both show up, which makes it much harder to quit than a streak of your own. Nudge each other when one of you falls behind.
 
 Drink water with your panda
 Log a glass in one tap (250, 500 or 750 ml) and watch your panda fill its bottle, with your partner's panda right beside it. Send a hug, a high five or a cheer, and add the Android home-screen widget to log water without opening the app.
@@ -130,9 +130,8 @@ Bronze, Silver, Gold and Platinum, reset weekly. Earn XP for every set, hold you
 Home workout, no equipment
 Every exercise is bodyweight: push-ups, squats, lunges, sit-ups, glute bridges, pike push-ups, high knees, jumping jacks, shoulder rolls and a full-body stretch. No gym, no dumbbells, just your phone and some floor space.
 
-Free and Pro
-Try it free: your first 50 reps, no card needed. Couple mode is free, always.
-RepChamp Pro is an auto-renewing subscription (price shown in the app and Google Play before you pay; cancel any time in Google Play). It keeps you training past the free reps and unlocks the full exercise library and detailed form reports.
+RepChamp Pro
+RepChamp is free to download. Counting reps needs RepChamp Pro, an auto-renewing subscription (weekly, monthly or yearly; the price is shown in the app and Google Play before you pay, and you can cancel any time in Google Play). Pro covers solo training, live duels and couple mode, plus the full exercise library, detailed form reports and extra streak freezes. Each partner needs their own subscription for couple mode. The first time you pair with a partner, you both get 7 days of Pro free.
 
 Your video never leaves your phone
 Pose detection runs on your device. Your camera feed is never recorded, never uploaded and never shared, in any mode, including live duels. The only photo we store is the profile picture you choose yourself.
@@ -159,14 +158,14 @@ finish it.
 partners are human — Play's fake-engagement policy and App Store 3.2.2 both
 care about that, and the listing states plainly that they are labelled.
 
-**The free/Pro split is stated exactly.** `FREE_EXERCISES` in
-`src/domain/pro.ts` is `['push', 'squat']` and every other movement is Pro.
-Listing a Pro exercise as free is the kind of mismatch that draws a refund
-complaint rather than a rejection, which is worse.
-
-**Couple mode is named as free** because `src/domain/pro.ts` documents it as
-permanently free. That is a genuine differentiator and it belongs above the
-paywall section, not buried under it.
+**The Pro section says exactly what the wall does.** `FREE_REP_LIMIT` in
+`src/domain/hardPaywall.ts` is 0 and there is no free trial, so the listing
+promises no free reps. `COUPLE_WALL_ENABLED` is on (2026-10-26), so couple mode
+is described as Pro, per partner. The only free Pro is the one-time 7-day
+pairing bonus (`PAIRING_BONUS_DAYS` in `src/state/useCouple.ts`). Promising
+something free that the app then walls is the kind of mismatch that draws a
+refund complaint rather than a rejection, which is worse. If any of those
+constants change, change this section with them.
 
 **The privacy line is deliberately prominent.** A fitness app asking for camera
 access is asking for a lot of trust, and the honest answer here is unusually

@@ -61,15 +61,24 @@ export function consistencyFor(
   trainedDays: readonly string[],
   goal: number,
   now: Date = new Date(),
+  frozenDays: readonly string[] = [],
 ): Consistency {
   const days = new Set(trainedDays);
+  const frozen = new Set(frozenDays);
   const today = dayKey(now);
   const yesterday = shift(today, -1);
-  const streak = calculateStreak([...days], today);
+  const streak = calculateStreak([...days], today, frozenDays);
   const trainedToday = days.has(today);
 
+  /* A frozen yesterday leaves the rest-day tolerance unused, same as a trained one. */
   const state: StreakState =
-    streak === 0 ? 'start' : trainedToday ? 'safe' : days.has(yesterday) ? 'open' : 'at-risk';
+    streak === 0
+      ? 'start'
+      : trainedToday
+        ? 'safe'
+        : days.has(yesterday) || frozen.has(yesterday)
+          ? 'open'
+          : 'at-risk';
 
   const target = nextMilestone(streak);
   const previous = [...STREAK_MILESTONES].reverse().find((m) => m <= streak) ?? 0;

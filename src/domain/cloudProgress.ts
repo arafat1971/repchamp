@@ -4,6 +4,7 @@
  */
 
 import { dayKey } from '@/domain/progression';
+import { MAX_STREAK_FREEZES_PRO } from '@/domain/streakFreeze';
 import type { ProgrammeProgress } from '@/domain/programme';
 import { isoWeekKey } from '@/domain/weeklyChallenge';
 import { EXERCISES, type ExerciseId } from '@/vision/exercises';
@@ -17,6 +18,8 @@ export interface CloudProgressSlice {
   weekXp: number;
   weekExerciseReps: Partial<Record<ExerciseId, number>>;
   programme: ProgrammeProgress | null;
+  /** Days a streak freeze covered. Without these a reinstall reads a saved streak as broken. */
+  frozenDays?: string[];
 }
 
 export interface SessionLike {
@@ -46,6 +49,7 @@ export function compactTrainedDays(days: readonly string[]): string[] {
 export function buildCloudProgressSlice(input: {
   sessions: readonly SessionLike[];
   programme: ProgrammeProgress | null;
+  frozenDays?: readonly string[];
   now?: Date;
 }): CloudProgressSlice {
   const now = input.now ?? new Date();
@@ -68,6 +72,7 @@ export function buildCloudProgressSlice(input: {
     weekXp: Math.max(0, Math.floor(weekXp)),
     weekExerciseReps,
     programme: input.programme,
+    frozenDays: compactTrainedDays(input.frozenDays ?? []),
   };
 }
 
@@ -107,7 +112,36 @@ export function mergeCloudProgressSlice(
     weekXp,
     weekExerciseReps,
     programme: mergeProgrammeProgress(local.programme, cloud?.programme ?? null),
+    // A day frozen on either device stays frozen: same union as trainedDays.
+    frozenDays: compactTrainedDays([
+      ...(local.frozenDays ?? []),
+      ...(Array.isArray(cloud?.frozenDays) ? cloud!.frozenDays! : []),
+    ]),
   };
+}
+
+/** A freeze count read from the cloud, bounded — the doc is client-written. */
+export function sanitizeStreakFreezes(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  return Math.max(0, Math.min(MAX_STREAK_FREEZES_PRO, Math.floor(value)));
+}
+
+/**
+ * The freeze count to keep after signing in.
+ *
+ * Only a fresh install (no local history) takes the cloud's count. Every other
+ * device keeps its own, which is the newest it knows: taking the max would undo
+ * a spend, and a fresh install keeping its starter freeze instead would let a
+ * reinstall farm one.
+ */
+export function restoredStreakFreezes(
+  localSessionCount: number,
+  localFreezes: number,
+  cloudFreezes: unknown,
+): number {
+  const cloud = sanitizeStreakFreezes(cloudFreezes);
+  if (localSessionCount === 0 && cloud !== null) return cloud;
+  return localFreezes;
 }
 
 export function mergeProgrammeProgress(

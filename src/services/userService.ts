@@ -17,6 +17,7 @@ import firestore from '@react-native-firebase/firestore';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import {
   mergeCloudProgressSlice,
+  sanitizeStreakFreezes,
   type CloudProgressSlice,
 } from '@/domain/cloudProgress';
 import { isValidUsername, normalizeUsername, sanitizeDisplayName } from '@/domain/input';
@@ -55,6 +56,9 @@ export interface CloudProfile {
   weekXp?: number;
   weekExerciseReps?: Partial<Record<ExerciseId, number>>;
   programme?: ProgrammeProgress | null;
+  /** Streak freezes: days covered and the banked count. See `domain/streakFreeze`. */
+  frozenDays?: string[];
+  streakFreezes?: number;
 }
 
 const USERS = 'users';
@@ -273,8 +277,11 @@ export async function upsertProfile(
       weekXp: typeof profile.weekXp === 'number' ? profile.weekXp : 0,
       weekExerciseReps: profile.weekExerciseReps ?? {},
       programme: profile.programme ?? null,
+      frozenDays: Array.isArray(profile.frozenDays) ? profile.frozenDays : [],
     };
     const progress = mergeCloudProgressSlice(localProgress, cloud);
+    // This device's count is the newest it knows; see `restoredStreakFreezes`.
+    const streakFreezes = sanitizeStreakFreezes(profile.streakFreezes);
     const now = Date.now();
     await ref.set(
       {
@@ -292,6 +299,8 @@ export async function upsertProfile(
         weekXp: progress.weekXp,
         weekExerciseReps: progress.weekExerciseReps,
         programme: progress.programme,
+        frozenDays: progress.frozenDays ?? [],
+        ...(streakFreezes === null ? {} : { streakFreezes }),
         updatedAt: firestore.FieldValue.serverTimestamp(),
         lastActiveAt: activityStamp(now),
         ...(existing.exists() ? {} : { createdAt: now }),

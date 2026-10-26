@@ -23,9 +23,12 @@ import {
   type AuthUser,
 } from '@/services/auth';
 import {
+  compactTrainedDays,
   hydrateSessionsFromCloudProgress,
   mergeProgrammeProgress,
+  restoredStreakFreezes,
 } from '@/domain/cloudProgress';
+import { mergeFrozenDays } from '@/domain/streakFreeze';
 import {
   buildCloudProgressSlice,
   fetchProfile,
@@ -142,6 +145,15 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
             ),
             sessions,
             programme: mergeProgrammeProgress(local.programme, cloud.programme ?? null),
+            frozenDays: mergeFrozenDays(
+              local.frozenDays ?? [],
+              compactTrainedDays(Array.isArray(cloud.frozenDays) ? cloud.frozenDays : []),
+            ),
+            streakFreezes: restoredStreakFreezes(
+              local.sessions.length,
+              local.streakFreezes ?? 0,
+              cloud.streakFreezes,
+            ),
           });
         }
 
@@ -174,6 +186,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     const progress = buildCloudProgressSlice({
       sessions: p.sessions,
       programme: p.programme,
+      frozenDays: p.frozenDays,
     });
 
     try {
@@ -198,6 +211,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         weekXp: progress.weekXp,
         weekExerciseReps: progress.weekExerciseReps,
         programme: progress.programme,
+        frozenDays: progress.frozenDays,
+        streakFreezes: p.streakFreezes,
       });
 
       if (!saved) {

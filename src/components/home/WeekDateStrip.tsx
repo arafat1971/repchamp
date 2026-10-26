@@ -13,7 +13,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { PressableScale } from '@/components/ui';
-import { CheckIcon } from '@/components/home/Icons';
+import { CheckIcon, SnowflakeIcon } from '@/components/home/Icons';
 import { ProgressRing } from '@/components/home/ProgressRing';
 import type { WeekCell } from '@/domain/weekStrip';
 import { font } from '@/theme/typography';
@@ -65,8 +65,13 @@ export function WeekDateStrip({
                 <Text style={[styles.letter, cell.isToday && styles.letterToday]}>{cell.letter}</Text>
                 <View style={styles.dotSlot}>
                   {/* The chain: half-bars meeting between two trained days. */}
-                  {cell.trained && prev?.trained ? <View style={[styles.link, styles.linkLeft]} /> : null}
-                  {cell.trained && next?.trained ? <View style={[styles.link, styles.linkRight]} /> : null}
+                  {/* A frozen day holds the chain, drawn in ice instead of green. */}
+                  {linked(cell) && linked(prev) ? (
+                    <View style={[styles.link, styles.linkLeft, (cell.frozen || prev?.frozen) && styles.linkFrozen]} />
+                  ) : null}
+                  {linked(cell) && linked(next) ? (
+                    <View style={[styles.link, styles.linkRight, (cell.frozen || next?.frozen) && styles.linkFrozen]} />
+                  ) : null}
                   <Day cell={cell} todayPercent={todayPercent} />
                 </View>
               </View>
@@ -79,8 +84,26 @@ export function WeekDateStrip({
   );
 }
 
+function linked(cell: WeekCell | undefined): boolean {
+  return !!cell && (cell.trained || cell.frozen);
+}
+
 function Day({ cell, todayPercent }: { cell: WeekCell; todayPercent: number }) {
   const date = Number(cell.day.slice(8, 10));
+
+  if (cell.frozen) {
+    return (
+      <LinearGradient
+        colors={[palette.blue300, palette.blue500]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.dot}
+        accessibilityLabel={`${date}, saved by a streak freeze`}
+      >
+        <SnowflakeIcon size={15} color={palette.white} strokeWidth={2.2} />
+      </LinearGradient>
+    );
+  }
 
   if (cell.trained) {
     return (
@@ -182,6 +205,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.green500,
   },
   linkLeft: { left: 0 },
+  linkFrozen: { backgroundColor: palette.blue300 },
   linkRight: { right: 0 },
   dotBox: { width: DOT, height: DOT, alignItems: 'center', justifyContent: 'center' },
   dot: {

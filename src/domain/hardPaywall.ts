@@ -11,9 +11,9 @@
  * Two rules from the original implementation are kept, because both protect
  * things that are worth more than the conversion this wall buys:
  *
- *  - **Couple mode is never walled.** Pairing and together-sets are the viral
- *    loop, and the person reaching them was invited by someone else. Walling a
- *    guest is walling the referrer's pitch.
+ *  - **Couple mode was never walled**, until 2026-10-26, when the owner chose
+ *    "each partner pays". It is now behind `COUPLE_WALL_ENABLED`; pairing
+ *    itself stays free.
  *  - **The wall only engages when billing is actually configured.** An athlete
  *    who physically cannot subscribe must never be locked out — enforced at the
  *    call site, which passes `billingReady`.
@@ -49,6 +49,21 @@
  * is the whole change.
  */
 export const FREE_REP_LIMIT = 0;
+
+/**
+ * On the rep wall, the top close (×) appears this long after the paywall opens.
+ *
+ * The standard hard-paywall move: the offer is read before the exit is. Only
+ * the × waits. "Maybe later" and Android Back work from the first frame,
+ * because a visible decline at all times is what the earlier store rejection
+ * required. Ordinary (non-wall) paywalls show the × at once.
+ */
+export const HARD_WALL_CLOSE_DELAY_MS = 3000;
+
+/** Delay before the paywall's × shows, given whether this is the rep wall. */
+export function closeDelayMs(fromRepWall: boolean): number {
+  return fromRepWall ? HARD_WALL_CLOSE_DELAY_MS : 0;
+}
 
 /**
  * Master switch — **on** as of 2026-09-20.
@@ -87,6 +102,22 @@ export const FREE_REP_LIMIT = 0;
 export const HARD_WALL_ENABLED = true;
 
 /**
+ * Whether together-sets (couple mode) sit behind the wall too — **on as of
+ * 2026-10-26, owner decision**, reversing the long-standing exemption.
+ *
+ * Each partner pays: an athlete without Pro meets the paywall before a
+ * together set exactly as before a solo one, invited guest included. Pairing
+ * itself stays free, and the free Pro week granted on pairing still applies
+ * (it counts as Pro), so a new couple trains together for that week first.
+ *
+ * The cost being accepted: the invite loop was the main free growth engine,
+ * and an invited partner now has to subscribe to keep training with whoever
+ * invited them. Setting this to `false` restores the exemption; nothing else
+ * needs editing.
+ */
+export const COUPLE_WALL_ENABLED = true;
+
+/**
  * What a walled solo entry point says, in one place so the tiles, the hero and
  * the screen-reader labels cannot drift apart. With a zero allowance the
  * athlete never had free reps, so "used" would be untrue — the copy then says
@@ -110,7 +141,7 @@ export interface HardWallInput {
   isPro: boolean;
   /** Lifetime reps banked, plus reps in the live session. */
   repsSoFar: number;
-  /** Together-sets are never walled — the viral loop. */
+  /** Together-sets. Walled like solo while `COUPLE_WALL_ENABLED` is on. */
   isCoupleMode?: boolean;
   /**
    * Whether a purchase could actually be made right now. False on a build with
@@ -148,7 +179,7 @@ export function evaluateHardWall(input: HardWallInput): WallDecision {
  */
 export function evaluateHardWallRule(input: HardWallInput): WallDecision {
   if (input.isPro) return { walled: false };
-  if (input.isCoupleMode) return { walled: false };
+  if (input.isCoupleMode && !COUPLE_WALL_ENABLED) return { walled: false };
   if (!input.billingReady) return { walled: false };
   if (input.repsSoFar < FREE_REP_LIMIT) return { walled: false };
   return { walled: true, reason: 'rep-limit' };
@@ -172,7 +203,7 @@ export function repsRemaining(input: HardWallInput): number {
 
 /** `repsRemaining` without the master switch. See `evaluateHardWallRule`. */
 export function repsRemainingRule(input: HardWallInput): number {
-  if (input.isPro || input.isCoupleMode || !input.billingReady) {
+  if (input.isPro || (input.isCoupleMode && !COUPLE_WALL_ENABLED) || !input.billingReady) {
     return Number.POSITIVE_INFINITY;
   }
   return Math.max(0, FREE_REP_LIMIT - input.repsSoFar);

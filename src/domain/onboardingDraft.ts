@@ -12,6 +12,7 @@
  */
 
 import type { Circle } from './onboardingNav';
+import { cleanPlanKey, type PlanKey } from './onboardingPaywall';
 
 export const ONBOARDING_DRAFT_KEY = 'onboarding.draft';
 /** Bumped when the step list changes: a saved step number means nothing against a new list. */
@@ -26,7 +27,7 @@ export interface OnboardingDraft {
   level: string | null;
   blocker: string | null;
   weeklyGoal: number;
-  plan: 'year' | 'month';
+  plan: PlanKey;
   feel: string | null;
   circle: Circle | null;
   styles: string[];
@@ -73,7 +74,7 @@ export function parseDraft(raw: string | null | undefined, now: number): Onboard
     level: str(o.level, 40),
     blocker: str(o.blocker, 40),
     weeklyGoal: weeklyGoal >= 1 && weeklyGoal <= 7 ? weeklyGoal : 4,
-    plan: o.plan === 'month' ? 'month' : 'year',
+    plan: cleanPlanKey(o.plan),
     feel: str(o.feel, 40),
     circle: circle !== null && CIRCLES.includes(circle) ? (circle as Circle) : null,
     styles: Array.isArray(o.styles)

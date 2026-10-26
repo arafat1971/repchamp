@@ -872,6 +872,11 @@ export default function HomeScreen() {
             streak={freezeSave.streak}
             left={selectStreakFreezes(profile)}
             onDismiss={() => useProfileStore.getState().dismissFreezeSave()}
+            onUpgrade={
+              isPro
+                ? undefined
+                : () => router.push({ pathname: '/modal/paywall', params: { source: 'streak-freeze' } })
+            }
           />
         </View>
       ) : null}

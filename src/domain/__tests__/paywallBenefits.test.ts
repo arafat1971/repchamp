@@ -42,10 +42,11 @@ describe('orderBenefits', () => {
     'form-report-teaser',
     'profile',
     'rep-limit',
-  ])('shows all four benefits from %s', (source) => {
+    'streak-freeze',
+  ])('shows every benefit from %s', (source) => {
     const order = orderBenefits(source);
     expect([...order].sort()).toEqual([...DEFAULT_BENEFIT_ORDER].sort());
-    expect(new Set(order).size).toBe(4);
+    expect(new Set(order).size).toBe(DEFAULT_BENEFIT_ORDER.length);
   });
 
   /* A stable sort, so the page still reads as one authored list rather than a
@@ -55,8 +56,13 @@ describe('orderBenefits', () => {
       'programmes',
       'library',
       'reports',
+      'freezes',
       'free-staples',
     ] satisfies BenefitId[]);
+  });
+
+  it('leads with freezes when opened from a saved streak', () => {
+    expect(orderBenefits('streak-freeze')[0]).toBe('freezes');
   });
 
   /* The reassurance that nothing was taken away only lands once the athlete

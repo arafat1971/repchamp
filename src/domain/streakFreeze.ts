@@ -18,8 +18,23 @@
 
 import { daysBetween } from './retention';
 
-/** Most freezes an athlete can hold at once. */
+/** Most freezes a free athlete can hold at once. */
 export const MAX_STREAK_FREEZES = 2;
+/** Most freezes a Pro athlete can hold — a Pro perk, listed on the paywall. */
+export const MAX_STREAK_FREEZES_PRO = 3;
+
+/**
+ * The bank's cap. A lapsed Pro keeps any freezes already over the free cap
+ * (nothing earned is taken back); they just stop earning until below it.
+ */
+export function freezeCap(isPro: boolean): number {
+  return isPro ? MAX_STREAK_FREEZES_PRO : MAX_STREAK_FREEZES;
+}
+
+/** Banked count after earning one, respecting the cap and never shrinking. */
+export function bankAfterEarning(banked: number, cap: number): number {
+  return Math.max(banked, Math.min(cap, banked + 1));
+}
 /** Every this-many-day milestone of the streak earns a freeze. */
 export const FREEZE_EARN_EVERY = 7;
 /** Freezes a new athlete starts with, so the mechanic is visible from day one. */

@@ -115,3 +115,23 @@ describe('earning', () => {
     ]);
   });
 });
+
+describe('Pro freeze cap', () => {
+  const { bankAfterEarning, freezeCap, MAX_STREAK_FREEZES, MAX_STREAK_FREEZES_PRO } = jest.requireActual(
+    '../streakFreeze',
+  ) as typeof import('../streakFreeze');
+
+  it('Pro holds more than free', () => {
+    expect(freezeCap(false)).toBe(MAX_STREAK_FREEZES);
+    expect(freezeCap(true)).toBe(MAX_STREAK_FREEZES_PRO);
+    expect(MAX_STREAK_FREEZES_PRO).toBeGreaterThan(MAX_STREAK_FREEZES);
+  });
+
+  it('earning respects the cap and never takes freezes back', () => {
+    expect(bankAfterEarning(1, 2)).toBe(2);
+    expect(bankAfterEarning(2, 2)).toBe(2);
+    expect(bankAfterEarning(2, 3)).toBe(3);
+    // A lapsed Pro with 3 keeps them.
+    expect(bankAfterEarning(3, 2)).toBe(3);
+  });
+});

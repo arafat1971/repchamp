@@ -66,6 +66,7 @@ const BENEFITS: Record<BenefitId, { title: string }> = {
   library: { title: 'All exercises' },
   programmes: { title: 'Plans' },
   reports: { title: 'Form score' },
+  freezes: { title: '3 streak freezes' },
   'free-staples': { title: 'Couple: free' },
 };
 
@@ -83,6 +84,11 @@ function BenefitIcon({ id, color }: { id: BenefitId; color: string }) {
           <Rect x={4} y={5.5} width={16} height={14} rx={3} {...p} />
           <Path d="M4 10h16M8.5 3.5v4M15.5 3.5v4" {...p} />
         </>
+      ) : id === 'freezes' ? (
+        <Path
+          d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.6 4.6 12 7l2.4-2.4M9.6 19.4 12 17l2.4 2.4"
+          {...p}
+        />
       ) : id === 'reports' ? (
         <>
           <Circle cx={12} cy={12} r={8.5} {...p} />
@@ -453,7 +459,11 @@ export default function PaywallScreen() {
                 <Animated.View
                   key={id}
                   entering={FadeInDown.delay(100 + i * 60).duration(320)}
-                  style={[styles.benefit, refused && styles.benefitRefused]}
+                  style={[
+                    styles.benefit,
+                    order.length % 2 === 1 && i === order.length - 1 && styles.benefitWide,
+                    refused && styles.benefitRefused,
+                  ]}
                   accessibilityLabel={b.title}
                 >
                   <View style={[styles.benefitIcon, free && styles.benefitIconFree]}>
@@ -859,6 +869,7 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
   },
   benefitRefused: { backgroundColor: palette.green50 },
+  benefitWide: { width: '100%' },
   benefitIcon: {
     width: 34,
     height: 34,

@@ -20,7 +20,9 @@ import {
 import { normalizeUsername, sanitizeDisplayName } from '@/domain/input';
 import {
   MAX_STREAK_FREEZES,
+  MAX_STREAK_FREEZES_PRO,
   STARTER_STREAK_FREEZES,
+  bankAfterEarning,
   earnsFreeze,
   mergeFrozenDays,
   planStreakFreezes,
@@ -226,7 +228,7 @@ export const useProfileStore = create<ProfileState>()(
           );
           return {
             streakFreezes: earnsFreeze(before, after)
-              ? Math.min(MAX_STREAK_FREEZES, (state.streakFreezes ?? 0) + 1)
+              ? bankAfterEarning(state.streakFreezes ?? 0, streakFreezeCap())
               : state.streakFreezes,
             totalXp: state.totalXp + summary.xp,
             // Start from whichever is larger so an account that predates this
@@ -467,5 +469,23 @@ function frozenBetween(frozen: readonly string[], fromMs: number, toMs: number):
 
 /** Freezes banked, defensively bounded for older persisted state. */
 export function selectStreakFreezes(state: { streakFreezes?: number }): number {
-  return Math.max(0, Math.min(MAX_STREAK_FREEZES, state.streakFreezes ?? 0));
+  return Math.max(0, Math.min(MAX_STREAK_FREEZES_PRO, state.streakFreezes ?? 0));
+}
+
+/* The freeze cap depends on Pro, but `proStore` imports this store, so this
+   one cannot import it back. `proStore` registers the real source at load;
+   until then (and in tests) the free cap applies. */
+let freezeCapSource: () => number = () => MAX_STREAK_FREEZES;
+
+/** Called once by `proStore` so earning respects the Pro cap. */
+export function setStreakFreezeCapSource(source: () => number): void {
+  freezeCapSource = source;
+}
+
+function streakFreezeCap(): number {
+  try {
+    return freezeCapSource();
+  } catch {
+    return MAX_STREAK_FREEZES;
+  }
 }

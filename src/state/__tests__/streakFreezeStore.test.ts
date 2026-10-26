@@ -3,9 +3,16 @@
  * 7-day milestones, capped, and surfaced once as a "Streak saved" card.
  */
 import { dayKey } from '@/domain/progression';
-import { MAX_STREAK_FREEZES, STARTER_STREAK_FREEZES, shiftDay } from '@/domain/streakFreeze';
+import { MAX_STREAK_FREEZES, MAX_STREAK_FREEZES_PRO, STARTER_STREAK_FREEZES, shiftDay } from '@/domain/streakFreeze';
 
-import { selectBestStreak, selectStreak, useProfileStore, type SessionSummary } from '../profileStore';
+import {
+  selectBestStreak,
+  selectStreak,
+  selectStreakFreezes,
+  setStreakFreezeCapSource,
+  useProfileStore,
+  type SessionSummary,
+} from '../profileStore';
 
 const input = {
   exercise: 'push' as const,
@@ -78,5 +85,18 @@ describe('streak freezes in the profile store', () => {
     });
     useProfileStore.getState().recordSession(input);
     expect(useProfileStore.getState().streakFreezes).toBe(MAX_STREAK_FREEZES);
+  });
+});
+
+describe('Pro cap via the registered source', () => {
+  afterEach(() => setStreakFreezeCapSource(() => MAX_STREAK_FREEZES));
+
+  it('lets Pro earn a third freeze', () => {
+    setStreakFreezeCapSource(() => MAX_STREAK_FREEZES_PRO);
+    const sessions = [1, 2, 3, 4, 5, 6].map((i) => session(shiftDay(today, -i)));
+    useProfileStore.setState({ sessions, streakFreezes: 2, frozenDays: [] });
+    useProfileStore.getState().recordSession(input);
+    expect(useProfileStore.getState().streakFreezes).toBe(3);
+    expect(selectStreakFreezes(useProfileStore.getState())).toBe(3);
   });
 });

@@ -6,7 +6,7 @@ import Animated, { FadeInDown, FadeOutUp } from 'react-native-reanimated';
 import { SnowflakeIcon } from '@/components/home/Icons';
 import { PressableScale } from '@/components/ui';
 import { pluralise } from '@/domain/plural';
-import { FREEZE_EARN_EVERY } from '@/domain/streakFreeze';
+import { FREEZE_EARN_EVERY, MAX_STREAK_FREEZES_PRO } from '@/domain/streakFreeze';
 import { successHaptic } from '@/lib/feedback';
 import { font } from '@/theme/typography';
 import { palette, radius } from '@/theme/tokens';
@@ -24,11 +24,14 @@ export function FreezeSavedCard({
   streak,
   left,
   onDismiss,
+  onUpgrade,
 }: {
   used: number;
   streak: number;
   left: number;
   onDismiss: () => void;
+  /** Free athletes only: the moment a freeze just paid off is when a bigger bank sells itself. */
+  onUpgrade?: () => void;
 }) {
   useEffect(() => {
     successHaptic();
@@ -55,6 +58,15 @@ export function FreezeSavedCard({
               ? `${pluralise(left, 'freeze')} left.`
               : `Earn another every ${FREEZE_EARN_EVERY} days in a row.`}
           </Text>
+          {onUpgrade ? (
+            <Text
+              onPress={onUpgrade}
+              accessibilityRole="link"
+              style={styles.upsell}
+            >
+              {`Pro banks up to ${MAX_STREAK_FREEZES_PRO} →`}
+            </Text>
+          ) : null}
         </View>
         <PressableScale
           onPress={onDismiss}
@@ -97,4 +109,5 @@ const styles = StyleSheet.create({
     backgroundColor: palette.white,
   },
   buttonText: font('bold', 13, { color: palette.blue700 }),
+  upsell: { ...font('bold', 12.5, { color: palette.blue600 }), marginTop: 4 },
 });

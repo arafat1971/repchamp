@@ -26,13 +26,14 @@
  */
 
 /** Stable ids for the four promises, so ordering never depends on prose. */
-export type BenefitId = 'library' | 'programmes' | 'reports' | 'free-staples';
+export type BenefitId = 'library' | 'programmes' | 'reports' | 'freezes' | 'free-staples';
 
 /** The authored order — used as-is when nothing specific was blocked. */
 export const DEFAULT_BENEFIT_ORDER: readonly BenefitId[] = [
   'library',
   'programmes',
   'reports',
+  'freezes',
   'free-staples',
 ];
 
@@ -52,6 +53,8 @@ export function blockedBenefit(source: string | null | undefined): BenefitId | n
     case 'programme':
     case 'moment-streak':
       return 'programmes';
+    case 'streak-freeze':
+      return 'freezes';
     case 'form-report':
     case 'form-report-teaser':
     case 'moment-personal-best':

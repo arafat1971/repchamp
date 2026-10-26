@@ -833,7 +833,13 @@ export default function HomeScreen() {
           {/* Greeting and name on one line; under it, where the day stands —
               the coach line `selectHomeGreeting` writes (streak on the line,
               trained already, nothing logged yet). */}
-          <Text style={styles.greetingName} numberOfLines={1} {...scaleForRole('heading')}>
+          <Text
+            style={styles.greetingName}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.78}
+            {...scaleForRole('heading')}
+          >
             {greetingCopy.timeOfDay}, {firstName}
           </Text>
           <View style={styles.hookRow}>
@@ -1136,9 +1142,9 @@ export default function HomeScreen() {
           away instead. */}
       <LinearGradient
         pointerEvents="none"
-        colors={[palette.canvas, 'rgba(246,247,245,0.85)', 'rgba(246,247,245,0)']}
-        locations={[0, 0.6, 1]}
-        style={[styles.statusFade, { height: insets.top + 18 }]}
+        colors={[palette.canvas, palette.canvas, 'rgba(246,247,245,0)']}
+        locations={[0, insets.top / (insets.top + 20), 1]}
+        style={[styles.statusFade, { height: insets.top + 20 }]}
       />
     </View>
   );

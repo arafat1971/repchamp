@@ -260,7 +260,7 @@ function RaceCard({
         ) : null}
       </View>
       <View style={[styles.go, live && { backgroundColor: palette.green600 }]}>
-        <Text style={styles.goText}>Race</Text>
+        <Text style={[styles.goText, !live && { color: palette.green700 }]}>Race</Text>
       </View>
     </PressableScale>
   );
@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
     marginTop: 9,
     height: 28,
     borderRadius: 14,
-    backgroundColor: palette.ink,
+    backgroundColor: palette.green50,
     alignItems: 'center',
     justifyContent: 'center',
   },

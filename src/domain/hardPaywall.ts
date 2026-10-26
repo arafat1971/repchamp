@@ -51,6 +51,21 @@
 export const FREE_REP_LIMIT = 0;
 
 /**
+ * On the rep wall, the top close (×) appears this long after the paywall opens.
+ *
+ * The standard hard-paywall move: the offer is read before the exit is. Only
+ * the × waits. "Maybe later" and Android Back work from the first frame,
+ * because a visible decline at all times is what the earlier store rejection
+ * required. Ordinary (non-wall) paywalls show the × at once.
+ */
+export const HARD_WALL_CLOSE_DELAY_MS = 3000;
+
+/** Delay before the paywall's × shows, given whether this is the rep wall. */
+export function closeDelayMs(fromRepWall: boolean): number {
+  return fromRepWall ? HARD_WALL_CLOSE_DELAY_MS : 0;
+}
+
+/**
  * Master switch — **on** as of 2026-09-20.
  *
  * History, because this decision has now turned over six times and no note

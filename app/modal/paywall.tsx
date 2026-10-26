@@ -43,7 +43,7 @@ import { headlineProof } from '@/domain/progressProof';
 import { blockedBenefit, orderBenefits, type BenefitId } from '@/domain/paywallBenefits';
 import { toPlanPrice } from '@/domain/subscriptionOffering';
 import { selectStreak, selectTotalReps, useProfileStore } from '@/state/profileStore';
-import { FREE_REP_LIMIT } from '@/domain/hardPaywall';
+import { FREE_REP_LIMIT, closeDelayMs } from '@/domain/hardPaywall';
 import {
   commitmentLine,
   granularPrice,
@@ -128,6 +128,14 @@ export default function PaywallScreen() {
      wall stays up, it just is not a trap. See `leave` for why that needs a
      different exit than the ordinary paywall. */
   const fromRepWall = params.hard === '1';
+  /* The × waits on the rep wall so the offer is read first; "Maybe later"
+     and Android Back do not. See `closeDelayMs`. */
+  const [closeShown, setCloseShown] = useState(() => closeDelayMs(fromRepWall) === 0);
+  useEffect(() => {
+    if (closeShown) return;
+    const t = setTimeout(() => setCloseShown(true), closeDelayMs(fromRepWall));
+    return () => clearTimeout(t);
+  }, [closeShown, fromRepWall]);
 
   /* Every way off this screen, whether the athlete subscribed or declined.
    *
@@ -388,15 +396,21 @@ export default function PaywallScreen() {
             straight back into this one. The close button is the same door as
             "Maybe later" (see `leave`). */}
         <View style={styles.topBar}>
-          <PressableScale
-            onPress={leaveWithoutBuying}
-            accessibilityRole="button"
-            accessibilityLabel="Close"
-            style={styles.close}
-          >
-            <View style={[styles.closeBar, { transform: [{ rotate: '45deg' }] }]} />
-            <View style={[styles.closeBar, { transform: [{ rotate: '-45deg' }] }]} />
-          </PressableScale>
+          {closeShown ? (
+            <Animated.View entering={FadeIn.duration(400)}>
+              <PressableScale
+                onPress={leaveWithoutBuying}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                style={styles.close}
+              >
+                <View style={[styles.closeBar, { transform: [{ rotate: '45deg' }] }]} />
+                <View style={[styles.closeBar, { transform: [{ rotate: '-45deg' }] }]} />
+              </PressableScale>
+            </Animated.View>
+          ) : (
+            <View style={styles.closePlaceholder} />
+          )}
           {billingReady ? (
             <PressableScale
               onPress={() => void onRestore()}
@@ -810,6 +824,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  closePlaceholder: { width: 40, height: 40 },
   closeBar: {
     position: 'absolute',
     width: 16,

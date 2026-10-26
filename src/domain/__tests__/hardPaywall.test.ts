@@ -143,3 +143,17 @@ describe('HARD_WALL_ENABLED', () => {
     }
   });
 });
+
+describe('closeDelayMs', () => {
+  const { closeDelayMs: delay, HARD_WALL_CLOSE_DELAY_MS } = jest.requireActual(
+    '../hardPaywall',
+  ) as typeof import('../hardPaywall');
+
+  it('holds the × only on the rep wall, and only briefly', () => {
+    expect(delay(true)).toBe(HARD_WALL_CLOSE_DELAY_MS);
+    expect(delay(false)).toBe(0);
+    // Long enough to read the offer, short enough not to feel like a trap.
+    expect(HARD_WALL_CLOSE_DELAY_MS).toBeGreaterThan(0);
+    expect(HARD_WALL_CLOSE_DELAY_MS).toBeLessThanOrEqual(5000);
+  });
+});

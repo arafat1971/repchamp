@@ -106,6 +106,7 @@ async function flushLocalProfileToCurrentUid(): Promise<boolean> {
     const progress = buildCloudProgressSlice({
       sessions: p.sessions,
       programme: p.programme,
+      frozenDays: p.frozenDays,
     });
     return await upsertProfile({
       uid: current.uid,
@@ -123,6 +124,8 @@ async function flushLocalProfileToCurrentUid(): Promise<boolean> {
       weekXp: progress.weekXp,
       weekExerciseReps: progress.weekExerciseReps,
       programme: progress.programme,
+      frozenDays: progress.frozenDays,
+      streakFreezes: p.streakFreezes,
     });
   } catch {
     return false;

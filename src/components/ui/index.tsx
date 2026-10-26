@@ -478,8 +478,17 @@ export function Avatar({
   online?: boolean;
 }) {
   const borderRadius = square ? size * 0.32 : size / 2;
+  /*
+   * A photo link can be dead: early uploads point at a Storage bucket that was
+   * never provisioned. expo-image draws nothing for a failed load, which left
+   * a blank circle. Remember the URL that failed and fall back to the
+   * initial; the initial also sits under the photo while it loads.
+   */
+  const [failedUri, setFailedUri] = useState<string | null>(null);
+  const photo = uri && uri !== failedUri ? uri : null;
   /* The app's AI characters are drawn, not emoji. */
-  const persona = uri ? null : (aiPersonaForId(ai) ?? aiPersonaForEmoji(emoji));
+  const persona = photo ? null : (aiPersonaForId(ai) ?? aiPersonaForEmoji(emoji));
+  const initialText = <Text style={{ ...text.cardTitle, fontSize: size * 0.38, color }}>{initial}</Text>;
   return (
     <View>
       <View
@@ -493,14 +502,22 @@ export function Avatar({
           overflow: 'hidden',
         }}
       >
-        {uri ? (
-          <Image source={{ uri }} style={{ width: size, height: size }} contentFit="cover" />
+        {photo ? (
+          <>
+            {initialText}
+            <Image
+              source={{ uri: photo }}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+              onError={() => setFailedUri(photo)}
+            />
+          </>
         ) : persona ? (
           <AiAvatar persona={persona} size={size} />
         ) : emoji ? (
           <Text style={{ fontSize: size * 0.5 }}>{emoji}</Text>
         ) : (
-          <Text style={{ ...text.cardTitle, fontSize: size * 0.38, color }}>{initial}</Text>
+          initialText
         )}
       </View>
       {online !== undefined ? (

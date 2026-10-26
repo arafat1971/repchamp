@@ -240,6 +240,8 @@ export function useNotificationSync(): void {
       trainedToday,
       coupleAtRisk: couple.paired && couple.atRisk,
       partnerName: couple.partner?.displayName ?? null,
+      coupleStreak: couple.streak,
+      coupleIfSkipped: couple.ifSkipped,
       streak,
       sessions,
       preferredHour,
@@ -283,5 +285,7 @@ export function useNotificationSync(): void {
     couple.paired,
     couple.atRisk,
     couple.partner?.displayName,
+    couple.streak,
+    couple.ifSkipped,
   ]);
 }

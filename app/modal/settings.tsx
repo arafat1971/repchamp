@@ -377,6 +377,8 @@ export default function SettingsScreen() {
                       trainedToday,
                       coupleAtRisk: couple.paired && couple.atRisk,
                       partnerName: couple.partner?.displayName ?? null,
+                      coupleStreak: couple.streak,
+                      coupleIfSkipped: couple.ifSkipped,
                       /* `sessions` is what the schedule is *derived* from, not
                          extra detail: `reminderHourFor` reads the training hours
                          out of it, and `buildDormantReminder` the headline. Omit

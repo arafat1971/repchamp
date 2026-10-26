@@ -29,7 +29,14 @@ import {
   type CoupleLevel,
   type CoupleMember,
 } from '@/domain/couple';
-import { coupleFreezeBank, planCoupleFreeze } from '@/domain/coupleFreeze';
+import {
+  coupleFreezeBank,
+  coupleFreezeSave,
+  coupleSkipTodayOutcome,
+  planCoupleFreeze,
+  type CoupleFreezeSave,
+} from '@/domain/coupleFreeze';
+import type { SkipTodayOutcome } from '@/domain/streakFreeze';
 import { dayKey } from '@/domain/progression';
 import { track } from '@/lib/analytics';
 import { presentNudge } from '@/lib/notifications';
@@ -67,6 +74,10 @@ export interface CoupleView {
   atRisk: boolean;
   /** Freezes in the couple's shared bank. */
   freezes: number;
+  /** The shared freeze's latest save while it is still news, for the Home card. */
+  freezeSave: CoupleFreezeSave | null;
+  /** What skipping today costs the shared streak, for the reminder's wording. */
+  ifSkipped: SkipTodayOutcome;
   /** Every rep the two of them have logged, all time. */
   combined: number;
   /** The next shareable combined-rep milestone, or null past the last one. */
@@ -89,6 +100,8 @@ const EMPTY: CoupleView = {
   streak: 0,
   atRisk: false,
   freezes: 0,
+  freezeSave: null,
+  ifSkipped: 'none',
   combined: 0,
   milestone: null,
   level: coupleLevel(0, 0),
@@ -269,6 +282,8 @@ export function useCouple(): CoupleView {
       streak,
       atRisk: streakAtRisk(couple, today),
       freezes: paired ? coupleFreezeBank(couple).banked : 0,
+      freezeSave: coupleFreezeSave(couple, today),
+      ifSkipped: coupleSkipTodayOutcome(couple, today),
       combined,
       milestone: nextMilestone(combined),
       level: coupleLevel(combined, streak),

@@ -117,6 +117,12 @@ export interface ProfileState {
   lastRepairDay: string | null;
   /** The break (its last trained day) the athlete waved away, so its card stays gone. */
   repairDismissedFor: string | null;
+  /**
+   * The couple freeze save (its newest frozen day) already acknowledged, so the
+   * shared "streak saved" card shows once per save. A new key with a default,
+   * so persist's shallow merge fills it for existing installs without a migration.
+   */
+  coupleFreezeSeen: string | null;
 
   completeOnboarding: (input: {
     username: string;
@@ -147,6 +153,8 @@ export interface ProfileState {
   applyStreakFreezes: (today?: string) => number;
   /** Hide the "Streak saved" card once seen. */
   dismissFreezeSave: () => void;
+  /** Hide the couple's "streak saved" card for this save. */
+  dismissCoupleFreezeSave: (day: string) => void;
   /**
    * Repair a freshly broken streak by freezing the missed days. The caller
    * checks Pro; this only checks there is something to repair. Returns the
@@ -184,6 +192,7 @@ const initialState = {
   freezeSave: null as { day: string; used: number; streak: number } | null,
   lastRepairDay: null as string | null,
   repairDismissedFor: null as string | null,
+  coupleFreezeSeen: null as string | null,
 };
 
 export const useProfileStore = create<ProfileState>()(
@@ -314,6 +323,7 @@ export const useProfileStore = create<ProfileState>()(
         return plan.freeze.length;
       },
       dismissFreezeSave: () => set({ freezeSave: null }),
+      dismissCoupleFreezeSave: (day) => set({ coupleFreezeSeen: day }),
 
       repairStreak: (today = dayKey()) => {
         const state = get();

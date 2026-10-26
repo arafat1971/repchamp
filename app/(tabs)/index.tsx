@@ -141,6 +141,7 @@ export default function HomeScreen() {
     })),
   );
   const freezeSave = useProfileStore((s) => s.freezeSave);
+  const coupleFreezeSeen = useProfileStore((s) => s.coupleFreezeSeen);
   const couple = useCouple();
   const self = useSelfPlayer();
 
@@ -909,6 +910,26 @@ export default function HomeScreen() {
                 ? undefined
                 : () => router.push({ pathname: '/modal/paywall', params: { source: 'streak-freeze' } })
             }
+          />
+        </View>
+      ) : null}
+
+      {/* The shared bank's save, seen by both partners. Personal card first. */}
+      {!freezeSave &&
+      couple.paired &&
+      couple.freezeSave &&
+      couple.streak > 0 &&
+      coupleFreezeSeen !== couple.freezeSave.day ? (
+        <View style={styles.morningGap}>
+          <FreezeSavedCard
+            used={couple.freezeSave.used}
+            streak={couple.streak}
+            left={couple.freezes}
+            partnerName={couple.partner?.displayName?.split(' ')[0] ?? 'your partner'}
+            onDismiss={() => {
+              const day = couple.freezeSave?.day;
+              if (day) useProfileStore.getState().dismissCoupleFreezeSave(day);
+            }}
           />
         </View>
       ) : null}

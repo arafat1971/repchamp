@@ -46,7 +46,7 @@ export function paywallLead(
     case 'reports':
       return { title: 'See exactly how you move', sub: 'Depth, tempo and alignment after every set.' };
     default:
-      return { title: 'Train without limits', sub: 'Depth when you want it. Couple mode stays free.' };
+      return { title: 'Train without limits', sub: 'Solo or as a couple, every exercise unlocked.' };
   }
 }
 

@@ -67,7 +67,7 @@ const BENEFITS: Record<BenefitId, { title: string }> = {
   programmes: { title: 'Plans' },
   reports: { title: 'Form score' },
   freezes: { title: '3 streak freezes' },
-  'free-staples': { title: 'Couple: free' },
+  couple: { title: 'Train as a couple' },
 };
 
 /** Line icons in one stroke weight, so the four tiles read as one family. */
@@ -467,7 +467,6 @@ export default function PaywallScreen() {
           <View style={styles.benefits}>
             {order.map((id, i) => {
               const b = BENEFITS[id];
-              const free = id === 'free-staples';
               const refused = id === leadBenefit;
               return (
                 <Animated.View
@@ -480,11 +479,11 @@ export default function PaywallScreen() {
                   ]}
                   accessibilityLabel={b.title}
                 >
-                  <View style={[styles.benefitIcon, free && styles.benefitIconFree]}>
-                    <BenefitIcon id={id} color={free ? palette.grey600 : palette.green700} />
+                  <View style={styles.benefitIcon}>
+                    <BenefitIcon id={id} color={palette.green700} />
                   </View>
                   <Text
-                    style={[styles.benefitLabel, free && styles.benefitLabelFree]}
+                    style={styles.benefitLabel}
                     numberOfLines={1}
                   >
                     {b.title}
@@ -894,9 +893,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  benefitIconFree: { backgroundColor: palette.divider },
   benefitLabel: { ...font('bold', 14, { color: palette.ink }), flexShrink: 1 },
-  benefitLabelFree: { color: palette.grey600 },
 
   plans: { gap: 10, marginTop: 18 },
   plan: {

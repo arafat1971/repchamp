@@ -2978,8 +2978,8 @@ function Paywall({
         {selected
           ? renewDisclosure(selected)
           : FREE_REP_LIMIT > 0
-            ? `Start free with ${FREE_REP_LIMIT} reps. Couple mode is always free.`
-            : 'Couple mode is always free.'}
+            ? `Start free with ${FREE_REP_LIMIT} reps. One plan covers solo and couple training.`
+            : 'One plan covers solo and couple training.'}
       </Text>
     </ScrollView>
 

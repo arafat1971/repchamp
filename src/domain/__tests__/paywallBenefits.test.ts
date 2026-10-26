@@ -57,7 +57,7 @@ describe('orderBenefits', () => {
       'library',
       'reports',
       'freezes',
-      'free-staples',
+      'couple',
     ] satisfies BenefitId[]);
   });
 
@@ -65,21 +65,11 @@ describe('orderBenefits', () => {
     expect(orderBenefits('streak-freeze')[0]).toBe('freezes');
   });
 
-  /* The reassurance that nothing was taken away only lands once the athlete
-     knows what they gain — so it is never promoted to the top. */
-  it('never leads with the free staples', () => {
-    for (const source of [
-      'exercise-library',
-      'duel-exercise',
-      'programme',
-      'form-report',
-      'form-report-teaser',
-      'profile',
-      'onboarding',
-      'rep-limit',
-    ]) {
-      expect(orderBenefits(source)[0]).not.toBe('free-staples');
-    }
+  /* Couple mode is walled now (2026-10-26), so it is a Pro benefit; the old
+     "Couple: free" reassurance would be untrue. */
+  it('lists couple training as a benefit, not a free staple', () => {
+    expect(DEFAULT_BENEFIT_ORDER).toContain('couple');
+    expect(DEFAULT_BENEFIT_ORDER as readonly string[]).not.toContain('free-staples');
   });
 
   it('leads with the benefit a peak-moment card promised', () => {

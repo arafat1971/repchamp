@@ -31,6 +31,7 @@ export function useNotificationSync(): void {
   const dailyReminder = useSettingsStore((s) => s.dailyReminder);
   const hydrationReminder = useSettingsStore((s) => s.hydrationReminder);
   const sessions = useProfileStore((s) => s.sessions);
+  const frozenDays = useProfileStore((s) => s.frozenDays);
   const couple = useCouple();
 
   /* Tie the on-phone couple history to this pairing: a new partner starts
@@ -47,7 +48,7 @@ export function useNotificationSync(): void {
   const trainedToday = sessions.some((s) => s.day === today);
   /* The athlete's own streak, which the evening reminder names. Derived here
      rather than subscribed as a selector so it recomputes with `sessions`. */
-  const streak = selectStreak({ sessions }, today);
+  const streak = selectStreak({ sessions, frozenDays }, today);
   /* Days since the last recorded session, for the dormant slot. Max rather than
      last-element: `sessions` is not guaranteed sorted, and reading the wrong end
      of it would either fire a win-back push at an active athlete or never fire

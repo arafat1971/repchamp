@@ -285,6 +285,22 @@ export default function RootLayout() {
    *
    * `refresh()` already existed and was never called from anywhere in the app.
    * It is one cached read on resume, and it fails closed via the store. */
+  /* Spend banked streak freezes on a gap before anything reads the streak.
+     Runs at launch and on every return to the foreground, since a day can
+     close while the app sits in the background. Idempotent: a gap already
+     covered, or one too long to save, spends nothing. */
+  useEffect(() => {
+    const apply = () => {
+      const used = useProfileStore.getState().applyStreakFreezes();
+      if (used > 0) track('streak_freeze_used', { used });
+    };
+    apply();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') apply();
+    });
+    return () => sub.remove();
+  }, []);
+
   useEffect(() => {
     if (!uid) return;
     const sub = AppState.addEventListener('change', (state) => {

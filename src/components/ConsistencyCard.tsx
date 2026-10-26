@@ -43,9 +43,10 @@ export function ConsistencyCard({ sessions }: { sessions: readonly SessionSummar
   const { width } = useWindowDimensions();
   const goal = useProfileStore((s) => s.weeklyGoal);
   const best = useProfileStore(selectBestStreak);
+  const frozenDays = useProfileStore((s) => s.frozenDays);
 
   const days = useMemo(() => sessions.map((s) => s.day), [sessions]);
-  const c = useMemo(() => consistencyFor(days, goal), [days, goal]);
+  const c = useMemo(() => consistencyFor(days, goal, undefined, frozenDays), [days, goal, frozenDays]);
   const grid = useMemo(() => consistencyGrid(sessions), [sessions]);
   const week = useMemo(() => weekStrip(days), [days]);
   const activeDays = useMemo(() => grid.flat().filter((cell) => cell.level > 0).length, [grid]);

@@ -162,3 +162,18 @@ export function GearIcon({ size, color, strokeWidth = 2 }: IconProps) {
     </Frame>
   );
 }
+
+/** A streak freeze: six-armed snowflake on the same 24-unit grid. */
+export function SnowflakeIcon({ size, color, strokeWidth = 2 }: IconProps) {
+  return (
+    <Frame size={size}>
+      <Path
+        d="M12 2.5v19M3.8 7.25l16.4 9.5M3.8 16.75l16.4-9.5M9.5 4l2.5 2.5L14.5 4M9.5 20l2.5-2.5 2.5 2.5M4.2 10.3l3.4.9-.9 3.4M19.8 13.7l-3.4-.9.9-3.4M4.2 13.7l3.4-.9-.9-3.4M19.8 10.3l-3.4.9.9 3.4"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Frame>
+  );
+}

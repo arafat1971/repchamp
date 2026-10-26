@@ -60,6 +60,7 @@ import { useWidgetStyleStore } from '@/state/widgetStyleStore';
 import { useDuoStreakStore } from '@/state/duoStreakStore';
 import { useRitualStore } from '@/state/ritualStore';
 import { MorningCard } from '@/components/together/MorningCard';
+import { FreezeSavedCard } from '@/components/home/FreezeSavedCard';
 import { useHomeClock } from '@/state/useHomeClock';
 import { useWeatherStore } from '@/state/weatherStore';
 import { refreshWeather } from '@/services/weather';
@@ -88,6 +89,7 @@ import {
   selectDaysTrainedThisWeek,
   selectLevel,
   selectStreak,
+  selectStreakFreezes,
   selectTotalReps,
   selectWeeklyXp,
 } from '@/state/profileStore';
@@ -130,8 +132,11 @@ export default function HomeScreen() {
       username: s.username,
       sex: s.sex,
       weeklyGoal: s.weeklyGoal,
+      frozenDays: s.frozenDays,
+      streakFreezes: s.streakFreezes,
     })),
   );
+  const freezeSave = useProfileStore((s) => s.freezeSave);
   const couple = useCouple();
   const self = useSelfPlayer();
 
@@ -150,8 +155,8 @@ export default function HomeScreen() {
   });
   const daysTrained = selectDaysTrainedThisWeek(profile);
   const week = useMemo(
-    () => weekStrip(profile.sessions.map((x) => x.day)),
-    [profile.sessions],
+    () => weekStrip(profile.sessions.map((x) => x.day), undefined, profile.frozenDays),
+    [profile.sessions, profile.frozenDays],
   );
   const goal = profile.weeklyGoal;
   const initial = (profile.username || 'C').charAt(0).toUpperCase();
@@ -860,6 +865,17 @@ export default function HomeScreen() {
       />
       <View style={styles.afterWeek} />
 
+      {freezeSave ? (
+        <View style={styles.morningGap}>
+          <FreezeSavedCard
+            used={freezeSave.used}
+            streak={freezeSave.streak}
+            left={selectStreakFreezes(profile)}
+            onDismiss={() => useProfileStore.getState().dismissFreezeSave()}
+          />
+        </View>
+      ) : null}
+
       {morning && morning.show && partnerGlass ? (
         <View style={styles.morningGap}>
           <MorningCard
@@ -898,6 +914,7 @@ export default function HomeScreen() {
           water={water}
           steps={stepsToday}
           streak={streak}
+          freezes={selectStreakFreezes(profile)}
           daysTrained={daysTrained}
           goal={goal}
           league={leagueProgress}

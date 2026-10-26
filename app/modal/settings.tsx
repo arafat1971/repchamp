@@ -125,6 +125,7 @@ export default function SettingsScreen() {
   const settings = useSettingsStore();
   const resetProfile = useProfileStore((s) => s.reset);
   const sessions = useProfileStore((s) => s.sessions);
+  const frozenDays = useProfileStore((s) => s.frozenDays);
   const couple = useCouple();
   const cloudConfigured = useAuthStore((s) => s.configured);
   const syncStatus = useAuthStore((s) => s.status);
@@ -383,7 +384,7 @@ export default function SettingsScreen() {
                          copy — so toggling the switch off and on silently undid
                          the learned hour for the athlete it was learned for. */
                       sessions,
-                      streak: selectStreak({ sessions }, today),
+                      streak: selectStreak({ sessions, frozenDays }, today),
                       daysSinceLastSession: daysSinceLastSession(
                         sessions.reduce((latest, s) => (s.day > latest ? s.day : latest), '') ||
                           null,

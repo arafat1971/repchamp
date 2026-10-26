@@ -16,10 +16,17 @@ export interface WeekCell {
   isToday: boolean;
   /** Later this week — not missed, just not yet. */
   isFuture: boolean;
+  /** Missed, but covered by a streak freeze — the chain holds. */
+  frozen: boolean;
 }
 
-export function weekStrip(trainedDays: Iterable<string>, now: Date = new Date()): WeekCell[] {
+export function weekStrip(
+  trainedDays: Iterable<string>,
+  now: Date = new Date(),
+  frozenDays: Iterable<string> = [],
+): WeekCell[] {
   const trained = new Set(trainedDays);
+  const frozen = new Set(frozenDays);
   const today = dayKey(now);
   return [...currentWeekDayKeys(now)].sort().map((day) => ({
     day,
@@ -27,5 +34,6 @@ export function weekStrip(trainedDays: Iterable<string>, now: Date = new Date())
     trained: trained.has(day),
     isToday: day === today,
     isFuture: day > today,
+    frozen: !trained.has(day) && frozen.has(day),
   }));
 }

@@ -106,10 +106,17 @@ export function xpForSession(
  * Rest days do not break a streak — the prototype's Rest Day screen promises
  * exactly that — so the streak survives a single missed day but not two.
  */
-export function calculateStreak(trainedDays: readonly string[], today: string): number {
+export function calculateStreak(
+  trainedDays: readonly string[],
+  today: string,
+  frozenDays: readonly string[] = [],
+): number {
   if (trainedDays.length === 0) return 0;
 
   const days = new Set(trainedDays);
+  /* A frozen day (see `streakFreeze`) is neutral: it neither adds to the
+     streak nor uses up the rest-day tolerance. */
+  const frozen = new Set(frozenDays);
   const cursor = new Date(`${today}T00:00:00Z`);
   if (Number.isNaN(cursor.getTime())) return 0;
 
@@ -120,12 +127,14 @@ export function calculateStreak(trainedDays: readonly string[], today: string): 
      comes from the data: with at most one tolerated miss between trained days,
      the walk can never need more than twice as many steps as there are days.
      A fixed 400 silently capped any longer streak at 400. */
-  const maxSteps = days.size * 2 + 2;
+  const maxSteps = days.size * 2 + frozen.size + 2;
   for (let i = 0; i < maxSteps; i++) {
     const key = cursor.toISOString().slice(0, 10);
     if (days.has(key)) {
       streak += 1;
       missesAllowed = 1;
+    } else if (frozen.has(key)) {
+      // Covered by a freeze: step over it.
     } else if (i > 0 && missesAllowed > 0) {
       missesAllowed -= 1;
     } else if (i > 0) {

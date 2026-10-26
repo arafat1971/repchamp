@@ -18,6 +18,13 @@ import {
   type ProgrammeState,
 } from '@/domain/programme';
 import { normalizeUsername, sanitizeDisplayName } from '@/domain/input';
+import {
+  MAX_STREAK_FREEZES,
+  STARTER_STREAK_FREEZES,
+  earnsFreeze,
+  mergeFrozenDays,
+  planStreakFreezes,
+} from '@/domain/streakFreeze';
 import type { Blocker, FitnessLevel } from '@/domain/onboardingPlan';
 import { isoWeekKey } from '@/domain/weeklyChallenge';
 import { EXERCISES, type ExerciseId } from '@/vision/exercises';
@@ -93,6 +100,15 @@ export interface ProfileState {
   pairingBonusClaimed: boolean;
   /** Hour (0–23) they said they train at, or null — see `setPreferredHour`. */
   preferredHour: number | null;
+  /** Streak freezes banked, 0..MAX_STREAK_FREEZES — see `domain/streakFreeze`. */
+  streakFreezes: number;
+  /** Days covered by a spent freeze, `YYYY-MM-DD`, sorted. Neutral in the streak walk. */
+  frozenDays: string[];
+  /**
+   * The last time freezes saved the streak, until the athlete has seen it. Drives
+   * the one-off "Streak saved" card on Home; null once acknowledged.
+   */
+  freezeSave: { day: string; used: number; streak: number } | null;
 
   completeOnboarding: (input: {
     username: string;
@@ -116,6 +132,13 @@ export interface ProfileState {
   completeProgrammeRestDay: () => void;
   /** Grant a Pro bonus for `days` from now (once per account; never shortens an active one). */
   grantPairingBonus: (days: number) => void;
+  /**
+   * Spend banked freezes on missed days if, and only if, that keeps the streak
+   * alive. Safe to call any time; idempotent. Returns how many were spent.
+   */
+  applyStreakFreezes: (today?: string) => number;
+  /** Hide the "Streak saved" card once seen. */
+  dismissFreezeSave: () => void;
   reset: () => void;
 }
 
@@ -140,11 +163,14 @@ const initialState = {
   pairingBonusUntil: 0,
   pairingBonusClaimed: false,
   preferredHour: null as number | null,
+  streakFreezes: STARTER_STREAK_FREEZES,
+  frozenDays: [] as string[],
+  freezeSave: null as { day: string; used: number; streak: number } | null,
 };
 
 export const useProfileStore = create<ProfileState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       ...initialState,
 
       completeOnboarding: ({ username, weeklyGoal, avatarUri, fitnessLevel, blocker }) => {
@@ -188,25 +214,39 @@ export const useProfileStore = create<ProfileState>()(
           return summary;
         }
 
-        set((state) => ({
-          totalXp: state.totalXp + summary.xp,
-          // Start from whichever is larger so an account that predates this
-          // field (undefined → 0) is seeded from its history, not from zero.
-          lifetimeReps: selectTotalReps(state) + summary.reps,
-          sessions: [summary, ...state.sessions].slice(0, 500),
-          personalBests: {
-            ...state.personalBests,
-            [summary.exercise]: Math.max(
-              state.personalBests[summary.exercise] ?? 0,
-              summary.reps,
-            ),
-          },
-          // Advance the programme if this set cleared the current day's target.
-          // No-ops when not enrolled or the set fell short.
-          programme: state.programme
-            ? advanceProgramme(state.programme, summary.exercise, summary.reps)
-            : null,
-        }));
+        // Judge the gap before today's set lands, so a freeze can still save it.
+        get().applyStreakFreezes(summary.day);
+
+        set((state) => {
+          const before = selectStreak(state, summary.day);
+          const after = calculateStreak(
+            [summary.day, ...state.sessions.map((s) => s.day)],
+            summary.day,
+            state.frozenDays,
+          );
+          return {
+            streakFreezes: earnsFreeze(before, after)
+              ? Math.min(MAX_STREAK_FREEZES, (state.streakFreezes ?? 0) + 1)
+              : state.streakFreezes,
+            totalXp: state.totalXp + summary.xp,
+            // Start from whichever is larger so an account that predates this
+            // field (undefined → 0) is seeded from its history, not from zero.
+            lifetimeReps: selectTotalReps(state) + summary.reps,
+            sessions: [summary, ...state.sessions].slice(0, 500),
+            personalBests: {
+              ...state.personalBests,
+              [summary.exercise]: Math.max(
+                state.personalBests[summary.exercise] ?? 0,
+                summary.reps,
+              ),
+            },
+            // Advance the programme if this set cleared the current day's target.
+            // No-ops when not enrolled or the set fell short.
+            programme: state.programme
+              ? advanceProgramme(state.programme, summary.exercise, summary.reps)
+              : null,
+          };
+        });
 
         return summary;
       },
@@ -230,15 +270,43 @@ export const useProfileStore = create<ProfileState>()(
           };
         }),
 
+      applyStreakFreezes: (today = dayKey()) => {
+        const state = get();
+        const plan = planStreakFreezes({
+          trainedDays: state.sessions.map((s) => s.day),
+          frozenDays: state.frozenDays ?? [],
+          banked: state.streakFreezes ?? 0,
+          today,
+        });
+        if (plan.freeze.length === 0) return 0;
+        const frozenDays = mergeFrozenDays(state.frozenDays ?? [], plan.freeze);
+        set({
+          streakFreezes: Math.max(0, state.streakFreezes - plan.freeze.length),
+          frozenDays,
+          freezeSave: {
+            day: today,
+            used: plan.freeze.length,
+            streak: calculateStreak(
+              state.sessions.map((s) => s.day),
+              today,
+              frozenDays,
+            ),
+          },
+        });
+        return plan.freeze.length;
+      },
+      dismissFreezeSave: () => set({ freezeSave: null }),
+
       reset: () => set({ ...initialState }),
     }),
     {
       name: 'repchamp.profile',
-      version: 5,
+      version: 6,
       storage: createJSONStorage(() => zustandStorage),
       // v1 → v2 added `programme`; v2 → v3 locks pairing Pro to a single grant;
       // v3 → v4 adds the uncapped `lifetimeReps` counter, seeded from history;
-      // v4 → v5 adds `preferredHour`, null until the athlete says when they train.
+      // v4 → v5 adds `preferredHour`, null until the athlete says when they train;
+      // v5 → v6 adds streak freezes, starting every existing athlete with one.
       migrate: (persisted, version) => {
         const state = persisted as Partial<ProfileState>;
         let next = { ...state } as ProfileState;
@@ -257,6 +325,14 @@ export const useProfileStore = create<ProfileState>()(
         }
         if (version < 5) {
           next = { ...next, preferredHour: next.preferredHour ?? null };
+        }
+        if (version < 6) {
+          next = {
+            ...next,
+            streakFreezes: next.streakFreezes ?? STARTER_STREAK_FREEZES,
+            frozenDays: next.frozenDays ?? [],
+            freezeSave: null,
+          };
         }
         return next;
       },
@@ -294,10 +370,14 @@ export function selectLeague(state: Pick<ProfileState, 'sessions'>, now?: Date):
   return leagueFromWeeklyXp(selectWeeklyXp(state, now));
 }
 
-export function selectStreak(state: Pick<ProfileState, 'sessions'>, today = dayKey()): number {
+export function selectStreak(
+  state: Pick<ProfileState, 'sessions'> & { frozenDays?: readonly string[] },
+  today = dayKey(),
+): number {
   return calculateStreak(
     state.sessions.map((s) => s.day),
     today,
+    state.frozenDays ?? [],
   );
 }
 
@@ -343,8 +423,11 @@ export function selectWinRate(state: Pick<ProfileState, 'sessions'>): number {
 }
 
 /** Longest streak ever achieved, walking the full session history. */
-export function selectBestStreak(state: Pick<ProfileState, 'sessions'>): number {
+export function selectBestStreak(
+  state: Pick<ProfileState, 'sessions'> & { frozenDays?: readonly string[] },
+): number {
   const days = [...new Set(state.sessions.map((s) => s.day))].sort();
+  const frozen = [...(state.frozenDays ?? [])].sort();
   let best = 0;
   let run = 0;
   let previous: number | null = null;
@@ -352,8 +435,13 @@ export function selectBestStreak(state: Pick<ProfileState, 'sessions'>): number 
   for (const day of days) {
     const time = new Date(`${day}T00:00:00Z`).getTime();
     const gapDays = previous === null ? Infinity : Math.round((time - previous) / 86_400_000);
-    // A one-day gap is a rest day and keeps the run alive, matching calculateStreak.
-    run = gapDays <= 2 ? run + 1 : 1;
+    // Missed days between the two, less any a freeze covered. One is a rest day
+    // and keeps the run alive, matching calculateStreak.
+    const missed =
+      previous === null
+        ? Infinity
+        : gapDays - 1 - frozenBetween(frozen, previous, time);
+    run = missed <= 1 ? run + 1 : 1;
     best = Math.max(best, run);
     previous = time;
   }
@@ -365,4 +453,19 @@ export function selectProgramme(
   state: Pick<ProfileState, 'programme'>,
 ): ProgrammeState | null {
   return state.programme ? programmeState(state.programme) : null;
+}
+
+/** Frozen days strictly between two UTC-midnight times. `frozen` is sorted. */
+function frozenBetween(frozen: readonly string[], fromMs: number, toMs: number): number {
+  let n = 0;
+  for (const day of frozen) {
+    const t = new Date(`${day}T00:00:00Z`).getTime();
+    if (t > fromMs && t < toMs) n += 1;
+  }
+  return n;
+}
+
+/** Freezes banked, defensively bounded for older persisted state. */
+export function selectStreakFreezes(state: { streakFreezes?: number }): number {
+  return Math.max(0, Math.min(MAX_STREAK_FREEZES, state.streakFreezes ?? 0));
 }

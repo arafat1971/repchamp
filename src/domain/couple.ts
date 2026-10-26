@@ -152,6 +152,21 @@ export interface Couple {
     milestone?: 'half' | 'goal';
     at?: { toMillis?: () => number } | null;
   } | null;
+  /**
+   * The couple's shared streak-freeze bank (see `coupleFreeze.ts`). Absent on
+   * couples created before freezes existed, which read as the starter bank.
+   */
+  freeze?: CoupleFreezeBank | null;
+}
+
+/** One bank both partners share: spending it saves the streak for both. */
+export interface CoupleFreezeBank {
+  /** Freezes ready to spend. */
+  banked: number;
+  /** Missed days already covered, oldest first. Neutral in the streak walk. */
+  frozenDays: string[];
+  /** The both-trained day whose 7-day milestone last earned a freeze. */
+  lastEarnedDay?: string | null;
 }
 
 /**
@@ -328,12 +343,15 @@ export function combinedReps(couple: Couple): number {
  */
 export function calculateCoupleStreak(couple: Couple, today: string): number {
   if (couple.members.length < 2) return 0;
+  return calculateStreak(bothTrainedDays(couple), today, couple.freeze?.frozenDays ?? []);
+}
 
+/** Days both partners trained — the only days the shared streak counts. */
+export function bothTrainedDays(couple: Couple): string[] {
+  if (couple.members.length < 2) return [];
   const [first, second] = couple.members as [CoupleMember, CoupleMember];
   const secondDays = new Set(second.trainedDays);
-  const bothTrained = first.trainedDays.filter((day) => secondDays.has(day));
-
-  return calculateStreak(bothTrained, today);
+  return first.trainedDays.filter((day) => secondDays.has(day));
 }
 
 /** True when the shared streak dies unless someone trains today. */

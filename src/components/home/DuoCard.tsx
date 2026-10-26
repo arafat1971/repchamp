@@ -41,6 +41,7 @@ export function DuoCard({
   onRace,
   onOpen,
   ritual,
+  freezes = 0,
 }: {
   me: CoupleMember | null;
   partner: CoupleMember | null;
@@ -60,6 +61,8 @@ export function DuoCard({
   onOpen: () => void;
   /** Today's ritual, both sides — a row that opens Today, together. */
   ritual?: { me: number; them: number; total: number } | null;
+  /** Freezes in the shared bank; shown beside a live streak. */
+  freezes?: number;
 }) {
   const bond = coupleBondPresentation({ me, partner, streak, combined, atRisk, today, levelName });
   const partnerName = partner?.displayName?.trim() || 'Partner';
@@ -106,7 +109,13 @@ export function DuoCard({
           </Text>
           <Text style={styles.subtitle} numberOfLines={1}>
             {/* A zero streak is not news; the rivalry, when there is one, is. */}
-            {[streak > 0 ? `${streak}-day streak` : null, score].filter(Boolean).join(' · ') || 'Start your streak'}
+            {[
+              streak > 0 ? `${streak}-day streak` : null,
+              streak > 0 && freezes > 0 ? `${freezes} ${freezes === 1 ? 'freeze' : 'freezes'}` : null,
+              score,
+            ]
+              .filter(Boolean)
+              .join(' · ') || 'Start your streak'}
           </Text>
         </View>
         {/* The shared week, inline: each dot split — your half, theirs. */}

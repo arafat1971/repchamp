@@ -3,7 +3,6 @@ import {
   ActionList,
   ActionRow,
   ButtonPair,
-  LineIcon,
   SectionTitle,
   Surface,
   TogetherHero,
@@ -51,7 +50,7 @@ import {
 import { useAuthStore } from '@/state/authStore';
 import { useCouple } from '@/state/useCouple';
 import { showDialog } from '@/state/useDialog';
-import { selectPairingBonusActive, useProfileStore } from '@/state/profileStore';
+import { useProfileStore } from '@/state/profileStore';
 import { reservedControlHeight } from '@/theme/fontScale';
 import { font, scaleForRole, text } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
@@ -71,7 +70,6 @@ export default function CoupleInviteScreen() {
   const cloudConfigured = useAuthStore((s) => s.configured);
   const displayName = useProfileStore((s) => s.displayName);
   const avatarUri = useProfileStore((s) => s.avatarUri);
-  const bonusActive = useProfileStore(selectPairingBonusActive);
 
   const router = useRouter();
   const { couple, paired, partner, me, streak, combined, code, loading, atRisk, level, badges } =
@@ -339,18 +337,6 @@ export default function CoupleInviteScreen() {
       {/* ═══════════════════ PAIRED STATE ═══════════════════ */}
       {!loading && paired && partner ? (
         <>
-          {bonusActive ? (
-            <Animated.View entering={FadeInDown.duration(400)} style={styles.bonusBanner}>
-              <View style={styles.bonusTile}>
-                <LineIcon name="gift" size={18} color={palette.amber800} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.bonusTitle}>You both unlocked a free week of Pro</Text>
-                <Text style={styles.bonusText}>The full library and programmes are on.</Text>
-              </View>
-            </Animated.View>
-          ) : null}
-
           {/* ── The bond: the same hero as Today together and the history ── */}
           <Animated.View entering={FadeInDown.duration(450)}>
             <TogetherHero
@@ -1033,26 +1019,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  bonusBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: palette.white,
-    borderWidth: 1,
-    borderColor: palette.amber100,
-    borderRadius: radius['2xl'],
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    marginBottom: 12,
-  },
-  bonusTile: {
-    width: 36,
-    height: 36,
-    borderRadius: 11,
-    backgroundColor: palette.amber50,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bonusTitle: font('bold', 14, { color: palette.ink }),
-  bonusText: { ...font('medium', 12.5, { color: palette.grey700 }), marginTop: 1, lineHeight: 17 },
 });

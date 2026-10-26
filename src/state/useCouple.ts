@@ -40,10 +40,7 @@ import { stripPendingPushToken, syncCouplePushToken, watchMyCouple } from '@/ser
 import { syncHydrationNow } from '@/services/hydrationSync';
 import { fetchExpoPushToken } from '@/services/userService';
 import { useAuthStore } from '@/state/authStore';
-import { useProfileStore } from '@/state/profileStore';
 
-/** Free Pro days granted to both partners when a couple pairs — the invite reward. */
-const PAIRING_BONUS_DAYS = 7;
 
 export interface CoupleView {
   /** The raw bond, or null when this athlete has not paired with anyone. */
@@ -100,8 +97,6 @@ export function useCouple(): CoupleView {
    */
   const seenNudgeAt = useRef<number | null>(null);
   const seededNudge = useRef(false);
-  /** Whether this device has already granted the pairing bonus for this bond. */
-  const rewardedPairing = useRef(false);
 
   useEffect(() => {
     if (!uid) {
@@ -119,17 +114,6 @@ export function useCouple(): CoupleView {
     const unsubscribe = watchMyCouple(uid, (next) => {
       setCouple(next);
       setLoading(false);
-
-      // Reward the invite loop once: first time a bond is fully paired on this
-      // device. `grantPairingBonus` is a lifetime latch — leave/re-pair after
-      // expiry must not farm another free Pro week.
-      const fullyPaired = !!next && next.memberUids.length >= 2 && next.pending === false;
-      if (fullyPaired && !rewardedPairing.current) {
-        rewardedPairing.current = true;
-        useProfileStore.getState().grantPairingBonus(PAIRING_BONUS_DAYS);
-        // Persist the lifetime latch + until stamp before the next device can re-farm.
-        void useAuthStore.getState().pushProfile();
-      }
 
       // Surface a nudge the *partner* sent, once. The first snapshot only seeds
       // the baseline, so a poke from yesterday doesn't fire on every launch.

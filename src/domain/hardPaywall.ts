@@ -107,8 +107,8 @@ export const HARD_WALL_ENABLED = true;
  *
  * Each partner pays: an athlete without Pro meets the paywall before a
  * together set exactly as before a solo one, invited guest included. Pairing
- * itself stays free, and the free Pro week granted on pairing still applies
- * (it counts as Pro), so a new couple trains together for that week first.
+ * itself stays free. The free Pro week once granted on pairing was removed
+ * the same day, so there is no free way to train together.
  *
  * The cost being accepted: the invite loop was the main free growth engine,
  * and an invited partner now has to subscribe to keep training with whoever

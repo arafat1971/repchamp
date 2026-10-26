@@ -168,6 +168,8 @@ export interface AnalyticsEvents {
   streak_freeze_used: { used: number };
   /** A broken streak restored with the Pro repair. */
   streak_repaired: { streak: number };
+  /** The full-screen milestone celebration opened (3, 7, 14, 30… days). */
+  streak_milestone_shown: { streak: number };
   /** Reported on the return *after* a gap — nothing runs on a day nobody opens. */
   streak_broken: { length: number; previous: number; daysMissed: number };
   /** A nudge was actually tapped, rather than merely delivered. */

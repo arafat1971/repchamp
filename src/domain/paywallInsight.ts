@@ -38,6 +38,9 @@ export function paywallLead(
       sub: `${opts.totalReps.toLocaleString()} reps counted. Pro keeps you going.`,
     };
   }
+  if (source === 'streak-repair') {
+    return { title: 'Get your streak back', sub: 'Pro repairs a broken streak once a month, and banks 3 freezes.' };
+  }
   switch (blockedBenefit(source)) {
     case 'library':
       return { title: 'Every exercise, unlocked', sub: 'Go beyond push-ups and squats.' };

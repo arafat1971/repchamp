@@ -63,6 +63,7 @@ describe('orderBenefits', () => {
 
   it('leads with freezes when opened from a saved streak', () => {
     expect(orderBenefits('streak-freeze')[0]).toBe('freezes');
+    expect(orderBenefits('streak-repair')[0]).toBe('freezes');
   });
 
   /* Couple mode is walled now (2026-10-26), so it is a Pro benefit; the old

@@ -166,6 +166,8 @@ export interface AnalyticsEvents {
   streak_continued: { length: number; previous: number };
   /** Banked freezes spent to keep a streak alive across a gap. */
   streak_freeze_used: { used: number };
+  /** A broken streak restored with the Pro repair. */
+  streak_repaired: { streak: number };
   /** Reported on the return *after* a gap — nothing runs on a day nobody opens. */
   streak_broken: { length: number; previous: number; daysMissed: number };
   /** A nudge was actually tapped, rather than merely delivered. */

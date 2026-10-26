@@ -59,6 +59,7 @@ export function blockedBenefit(source: string | null | undefined): BenefitId | n
     case 'moment-streak':
       return 'programmes';
     case 'streak-freeze':
+    case 'streak-repair':
       return 'freezes';
     case 'form-report':
     case 'form-report-teaser':

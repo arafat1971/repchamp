@@ -7,6 +7,7 @@ import { MAX_STREAK_FREEZES, MAX_STREAK_FREEZES_PRO, STARTER_STREAK_FREEZES, shi
 
 import {
   selectBestStreak,
+  selectRepairOffer,
   selectStreak,
   selectStreakFreezes,
   setStreakFreezeCapSource,
@@ -98,5 +99,30 @@ describe('Pro cap via the registered source', () => {
     useProfileStore.getState().recordSession(input);
     expect(useProfileStore.getState().streakFreezes).toBe(3);
     expect(selectStreakFreezes(useProfileStore.getState())).toBe(3);
+  });
+});
+
+describe('streak repair in the profile store', () => {
+  // A 10-day run that ended 4 days ago: rest day + 2 more missed, nothing banked.
+  const broken = () =>
+    Array.from({ length: 10 }, (_, i) => session(shiftDay(today, -4 - i)));
+
+  it('restores the streak, starts the cooldown, and cannot repeat', () => {
+    useProfileStore.setState({ sessions: broken(), streakFreezes: 0, frozenDays: [], lastRepairDay: null });
+    expect(selectStreak(useProfileStore.getState())).toBe(0);
+    expect(selectRepairOffer(useProfileStore.getState())?.lostStreak).toBe(10);
+
+    expect(useProfileStore.getState().repairStreak()).toBe(10);
+    const state = useProfileStore.getState();
+    expect(selectStreak(state)).toBe(10);
+    expect(state.lastRepairDay).toBe(today);
+    expect(selectRepairOffer(state)).toBeNull();
+    expect(useProfileStore.getState().repairStreak()).toBe(0);
+  });
+
+  it('dismissal hides only the current break', () => {
+    useProfileStore.setState({ sessions: broken(), streakFreezes: 0, frozenDays: [], lastRepairDay: null });
+    useProfileStore.getState().dismissRepair();
+    expect(useProfileStore.getState().repairDismissedFor).toBe(shiftDay(today, -4));
   });
 });

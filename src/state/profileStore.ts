@@ -26,6 +26,8 @@ import {
   earnsFreeze,
   mergeFrozenDays,
   planStreakFreezes,
+  streakRepairOffer,
+  type StreakRepairOffer,
 } from '@/domain/streakFreeze';
 import type { Blocker, FitnessLevel } from '@/domain/onboardingPlan';
 import { isoWeekKey } from '@/domain/weeklyChallenge';
@@ -111,6 +113,10 @@ export interface ProfileState {
    * the one-off "Streak saved" card on Home; null once acknowledged.
    */
   freezeSave: { day: string; used: number; streak: number } | null;
+  /** Day of the last streak repair (Pro perk), for its cooldown. */
+  lastRepairDay: string | null;
+  /** The break (its last trained day) the athlete waved away, so its card stays gone. */
+  repairDismissedFor: string | null;
 
   completeOnboarding: (input: {
     username: string;
@@ -141,6 +147,14 @@ export interface ProfileState {
   applyStreakFreezes: (today?: string) => number;
   /** Hide the "Streak saved" card once seen. */
   dismissFreezeSave: () => void;
+  /**
+   * Repair a freshly broken streak by freezing the missed days. The caller
+   * checks Pro; this only checks there is something to repair. Returns the
+   * streak restored, or 0 when there was no offer.
+   */
+  repairStreak: (today?: string) => number;
+  /** Hide the repair card for the current break. */
+  dismissRepair: () => void;
   reset: () => void;
 }
 
@@ -168,6 +182,8 @@ const initialState = {
   streakFreezes: STARTER_STREAK_FREEZES,
   frozenDays: [] as string[],
   freezeSave: null as { day: string; used: number; streak: number } | null,
+  lastRepairDay: null as string | null,
+  repairDismissedFor: null as string | null,
 };
 
 export const useProfileStore = create<ProfileState>()(
@@ -299,16 +315,34 @@ export const useProfileStore = create<ProfileState>()(
       },
       dismissFreezeSave: () => set({ freezeSave: null }),
 
+      repairStreak: (today = dayKey()) => {
+        const state = get();
+        const offer = selectRepairOffer(state, today);
+        if (!offer) return 0;
+        const frozenDays = mergeFrozenDays(state.frozenDays ?? [], offer.freeze);
+        set({ frozenDays, lastRepairDay: today, repairDismissedFor: null });
+        return calculateStreak(
+          state.sessions.map((s) => s.day),
+          today,
+          frozenDays,
+        );
+      },
+      dismissRepair: () => {
+        const offer = selectRepairOffer(get());
+        if (offer) set({ repairDismissedFor: offer.lastTrained });
+      },
+
       reset: () => set({ ...initialState }),
     }),
     {
       name: 'repchamp.profile',
-      version: 6,
+      version: 7,
       storage: createJSONStorage(() => zustandStorage),
       // v1 → v2 added `programme`; v2 → v3 locks pairing Pro to a single grant;
       // v3 → v4 adds the uncapped `lifetimeReps` counter, seeded from history;
       // v4 → v5 adds `preferredHour`, null until the athlete says when they train;
-      // v5 → v6 adds streak freezes, starting every existing athlete with one.
+      // v5 → v6 adds streak freezes, starting every existing athlete with one;
+      // v6 → v7 adds streak repair's cooldown and dismissal.
       migrate: (persisted, version) => {
         const state = persisted as Partial<ProfileState>;
         let next = { ...state } as ProfileState;
@@ -335,6 +369,9 @@ export const useProfileStore = create<ProfileState>()(
             frozenDays: next.frozenDays ?? [],
             freezeSave: null,
           };
+        }
+        if (version < 7) {
+          next = { ...next, lastRepairDay: null, repairDismissedFor: null };
         }
         return next;
       },
@@ -488,4 +525,17 @@ function streakFreezeCap(): number {
   } catch {
     return MAX_STREAK_FREEZES;
   }
+}
+
+/** A fresh break that can still be repaired, or null. See `streakRepairOffer`. */
+export function selectRepairOffer(
+  state: Pick<ProfileState, 'sessions'> & { frozenDays?: readonly string[]; lastRepairDay?: string | null },
+  today = dayKey(),
+): StreakRepairOffer | null {
+  return streakRepairOffer({
+    trainedDays: state.sessions.map((s) => s.day),
+    frozenDays: state.frozenDays ?? [],
+    today,
+    lastRepairDay: state.lastRepairDay ?? null,
+  });
 }

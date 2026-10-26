@@ -131,7 +131,7 @@ Home workout, no equipment
 Every exercise is bodyweight: push-ups, squats, lunges, sit-ups, glute bridges, pike push-ups, high knees, jumping jacks, shoulder rolls and a full-body stretch. No gym, no dumbbells, just your phone and some floor space.
 
 RepChamp Pro
-RepChamp is free to download. Counting reps needs RepChamp Pro, an auto-renewing subscription (weekly, monthly or yearly; the price is shown in the app and Google Play before you pay, and you can cancel any time in Google Play). Pro covers solo training, live duels and couple mode, plus the full exercise library, detailed form reports and extra streak freezes. Each partner needs their own subscription for couple mode.
+RepChamp is free to download. Counting reps needs RepChamp Pro, an auto-renewing subscription (weekly, monthly or yearly; the price is shown in the app and Google Play before you pay, and you can cancel any time in Google Play). Pro covers solo training, live duels and couple mode, plus the full exercise library, detailed form reports and extra streak freezes. Each partner needs their own subscription for couple mode. The first time you pair with a partner, you both get 2 days of Pro free.
 
 Your video never leaves your phone
 Pose detection runs on your device. Your camera feed is never recorded, never uploaded and never shared, in any mode, including live duels. The only photo we store is the profile picture you choose yourself.
@@ -161,8 +161,8 @@ care about that, and the listing states plainly that they are labelled.
 **The Pro section says exactly what the wall does.** `FREE_REP_LIMIT` in
 `src/domain/hardPaywall.ts` is 0 and there is no free trial, so the listing
 promises no free reps. `COUPLE_WALL_ENABLED` is on (2026-10-26), so couple mode
-is described as Pro, per partner. The 7-day free Pro for pairing was removed
-the same day, so nothing in the app is free Pro and the listing promises none. Promising
+is described as Pro, per partner. The only free Pro is the one-time 2-day
+pairing bonus (`PAIRING_BONUS_DAYS` in `src/state/useCouple.ts`). Promising
 something free that the app then walls is the kind of mismatch that draws a
 refund complaint rather than a rejection, which is worse. If any of those
 constants change, change this section with them.

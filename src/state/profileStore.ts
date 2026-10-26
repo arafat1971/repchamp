@@ -98,10 +98,8 @@ export interface ProfileState {
    */
   pairingBonusUntil: number;
   /**
-   * Lifetime latch from the retired free Pro week for pairing. Nothing grants
-   * the bonus any more (removed 2026-10-26: every athlete pays); the fields
-   * stay so a bonus granted before then runs out on schedule and cloud
-   * profiles keep their shape.
+   * Lifetime latch — the free Pro days for pairing are granted once per device
+   * account. Without this, leave → re-pair after expiry farms unlimited Pro.
    */
   pairingBonusClaimed: boolean;
   /** Hour (0–23) they said they train at, or null — see `setPreferredHour`. */
@@ -141,6 +139,7 @@ export interface ProfileState {
   /** Mark today's programme rest day complete (no workout required). */
   completeProgrammeRestDay: () => void;
   /** Grant a Pro bonus for `days` from now (once per account; never shortens an active one). */
+  grantPairingBonus: (days: number) => void;
   /**
    * Spend banked freezes on missed days if, and only if, that keeps the streak
    * alive. Safe to call any time; idempotent. Returns how many were spent.
@@ -276,6 +275,17 @@ export const useProfileStore = create<ProfileState>()(
         set((state) => {
           if (!state.programme) return {};
           return { programme: completeRestDay(state.programme) };
+        }),
+
+      grantPairingBonus: (days) =>
+        set((state) => {
+          // One pairing bonus per account — leave/re-pair must not re-arm the grant.
+          if (state.pairingBonusClaimed) return {};
+          const proposed = Date.now() + days * 24 * 60 * 60 * 1000;
+          return {
+            pairingBonusUntil: Math.max(state.pairingBonusUntil, proposed),
+            pairingBonusClaimed: true,
+          };
         }),
 
       applyStreakFreezes: (today = dayKey()) => {

@@ -2475,7 +2475,7 @@ function CoupleMode({ onNext }: { onNext: () => void }) {
         {[
           { icon: '📱', title: 'Two phones, one set', sub: "See each other's reps live" },
           { icon: '👋', title: 'Nudge them', sub: 'A tap sends a push to get them moving' },
-          { icon: '🔥', title: 'One streak, two people', sub: 'It only grows on days you both train' },
+          { icon: '🎁', title: 'Both get 2 days free', sub: 'Pair up and Pro unlocks for you both' },
         ].map((p, i) => (
           <StaggerIn key={p.title} index={i} step={90}>
             <View style={styles.valuePoint}>

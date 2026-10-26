@@ -29,6 +29,7 @@ import {
   type CoupleLevel,
   type CoupleMember,
 } from '@/domain/couple';
+import { PAIRING_BONUS_REPS } from '@/domain/hardPaywall';
 import { dayKey } from '@/domain/progression';
 import { presentNudge } from '@/lib/notifications';
 import { parseReminderKind } from '@/domain/partnerReminder';
@@ -41,9 +42,6 @@ import { syncHydrationNow } from '@/services/hydrationSync';
 import { fetchExpoPushToken } from '@/services/userService';
 import { useAuthStore } from '@/state/authStore';
 import { useProfileStore } from '@/state/profileStore';
-
-/** Free Pro days granted to both partners when a couple pairs — the invite reward. */
-const PAIRING_BONUS_DAYS = 7;
 
 export interface CoupleView {
   /** The raw bond, or null when this athlete has not paired with anyone. */
@@ -121,13 +119,13 @@ export function useCouple(): CoupleView {
       setLoading(false);
 
       // Reward the invite loop once: first time a bond is fully paired on this
-      // device. `grantPairingBonus` is a lifetime latch — leave/re-pair after
-      // expiry must not farm another free Pro week.
+      // device: free reps for a first set together (PAIRING_BONUS_REPS).
+      // `grantPairingBonus` is a lifetime latch — leave/re-pair must not farm more.
       const fullyPaired = !!next && next.memberUids.length >= 2 && next.pending === false;
       if (fullyPaired && !rewardedPairing.current) {
         rewardedPairing.current = true;
-        useProfileStore.getState().grantPairingBonus(PAIRING_BONUS_DAYS);
-        // Persist the lifetime latch + until stamp before the next device can re-farm.
+        useProfileStore.getState().grantPairingBonus(PAIRING_BONUS_REPS);
+        // Persist the lifetime latch before another device can re-farm it.
         void useAuthStore.getState().pushProfile();
       }
 

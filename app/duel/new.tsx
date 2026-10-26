@@ -13,7 +13,7 @@ import { canStartWorkout } from '@/domain/paywallGate';
 import { isWalled } from '@/domain/hardPaywall';
 import { assertClientRateLimit, isBlockedByMe } from '@/services/safetyService';
 import { useAuthStore } from '@/state/authStore';
-import { selectTotalReps, useProfileStore } from '@/state/profileStore';
+import { selectFreeRepCeiling, selectTotalReps, useProfileStore } from '@/state/profileStore';
 import { isPurchasesConfigured } from '@/services/purchases';
 import { useEffectivePro } from '@/state/proStore';
 import { showDialog } from '@/state/useDialog';
@@ -115,6 +115,7 @@ export default function DuelNewScreen() {
       isWalled({
         isPro,
         repsSoFar: bankedReps,
+        freeRepCeiling: selectFreeRepCeiling(useProfileStore.getState()),
         isCoupleMode: isCoupleTrain,
         billingReady: isPurchasesConfigured(),
       })

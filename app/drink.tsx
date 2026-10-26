@@ -13,6 +13,7 @@ import { shareDrink, syncHydrationNow } from '@/services/hydrationSync';
 import { selectTodayMl, useHydrationStore } from '@/state/hydrationStore';
 import { useProfileStore } from '@/state/profileStore';
 import { useCouple } from '@/state/useCouple';
+import { WATER_PAYWALL, waterWalledNow } from '@/state/waterWall';
 import { font } from '@/theme/typography';
 
 /**
@@ -48,8 +49,15 @@ export default function QuickDrinkScreen() {
   }, [phase]);
 
   useEffect(() => {
+    // The widget button is a way in too: past the free glass, it sells Pro.
+    if (!handled.current && waterWalledNow()) {
+      handled.current = true;
+      router.replace(WATER_PAYWALL);
+      return;
+    }
     if (handled.current || couple.loading) return;
     handled.current = true;
+
 
     const ml = sanitizeDrinkMl(Number(params.ml ?? 250) || 250);
     const store = useHydrationStore.getState();

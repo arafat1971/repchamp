@@ -36,7 +36,7 @@ import type { SessionMode } from '@/domain/progression';
 import { isPurchasesConfigured } from '@/services/purchases';
 import { useAuthStore } from '@/state/authStore';
 import { useEffectivePro, useProStore } from '@/state/proStore';
-import { selectTotalReps, useProfileStore } from '@/state/profileStore';
+import { selectFreeRepCeiling, selectTotalReps, useProfileStore } from '@/state/profileStore';
 import { momentFor, shouldShow, type LiveMoment, type MomentKind } from '@/domain/liveMoments';
 import { leadChanged, readRace, shouldAnnounceOvertake } from '@/domain/duelTension';
 import {
@@ -187,6 +187,7 @@ export default function SessionScreen() {
      allowance, since the cap drops whole sessions only after 500 of them, so
      the truncation cannot pull a spent athlete back under the limit. */
   const bankedReps = useProfileStore(selectTotalReps);
+  const freeRepCeiling = useProfileStore(selectFreeRepCeiling);
 
   // Freemium gate: latch once billing readiness resolves. Re-evaluating every
   // render let a late `proReady` flip Redirect mid-set and tear down the camera.
@@ -222,6 +223,7 @@ export default function SessionScreen() {
   const wallInput = {
     isPro,
     repsSoFar: bankedReps,
+    freeRepCeiling,
     isCoupleMode: mode === 'together',
     billingReady: isPurchasesConfigured(),
   };

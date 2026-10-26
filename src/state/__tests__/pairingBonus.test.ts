@@ -1,4 +1,4 @@
-import { selectPairingBonusActive, useProfileStore } from '@/state/profileStore';
+import { selectFreeRepCeiling, selectPairingBonusActive, useProfileStore } from '@/state/profileStore';
 
 describe('selectPairingBonusActive', () => {
   const now = 1_000_000_000_000;
@@ -22,14 +22,17 @@ describe('grantPairingBonus', () => {
     useProfileStore.getState().reset();
   });
 
-  it('grants once and refuses leave/re-pair farming', () => {
-    useProfileStore.getState().grantPairingBonus(7);
-    const first = useProfileStore.getState().pairingBonusUntil;
-    expect(first).toBeGreaterThan(Date.now());
+  it('grants free reps counted from today\'s total, once', () => {
+    useProfileStore.setState({ lifetimeReps: 120 });
+    useProfileStore.getState().grantPairingBonus(10);
+    expect(selectFreeRepCeiling(useProfileStore.getState())).toBe(130);
     expect(useProfileStore.getState().pairingBonusClaimed).toBe(true);
-
-    useProfileStore.setState({ pairingBonusUntil: 0 });
-    useProfileStore.getState().grantPairingBonus(7);
+    // No timed Pro any more.
     expect(useProfileStore.getState().pairingBonusUntil).toBe(0);
+
+    // Leave and re-pair later: nothing more.
+    useProfileStore.setState({ lifetimeReps: 500 });
+    useProfileStore.getState().grantPairingBonus(10);
+    expect(selectFreeRepCeiling(useProfileStore.getState())).toBe(130);
   });
 });

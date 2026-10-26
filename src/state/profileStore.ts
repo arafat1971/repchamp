@@ -31,6 +31,7 @@ import {
 } from '@/domain/streakFreeze';
 import type { Blocker, FitnessLevel } from '@/domain/onboardingPlan';
 import { isoWeekKey } from '@/domain/weeklyChallenge';
+import type { StreakCelebrated } from '@/domain/streakCelebration';
 import { EXERCISES, type ExerciseId } from '@/vision/exercises';
 import { zustandStorage } from '@/lib/storage';
 
@@ -117,6 +118,8 @@ export interface ProfileState {
   lastRepairDay: string | null;
   /** The break (its last trained day) the athlete waved away, so its card stays gone. */
   repairDismissedFor: string | null;
+  /** The last streak milestone celebrated full-screen, so each shows once per run. */
+  streakCelebrated: StreakCelebrated | null;
 
   completeOnboarding: (input: {
     username: string;
@@ -155,6 +158,7 @@ export interface ProfileState {
   repairStreak: (today?: string) => number;
   /** Hide the repair card for the current break. */
   dismissRepair: () => void;
+  markStreakCelebrated: (streak: number, day?: string) => void;
   reset: () => void;
 }
 
@@ -184,6 +188,7 @@ const initialState = {
   freezeSave: null as { day: string; used: number; streak: number } | null,
   lastRepairDay: null as string | null,
   repairDismissedFor: null as string | null,
+  streakCelebrated: null as StreakCelebrated | null,
 };
 
 export const useProfileStore = create<ProfileState>()(
@@ -327,6 +332,8 @@ export const useProfileStore = create<ProfileState>()(
           frozenDays,
         );
       },
+      markStreakCelebrated: (streak, day = dayKey()) => set({ streakCelebrated: { streak, day } }),
+
       dismissRepair: () => {
         const offer = selectRepairOffer(get());
         if (offer) set({ repairDismissedFor: offer.lastTrained });

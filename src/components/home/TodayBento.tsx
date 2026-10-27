@@ -72,6 +72,8 @@ export function TodayBento({
   const closed = [challenge.percent, water.percent, stepPct].filter((p) => p >= 100).length;
   const overall = Math.round((challenge.percent + water.percent + stepPct) / 3);
   const daysToGoal = Math.max(0, goal - daysTrained);
+  /* A live streak gets the dark tile; zero stays light. */
+  const live = streak > 0;
   /* The nearest open ring as a next step — "2 glasses of water to go" says
      what to do; an average percentage does not. */
   const next = nextToClose({
@@ -147,32 +149,40 @@ export function TodayBento({
       </PressableScale>
 
       <View style={styles.right}>
-        {/* Streak tile — the one dark surface, so the number you protect pops. */}
+        {/* Streak tile — the one dark surface, so the number you protect pops.
+            At zero there is nothing to protect yet, and a black slab saying
+            "0" was the heaviest thing on Home; it stays a plain tile then. */}
         <PressableScale
           onPress={onStreak}
           accessibilityRole="button"
           accessibilityLabel={`${streak} day streak, ${daysTrained} of ${goal} days this week${
             freezes > 0 ? `, ${freezes} streak ${freezes === 1 ? 'freeze' : 'freezes'} banked` : ''
           }`}
-          style={[styles.tile, styles.streakTile]}
+          style={[styles.tile, live && styles.streakTile]}
         >
           <>
-            <View style={styles.bigRow}>
+            {/* Label row, the same shape as the league tile's beside it. */}
+            <View style={styles.leagueName}>
               <PopOnChange trigger={streak} style={styles.flameBubble}>
-                <FlameIcon size={15} color={streak > 0 ? palette.amber300 : palette.grey500} />
+                <FlameIcon size={13} color={live ? palette.amber300 : palette.amber600} />
               </PopOnChange>
-              <CountUp value={streak} style={[styles.bigNumber, { color: palette.white }]} />
-              <Text style={[styles.bigUnit, { color: 'rgba(255,255,255,0.7)' }]}>
-                {streak === 1 ? 'day' : 'days'}
+              <Text style={[styles.tileLabelSm, live && { color: palette.white }]} numberOfLines={1}>
+                Streak
               </Text>
               {freezes > 0 ? (
                 <PopOnChange trigger={freezes} style={styles.freezeChip}>
-                  <SnowflakeIcon size={11} color={palette.blue300} strokeWidth={2.4} />
-                  <Text style={styles.freezeCount}>{freezes}</Text>
+                  <SnowflakeIcon size={11} color={live ? palette.blue300 : palette.blue600} strokeWidth={2.4} />
+                  <Text style={[styles.freezeCount, !live && { color: palette.blue600 }]}>{freezes}</Text>
                 </PopOnChange>
               ) : null}
             </View>
-            <Text style={[styles.tileFoot, { color: 'rgba(255,255,255,0.6)' }]} numberOfLines={1}>
+            <View style={[styles.bigRow, { marginTop: 4 }]}>
+              <CountUp value={streak} style={[styles.bigNumber, { fontSize: 22 }, live && { color: palette.white }]} />
+              <Text style={[styles.bigUnit, live && { color: 'rgba(255,255,255,0.7)' }]}>
+                {streak === 1 ? 'day' : 'days'}
+              </Text>
+            </View>
+            <Text style={[styles.tileFoot, live && { color: 'rgba(255,255,255,0.6)' }]} numberOfLines={1}>
               {streak === 0
                 ? 'Start a streak today'
                 : daysToGoal === 0
@@ -192,7 +202,7 @@ export function TodayBento({
           <>
             <View style={styles.leagueName}>
               <Image source={MEDAL_BRONZE} style={styles.medal} contentFit="contain" />
-              <Text style={font('extrabold', 13.5, { color: palette.ink, letterSpacing: -0.2, flex: 1 })} numberOfLines={1}>
+              <Text style={styles.tileLabelSm} numberOfLines={1}>
                 {league.title}
               </Text>
             </View>
@@ -337,10 +347,11 @@ const styles = StyleSheet.create({
   legendDot: { width: 7, height: 7, borderRadius: 4 },
   legendLabel: { ...font('semibold', 12, { color: palette.grey700 }), flex: 1 },
   legendValue: { ...font('extrabold', 12), fontVariant: ['tabular-nums'] },
+  tileLabelSm: { ...font('extrabold', 13.5, { color: palette.ink }), letterSpacing: -0.2, flex: 1 },
   flameBubble: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignSelf: 'center',
     marginRight: 2,
     backgroundColor: 'rgba(251,191,36,0.16)',

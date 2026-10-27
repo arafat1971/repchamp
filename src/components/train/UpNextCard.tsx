@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { WALL_COPY } from '@/domain/hardPaywall';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
@@ -23,6 +24,11 @@ const IC_SQUAT = require('../../../assets/ic-squat.png');
  * the movement, says why now (a streak to keep, or one to start), and the
  * button breathes so the eye lands on it. Everything below is browsing; this is
  * the action.
+ *
+ * Light, like Home's hero: it sat as a black slab right under the green week
+ * card, two heavy surfaces in a row saying nearly the same thing. A white card
+ * with a green wash keeps the week card as the one dark block on the tab, and
+ * the filled green button is still the loudest thing here.
  */
 export function UpNextCard({
   exercise,
@@ -60,11 +66,17 @@ export function UpNextCard({
 
   return (
     <View style={styles.card}>
-      <View style={styles.glow} pointerEvents="none" />
+      <LinearGradient
+        pointerEvents="none"
+        colors={[palette.green50, 'rgba(234,250,240,0)']}
+        start={{ x: 1, y: 0 }}
+        end={{ x: 0.2, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
       <View style={styles.row}>
         <View style={{ flex: 1 }}>
           <View style={styles.eyebrowRow}>
-            {!trainedToday && streak > 0 ? <FlameIcon size={13} color={palette.amber300} /> : null}
+            {!trainedToday && streak > 0 ? <FlameIcon size={13} color={palette.amber600} /> : null}
             <Text style={styles.eyebrow} {...scaleForRole('control')}>
               {eyebrow}
             </Text>
@@ -88,9 +100,9 @@ export function UpNextCard({
         >
           <Text style={styles.ctaText}>{locked ? 'See Pro' : `Start ${name}`}</Text>
           {locked ? (
-            <LockIcon size={16} color={palette.ink} />
+            <LockIcon size={16} color={palette.white} />
           ) : (
-            <ArrowIcon size={16} color={palette.ink} strokeWidth={2.6} />
+            <ArrowIcon size={16} color={palette.white} strokeWidth={2.6} />
           )}
         </PressableScale>
       </Animated.View>
@@ -101,26 +113,20 @@ export function UpNextCard({
 const styles = StyleSheet.create({
   card: {
     borderRadius: radius['6xl'],
+    borderCurve: 'continuous',
     padding: 18,
-    backgroundColor: palette.ink,
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: 'rgba(15,31,23,0.06)',
     overflow: 'hidden',
     ...surfaceShadow,
   },
-  glow: {
-    position: 'absolute',
-    top: -70,
-    right: -50,
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: 'rgba(34,197,94,0.14)',
-  },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  eyebrow: { ...font('extrabold', 11, { color: palette.green300 }), letterSpacing: 1.2 },
-  title: { ...font('extrabold', 21, { color: palette.white }), letterSpacing: -0.5, marginTop: 6 },
-  body: { ...font('medium', 13, { color: 'rgba(255,255,255,0.68)' }), marginTop: 4, lineHeight: 18 },
-  art: { width: 76, height: 76 },
+  eyebrow: { ...font('extrabold', 11, { color: palette.green600 }), letterSpacing: 1.2 },
+  title: { ...font('extrabold', 22, { color: palette.ink }), letterSpacing: -0.5, marginTop: 6 },
+  body: { ...font('medium', 13, { color: palette.grey700 }), marginTop: 4, lineHeight: 18 },
+  art: { width: 84, height: 84 },
   cta: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -129,7 +135,7 @@ const styles = StyleSheet.create({
     height: 52,
     marginTop: 16,
     borderRadius: radius.pill,
-    backgroundColor: palette.green400,
+    backgroundColor: palette.green600,
   },
-  ctaText: font('extrabold', 16, { color: palette.ink }),
+  ctaText: font('extrabold', 16, { color: palette.white }),
 });

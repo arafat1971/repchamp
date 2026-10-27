@@ -28,6 +28,7 @@ import { DEFAULT_STEP_GOAL } from '@/domain/steps';
 import { buildStepsWidgetSnapshot } from '@/domain/stepsWidget';
 import { useStepsStore } from '@/state/stepsStore';
 import { TodayBento } from '@/components/home/TodayBento';
+import { ProgressRing } from '@/components/home/ProgressRing';
 import { WeekDateStrip } from '@/components/home/WeekDateStrip';
 import { LiveTogetherBar } from '@/components/home/LiveTogetherBar';
 import { sendPoke } from '@/services/ritualSync';
@@ -808,9 +809,18 @@ export default function HomeScreen() {
         <PressableScale
           onPress={() => router.push('/(tabs)/profile')}
           accessibilityRole="button"
-          accessibilityLabel="Your profile"
+          accessibilityLabel={`Your profile. Level ${level.level}, ${level.xpToNextLevel.toLocaleString()} XP to level ${level.nextLevel}`}
         >
-          <View style={styles.avatarRing}>
+          {/* The ring is the level filling up: every set moves it, and a ring
+              nearly closed is a reason to do one more. */}
+          <ProgressRing
+            percent={level.percent}
+            size={46}
+            thickness={3}
+            from={palette.green400}
+            to={palette.green600}
+            track={palette.green100}
+          >
             <View style={styles.avatar}>
               {profile.avatarUri ? (
                 <Image
@@ -823,7 +833,7 @@ export default function HomeScreen() {
                 <Text style={font('bold', 17, { color: palette.green600 })}>{initial}</Text>
               )}
             </View>
-          </View>
+          </ProgressRing>
           <View style={styles.levelBadge} accessibilityLabel={`Level ${level.level}`}>
             <Text style={font('extrabold', 10, { color: palette.white })}>{level.level}</Text>
           </View>
@@ -833,7 +843,13 @@ export default function HomeScreen() {
           {/* Greeting and name on one line; under it, where the day stands —
               the coach line `selectHomeGreeting` writes (streak on the line,
               trained already, nothing logged yet). */}
-          <Text style={styles.greetingName} numberOfLines={1} {...scaleForRole('heading')}>
+          <Text
+            style={styles.greetingName}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.78}
+            {...scaleForRole('heading')}
+          >
             {greetingCopy.timeOfDay}, {firstName}
           </Text>
           <View style={styles.hookRow}>
@@ -1136,9 +1152,9 @@ export default function HomeScreen() {
           away instead. */}
       <LinearGradient
         pointerEvents="none"
-        colors={[palette.canvas, 'rgba(246,247,245,0.85)', 'rgba(246,247,245,0)']}
-        locations={[0, 0.6, 1]}
-        style={[styles.statusFade, { height: insets.top + 18 }]}
+        colors={[palette.canvas, palette.canvas, 'rgba(246,247,245,0)']}
+        locations={[0, insets.top / (insets.top + 20), 1]}
+        style={[styles.statusFade, { height: insets.top + 20 }]}
       />
     </View>
   );
@@ -1391,10 +1407,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  avatarRing: { width: 44, height: 44, borderRadius: 22, padding: 2, backgroundColor: palette.borderStrong },
   avatar: {
-    flex: 1,
-    borderRadius: 20,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: palette.white,
     borderWidth: 2,
     borderColor: palette.white,

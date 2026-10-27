@@ -176,6 +176,8 @@ export interface AnalyticsEvents {
   streak_broken: { length: number; previous: number; daysMissed: number };
   /** A nudge was actually tapped, rather than merely delivered. */
   notification_opened: { kind: string };
+  /** "Start a set" on an empty Weekly Recap. `lastWeekReps` says whether a target was shown. */
+  recap_start_tapped: { lastWeekReps: number };
   /** First open of a calendar day. `dayN` counts from install, for D1/D7. */
   day_n_return: { dayN: number; daysSinceLast: number };
   /** Movement on the weekly-XP ladder. Demotion is the more telling direction. */

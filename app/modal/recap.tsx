@@ -15,8 +15,9 @@ import {
   type SessionSummary,
 } from '@/state/profileStore';
 import { useEffectivePro } from '@/state/proStore';
+import { aWeekBefore, compareWeeks, isoWeekRange } from '@/domain/weekRecap';
 import { useCouple } from '@/state/useCouple';
-import { font, text } from '@/theme/typography';
+import { font } from '@/theme/typography';
 import { gradients, palette, radius, shadow } from '@/theme/tokens';
 
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'] as const;
@@ -35,10 +36,9 @@ function repsByWeekday(sessions: readonly SessionSummary[], now = new Date()): n
   return buckets;
 }
 
+/** The week the recap counts, Monday to Sunday — the same week as the data. */
 function formatRange(now = new Date()): string {
-  const end = new Date(now);
-  const start = new Date(now);
-  start.setDate(start.getDate() - 6);
+  const { start, end } = isoWeekRange(now);
   const fmt = (d: Date) =>
     d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).toUpperCase();
   return `${fmt(start)} – ${fmt(end)}`;
@@ -52,6 +52,9 @@ export default function WeeklyRecapScreen() {
   const isPro = useEffectivePro();
 
   const totalReps = week.reduce((acc, s) => acc + s.reps, 0);
+  const lastWeekReps = selectWeekSessions(profile, aWeekBefore(new Date())).reduce((acc, s) => acc + s.reps, 0);
+  const versus = compareWeeks(totalReps, lastWeekReps);
+  const empty = week.length === 0;
   const xp = week.reduce((acc, s) => acc + s.xp, 0);
   const duels = week.filter((s) => s.mode === 'versus');
   const duelsWon = duels.filter((s) => s.won).length;
@@ -80,8 +83,9 @@ export default function WeeklyRecapScreen() {
         <Text style={styles.heroCopy}>
           {totalReps > 0
             ? `${totalReps} reps across ${week.length} session${week.length === 1 ? '' : 's'}.`
-            : 'Finish a session and your recap will fill in here.'}
+            : 'Finish a set and your recap fills in here.'}
         </Text>
+        {versus && !empty ? <Text style={styles.heroVersus}>{versus}</Text> : null}
       </LinearGradient>
 
       <StreakFreezeCard
@@ -91,6 +95,29 @@ export default function WeeklyRecapScreen() {
         onUpgrade={() => router.push({ pathname: '/modal/paywall', params: { source: 'streak-freeze' } })}
       />
 
+      {/* An empty week used to be four zero tiles, an empty chart and a grey
+          footnote. One card instead: last week as the number to beat (when
+          there is one) and the way to start. */}
+      {empty ? (
+        <Card style={styles.emptyCard}>
+          <Text style={font('extrabold', 18, { color: palette.ink })}>Nothing on the board yet</Text>
+          <Text style={styles.emptyBody}>
+            {versus ?? 'One set today and this page starts counting: reps, XP, minutes and your best day.'}
+          </Text>
+          <PressableScale
+            onPress={() => {
+              track('recap_start_tapped', { lastWeekReps });
+              router.navigate('/(tabs)/train');
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Start a set"
+            style={styles.emptyCta}
+          >
+            <Text style={font('extrabold', 15, { color: palette.white })}>Start a set</Text>
+          </PressableScale>
+        </Card>
+      ) : (
+      <>
       <View style={styles.grid}>
         <View style={styles.gridRow}>
           <StatTile value={totalReps} label="total reps" color={palette.green500} />
@@ -150,6 +177,8 @@ export default function WeeklyRecapScreen() {
           })}
         </View>
       </Card>
+      </>
+      )}
 
       {/* The couple half — "here's what you two did" — only when paired. */}
       {couple.paired ? (
@@ -183,11 +212,6 @@ export default function WeeklyRecapScreen() {
         </LinearGradient>
       ) : null}
 
-      {week.length === 0 ? (
-        <Text style={[text.caption, styles.empty]}>
-          No sessions logged in the last 7 days.
-        </Text>
-      ) : null}
     </Screen>
   );
 }
@@ -238,5 +262,15 @@ const styles = StyleSheet.create({
   chart: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, height: 130 },
   chartColumn: { flex: 1, height: '100%', alignItems: 'center', justifyContent: 'flex-end', gap: 8 },
   chartBar: { width: '100%', borderRadius: radius.sm },
-  empty: { textAlign: 'center', marginTop: 20 },
+  heroVersus: { ...font('extrabold', 13, { color: palette.white }), marginTop: 10 },
+  emptyCard: { padding: 20, gap: 8 },
+  emptyBody: { ...font('medium', 14, { color: palette.grey700 }), lineHeight: 20 },
+  emptyCta: {
+    marginTop: 8,
+    height: 50,
+    borderRadius: radius.pill,
+    backgroundColor: palette.green600,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

@@ -1,4 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -438,11 +439,16 @@ export default function PaywallScreen() {
               end={{ x: 1, y: 1 }}
               style={styles.hero}
             >
-              <Text style={styles.eyebrow}>REPCHAMP PRO</Text>
-              <Text style={styles.title} accessibilityRole="header">
-                {lead.title}
-              </Text>
-              {lead.sub ? <Text style={styles.sub}>{lead.sub}</Text> : null}
+              <View style={styles.heroRow}>
+                <View style={styles.heroCopy}>
+                  <Text style={styles.eyebrow}>REPCHAMP PRO</Text>
+                  <Text style={styles.title} accessibilityRole="header">
+                    {lead.title}
+                  </Text>
+                  {lead.sub ? <Text style={styles.sub}>{lead.sub}</Text> : null}
+                </View>
+                <DemoClip />
+              </View>
 
               {/* The rep wall as a fact, not a lock: their own count, full. */}
               {fromRepWall ? (
@@ -668,6 +674,34 @@ export default function PaywallScreen() {
   );
 }
 
+/* The same clip onboarding's Showcase plays: reps counting themselves. */
+const DEMO_VIDEO = require('../../assets/remove_text_bro_thought_202607272319.mp4');
+
+/**
+ * The product, working, beside the pitch.
+ *
+ * The hero used to be words on green. Top-earning paywalls show the thing
+ * being bought; here that is the camera counting a set, which no sentence
+ * says as well. Muted and looping, small enough that the plans stay above
+ * the fold.
+ */
+function DemoClip() {
+  const player = useVideoPlayer(DEMO_VIDEO, (p) => {
+    p.loop = true;
+    p.muted = true;
+    p.play();
+  });
+  return (
+    <View style={styles.clipFrame} accessibilityLabel="RepChamp counting push-ups on camera">
+      <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" nativeControls={false} />
+      <View style={styles.clipBadge}>
+        <View style={styles.clipDot} />
+        <Text style={styles.clipBadgeText}>AI COUNT</Text>
+      </View>
+    </View>
+  );
+}
+
 function TimelineStep({
   label,
   detail,
@@ -843,6 +877,33 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
     overflow: 'hidden',
   },
+  heroRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  heroCopy: { flex: 1 },
+  clipFrame: {
+    width: 88,
+    height: 148,
+    borderRadius: 18,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
+    backgroundColor: palette.green900,
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.9)',
+    marginTop: 4,
+  },
+  clipBadge: {
+    position: 'absolute',
+    left: 6,
+    bottom: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  clipDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: palette.green500 },
+  clipBadgeText: { ...font('extrabold', 8.5, { color: palette.white }), letterSpacing: 0.8 },
   eyebrow: {
     ...font('extrabold', 11, { color: palette.green100 }),
     letterSpacing: 2.4,

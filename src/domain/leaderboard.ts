@@ -84,3 +84,20 @@ export function standingLine(you: Pick<LeaderboardRow, 'rank' | 'xp'>): string {
   if (you.xp <= 0) return 'Finish a set this week to get ranked';
   return `You're #${you.rank} with ${you.xp.toLocaleString()} XP this week`;
 }
+
+/**
+ * The weekly list as it should read: athletes with XP this week, ranked 1..n,
+ * then the idle rows `keepIdle` wants kept, unranked (`rank: 0`), at the end.
+ *
+ * A row with no XP has not taken a place, so it gets no number. On the global
+ * board that drops a wall of zero-XP strangers (most still on the placeholder
+ * name, so identical); among friends, idle friends stay listed, just unranked.
+ */
+export function rankedBoard<T extends Pick<LeaderboardRow, 'xp' | 'rank'>>(
+  rows: readonly T[],
+  keepIdle: (row: T) => boolean,
+): T[] {
+  const earned = rows.filter((row) => row.xp > 0).map((row, i) => ({ ...row, rank: i + 1 }));
+  const idle = rows.filter((row) => row.xp <= 0 && keepIdle(row)).map((row) => ({ ...row, rank: 0 }));
+  return [...earned, ...idle];
+}

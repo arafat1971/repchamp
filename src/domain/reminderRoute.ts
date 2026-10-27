@@ -21,12 +21,15 @@ export function reminderTapIsWalled(input: {
   isPro: boolean;
   bonusActive: boolean;
   repsSoFar: number;
+  /** The pairing bonus's free-rep ceiling (`selectFreeRepCeiling`). */
+  freeRepCeiling?: number;
   billingReady: boolean;
 }): boolean {
   if (!input.proReady) return false;
   return isWalled({
     isPro: input.isPro || input.bonusActive,
     repsSoFar: input.repsSoFar,
+    freeRepCeiling: input.freeRepCeiling,
     billingReady: input.billingReady,
   });
 }

@@ -166,12 +166,18 @@ export interface AnalyticsEvents {
   streak_continued: { length: number; previous: number };
   /** Banked freezes spent to keep a streak alive across a gap. */
   streak_freeze_used: { used: number };
+  /** Freezes from the couple's shared bank spent to save the shared streak. */
+  couple_freeze_used: { used: number };
   /** A broken streak restored with the Pro repair. */
   streak_repaired: { streak: number };
+  /** The full-screen milestone celebration opened (3, 7, 14, 30… days). */
+  streak_milestone_shown: { streak: number };
   /** Reported on the return *after* a gap — nothing runs on a day nobody opens. */
   streak_broken: { length: number; previous: number; daysMissed: number };
   /** A nudge was actually tapped, rather than merely delivered. */
   notification_opened: { kind: string };
+  /** "Start a set" on an empty Weekly Recap. `lastWeekReps` says whether a target was shown. */
+  recap_start_tapped: { lastWeekReps: number };
   /** First open of a calendar day. `dayN` counts from install, for D1/D7. */
   day_n_return: { dayN: number; daysSinceLast: number };
   /** Movement on the weekly-XP ladder. Demotion is the more telling direction. */

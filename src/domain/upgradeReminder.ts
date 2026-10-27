@@ -57,6 +57,8 @@ export function shouldPitchUpgrade(input: {
   bonusActive: boolean;
   paired: boolean;
   repsSoFar: number;
+  /** The pairing bonus's free-rep ceiling (`selectFreeRepCeiling`). */
+  freeRepCeiling?: number;
   billingReady: boolean;
   remindersEnabled: boolean;
 }): boolean {
@@ -64,6 +66,7 @@ export function shouldPitchUpgrade(input: {
   return isWalled({
     isPro: input.isPro || input.bonusActive,
     repsSoFar: input.repsSoFar,
+    freeRepCeiling: input.freeRepCeiling,
     billingReady: input.billingReady,
   });
 }

@@ -28,6 +28,7 @@ import { DEFAULT_STEP_GOAL } from '@/domain/steps';
 import { buildStepsWidgetSnapshot } from '@/domain/stepsWidget';
 import { useStepsStore } from '@/state/stepsStore';
 import { TodayBento } from '@/components/home/TodayBento';
+import { ProgressRing } from '@/components/home/ProgressRing';
 import { WeekDateStrip } from '@/components/home/WeekDateStrip';
 import { LiveTogetherBar } from '@/components/home/LiveTogetherBar';
 import { sendPoke } from '@/services/ritualSync';
@@ -94,9 +95,11 @@ import {
   selectStreakFreezes,
   selectTotalReps,
   selectWeeklyXp,
+  selectFreeRepCeiling,
 } from '@/state/profileStore';
 import { selectTodayMl, useHydrationStore } from '@/state/hydrationStore';
 import { useEffectivePro, useProStore } from '@/state/proStore';
+import { WATER_PAYWALL, waterWalledNow } from '@/state/waterWall';
 import { isPurchasesConfigured } from '@/services/purchases';
 import { WALL_COPY, isWalled } from '@/domain/hardPaywall';
 import { useCouple } from '@/state/useCouple';
@@ -138,9 +141,11 @@ export default function HomeScreen() {
       streakFreezes: s.streakFreezes,
       lastRepairDay: s.lastRepairDay,
       repairDismissedFor: s.repairDismissedFor,
+      pairingBonusRepCeiling: s.pairingBonusRepCeiling,
     })),
   );
   const freezeSave = useProfileStore((s) => s.freezeSave);
+  const coupleFreezeSeen = useProfileStore((s) => s.coupleFreezeSeen);
   const couple = useCouple();
   const self = useSelfPlayer();
 
@@ -161,6 +166,7 @@ export default function HomeScreen() {
   const soloWalled = isWalled({
     isPro,
     repsSoFar: selectTotalReps(profile),
+    freeRepCeiling: selectFreeRepCeiling(profile),
     billingReady: isPurchasesConfigured(),
   });
   const daysTrained = selectDaysTrainedThisWeek(profile);
@@ -546,6 +552,11 @@ export default function HomeScreen() {
 
   const logWater = useCallback(
     (ml: number, kind?: string) => {
+      // One free glass, then water is Pro (see FREE_WATER_LOGS).
+      if (waterWalledNow()) {
+        router.push(WATER_PAYWALL);
+        return;
+      }
       const before = selectTodayMl(useHydrationStore.getState(), dayKey());
       const entry = useHydrationStore.getState().logDrink(ml, kind);
       // A refused tap gets no haptic: the confirmation must mean something.
@@ -568,7 +579,7 @@ export default function HomeScreen() {
         }),
       );
     },
-    [coupleId, myUid, profile.displayName, profile.username],
+    [coupleId, myUid, profile.displayName, profile.username, router],
   );
 
   const undoWater = useCallback(() => {
@@ -808,9 +819,18 @@ export default function HomeScreen() {
         <PressableScale
           onPress={() => router.push('/(tabs)/profile')}
           accessibilityRole="button"
-          accessibilityLabel="Your profile"
+          accessibilityLabel={`Your profile. Level ${level.level}, ${level.xpToNextLevel.toLocaleString()} XP to level ${level.nextLevel}`}
         >
-          <View style={styles.avatarRing}>
+          {/* The ring is the level filling up: every set moves it, and a ring
+              nearly closed is a reason to do one more. */}
+          <ProgressRing
+            percent={level.percent}
+            size={46}
+            thickness={3}
+            from={palette.green400}
+            to={palette.green600}
+            track={palette.green100}
+          >
             <View style={styles.avatar}>
               {profile.avatarUri ? (
                 <Image
@@ -823,7 +843,7 @@ export default function HomeScreen() {
                 <Text style={font('bold', 17, { color: palette.green600 })}>{initial}</Text>
               )}
             </View>
-          </View>
+          </ProgressRing>
           <View style={styles.levelBadge} accessibilityLabel={`Level ${level.level}`}>
             <Text style={font('extrabold', 10, { color: palette.white })}>{level.level}</Text>
           </View>
@@ -833,7 +853,13 @@ export default function HomeScreen() {
           {/* Greeting and name on one line; under it, where the day stands —
               the coach line `selectHomeGreeting` writes (streak on the line,
               trained already, nothing logged yet). */}
-          <Text style={styles.greetingName} numberOfLines={1} {...scaleForRole('heading')}>
+          <Text
+            style={styles.greetingName}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.78}
+            {...scaleForRole('heading')}
+          >
             {greetingCopy.timeOfDay}, {firstName}
           </Text>
           <View style={styles.hookRow}>
@@ -909,6 +935,26 @@ export default function HomeScreen() {
                 ? undefined
                 : () => router.push({ pathname: '/modal/paywall', params: { source: 'streak-freeze' } })
             }
+          />
+        </View>
+      ) : null}
+
+      {/* The shared bank's save, seen by both partners. Personal card first. */}
+      {!freezeSave &&
+      couple.paired &&
+      couple.freezeSave &&
+      couple.streak > 0 &&
+      coupleFreezeSeen !== couple.freezeSave.day ? (
+        <View style={styles.morningGap}>
+          <FreezeSavedCard
+            used={couple.freezeSave.used}
+            streak={couple.streak}
+            left={couple.freezes}
+            partnerName={couple.partner?.displayName?.split(' ')[0] ?? 'your partner'}
+            onDismiss={() => {
+              const day = couple.freezeSave?.day;
+              if (day) useProfileStore.getState().dismissCoupleFreezeSave(day);
+            }}
           />
         </View>
       ) : null}
@@ -999,6 +1045,7 @@ export default function HomeScreen() {
             myAvatar={profile.avatarUri ?? null}
             partnerAvatar={partnerAvatar}
             streak={couple.streak}
+            freezes={couple.freezes}
             combined={couple.combined}
             atRisk={couple.atRisk}
             levelName={couple.level.name}
@@ -1136,9 +1183,9 @@ export default function HomeScreen() {
           away instead. */}
       <LinearGradient
         pointerEvents="none"
-        colors={[palette.canvas, 'rgba(246,247,245,0.85)', 'rgba(246,247,245,0)']}
-        locations={[0, 0.6, 1]}
-        style={[styles.statusFade, { height: insets.top + 18 }]}
+        colors={[palette.canvas, palette.canvas, 'rgba(246,247,245,0)']}
+        locations={[0, insets.top / (insets.top + 20), 1]}
+        style={[styles.statusFade, { height: insets.top + 20 }]}
       />
     </View>
   );
@@ -1391,10 +1438,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  avatarRing: { width: 44, height: 44, borderRadius: 22, padding: 2, backgroundColor: palette.borderStrong },
   avatar: {
-    flex: 1,
-    borderRadius: 20,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: palette.white,
     borderWidth: 2,
     borderColor: palette.white,

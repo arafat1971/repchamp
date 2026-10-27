@@ -29,21 +29,33 @@ import {
   type CoupleLevel,
   type CoupleMember,
 } from '@/domain/couple';
+import {
+  coupleFreezeBank,
+  coupleFreezeSave,
+  coupleSkipTodayOutcome,
+  planCoupleFreeze,
+  type CoupleFreezeSave,
+} from '@/domain/coupleFreeze';
+import type { SkipTodayOutcome } from '@/domain/streakFreeze';
+import { PAIRING_BONUS_REPS } from '@/domain/hardPaywall';
 import { dayKey } from '@/domain/progression';
+import { track } from '@/lib/analytics';
 import { presentNudge } from '@/lib/notifications';
 import { parseReminderKind } from '@/domain/partnerReminder';
 import {
   flushCoupleCreditOutbox,
   promotePendingCoupleCredit,
 } from '@/services/coupleCreditOutbox';
-import { stripPendingPushToken, syncCouplePushToken, watchMyCouple } from '@/services/coupleService';
+import {
+  applyCoupleFreeze,
+  stripPendingPushToken,
+  syncCouplePushToken,
+  watchMyCouple,
+} from '@/services/coupleService';
 import { syncHydrationNow } from '@/services/hydrationSync';
 import { fetchExpoPushToken } from '@/services/userService';
 import { useAuthStore } from '@/state/authStore';
 import { useProfileStore } from '@/state/profileStore';
-
-/** Free Pro days granted to both partners when a couple pairs — the invite reward. */
-const PAIRING_BONUS_DAYS = 7;
 
 export interface CoupleView {
   /** The raw bond, or null when this athlete has not paired with anyone. */
@@ -58,6 +70,12 @@ export interface CoupleView {
   streak: number;
   /** True when today still needs a session from one of them to keep the streak. */
   atRisk: boolean;
+  /** Freezes in the couple's shared bank. */
+  freezes: number;
+  /** The shared freeze's latest save while it is still news, for the Home card. */
+  freezeSave: CoupleFreezeSave | null;
+  /** What skipping today costs the shared streak, for the reminder's wording. */
+  ifSkipped: SkipTodayOutcome;
   /** Every rep the two of them have logged, all time. */
   combined: number;
   /** The next shareable combined-rep milestone, or null past the last one. */
@@ -79,6 +97,9 @@ const EMPTY: CoupleView = {
   me: null,
   streak: 0,
   atRisk: false,
+  freezes: 0,
+  freezeSave: null,
+  ifSkipped: 'none',
   combined: 0,
   milestone: null,
   level: coupleLevel(0, 0),
@@ -86,6 +107,12 @@ const EMPTY: CoupleView = {
   code: null,
   loading: false,
 };
+
+/**
+ * The last freeze plan any `useCouple` instance sent, shared across them, so
+ * the many screens that mount this hook write the bank once, not once each.
+ */
+let lastFreezeAttempt: string | null = null;
 
 /** The newest nudge any `useCouple` instance has presented, shared across them. */
 let lastPresentedNudgeAt: number | null = null;
@@ -121,13 +148,13 @@ export function useCouple(): CoupleView {
       setLoading(false);
 
       // Reward the invite loop once: first time a bond is fully paired on this
-      // device. `grantPairingBonus` is a lifetime latch — leave/re-pair after
-      // expiry must not farm another free Pro week.
+      // device: free reps for a first set together (PAIRING_BONUS_REPS).
+      // `grantPairingBonus` is a lifetime latch — leave/re-pair must not farm more.
       const fullyPaired = !!next && next.memberUids.length >= 2 && next.pending === false;
       if (fullyPaired && !rewardedPairing.current) {
         rewardedPairing.current = true;
-        useProfileStore.getState().grantPairingBonus(PAIRING_BONUS_DAYS);
-        // Persist the lifetime latch + until stamp before the next device can re-farm.
+        useProfileStore.getState().grantPairingBonus(PAIRING_BONUS_REPS);
+        // Persist the lifetime latch before another device can re-farm it.
         void useAuthStore.getState().pushProfile();
       }
 
@@ -215,6 +242,27 @@ export function useCouple(): CoupleView {
     };
   }, [uid, pairedCoupleId]);
 
+  // Earn and spend the shared freeze bank whenever the doc or the day moves.
+  // The plan is pure, so a quick local check skips the transaction when
+  // nothing would change, which is almost every snapshot.
+  useEffect(() => {
+    if (!uid || !couple || !isPaired(couple)) return;
+    const today = dayKey();
+    const plan = planCoupleFreeze(couple, today);
+    if (!plan) return;
+    const key = `${couple.id}:${today}:${JSON.stringify(plan)}`;
+    if (key === lastFreezeAttempt) return;
+    lastFreezeAttempt = key;
+    void applyCoupleFreeze(couple.id, today)
+      .then((used) => {
+        if (used > 0) track('couple_freeze_used', { used });
+      })
+      .catch(() => {
+        // Offline, or rules not deployed yet. Not retried per snapshot (that
+        // would hammer a failing write); the next launch or a new plan retries.
+      });
+  }, [uid, couple]);
+
   return useMemo(() => {
     if (!couple || !uid) return { ...EMPTY, loading };
 
@@ -231,6 +279,9 @@ export function useCouple(): CoupleView {
       me: couple.members.find((m) => m.uid === uid) ?? null,
       streak,
       atRisk: streakAtRisk(couple, today),
+      freezes: paired ? coupleFreezeBank(couple).banked : 0,
+      freezeSave: coupleFreezeSave(couple, today),
+      ifSkipped: coupleSkipTodayOutcome(couple, today),
       combined,
       milestone: nextMilestone(combined),
       level: coupleLevel(combined, streak),

@@ -741,7 +741,27 @@ service cloud.firestore {
           && onlyOwnMemberStatsChanged();
       }
 
-      allow update: if isJoin() || isNudgeOnly() || isMemberUpdate();
+      // The shared streak-freeze bank (domain/coupleFreeze.ts). Either partner's
+      // phone spends and earns it, so this only bounds the shape: a member can
+      // at worst refill the bank to its small cap, which is theirs to share.
+      function freezeSane() {
+        let f = request.resource.data.freeze;
+        return f is map
+          && f.keys().hasOnly(['banked', 'frozenDays', 'lastEarnedDay'])
+          && f.banked is int && f.banked >= 0 && f.banked <= 2
+          && f.frozenDays is list && f.frozenDays.size() <= 60
+          && (!('lastEarnedDay' in f) || f.lastEarnedDay == null
+              || (f.lastEarnedDay is string && f.lastEarnedDay.size() == 10));
+      }
+
+      function isFreezeOnly() {
+        return isMember()
+          && resource.data.pending == false
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['freeze'])
+          && freezeSane();
+      }
+
+      allow update: if isJoin() || isNudgeOnly() || isMemberUpdate() || isFreezeOnly();
       allow delete: if isMember();
     }
 

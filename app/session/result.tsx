@@ -19,6 +19,7 @@ import { canUse } from '@/domain/pro';
 import { track } from '@/lib/analytics';
 import { LEAGUES, dayKey } from '@/domain/progression';
 import { leagueMove, streakOutcome } from '@/domain/retention';
+import { milestoneToCelebrate } from '@/domain/streakCelebration';
 import { captureError } from '@/lib/crash';
 import { playLoseSound, playSparkleSound, playWinSound, successHaptic } from '@/lib/feedback';
 import {
@@ -38,7 +39,7 @@ import { chooseProMoment, type ProMoment } from '@/domain/proMoment';
 import { isNearingWall } from '@/domain/hardPaywall';
 import { isPurchasesConfigured } from '@/services/purchases';
 import { useProMomentStore } from '@/state/proMomentStore';
-import { useProfileStore, selectLeague, selectStreak, selectTotalReps } from '@/state/profileStore';
+import { useProfileStore, selectLeague, selectStreak, selectFreeRepCeiling, selectTotalReps } from '@/state/profileStore';
 import { useIsPro } from '@/state/proStore';
 import { useAuthStore } from '@/state/authStore';
 import { useSessionStore } from '@/state/sessionStore';
@@ -94,6 +95,7 @@ export default function ResultScreen() {
           nearingWall: isNearingWall({
             isPro,
             repsSoFar: selectTotalReps(profile),
+            freeRepCeiling: selectFreeRepCeiling(profile),
             isCoupleMode: sessionMode === 'together',
             billingReady: isPurchasesConfigured(),
           }),
@@ -511,7 +513,22 @@ export default function ResultScreen() {
   };
 
   const done = () => {
-    leaveResult(() => router.replace('/(tabs)'));
+    /* A streak milestone gets its own moment, once per run, on the way out —
+       after the result has been read, never in front of it. */
+    const today = dayKey();
+    const state = useProfileStore.getState();
+    const milestone = milestoneToCelebrate({
+      streak: selectStreak(state),
+      today,
+      last: state.streakCelebrated,
+    });
+    leaveResult(() => {
+      router.replace('/(tabs)');
+      if (milestone) {
+        state.markStreakCelebrated(milestone, today);
+        router.push({ pathname: '/modal/streak', params: { n: String(milestone) } });
+      }
+    });
   };
 
   /* Lead with the achievement worth talking about, when there is one.

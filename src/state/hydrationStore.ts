@@ -35,6 +35,12 @@ export interface HydrationState {
   drinks: DrinkEntry[];
   goalMl: number;
   /**
+   * Every glass ever logged on this device, for the water wall
+   * (`isWaterWalled`). Only ever grows: an undo does not hand the free glass
+   * back, and `reset` keeps it, so signing out cannot re-arm it.
+   */
+  lifetimeLogs: number;
+  /**
    * Log a drink. Returns the entry, or null when the amount was refused or
    * the day is already at its ceiling.
    *
@@ -54,6 +60,7 @@ export interface HydrationState {
 const initialState = {
   drinks: [] as DrinkEntry[],
   goalMl: DEFAULT_DAILY_GOAL_ML,
+  lifetimeLogs: 0,
 };
 
 export const useHydrationStore = create<HydrationState>()(
@@ -73,7 +80,10 @@ export const useHydrationStore = create<HydrationState>()(
         if (mlOnDay(get().drinks, today) + amount > MAX_DAILY_ML) return null;
 
         const entry = makeDrinkEntry(amount, new Date(), kind);
-        set((s) => ({ drinks: [entry, ...s.drinks].slice(0, DRINK_LOG_LIMIT) }));
+        set((s) => ({
+          drinks: [entry, ...s.drinks].slice(0, DRINK_LOG_LIMIT),
+          lifetimeLogs: Math.max(s.lifetimeLogs ?? 0, s.drinks.length) + 1,
+        }));
         return entry;
       },
 
@@ -88,12 +98,21 @@ export const useHydrationStore = create<HydrationState>()(
 
       setGoalMl: (ml) => set({ goalMl: sanitizeGoalMl(ml) }),
 
-      reset: () => set({ ...initialState }),
+      reset: () => set((s) => ({ ...initialState, lifetimeLogs: s.lifetimeLogs })),
     }),
     {
       name: 'repchamp.hydration',
-      version: 1,
+      // v1 → v2 adds `lifetimeLogs`, seeded from the log so existing water
+      // users have already had their free glass.
+      version: 2,
       storage: createJSONStorage(() => zustandStorage),
+      migrate: (persisted, version) => {
+        const state = persisted as Partial<HydrationState>;
+        if (version < 2) {
+          return { ...state, lifetimeLogs: state.lifetimeLogs ?? (state.drinks ?? []).length };
+        }
+        return state as HydrationState;
+      },
     },
   ),
 );
@@ -120,4 +139,9 @@ export function selectTodayDrinks(
   today = dayKey(),
 ): DrinkEntry[] {
   return drinksOnDay(state.drinks, today);
+}
+
+/** Glasses ever logged here, for `isWaterWalled`. */
+export function selectLifetimeLogs(state: Pick<HydrationState, 'drinks' | 'lifetimeLogs'>): number {
+  return Math.max(state.lifetimeLogs ?? 0, state.drinks.length);
 }

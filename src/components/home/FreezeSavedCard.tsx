@@ -25,6 +25,7 @@ export function FreezeSavedCard({
   left,
   onDismiss,
   onUpgrade,
+  partnerName,
 }: {
   used: number;
   streak: number;
@@ -32,7 +33,10 @@ export function FreezeSavedCard({
   onDismiss: () => void;
   /** Free athletes only: the moment a freeze just paid off is when a bigger bank sells itself. */
   onUpgrade?: () => void;
+  /** Set for the couple's shared bank: the save belongs to both of you. */
+  partnerName?: string;
 }) {
+  const withPartner = partnerName ? ` with ${partnerName}` : '';
   useEffect(() => {
     successHaptic();
   }, []);
@@ -50,10 +54,10 @@ export function FreezeSavedCard({
         </View>
         <View style={styles.body}>
           <Text style={styles.title}>
-            {streak > 0 ? `${streak}-day streak saved` : 'Streak saved'}
+            {streak > 0 ? `${streak}-day streak${withPartner} saved` : `Streak${withPartner} saved`}
           </Text>
           <Text style={styles.line}>
-            {`A freeze covered ${pluralise(used, 'missed day')}. `}
+            {`${partnerName ? 'Your shared freeze' : 'A freeze'} covered ${pluralise(used, 'missed day')}. `}
             {left > 0
               ? `${pluralise(left, 'freeze')} left.`
               : `Earn another every ${FREEZE_EARN_EVERY} days in a row.`}

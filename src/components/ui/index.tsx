@@ -59,6 +59,7 @@ export function Screen({
   refreshing = false,
   enter = false,
   tuckFabOnScroll = false,
+  fadeStatusBar = false,
 }: {
   children: ReactNode;
   scroll?: boolean;
@@ -76,6 +77,12 @@ export function Screen({
   refreshing?: boolean;
   /** Tuck the floating Train button away while scrolling down; see `fabStore`. */
   tuckFabOnScroll?: boolean;
+  /**
+   * Cards scrolling under the clock and battery read as a collision. This lays
+   * a strip of canvas behind the status bar that fades out just below it, so
+   * content slips away instead. For screens on the plain canvas background.
+   */
+  fadeStatusBar?: boolean;
 }) {
   const insets = useSafeAreaInsets();
   const [viewport] = useState(createViewportPing);
@@ -129,7 +136,7 @@ export function Screen({
     );
   }
 
-  return (
+  const scrollView = (
     <ViewportPingContext.Provider value={viewport}>
     <ScrollView
       style={[styles.screen, style]}
@@ -179,7 +186,26 @@ export function Screen({
     </ScrollView>
     </ViewportPingContext.Provider>
   );
+
+  if (!fadeStatusBar) return scrollView;
+  const fadeHeight = insets.top + STATUS_FADE_TAIL;
+  return (
+    <View style={styles.screen}>
+      {scrollView}
+      <LinearGradient
+        pointerEvents="none"
+        // Solid behind the status bar itself, then a short fade below it.
+        colors={[palette.canvas, palette.canvas, CANVAS_CLEAR]}
+        locations={[0, insets.top / fadeHeight, 1]}
+        style={[styles.statusFade, { height: fadeHeight }]}
+      />
+    </View>
+  );
 }
+
+const STATUS_FADE_TAIL = 14;
+/** `palette.canvas` at zero alpha, so the fade does not pass through grey. */
+const CANVAS_CLEAR = 'rgba(246,247,245,0)';
 
 const ENTER_STEP = 50;
 const ENTER_MAX_STEPS = 7;
@@ -478,8 +504,17 @@ export function Avatar({
   online?: boolean;
 }) {
   const borderRadius = square ? size * 0.32 : size / 2;
+  /*
+   * A photo link can be dead: early uploads point at a Storage bucket that was
+   * never provisioned. expo-image draws nothing for a failed load, which left
+   * a blank circle. Remember the URL that failed and fall back to the
+   * initial; the initial also sits under the photo while it loads.
+   */
+  const [failedUri, setFailedUri] = useState<string | null>(null);
+  const photo = uri && uri !== failedUri ? uri : null;
   /* The app's AI characters are drawn, not emoji. */
-  const persona = uri ? null : (aiPersonaForId(ai) ?? aiPersonaForEmoji(emoji));
+  const persona = photo ? null : (aiPersonaForId(ai) ?? aiPersonaForEmoji(emoji));
+  const initialText = <Text style={{ ...text.cardTitle, fontSize: size * 0.38, color }}>{initial}</Text>;
   return (
     <View>
       <View
@@ -493,14 +528,22 @@ export function Avatar({
           overflow: 'hidden',
         }}
       >
-        {uri ? (
-          <Image source={{ uri }} style={{ width: size, height: size }} contentFit="cover" />
+        {photo ? (
+          <>
+            {initialText}
+            <Image
+              source={{ uri: photo }}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+              onError={() => setFailedUri(photo)}
+            />
+          </>
         ) : persona ? (
           <AiAvatar persona={persona} size={size} />
         ) : emoji ? (
           <Text style={{ fontSize: size * 0.5 }}>{emoji}</Text>
         ) : (
-          <Text style={{ ...text.cardTitle, fontSize: size * 0.38, color }}>{initial}</Text>
+          initialText
         )}
       </View>
       {online !== undefined ? (
@@ -574,6 +617,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: palette.canvas,
   },
+  statusFade: { position: 'absolute', top: 0, left: 0, right: 0 },
   screenContent: {
     // Horizontal padding lives on `Screen` so it can fold in safe-area insets.
   },

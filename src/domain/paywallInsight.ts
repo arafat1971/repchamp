@@ -38,6 +38,9 @@ export function paywallLead(
       sub: `${opts.totalReps.toLocaleString()} reps counted. Pro keeps you going.`,
     };
   }
+  if (source === 'water') {
+    return { title: 'Keep the panda drinking', sub: 'Pro logs every glass, side by side with your partner.' };
+  }
   if (source === 'streak-repair') {
     return { title: 'Get your streak back', sub: 'Pro repairs a broken streak once a month, and banks 3 freezes.' };
   }

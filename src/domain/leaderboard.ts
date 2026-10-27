@@ -61,3 +61,43 @@ export function buildLeaderboard(weeklyXp: number, username: string): Leaderboar
     })
     .map((row, index) => ({ ...row, rank: index + 1, isYou: row.id === '__you__' }));
 }
+
+/** How many places the podium has. */
+export const PODIUM_SIZE = 3;
+
+/**
+ * The podium's three places, in rank order, with `null` for a place nobody
+ * has earned yet.
+ *
+ * Only rows with XP this week can stand on it. On a Monday every weekly total
+ * has reset to zero, and ranking a field of zeros crowned whoever won the tie
+ * (the athlete, since ties go their way) as #1 for doing nothing. An open
+ * place says something true instead: it is there for the taking.
+ */
+export function podiumOf<T extends Pick<LeaderboardRow, 'xp'>>(board: readonly T[]): (T | null)[] {
+  const earned = board.filter((row) => row.xp > 0).slice(0, PODIUM_SIZE);
+  return Array.from({ length: PODIUM_SIZE }, (_, i) => earned[i] ?? null);
+}
+
+/** One line on where the athlete stands this week. */
+export function standingLine(you: Pick<LeaderboardRow, 'rank' | 'xp'>): string {
+  if (you.xp <= 0) return 'Finish a set this week to get ranked';
+  return `You're #${you.rank} with ${you.xp.toLocaleString()} XP this week`;
+}
+
+/**
+ * The weekly list as it should read: athletes with XP this week, ranked 1..n,
+ * then the idle rows `keepIdle` wants kept, unranked (`rank: 0`), at the end.
+ *
+ * A row with no XP has not taken a place, so it gets no number. On the global
+ * board that drops a wall of zero-XP strangers (most still on the placeholder
+ * name, so identical); among friends, idle friends stay listed, just unranked.
+ */
+export function rankedBoard<T extends Pick<LeaderboardRow, 'xp' | 'rank'>>(
+  rows: readonly T[],
+  keepIdle: (row: T) => boolean,
+): T[] {
+  const earned = rows.filter((row) => row.xp > 0).map((row, i) => ({ ...row, rank: i + 1 }));
+  const idle = rows.filter((row) => row.xp <= 0 && keepIdle(row)).map((row) => ({ ...row, rank: 0 }));
+  return [...earned, ...idle];
+}

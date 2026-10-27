@@ -51,6 +51,7 @@ import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
+import { coupleStreakReminderCopy } from '@/domain/coupleFreeze';
 import { buildDormantReminder } from '@/domain/dormantReminder';
 import {
   HYDRATION_SLOTS,
@@ -349,6 +350,10 @@ export interface ReminderContext {
   /** Couple shared streak dies tonight unless both train. */
   coupleAtRisk: boolean;
   partnerName?: string | null;
+  /** The shared streak, for the couple reminder's wording. */
+  coupleStreak?: number;
+  /** What skipping today does to the shared streak, freezes included. */
+  coupleIfSkipped?: 'safe' | 'freeze' | 'lost' | 'none' | null;
   /**
    * The athlete's own solo streak, so the evening reminder can say what is
    * actually at stake. `coupleAtRisk` only ever covered paired athletes, which
@@ -444,6 +449,8 @@ async function syncLocalRemindersNow(ctx: ReminderContext): Promise<void> {
       await scheduleStreakReminder(
         ctx.partnerName ?? 'your partner',
         streakReminderHour(reminderHour),
+        ctx.coupleStreak ?? 0,
+        ctx.coupleIfSkipped ?? null,
       );
       return;
     }
@@ -505,15 +512,18 @@ async function scheduleUpgradePitch(hour: number): Promise<void> {
 export async function scheduleStreakReminder(
   partnerName: string,
   hour = STREAK_REMINDER_HOUR,
+  streak = 0,
+  ifSkipped: 'safe' | 'freeze' | 'lost' | 'none' | null = null,
 ): Promise<void> {
   if (!(await ensureNotificationPermission())) return;
+  const copy = coupleStreakReminderCopy({ partnerName, streak, ifSkipped });
   try {
     await cancelIds([STREAK_REMINDER_ID, ...LEGACY_IDS.filter((id) => id.includes('streak'))]);
     await Notifications.scheduleNotificationAsync({
       identifier: STREAK_REMINDER_ID,
       content: {
-        title: 'Shared streak needs you',
-        body: `You and ${partnerName} both need a set today to keep it alive.`,
+        title: copy.title,
+        body: copy.body,
         data: { type: 'streak-reminder' },
       },
       trigger: {

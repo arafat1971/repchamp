@@ -180,6 +180,18 @@ export function HeroCard({
   const c = locked ? { ...base, body: WALL_COPY.heroBody, cta: 'See Pro' } : base;
   const showProgress = !c.image && focus.kind === 'daily-challenge' && !!progress;
   const pct = showProgress && progress ? Math.min(1, progress.value / Math.max(1, progress.target)) : 0;
+  if (!c.image) {
+    return (
+      <LightHero
+        c={c}
+        onPress={onPress}
+        urgent={focus.kind === 'streak-at-risk'}
+        bonus={bonus && !locked ? bonus : null}
+        progress={showProgress ? progress : undefined}
+        pct={pct}
+      />
+    );
+  }
   return (
     <PressableScale onPress={onPress} accessibilityRole="button" accessibilityLabel={c.cta}>
       <View style={styles.shadowWrap}>
@@ -265,13 +277,84 @@ export function HeroCard({
 
 
 
-function ProgressFill({ fraction }: { fraction: number }) {
+/**
+ * The hero on a light surface — every focus except the photo ones.
+ *
+ * Home is white cards on a pale canvas with one green accent. The hero used to
+ * be the exception: a dark slab whose colour changed with the focus (emerald,
+ * violet, amber, indigo), with a pale disc behind the drawn figure because the
+ * figure is drawn dark. On white the figure needs no disc, the green CTA is
+ * the one filled button on screen, and amber is kept for the one state that
+ * is a warning — a shared streak about to break.
+ */
+function LightHero({
+  c,
+  onPress,
+  urgent,
+  bonus,
+  progress,
+  pct,
+}: {
+  c: HeroContent;
+  onPress: () => void;
+  urgent: boolean;
+  bonus: string | null;
+  progress?: { value: number; target: number };
+  pct: number;
+}) {
+  const accent = urgent ? palette.amber800 : palette.green700;
+  const fill = urgent ? palette.amber600 : palette.green600;
+  const wash = urgent ? (['#FFF4E0', '#FFFFFF'] as const) : (['#E3F7EA', '#FFFFFF'] as const);
+  return (
+    <PressableScale onPress={onPress} accessibilityRole="button" accessibilityLabel={`${c.title}. ${c.cta}`}>
+      <View style={light.shadowWrap}>
+        <LinearGradient colors={wash} start={{ x: 0, y: 0 }} end={{ x: 0.9, y: 1 }} style={light.card}>
+          {c.art ? <Image source={c.art} style={light.art} contentFit="contain" /> : null}
+          <View style={light.eyebrowRow}>
+            <View style={[light.eyebrowDot, { backgroundColor: fill }]} />
+            <Text style={[light.eyebrow, { color: accent }]}>{c.eyebrow}</Text>
+          </View>
+          <Text style={[light.title, c.art ? light.titleBesideArt : null]}>{c.title}</Text>
+          {bonus ? (
+            <View style={[light.bonus, { backgroundColor: urgent ? palette.amber50 : palette.green50 }]}>
+              <Text style={[light.bonusText, { color: accent }]} numberOfLines={1}>
+                {bonus}
+              </Text>
+            </View>
+          ) : (
+            <Text style={[light.body, c.art ? light.titleBesideArt : null]} numberOfLines={2}>
+              {c.body}
+            </Text>
+          )}
+          <View style={light.ctaRow}>
+            <View style={[light.cta, { backgroundColor: fill }]}>
+              <Text style={light.ctaText}>{c.cta}</Text>
+              <ArrowIcon size={14} color={palette.white} strokeWidth={2.6} />
+            </View>
+            {progress ? (
+              <View style={light.progressBlock}>
+                <View style={light.progressTrack}>
+                  <ProgressFill fraction={Math.max(0.03, pct)} color={fill} />
+                </View>
+                <Text style={light.progressText}>
+                  {Math.min(progress.value, progress.target)}/{progress.target}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        </LinearGradient>
+      </View>
+    </PressableScale>
+  );
+}
+
+function ProgressFill({ fraction, color }: { fraction: number; color?: string }) {
   const w = useSharedValue(0);
   useEffect(() => {
     w.value = withDelay(350, withTiming(fraction, { duration: 900, easing: Easing.out(Easing.cubic) }));
   }, [fraction, w]);
   const style = useAnimatedStyle(() => ({ width: `${w.value * 100}%` }));
-  return <Animated.View style={[styles.progressFill, style]} />;
+  return <Animated.View style={[styles.progressFill, color ? { backgroundColor: color } : null, style]} />;
 }
 
 
@@ -393,4 +476,69 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   ctaArrow: font('bold', 13, { color: palette.white }),
+});
+
+const light = StyleSheet.create({
+  shadowWrap: {
+    borderRadius: radius['6xl'],
+    shadowColor: '#0F1F17',
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
+  },
+  card: {
+    borderRadius: radius['6xl'],
+    borderCurve: 'continuous',
+    padding: 20,
+    minHeight: 172,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(15,31,23,0.06)',
+  },
+  /* Drawn figure, large and flush to the top-right: on white it reads at full
+     strength with nothing behind it. */
+  art: { position: 'absolute', top: 18, right: 4, width: 150, height: 100 },
+  eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  eyebrowDot: { width: 6, height: 6, borderRadius: 3 },
+  eyebrow: { ...font('bold', 12.5), letterSpacing: 0.2 },
+  title: {
+    ...font('extrabold', 28, { color: palette.ink }),
+    marginTop: 14,
+    lineHeight: 32,
+    letterSpacing: -0.8,
+  },
+  /* Copy stops short of the figure so the two never overlap. */
+  titleBesideArt: { maxWidth: '62%' },
+  body: { ...font('medium', 13.5, { color: palette.grey700 }), marginTop: 6, lineHeight: 19 },
+  bonus: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  bonusText: font('bold', 12),
+  ctaRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 18 },
+  cta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 999,
+  },
+  ctaText: font('extrabold', 15, { color: palette.white }),
+  progressBlock: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  progressTrack: {
+    flex: 1,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(15,31,23,0.08)',
+    overflow: 'hidden',
+  },
+  progressText: {
+    ...font('bold', 12.5, { color: palette.ink }),
+    fontVariant: ['tabular-nums'],
+  },
 });

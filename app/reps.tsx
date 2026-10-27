@@ -4,7 +4,7 @@ import { View } from 'react-native';
 
 import { isWalled } from '@/domain/hardPaywall';
 import { isPurchasesConfigured } from '@/services/purchases';
-import { selectTotalReps, useProfileStore } from '@/state/profileStore';
+import { selectFreeRepCeiling, selectTotalReps, useProfileStore } from '@/state/profileStore';
 import { useEffectivePro } from '@/state/proStore';
 
 /**
@@ -21,7 +21,12 @@ export default function StartReps() {
   useEffect(() => {
     if (done.current) return;
     done.current = true;
-    const walled = isWalled({ isPro, repsSoFar: selectTotalReps(profile), billingReady: isPurchasesConfigured() });
+    const walled = isWalled({
+      isPro,
+      repsSoFar: selectTotalReps(profile),
+      freeRepCeiling: selectFreeRepCeiling(profile),
+      billingReady: isPurchasesConfigured(),
+    });
     if (walled) {
       router.replace({ pathname: '/modal/paywall', params: { source: 'rep-limit', hard: '1' } });
     } else {

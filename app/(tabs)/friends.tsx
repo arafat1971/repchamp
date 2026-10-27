@@ -407,7 +407,7 @@ export default function FriendsScreen() {
   };
 
   return (
-    <Screen>
+    <Screen fadeStatusBar>
       <StaggerIn index={0}>
         <View style={styles.header}>
           <View style={{ flex: 1 }}>

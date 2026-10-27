@@ -8,7 +8,7 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { LockIcon } from '@/components/home/Icons';
 import { Avatar, Divider, EmptyState, Screen } from '@/components/ui';
 import { HomeCard as Card } from '@/components/ui/HomeCard';
-import { buildLeaderboard, type LeaderboardRow } from '@/domain/leaderboard';
+import { buildLeaderboard, rankedBoard, standingLine, type LeaderboardRow } from '@/domain/leaderboard';
 import { usePhantomSeed } from '@/domain/seedPhantoms';
 import { fetchLeaderboard, fetchFriends } from '@/services/leaderboardService';
 import { selectLeague, selectWeeklyXp, useProfileStore } from '@/state/profileStore';
@@ -91,7 +91,7 @@ export default function LeaderboardScreen() {
         .sort((a, b) => (b.xp !== a.xp ? b.xp - a.xp : a.isYou ? -1 : b.isYou ? 1 : 0))
     : baseBoard;
 
-  const rows = (
+  const listed = (
     scope === 'friends'
       ? (rawRows as BoardRow[]).filter(
           (r) =>
@@ -102,8 +102,12 @@ export default function LeaderboardScreen() {
         )
       : rawRows
   )
-    .filter((r) => !(hiddenFromGlobal && r.isYou))
-    .map((r, i) => ({ ...r, rank: i + 1 }));
+    .filter((r) => !(hiddenFromGlobal && r.isYou));
+  // Only XP this week earns a number. Globally, idle strangers drop off (on a
+  // Monday that was a wall of identical zero-XP "Champion"s); idle friends and
+  // the athlete stay listed, unranked.
+  const rows = rankedBoard(listed, (r) => scope === 'friends' || r.isYou);
+  const openWeek = rows.length > 0 && !rows.some((r) => r.rank > 0);
 
   const you = rows.find((r) => r.isYou);
 
@@ -167,12 +171,22 @@ export default function LeaderboardScreen() {
             />
           )
         ) : (
-          rows.map((row, index) => (
+          <>
+          {openWeek ? (
+            <View style={styles.openWeek} accessibilityRole="summary">
+              <Text style={font('extrabold', 15, { color: palette.green700 })}>Fresh week, open board</Text>
+              <Text style={font('semibold', 12.5, { color: palette.grey700 })}>
+                Nobody has scored yet. Your first set this week takes #1.
+              </Text>
+            </View>
+          ) : null}
+          {rows.map((row, index) => (
             <View key={row.id}>
               {index > 0 ? <Divider style={{ marginHorizontal: 8 }} /> : null}
               <Row row={row} />
             </View>
-          ))
+          ))}
+          </>
         )}
       </Card>
 
@@ -192,11 +206,16 @@ export default function LeaderboardScreen() {
         </Card>
       ) : you ? (
         <Text style={styles.footer}>
-          You&apos;re #{you.rank} with {you.xp.toLocaleString()} XP this week
+          {standingLine(you)}
         </Text>
       ) : null}
     </Screen>
   );
+}
+
+/** An unranked row (no XP yet this week) shows a dash, not a place. */
+function rankLabel(rank: number): string {
+  return rank > 0 ? String(rank) : '–';
 }
 
 function Row({ row }: { row: BoardRow }) {
@@ -204,7 +223,7 @@ function Row({ row }: { row: BoardRow }) {
   if (row.isYou) {
     return (
       <LinearGradient colors={gradients.brand} style={[styles.youRow, shadow.brand]}>
-        <Text style={[styles.rank, { color: palette.white }]}>{row.rank}</Text>
+        <Text style={[styles.rank, { color: palette.white }]}>{rankLabel(row.rank)}</Text>
         <View style={styles.youAvatar}>
           {avatarUri ? (
             <Image source={{ uri: avatarUri }} style={{ width: '100%', height: '100%', borderRadius: radius['2xl'] }} contentFit="cover" />
@@ -222,7 +241,7 @@ function Row({ row }: { row: BoardRow }) {
 
   return (
     <View style={styles.row}>
-      <Text style={[styles.rank, { color: palette.grey600 }]}>{row.rank}</Text>
+      <Text style={[styles.rank, { color: palette.grey600 }]}>{rankLabel(row.rank)}</Text>
       <Avatar
         initial={row.initial}
         emoji={row.emoji}
@@ -275,6 +294,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   list: { padding: 8 },
+  openWeek: {
+    gap: 2,
+    margin: 4,
+    marginBottom: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: radius['2xl'],
+    backgroundColor: palette.green50,
+  },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 8 },
   rank: { ...font('extrabold', 14), width: 24 },
   youRow: {

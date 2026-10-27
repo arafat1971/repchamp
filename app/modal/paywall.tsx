@@ -1,4 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -42,6 +43,7 @@ import { showDialog } from '@/state/useDialog';
 import { headlineProof } from '@/domain/progressProof';
 import { blockedBenefit, orderBenefits, type BenefitId } from '@/domain/paywallBenefits';
 import { toPlanPrice } from '@/domain/subscriptionOffering';
+import { clampDays, formatPerRep, repMath, repMathVerdict, typicalSetSize } from '@/domain/repMath';
 import { selectStreak, selectTotalReps, useProfileStore } from '@/state/profileStore';
 import { FREE_REP_LIMIT, closeDelayMs } from '@/domain/hardPaywall';
 import {
@@ -50,7 +52,7 @@ import {
   savingsPercent,
   weeklyEquivalent,
 } from '@/domain/paywallFraming';
-import { paywallLead, priceInsight, trialTimeline } from '@/domain/paywallInsight';
+import { paywallLead, trialTimeline } from '@/domain/paywallInsight';
 import { font, text } from '@/theme/typography';
 import * as Haptics from 'expo-haptics';
 
@@ -365,16 +367,16 @@ export default function PaywallScreen() {
   const ownProof = headlineProof(sessions, streak);
   const totalReps = useProfileStore(selectTotalReps);
 
-  /* The price in the athlete's own units. Workouts are counted over the last
-     thirty days from their real history, so "per workout" is their pace, not a
-     typical one. */
   const [openedAt] = useState(() => Date.now());
-  const workouts30 = useMemo(() => {
-    const since = openedAt - 30 * 86_400_000;
-    return sessions.filter((x) => x.reps > 0 && Date.parse(x.completedAt) >= since).length;
-  }, [sessions, openedAt]);
   const selectedPrice = selected ? toPlanPrice(selected) : null;
-  const insight = selectedPrice ? priceInsight(selectedPrice, workouts30) : null;
+  /* "Do the math": the athlete's own weekly goal to start, their own usual
+     set size, the selected plan's real price. */
+  const weeklyGoal = useProfileStore((st) => st.weeklyGoal);
+  const [mathDays, setMathDays] = useState(() => clampDays(weeklyGoal || 3));
+  const setSize = useMemo(() => typicalSetSize(sessions), [sessions]);
+  const math = selectedPrice
+    ? repMath({ price: selectedPrice.price, weeks: selectedPrice.weeks, daysPerWeek: mathDays, repsPerSet: setSize })
+    : null;
   const timeline = useMemo(
     () => (selected && hasFreeTrial(selected) ? trialTimeline(trialLengthDays(selected), new Date(openedAt)) : null),
     [selected, openedAt],
@@ -435,11 +437,16 @@ export default function PaywallScreen() {
               end={{ x: 1, y: 1 }}
               style={styles.hero}
             >
-              <Text style={styles.eyebrow}>REPCHAMP PRO</Text>
-              <Text style={styles.title} accessibilityRole="header">
-                {lead.title}
-              </Text>
-              {lead.sub ? <Text style={styles.sub}>{lead.sub}</Text> : null}
+              <View style={styles.heroRow}>
+                <View style={styles.heroCopy}>
+                  <Text style={styles.eyebrow}>REPCHAMP PRO</Text>
+                  <Text style={styles.title} accessibilityRole="header">
+                    {lead.title}
+                  </Text>
+                  {lead.sub ? <Text style={styles.sub}>{lead.sub}</Text> : null}
+                </View>
+                <DemoClip />
+              </View>
 
               {/* The rep wall as a fact, not a lock: their own count, full. */}
               {fromRepWall ? (
@@ -568,10 +575,22 @@ export default function PaywallScreen() {
 
           {/* Keyed on the selection so the line re-reads when the plan changes
               instead of silently swapping a number. */}
-          {plansReady && insight ? (
-            <Animated.Text key={selectedId} entering={FadeIn.duration(260)} style={styles.insight}>
-              {insight}
-            </Animated.Text>
+          {/* The price divided into the athlete's own year of training. It
+              replaces the one-line per-workout insight: same honest
+              arithmetic, but the athlete sets the pace and watches it move. */}
+          {plansReady && math && selectedPrice ? (
+            <RepMathCard
+              days={mathDays}
+              onDays={(d) => {
+                void Haptics.selectionAsync().catch(() => {});
+                setMathDays(d);
+              }}
+              setsPerYear={math.setsPerYear}
+              repsPerYear={math.repsPerYear}
+              perRep={formatPerRep(math.perRep, selectedPrice.symbol)}
+              setSize={setSize}
+              verdict={repMathVerdict(math, selectedPrice.symbol)}
+            />
           ) : null}
 
           {/* Only a real trial earns a timeline, and only with real dates. The
@@ -662,6 +681,107 @@ export default function PaywallScreen() {
         </View>
       </View>
     </Screen>
+  );
+}
+
+/**
+ * "Do the math": pick a training pace, see the year it adds up to and what
+ * one counted rep costs at the selected plan's price.
+ *
+ * Seven day chips rather than a slider: one tap each, a clear target, and a
+ * haptic tick per change. The figures re-key on every change so they fade to
+ * the new value instead of silently swapping.
+ */
+function RepMathCard({
+  days,
+  onDays,
+  setsPerYear,
+  repsPerYear,
+  perRep,
+  setSize,
+  verdict,
+}: {
+  days: number;
+  onDays: (days: number) => void;
+  setsPerYear: number;
+  repsPerYear: number;
+  perRep: string;
+  setSize: number;
+  verdict: string;
+}) {
+  return (
+    <Animated.View entering={FadeInDown.delay(320).duration(320)} style={styles.math}>
+      <Text style={styles.mathTitle}>Do the math</Text>
+      <Text style={styles.mathAsk}>How many days a week will you train?</Text>
+      <View style={styles.dayRow} accessibilityRole="radiogroup">
+        {[1, 2, 3, 4, 5, 6, 7].map((d) => {
+          const on = d === days;
+          return (
+            <PressableScale
+              key={d}
+              onPress={() => onDays(d)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: on }}
+              accessibilityLabel={`${d} ${d === 1 ? 'day' : 'days'} a week`}
+              style={[styles.dayChip, on && styles.dayChipOn]}
+            >
+              <Text style={[styles.dayChipText, on && styles.dayChipTextOn]}>{d}</Text>
+            </PressableScale>
+          );
+        })}
+      </View>
+      <View style={styles.mathStats}>
+        <MathStat key={`s${days}`} value={setsPerYear.toLocaleString()} label="sets a year" />
+        <View style={styles.mathDivider} />
+        <MathStat key={`r${days}`} value={repsPerYear.toLocaleString()} label={`reps at ${setSize} a set`} />
+        <View style={styles.mathDivider} />
+        <MathStat key={`p${days}${perRep}`} value={perRep} label="per rep" strong />
+      </View>
+      <Animated.Text key={`v${days}${verdict}`} entering={FadeIn.duration(240)} style={styles.mathVerdict}>
+        {verdict}
+      </Animated.Text>
+    </Animated.View>
+  );
+}
+
+function MathStat({ value, label, strong }: { value: string; label: string; strong?: boolean }) {
+  return (
+    <Animated.View entering={FadeIn.duration(220)} style={styles.mathStat}>
+      <Text style={[styles.mathValue, strong && styles.mathValueStrong]} numberOfLines={1} adjustsFontSizeToFit>
+        {value}
+      </Text>
+      <Text style={styles.mathLabel} numberOfLines={2}>
+        {label}
+      </Text>
+    </Animated.View>
+  );
+}
+
+/* The same clip onboarding's Showcase plays: reps counting themselves. */
+const DEMO_VIDEO = require('../../assets/remove_text_bro_thought_202607272319.mp4');
+
+/**
+ * The product, working, beside the pitch.
+ *
+ * The hero used to be words on green. Top-earning paywalls show the thing
+ * being bought; here that is the camera counting a set, which no sentence
+ * says as well. Muted and looping, small enough that the plans stay above
+ * the fold.
+ */
+function DemoClip() {
+  const player = useVideoPlayer(DEMO_VIDEO, (p) => {
+    p.loop = true;
+    p.muted = true;
+    p.play();
+  });
+  return (
+    <View style={styles.clipFrame} accessibilityLabel="RepChamp counting push-ups on camera">
+      <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" nativeControls={false} />
+      <View style={styles.clipBadge}>
+        <View style={styles.clipDot} />
+        <Text style={styles.clipBadgeText}>AI COUNT</Text>
+      </View>
+    </View>
   );
 }
 
@@ -840,6 +960,33 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
     overflow: 'hidden',
   },
+  heroRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  heroCopy: { flex: 1 },
+  clipFrame: {
+    width: 88,
+    height: 148,
+    borderRadius: 18,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
+    backgroundColor: palette.green900,
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.9)',
+    marginTop: 4,
+  },
+  clipBadge: {
+    position: 'absolute',
+    left: 6,
+    bottom: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  clipDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: palette.green500 },
+  clipBadgeText: { ...font('extrabold', 8.5, { color: palette.white }), letterSpacing: 0.8 },
   eyebrow: {
     ...font('extrabold', 11, { color: palette.green100 }),
     letterSpacing: 2.4,
@@ -960,6 +1107,37 @@ const styles = StyleSheet.create({
   radioOn: { borderColor: palette.green600 },
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: palette.green600 },
 
+  math: {
+    marginTop: 16,
+    padding: 16,
+    borderRadius: radius['4xl'],
+    borderCurve: 'continuous',
+    backgroundColor: palette.green50,
+    gap: 10,
+  },
+  mathTitle: font('extrabold', 16, { color: palette.ink }),
+  mathAsk: { ...font('semibold', 13, { color: palette.grey700 }), marginTop: -6 },
+  dayRow: { flexDirection: 'row', gap: 6 },
+  dayChip: {
+    flex: 1,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  dayChipOn: { backgroundColor: palette.green600, borderColor: palette.green600 },
+  dayChipText: { ...font('extrabold', 15, { color: palette.ink }), fontVariant: ['tabular-nums'] },
+  dayChipTextOn: { color: palette.white },
+  mathStats: { flexDirection: 'row', alignItems: 'stretch', marginTop: 4 },
+  mathStat: { flex: 1, alignItems: 'center', gap: 2, paddingHorizontal: 4 },
+  mathDivider: { width: 1, backgroundColor: 'rgba(15,31,23,0.08)' },
+  mathValue: { ...font('extrabold', 20, { color: palette.ink }), fontVariant: ['tabular-nums'] },
+  mathValueStrong: { color: palette.green700 },
+  mathLabel: { ...font('semibold', 11.5, { color: palette.grey700 }), textAlign: 'center' },
+  mathVerdict: { ...font('semibold', 12.5, { color: palette.green700 }), textAlign: 'center' },
   insight: {
     ...font('semibold', 13, { color: palette.green700 }),
     fontVariant: ['tabular-nums'],

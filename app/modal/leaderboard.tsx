@@ -8,7 +8,7 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { LockIcon } from '@/components/home/Icons';
 import { Avatar, Divider, EmptyState, Screen } from '@/components/ui';
 import { HomeCard as Card } from '@/components/ui/HomeCard';
-import { buildLeaderboard, type LeaderboardRow } from '@/domain/leaderboard';
+import { buildLeaderboard, standingLine, type LeaderboardRow } from '@/domain/leaderboard';
 import { usePhantomSeed } from '@/domain/seedPhantoms';
 import { fetchLeaderboard, fetchFriends } from '@/services/leaderboardService';
 import { selectLeague, selectWeeklyXp, useProfileStore } from '@/state/profileStore';
@@ -192,7 +192,7 @@ export default function LeaderboardScreen() {
         </Card>
       ) : you ? (
         <Text style={styles.footer}>
-          You&apos;re #{you.rank} with {you.xp.toLocaleString()} XP this week
+          {standingLine(you)}
         </Text>
       ) : null}
     </Screen>

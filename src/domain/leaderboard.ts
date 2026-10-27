@@ -61,3 +61,26 @@ export function buildLeaderboard(weeklyXp: number, username: string): Leaderboar
     })
     .map((row, index) => ({ ...row, rank: index + 1, isYou: row.id === '__you__' }));
 }
+
+/** How many places the podium has. */
+export const PODIUM_SIZE = 3;
+
+/**
+ * The podium's three places, in rank order, with `null` for a place nobody
+ * has earned yet.
+ *
+ * Only rows with XP this week can stand on it. On a Monday every weekly total
+ * has reset to zero, and ranking a field of zeros crowned whoever won the tie
+ * (the athlete, since ties go their way) as #1 for doing nothing. An open
+ * place says something true instead: it is there for the taking.
+ */
+export function podiumOf<T extends Pick<LeaderboardRow, 'xp'>>(board: readonly T[]): (T | null)[] {
+  const earned = board.filter((row) => row.xp > 0).slice(0, PODIUM_SIZE);
+  return Array.from({ length: PODIUM_SIZE }, (_, i) => earned[i] ?? null);
+}
+
+/** One line on where the athlete stands this week. */
+export function standingLine(you: Pick<LeaderboardRow, 'rank' | 'xp'>): string {
+  if (you.xp <= 0) return 'Finish a set this week to get ranked';
+  return `You're #${you.rank} with ${you.xp.toLocaleString()} XP this week`;
+}

@@ -28,6 +28,7 @@ import { DEFAULT_STEP_GOAL } from '@/domain/steps';
 import { buildStepsWidgetSnapshot } from '@/domain/stepsWidget';
 import { useStepsStore } from '@/state/stepsStore';
 import { TodayBento } from '@/components/home/TodayBento';
+import { ProgressRing } from '@/components/home/ProgressRing';
 import { WeekDateStrip } from '@/components/home/WeekDateStrip';
 import { LiveTogetherBar } from '@/components/home/LiveTogetherBar';
 import { sendPoke } from '@/services/ritualSync';
@@ -818,9 +819,18 @@ export default function HomeScreen() {
         <PressableScale
           onPress={() => router.push('/(tabs)/profile')}
           accessibilityRole="button"
-          accessibilityLabel="Your profile"
+          accessibilityLabel={`Your profile. Level ${level.level}, ${level.xpToNextLevel.toLocaleString()} XP to level ${level.nextLevel}`}
         >
-          <View style={styles.avatarRing}>
+          {/* The ring is the level filling up: every set moves it, and a ring
+              nearly closed is a reason to do one more. */}
+          <ProgressRing
+            percent={level.percent}
+            size={46}
+            thickness={3}
+            from={palette.green400}
+            to={palette.green600}
+            track={palette.green100}
+          >
             <View style={styles.avatar}>
               {profile.avatarUri ? (
                 <Image
@@ -833,7 +843,7 @@ export default function HomeScreen() {
                 <Text style={font('bold', 17, { color: palette.green600 })}>{initial}</Text>
               )}
             </View>
-          </View>
+          </ProgressRing>
           <View style={styles.levelBadge} accessibilityLabel={`Level ${level.level}`}>
             <Text style={font('extrabold', 10, { color: palette.white })}>{level.level}</Text>
           </View>
@@ -1428,10 +1438,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  avatarRing: { width: 44, height: 44, borderRadius: 22, padding: 2, backgroundColor: palette.borderStrong },
   avatar: {
-    flex: 1,
-    borderRadius: 20,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: palette.white,
     borderWidth: 2,
     borderColor: palette.white,

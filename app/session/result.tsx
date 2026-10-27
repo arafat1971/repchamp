@@ -38,7 +38,7 @@ import { chooseProMoment, type ProMoment } from '@/domain/proMoment';
 import { isNearingWall } from '@/domain/hardPaywall';
 import { isPurchasesConfigured } from '@/services/purchases';
 import { useProMomentStore } from '@/state/proMomentStore';
-import { useProfileStore, selectLeague, selectStreak, selectTotalReps } from '@/state/profileStore';
+import { useProfileStore, selectLeague, selectStreak, selectFreeRepCeiling, selectTotalReps } from '@/state/profileStore';
 import { useIsPro } from '@/state/proStore';
 import { useAuthStore } from '@/state/authStore';
 import { useSessionStore } from '@/state/sessionStore';
@@ -94,6 +94,7 @@ export default function ResultScreen() {
           nearingWall: isNearingWall({
             isPro,
             repsSoFar: selectTotalReps(profile),
+            freeRepCeiling: selectFreeRepCeiling(profile),
             isCoupleMode: sessionMode === 'together',
             billingReady: isPurchasesConfigured(),
           }),

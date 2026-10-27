@@ -94,9 +94,11 @@ import {
   selectStreakFreezes,
   selectTotalReps,
   selectWeeklyXp,
+  selectFreeRepCeiling,
 } from '@/state/profileStore';
 import { selectTodayMl, useHydrationStore } from '@/state/hydrationStore';
 import { useEffectivePro, useProStore } from '@/state/proStore';
+import { WATER_PAYWALL, waterWalledNow } from '@/state/waterWall';
 import { isPurchasesConfigured } from '@/services/purchases';
 import { WALL_COPY, isWalled } from '@/domain/hardPaywall';
 import { useCouple } from '@/state/useCouple';
@@ -138,6 +140,7 @@ export default function HomeScreen() {
       streakFreezes: s.streakFreezes,
       lastRepairDay: s.lastRepairDay,
       repairDismissedFor: s.repairDismissedFor,
+      pairingBonusRepCeiling: s.pairingBonusRepCeiling,
     })),
   );
   const freezeSave = useProfileStore((s) => s.freezeSave);
@@ -162,6 +165,7 @@ export default function HomeScreen() {
   const soloWalled = isWalled({
     isPro,
     repsSoFar: selectTotalReps(profile),
+    freeRepCeiling: selectFreeRepCeiling(profile),
     billingReady: isPurchasesConfigured(),
   });
   const daysTrained = selectDaysTrainedThisWeek(profile);
@@ -547,6 +551,11 @@ export default function HomeScreen() {
 
   const logWater = useCallback(
     (ml: number, kind?: string) => {
+      // One free glass, then water is Pro (see FREE_WATER_LOGS).
+      if (waterWalledNow()) {
+        router.push(WATER_PAYWALL);
+        return;
+      }
       const before = selectTodayMl(useHydrationStore.getState(), dayKey());
       const entry = useHydrationStore.getState().logDrink(ml, kind);
       // A refused tap gets no haptic: the confirmation must mean something.
@@ -569,7 +578,7 @@ export default function HomeScreen() {
         }),
       );
     },
-    [coupleId, myUid, profile.displayName, profile.username],
+    [coupleId, myUid, profile.displayName, profile.username, router],
   );
 
   const undoWater = useCallback(() => {

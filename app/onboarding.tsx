@@ -139,7 +139,7 @@ import {
   scheduleDailyTrainingReminder,
 } from '@/lib/notifications';
 import { isValidUsername, usernameError as usernameValidationError } from '@/domain/input';
-import { selectPairingBonusActive, selectTotalReps, useProfileStore } from '@/state/profileStore';
+import { selectPairingBonusActive, selectFreeRepCeiling, selectTotalReps, useProfileStore } from '@/state/profileStore';
 import { matchedPace } from '@/domain/adaptivePace';
 import { reservedControlHeight } from '@/theme/fontScale';
 import { font, scaleForRole, text } from '@/theme/typography';
@@ -404,6 +404,7 @@ export default function OnboardingScreen() {
       isPro: pro.isPro,
       bonusActive: selectPairingBonusActive(profile),
       repsSoFar: selectTotalReps(profile),
+      freeRepCeiling: selectFreeRepCeiling(profile),
       billingReady: isPurchasesConfigured(),
     });
     if (walled) return;
@@ -2475,7 +2476,7 @@ function CoupleMode({ onNext }: { onNext: () => void }) {
         {[
           { icon: '📱', title: 'Two phones, one set', sub: "See each other's reps live" },
           { icon: '👋', title: 'Nudge them', sub: 'A tap sends a push to get them moving' },
-          { icon: '🎁', title: 'Both get a free week', sub: 'Pair up and Pro unlocks for you both' },
+          { icon: '🎁', title: 'Both get 10 free reps', sub: 'Pair up for a first set together' },
         ].map((p, i) => (
           <StaggerIn key={p.title} index={i} step={90}>
             <View style={styles.valuePoint}>

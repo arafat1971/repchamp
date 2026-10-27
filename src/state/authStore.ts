@@ -139,9 +139,15 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
             personalBests: mergeBests(local.personalBests, cloud.personalBests),
             pairingBonusClaimed:
               local.pairingBonusClaimed || !!cloud.pairingBonusClaimed,
+            // The cloud profile is owner-writable, so a restored end date is
+            // capped: nothing grants this bonus now, and no real one ran past a
+            // week. Uncapped, writing a far-future date meant Pro forever.
             pairingBonusUntil: Math.max(
               local.pairingBonusUntil,
-              typeof cloud.pairingBonusUntil === 'number' ? cloud.pairingBonusUntil : 0,
+              Math.min(
+                typeof cloud.pairingBonusUntil === 'number' ? cloud.pairingBonusUntil : 0,
+                Date.now() + 7 * 24 * 60 * 60 * 1000,
+              ),
             ),
             sessions,
             programme: mergeProgrammeProgress(local.programme, cloud.programme ?? null),

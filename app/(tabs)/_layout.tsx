@@ -30,7 +30,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 import { reservedControlHeight } from '@/theme/fontScale';
 import { ExerciseGlyph } from '@/components/ExerciseGlyph';
 import { PressableScale } from '@/components/ui';
-import { selectStreak, selectTotalReps, useProfileStore } from '@/state/profileStore';
+import { selectStreak, selectFreeRepCeiling, selectTotalReps, useProfileStore } from '@/state/profileStore';
 import { useIncomingDuelCount } from '@/state/useIncomingDuelCount';
 import { buildFabModel } from '@/domain/fabActions';
 import { dayKey } from '@/domain/progression';
@@ -488,6 +488,7 @@ function TrainFab({ bottomPosition }: { bottomPosition: number }) {
       isWalled({
         isPro,
         repsSoFar: selectTotalReps(useProfileStore.getState()),
+        freeRepCeiling: selectFreeRepCeiling(useProfileStore.getState()),
         billingReady: isPurchasesConfigured(),
       })
     ) {

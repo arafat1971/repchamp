@@ -26,7 +26,7 @@ import { createDuel } from '@/services/duelService';
 import { useMindfulStore } from '@/state/mindfulStore';
 import { useCouple } from '@/state/useCouple';
 import { showDialog } from '@/state/useDialog';
-import { selectDaysTrainedThisWeek, selectStreak, selectTotalReps, useProfileStore } from '@/state/profileStore';
+import { selectDaysTrainedThisWeek, selectStreak, selectFreeRepCeiling, selectTotalReps, useProfileStore } from '@/state/profileStore';
 import { useEffectivePro } from '@/state/proStore';
 import { WALL_COPY, isWalled } from '@/domain/hardPaywall';
 import { exerciseHomeStats } from '@/domain/exerciseHomeStats';
@@ -106,6 +106,7 @@ export default function TrainScreen() {
   const soloWalled = isWalled({
     isPro,
     repsSoFar: totalReps,
+    freeRepCeiling: selectFreeRepCeiling(profile),
     billingReady: isPurchasesConfigured(),
   });
 

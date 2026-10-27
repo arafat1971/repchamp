@@ -22,7 +22,13 @@ import { readStepsToday } from '@/services/pedometer';
 import { syncHydrationReminders, syncLocalReminders, syncRitualReminder } from '@/lib/notifications';
 import { selectTodayMl, useHydrationStore } from '@/state/hydrationStore';
 import { useCouple } from '@/state/useCouple';
-import { selectPairingBonusActive, selectStreak, selectTotalReps, useProfileStore } from '@/state/profileStore';
+import {
+  selectFreeRepCeiling,
+  selectPairingBonusActive,
+  selectStreak,
+  selectTotalReps,
+  useProfileStore,
+} from '@/state/profileStore';
 import { useProStore } from '@/state/proStore';
 import { isPurchasesConfigured } from '@/services/purchases';
 import { shouldPitchUpgrade } from '@/domain/upgradeReminder';
@@ -219,12 +225,14 @@ export function useNotificationSync(): void {
   const isPro = useProStore((s) => s.isPro);
   const bonusActive = useProfileStore(selectPairingBonusActive);
   const totalReps = useProfileStore(selectTotalReps);
+  const freeRepCeiling = useProfileStore(selectFreeRepCeiling);
   const upgradePitch = shouldPitchUpgrade({
     proReady,
     isPro,
     bonusActive,
     paired: couple.paired,
     repsSoFar: totalReps,
+    freeRepCeiling,
     billingReady: isPurchasesConfigured(),
     remindersEnabled: dailyReminder,
   });

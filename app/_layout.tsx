@@ -46,7 +46,12 @@ import {
 import { emitRetention, retentionSnapshot } from '@/services/recordSessionWithRetention';
 import { AppState } from 'react-native';
 
-import { selectPairingBonusActive, selectTotalReps, useProfileStore } from '@/state/profileStore';
+import {
+  selectFreeRepCeiling,
+  selectPairingBonusActive,
+  selectTotalReps,
+  useProfileStore,
+} from '@/state/profileStore';
 import { reminderTapIsWalled } from '@/domain/reminderRoute';
 import { isPurchasesConfigured } from '@/services/purchases';
 import { preloadPoseModel } from '@/vision/modelCache';
@@ -150,6 +155,7 @@ export default function RootLayout() {
           isPro: pro.isPro,
           bonusActive: selectPairingBonusActive(profile),
           repsSoFar: selectTotalReps(profile),
+          freeRepCeiling: selectFreeRepCeiling(profile),
           billingReady: isPurchasesConfigured(),
         });
         router.push(

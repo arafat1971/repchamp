@@ -36,7 +36,7 @@ import { useAuthStore } from '@/state/authStore';
 import { useCouple } from '@/state/useCouple';
 import { usePublicAvatar } from '@/state/usePublicAvatar';
 import { showDialog } from '@/state/useDialog';
-import { selectTotalReps, useProfileStore } from '@/state/profileStore';
+import { selectFreeRepCeiling, selectTotalReps, useProfileStore } from '@/state/profileStore';
 import { useEffectivePro } from '@/state/proStore';
 import { isPurchasesConfigured } from '@/services/purchases';
 import { isWalled } from '@/domain/hardPaywall';
@@ -198,6 +198,7 @@ export default function FriendsScreen() {
   useTabView('friends');
   const router = useRouter();
   const sessions = useProfileStore((s) => s.sessions);
+  const freeRepCeiling = useProfileStore(selectFreeRepCeiling);
   const isPro = useEffectivePro();
   const uid = useAuthStore((s) => s.user?.uid);
   const [search, setSearch] = useState('');
@@ -280,6 +281,7 @@ export default function FriendsScreen() {
   const walled = isWalled({
     isPro,
     repsSoFar: selectTotalReps({ sessions }),
+    freeRepCeiling,
     billingReady: isPurchasesConfigured(),
   });
   const startAiDuel = (opponentId: string) => {

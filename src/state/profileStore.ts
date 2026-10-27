@@ -91,17 +91,24 @@ export interface ProfileState {
   /** The active training programme, or null when not enrolled. */
   programme: ProgrammeProgress | null;
   /**
-   * Epoch ms until which a locally-granted Pro bonus is active (0 = none). Given
-   * to both partners when a couple pairs — rewarding the invite loop and seeding
-   * a Pro trial that can convert. Never overrides a *real* RevenueCat entitlement;
-   * it's OR'd in as a temporary grant.
+   * Epoch ms until which the retired timed Pro bonus is active (0 = none).
+   * Nothing grants it any more — pairing now gives free reps instead
+   * (`pairingBonusRepCeiling`) — so it is only read until old grants run out.
    */
   pairingBonusUntil: number;
   /**
-   * Lifetime latch — the free Pro week for pairing is granted once per device
-   * account. Without this, leave → re-pair after expiry farms unlimited Pro.
+   * Lifetime latch — the pairing bonus is granted once per account. Without
+   * this, leave → re-pair farms it again.
    */
   pairingBonusClaimed: boolean;
+  /**
+   * The pairing bonus, as a lifetime rep count: reps below it are free (see
+   * `freeRepCeiling` in domain/hardPaywall.ts). 0 = none. Local only, never
+   * restored from the cloud, because the cloud profile is writable by its owner
+   * and a restored ceiling could be inflated. A reinstall loses at most the
+   * unused part of 10 reps; the latch above still syncs, so it cannot re-arm.
+   */
+  pairingBonusRepCeiling: number;
   /** Hour (0–23) they said they train at, or null — see `setPreferredHour`. */
   preferredHour: number | null;
   /** Streak freezes banked, 0..MAX_STREAK_FREEZES — see `domain/streakFreeze`. */
@@ -145,7 +152,7 @@ export interface ProfileState {
   /** Mark today's programme rest day complete (no workout required). */
   completeProgrammeRestDay: () => void;
   /** Grant a Pro bonus for `days` from now (once per account; never shortens an active one). */
-  grantPairingBonus: (days: number) => void;
+  grantPairingBonus: (reps: number) => void;
   /**
    * Spend banked freezes on missed days if, and only if, that keeps the streak
    * alive. Safe to call any time; idempotent. Returns how many were spent.
@@ -186,6 +193,7 @@ const initialState = {
   programme: null as ProgrammeProgress | null,
   pairingBonusUntil: 0,
   pairingBonusClaimed: false,
+  pairingBonusRepCeiling: 0,
   preferredHour: null as number | null,
   streakFreezes: STARTER_STREAK_FREEZES,
   frozenDays: [] as string[],
@@ -286,13 +294,13 @@ export const useProfileStore = create<ProfileState>()(
           return { programme: completeRestDay(state.programme) };
         }),
 
-      grantPairingBonus: (days) =>
+      grantPairingBonus: (reps) =>
         set((state) => {
-          // One free week per account — leave/re-pair must not re-arm the grant.
+          // One pairing bonus per account — leave/re-pair must not re-arm the grant.
           if (state.pairingBonusClaimed) return {};
-          const proposed = Date.now() + days * 24 * 60 * 60 * 1000;
+          // Counted from today's total, so an athlete with history gets all of it.
           return {
-            pairingBonusUntil: Math.max(state.pairingBonusUntil, proposed),
+            pairingBonusRepCeiling: selectTotalReps(state) + Math.max(0, Math.floor(reps)),
             pairingBonusClaimed: true,
           };
         }),
@@ -430,7 +438,13 @@ export function selectStreak(
   );
 }
 
-/** Whether the locally-granted pairing Pro bonus is still active. */
+/** The pairing bonus's free-rep ceiling, for `HardWallInput.freeRepCeiling`. */
+export function selectFreeRepCeiling(state: Pick<ProfileState, 'pairingBonusRepCeiling'>): number {
+  const c = state.pairingBonusRepCeiling;
+  return typeof c === 'number' && Number.isFinite(c) ? c : 0;
+}
+
+/** Whether the retired timed pairing Pro bonus is still active. */
 export function selectPairingBonusActive(
   state: Pick<ProfileState, 'pairingBonusUntil'>,
   now = Date.now(),

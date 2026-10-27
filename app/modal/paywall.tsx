@@ -130,12 +130,14 @@ export default function PaywallScreen() {
   const fromRepWall = params.hard === '1';
   /* The × waits on the rep wall so the offer is read first; "Maybe later"
      and Android Back do not. See `closeDelayMs`. */
-  const [closeShown, setCloseShown] = useState(() => closeDelayMs(fromRepWall) === 0);
+  /* The water wall is a hard wall too: same delayed ×, ordinary exits. */
+  const delayClose = fromRepWall || params.source === 'water';
+  const [closeShown, setCloseShown] = useState(() => closeDelayMs(delayClose) === 0);
   useEffect(() => {
     if (closeShown) return;
-    const t = setTimeout(() => setCloseShown(true), closeDelayMs(fromRepWall));
+    const t = setTimeout(() => setCloseShown(true), closeDelayMs(delayClose));
     return () => clearTimeout(t);
-  }, [closeShown, fromRepWall]);
+  }, [closeShown, delayClose]);
 
   /* Every way off this screen, whether the athlete subscribed or declined.
    *
@@ -154,7 +156,8 @@ export default function PaywallScreen() {
    * The ordinary pushed paywall keeps `router.back()`, which already returns
    * to whatever opened it. */
   const leave = useCallback(() => {
-    if (fromRepWall) {
+    // A cold start from the water widget has nothing to go back to.
+    if (fromRepWall || !router.canGoBack()) {
       router.replace('/(tabs)');
       return;
     }

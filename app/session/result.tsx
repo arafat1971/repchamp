@@ -387,6 +387,11 @@ export default function ResultScreen() {
     return setHighlight(history, streak, exerciseLabel);
   }, [history, streak, session.reps, exerciseLabel, openedAt]);
   const highlightTitle = highlight?.title;
+  /* After a near miss on a set of their own, the main button names the number
+     to beat. Duels keep "Play Again": the next round is about the opponent. */
+  const ownSet = session.config?.mode === 'solo' || session.config?.mode === 'practice';
+  const playAgainLabel =
+    ownSet && highlight?.beatTarget ? `Beat ${highlight.beatTarget}` : 'Play Again';
   /* Read through refs so the delayed ask sees the screen as it is *then* — the
      Pro offer is decided after the set settles and can land during the wait. */
   const proMomentShownRef = useRef(false);
@@ -698,14 +703,14 @@ export default function ResultScreen() {
         <PressableScale
           onPress={rematch}
           accessibilityRole="button"
-          accessibilityLabel="Play Again"
+          accessibilityLabel={playAgainLabel}
           style={[styles.playAgainButton, { minHeight: reservedControlHeight(54, fontScale) }]}
         >
           <Text
             style={font('extrabold', 17, { color: palette.white, letterSpacing: 0.3 })}
             {...scaleForRole('control')}
           >
-            Play Again
+            {playAgainLabel}
           </Text>
         </PressableScale>
 

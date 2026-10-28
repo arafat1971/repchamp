@@ -142,3 +142,90 @@ verified replacement is the full description in `STORE_LISTING.md` on
 
 Gotcha: saving the default listing opens a "could affect 1 listing" dialog that
 must be confirmed. If it's dismissed, nothing is saved.
+
+---
+
+# Custom store listing: Couples-first (problem → solution)
+
+Draft `couples_search custom listing`, saved 2026-10-28, **not sent for review**.
+Duplicated from the default listing (same visuals), search-keyword audience, all
+countries, 50% rollout.
+
+It's written around the problem couple mode solves. Training alone is easy to
+skip, so the copy leads with that problem, then shows how the app solves it:
+live together sets, a shared streak, couple levels ("grow as a couple"), the
+daily ritual, nudges and long distance.
+
+Claims checked against `origin/claude/release-2026-10-28`:
+- Together sets: a cooperative duel on two phones with live counts and one
+  team score (`train.tsx`, `TogetherHud`).
+- The couple streak only advances on days both trained
+  (`calculateCoupleStreak`), and a 7-day both-trained run earns a freeze.
+- Couple tiers New Duo → Training Partners → In Step → Power Couple →
+  Unstoppable → Legends (`COUPLE_TIERS`), plus badges One Week Strong, Monthly
+  Duo and Thousand Club.
+- Ritual: 6 habits, live presence (`hereAt`) and pokes (`domain/ritual.ts`).
+- Nudges reach a closed app (Expo Push). The partner dashboard has share
+  switches, and there's an Android partner widget.
+- Pro: couple mode is walled for each partner, there are 10 free reps on first
+  pairing, water is free for 1 glass, and steps are free.
+
+| Field | Value |
+| --- | --- |
+| App name | `Couple Workout Live: RepChamp` (29) |
+| Short description | `Train together live, even miles apart. One shared streak. Grow as a couple.` (75) |
+
+### Full description (2,901 chars)
+
+```
+Working out alone is easy to skip. Working out with your partner is not. RepChamp is a couple workout app where you train together live, keep one shared streak and grow as a couple, on two phones, in the same room or miles apart.
+
+★ The problem: motivation fades when you train alone
+One of you skips a day, then the other, and the plan quietly dies. RepChamp makes your partner part of every workout, so showing up becomes something you do for each other.
+
+★ Train together live
+Start a together set and you each film yourself on your own phone. On-device AI counts every push-up and squat, and you watch both counts climb live, adding up to one team score. Prefer a challenge? Race each other head to head instead.
+
+★ One shared streak
+Your couple streak only grows on days you both train. Miss a day and your partner feels it, which is exactly what keeps you both going. Every 7-day run earns a streak freeze that saves the streak on a bad day.
+
+★ Grow as a couple
+Every rep you do together earns couple points. Level up from New Duo to Training Partners, In Step, Power Couple, Unstoppable and Legends, and unlock badges like One Week Strong, Monthly Duo and Thousand Club.
+
+★ A daily ritual for two
+Pick your daily habits together: water, a walk, moving, stretching, eating greens and rest. See when your partner is in the app, tick habits off side by side and send a live poke.
+
+★ Nudge, cheer and stay close
+Falling behind? Send a nudge that reaches your partner even when their app is closed. See today head to head, with reps, steps and water, and choose exactly what you share.
+
+★ Long distance? Still together
+Pair once with a code, QR or link, and train together from different homes, cities or countries. Add the Android home-screen widget to see your partner's day at a glance.
+
+★ Steps and water, side by side
+Race each other's steps, share one team goal and log water with your pandas.
+
+RepChamp Pro
+RepChamp is free to download. Couple mode, counting reps and live sets need RepChamp Pro, an auto-renewing subscription (weekly, monthly or yearly; the price is shown in the app and on Google Play before you pay, and you can cancel any time in Google Play). Each partner needs their own subscription. Water logging is free for your first glass and part of Pro after that. The first time you pair, you both get 10 free reps to train together. The step counter is free.
+
+Your video never leaves your phone
+Pose detection runs on your device. Your camera feed is never recorded, uploaded or shared, including in live sets with your partner.
+
+---
+Rep counts, step counts and form scores are estimates and can be wrong. RepChamp is a fitness tool, not medical advice. Warm up, train within your ability, and stop if you feel pain or dizziness.
+
+Privacy policy: https://repchamp.web.app/privacy
+Delete your account: https://repchamp.web.app/delete-account
+Support: arafathossain455@gmail.com
+```
+
+### Keywords (74, no overlap with repchamp_search or steps_search)
+
+couple workout, couples workout, couple workout app, couples workout app, couple workout live, live couple workout, couples workout at home, couple workout at home, partner workout, partner workout app, workout with partner, workout with my partner, workout with girlfriend, workout with boyfriend, workout with husband, workout with wife, couple fitness, couples fitness, couple fitness app, couples fitness app, couple exercise, couple exercise app, couples exercise, couple challenge app, couples challenge app, couple fitness challenge, couple streak, couples streak, shared streak, shared streak app, couple habit tracker, couples habit tracker, couple daily habits, couple app, couples app, app for couples, couple goals app, power couple, power couple app, grow together app, couple level up, couple growth, couple growth app, long distance couple app, long distance workout, long distance couple workout, long distance fitness, train together, train together app, workout together, workout together app, workout together apart, live workout with partner, virtual workout partner, virtual workout buddy, workout buddy app, couple accountability app, partner accountability app, couple nudge app, couple health tracker, couple water tracker, couple step tracker, couple steps challenge, couple widget, partner widget, couple home screen widget, couple ritual app, couples ritual, two player workout, 2 player workout, workout for two, exercise for two, couple squat challenge, couple push up challenge
+
+The live `repchamp_search` listing already targets ~40 couple phrases (for
+example "couple fitness tracker", "fitness duo", "apps for couples", "ldr app").
+Those keep showing the rep-first copy. If this listing converts better after 2
+weeks, move those phrases over here.
+
+Screenshot to add later: `store/mockups/partner-reps-mockup.png` would make a
+stronger first screenshot for this listing than the inherited Home shot.

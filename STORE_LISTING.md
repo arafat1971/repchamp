@@ -39,115 +39,130 @@ Terms a person searching for this app would plausibly type, in rough priority:
 | workout with friends | short desc, full desc |
 | couples workout | full desc heading |
 | streak | short desc, full desc |
-| fitness duel (brand) | **name** |
+| step counter / step tracker | **name** (recommended), short desc, full desc |
+| fitness duel (brand) | full desc |
 
-Note the name row: with the brand title kept, the highest-weighted field
-carries no generic search term. That puts unusual load on the short
-description, which is why the recommended one below packs five terms into 76
-characters rather than reading more elegantly.
+Note the name row: the recommended name carries "step counter" in the
+highest-weighted field. Kept on the brand-only name, that field carries no
+search term and the short description has to do all of the work.
 
-Deliberately **not** chased: "gym", "weight loss", "calorie", "diet",
-"six pack". The app does none of those. Ranking for them draws installs that
-uninstall inside a day, which drags the whole listing down.
+Deliberately **not** chased: "gym", "weight loss", "diet", "six pack". The
+app does none of those. Ranking for them draws installs that uninstall inside
+a day, which drags the whole listing down.
 
 ---
 
 ## App name (30 max)
 
+**Recommended (2026-10-28): put the search term in the name.**
+
+```
+RepChamp: Rep & Step Counter
+```
+28 characters. The name is Play's highest-weighted search field, and the
+current name (`Fitness Duel: RepChamp`) carries no term anyone searches for.
+"Step counter" is one of the most searched phrases in Health & Fitness, and
+the Steps tab is free, so it brings in people who would never search "rep
+counter" and then meet the duels and streaks inside.
+
+This changes the 2026-08-03 decision to keep the brand name, for reach. It
+needs **no rebuild**: the store name may differ from the launcher label and
+`expo.name`, and it can be reverted in the Console in a minute. Safest is to
+run it as a **Store listing experiment** against the current name first.
+
+Alternatives:
+
+```
+RepChamp: AI Rep Counter
+```
+24 characters. Narrower and higher intent: only rep-counting searches.
+
 ```
 Fitness Duel: RepChamp
 ```
-22 characters. Matches `expo.name`, the Android launcher label, and the iOS
-permission strings — one name everywhere, which is the point.
+22 characters. The current name, brand only.
 
-**Decided 2026-08-03: keep the brand name.** A keyword-bearing title
-(`Fitness Duel: AI Rep Counter`, 27 chars) would win search surface in Play's
-highest-weighted field, but it costs brand consistency across the launcher and
-the permission prompts, and it needs a native rebuild to keep them in sync.
-The trade was considered and declined.
-
-What that decision costs, so it can be revisited with open eyes: "rep counter"
-is the highest-intent phrase for this app, and the title carries roughly three
-times the ranking weight of the full description. The short description now
-does that work alone.
-
-> Worth knowing for later: the store name and `expo.name` are allowed to
-> differ. If you ever want to test a keyword title, it can be changed in the
-> Console alone — no rebuild — and reverted just as fast. Play's store listing
-> experiments (below) are the safe way to try it.
+Never add "free", "best", "#1", "top" or emoji to the name. Play's metadata
+policy rejects them in the title.
 
 ---
 
 ## Short description (80 max)
 
-Appears under the icon in search results, and is the second-highest ranking
-field. It is also the only body text most people read.
+Shown under the icon in search, the second-highest ranking field, and the only
+body text most people read.
+
+```
+AI push-up & squat counter + step tracker. Duel friends and keep a streak going.
+```
+80 characters (2026-10-28). Adds "step tracker" to the earlier line, so the
+listing ranks for the free Steps tab as well as rep counting.
+
+Previous (2026-10-07), for an A/B test:
 
 ```
 AI push-up & squat counter. Duel friends, share a streak with your partner.
 ```
-75 characters (rewritten 2026-10-07 after competitor research: front-loads "AI push-up & squat counter", which matches how people search for this category). Carries "push-up counter", "squat counter", "duel friends", "streak" — five searchable terms in one readable sentence.
-
-### Alternatives
-
-```
-Your camera counts every rep. Duel friends, train with your partner, streak.
-```
-75 characters — stronger hook, fewer indexed terms.
-
-```
-Rep counter + workout challenge. Count push-ups, duel friends, build streaks.
-```
-76 characters — most keyword-dense, reads slightly more like a list.
 
 ---
 
 ## Full description (4000 max)
 
-The first ~170 characters show before the "read more" fold. Everything that
-matters for both search and conversion goes there.
+The first ~170 characters show before "read more". The opening sentence names
+both halves of the app (reps and steps) and the duel, so search and the first
+glance agree.
 
 ```
-Count push-ups and squats with your phone camera: no wearable, no tapping. RepChamp is an AI rep counter that turns every workout into a live duel with friends or a shared streak with your partner.
+Your camera counts every push-up and squat, and your phone counts every step. RepChamp is an AI rep counter and step tracker that turns each workout into a live duel with friends.
 
-Prop up your phone, step back and start. On-device pose detection tracks your joints in real time, counts every rep and scores your depth and alignment, so you know which reps actually count. A real push-up counter and squat counter, not a timer you tap.
+No wearable, no tapping, no gym. Prop up your phone, step back and move. On-device pose detection tracks your joints in real time, counts each clean rep and scores your depth and form, so you know which reps really count.
 
-Duel friends in real time
-Challenge a friend to a timed workout challenge and watch both scores climb live. Most reps before the clock runs out wins the XP. Nobody online yet? Race an AI training partner, always clearly labelled as AI.
+★ Duel friends live
+Send a challenge, start the clock and watch both scores climb. Most reps wins the XP. Nobody online? Race an AI training partner, always clearly labelled as AI.
 
-Couples workout and shared streak
-Pair with your partner and keep one streak together. It only survives if you both show up, which makes it much harder to quit than a streak of your own. Nudge each other when one of you falls behind.
+★ Step counter and walk tracker
+See today's steps against a daily goal you set, with distance, calories and active minutes. Tap Walk now to track a walk live with pace, and add the Steps widget to your home screen. Background step counting keeps your daily total complete, with a small notification you can switch off in Settings.
 
-Drink water with your panda
-Log a glass in one tap (250, 500 or 750 ml) and watch your panda fill its bottle, with your partner's panda right beside it. Send a hug, a high five or a cheer, and add the Android home-screen widget to log water without opening the app.
+★ Couples workout and a shared streak
+Pair with your partner, walk and train together, and keep one streak that only survives if you both show up. Race each other's steps, share one team goal and nudge each other off the sofa.
 
-A plan that sticks
-Choose Strength, Yoga, Mind or Together. Follow the 4-week programme that builds you toward 50 push-ups, join the weekly challenge, and see your week at a glance. Guided yoga flows with voice cues and breathing exercises (box breathing, 4-7-8 for sleep) are built in.
+★ Streaks that forgive a bad day
+Every 7-day run earns a streak freeze that saves your streak on a missed day. Hit a streak milestone, beat your personal best or post your biggest day, and RepChamp tells you.
 
-Climb the leagues
-Bronze, Silver, Gold and Platinum, reset weekly. Earn XP for every set, hold your streak and collect badges for your first duel win, a 100-rep session and perfect form. A fitness leaderboard that resets often enough to stay winnable.
+★ A plan that sticks
+Pick Strength, Yoga, Mind or Together. Follow the 4-week programme that builds you to 50 push-ups, join the weekly challenge and get a weekly recap you can share. Guided yoga with voice cues and breathing exercises (box breathing, 4-7-8 for sleep) are built in.
 
-Home workout, no equipment
-Every exercise is bodyweight: push-ups, squats, lunges, sit-ups, glute bridges, pike push-ups, high knees, jumping jacks, shoulder rolls and a full-body stretch. No gym, no dumbbells, just your phone and some floor space.
+★ Climb the leagues
+Bronze, Silver, Gold and Platinum, reset every week, so the leaderboard stays winnable. Earn XP for every set and collect badges for your first duel win, a 100-rep session and perfect form.
+
+★ Drink water with your panda
+Log a glass in one tap and watch your panda fill its bottle beside your partner's. Send a hug or a high five, and log water from the home-screen widget.
+
+★ Home workout, no equipment
+Push-ups, squats, lunges, sit-ups, glute bridges, pike push-ups, high knees, jumping jacks, shoulder rolls and a full-body stretch. Just your phone and a bit of floor.
 
 RepChamp Pro
-RepChamp is free to download. Counting reps needs RepChamp Pro, an auto-renewing subscription (weekly, monthly or yearly; the price is shown in the app and Google Play before you pay, and you can cancel any time in Google Play). Pro covers solo training, live duels and couple mode, plus the full exercise library, detailed form reports and extra streak freezes. Each partner needs their own subscription for couple mode. Water logging is free for your first glass and part of Pro after that. The first time you pair with a partner, you both get 10 free reps to train together.
+RepChamp is free to download, and the step counter is free to use. Counting reps needs RepChamp Pro, an auto-renewing subscription (weekly, monthly or yearly; the price is shown in the app and on Google Play before you pay, and you can cancel any time in Google Play). Pro covers solo training, live duels and couple mode, plus the full exercise library, detailed form reports and extra streak freezes. Each partner needs their own subscription for couple mode. Water logging is free for your first glass and part of Pro after that. The first time you pair with a partner, you both get 10 free reps to train together.
 
 Your video never leaves your phone
-Pose detection runs on your device. Your camera feed is never recorded, never uploaded and never shared, in any mode, including live duels. The only photo we store is the profile picture you choose yourself.
+Pose detection runs on your device. Your camera feed is never recorded, uploaded or shared, in any mode, including live duels. The only photo we store is the profile picture you choose.
 
 Train hard. Train honestly.
 
 ---
-Rep counts and form scores are estimates from on-device pose detection and can be wrong. RepChamp is a fitness tool, not medical advice. Warm up, train within your ability, and stop if you feel pain or dizziness.
+Rep counts, step counts and form scores are estimates and can be wrong. RepChamp is a fitness tool, not medical advice. Warm up, train within your ability, and stop if you feel pain or dizziness.
 
 Privacy policy: https://repchamp.web.app/privacy
 Delete your account: https://repchamp.web.app/delete-account
 Support: arafathossain455@gmail.com
 ```
 
-Roughly 2,300 characters — inside 4000, and short enough that someone might
-finish it.
+About 3,462 characters, inside 4000. Each search term appears 1–3
+times except "streak" and "duel", which are the product itself.
+
+The near-miss "reps to beat your best" moment (PR #53) is left out until it
+ships in a release. Add a line under "Streaks that forgive a bad day" when it
+does.
 
 ---
 
@@ -189,8 +204,8 @@ Default store listing**.
 
 | Field | Value |
 | --- | --- |
-| App name (30) | `Fitness Duel: RepChamp` |
-| Short description (80) | `AI push-up & squat counter. Duel friends, share a streak with your partner.` |
+| App name (30) | `RepChamp: Rep & Step Counter` (or keep `Fitness Duel: RepChamp`) |
+| Short description (80) | `AI push-up & squat counter + step tracker. Duel friends and keep a streak going.` |
 | Full description (4000) | The block above |
 | App icon | `store/icon-512.png` |
 | Feature graphic | `store/feature-graphic.png` |
@@ -249,15 +264,46 @@ listing should stay phone-only rather than claim a layout that does not exist.
 
 ---
 
+## Reaching a much bigger audience
+
+Copy gets the listing found. These decide how many people it reaches, roughly
+in order of impact:
+
+1. **Translated listings.** Play shows each country its own language, and an
+   English-only listing ranks poorly in every other one. Add translations under
+   **Store listings → Manage translations** for the biggest fitness markets:
+   Spanish (es-419 and es-ES), Portuguese (pt-BR), Hindi, Indonesian, German,
+   French, Turkish, Arabic, Japanese and Korean. Translate the name too
+   ("contador de pasos", "contador de flexiones" in Spanish). Do not machine
+   translate blindly: have a native speaker read the name and short
+   description. The app itself stays English, so say so: add "App in English."
+   as the last line of each translated description.
+2. **First two screenshots.** Most people decide on the icon and the first two
+   screenshots without opening the description. Lead with the live pose
+   skeleton counting a push-up (caption: "Your camera counts every rep"), then
+   the Steps ring (caption: "Steps, counted all day"), then a live duel
+   ("Duel friends live"). Big caption text, one idea per shot. See
+   `STORE_SCREENSHOTS.md`.
+3. **Promo video.** A 30-second YouTube clip of a rep being counted is the
+   clearest proof the AI works. It plays above the screenshots.
+4. **Ratings.** Ranking and conversion both fall off sharply below 4.0 stars.
+   The in-app review prompt (`src/domain/reviewPrompt.ts`) asks after good
+   moments only. Keep it that way, and reply to every 1–2 star review in
+   Play Console.
+5. **Custom store listings.** Play lets you show a different listing to a
+   country or to traffic from a specific ad or link, for example a
+   steps-first listing for walkers, a duel-first one for friends' invite links.
+
+---
+
 ## After publishing
 
 Ranking is not set at submission. Three things to do once live:
 
 - **Watch Store performance → conversion.** If install-per-view is under ~20%,
   the problem is the icon and first screenshot, not the keywords.
-- **Test the short description first.** With the brand title kept, it is the
-  only high-weight field carrying generic search terms, so it is where a
-  change has the most room to move. Play's **Store listing experiments** run
+- **Test the name first, then the short description.** They are the two
+  highest-weight fields, so they have the most room to move. Play's **Store listing experiments** run
   the A/B test for you.
 - **Change one field at a time.** Running the short description and the
   screenshots together teaches you nothing about either.

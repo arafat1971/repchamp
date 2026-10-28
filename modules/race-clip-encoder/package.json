@@ -1,0 +1,10 @@
+{
+  "name": "race-clip-encoder",
+  "version": "1.0.0",
+  "description": "Encodes the RepChamp race clip frames into an H.264 MP4.",
+  "main": "src/index.ts",
+  "license": "UNLICENSED",
+  "author": "RepChamp",
+  "homepage": "https://repchamp.web.app",
+  "private": true
+}

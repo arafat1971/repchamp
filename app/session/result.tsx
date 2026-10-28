@@ -14,7 +14,10 @@ import { ResultShareCard } from '@/components/session/ResultShareCard';
 import { CountUp } from '@/components/motion';
 import { PressableScale } from '@/components/ui';
 import { getOpponent } from '@/domain/opponent';
-import { partnerLine } from '@/domain/partnerVoice';
+import { isAiPartner, partnerLine } from '@/domain/partnerVoice';
+import { buildTimeline, clipCaption, type RaceClipInput } from '@/domain/raceClip';
+import type { ClipScene } from '@/lib/raceClip/drawFrame';
+import { RaceVideoButton } from '@/components/session/RaceVideoButton';
 import { canUse } from '@/domain/pro';
 import { track } from '@/lib/analytics';
 import { LEAGUES, dayKey } from '@/domain/progression';
@@ -531,6 +534,35 @@ export default function ResultScreen() {
   const username = useProfileStore.getState().username;
   const inviteUrl = username ? friendInviteLink(username) : WEB_BASE;
 
+  /* The race video replays this set from the store's rep times. Built at tap
+     time so it reads the settled score, not the first render's. */
+  const raceScene = (): ClipScene => {
+    const s = useSessionStore.getState();
+    const config = s.config ?? session.config!;
+    const input: RaceClipInput = {
+      myName: userName ?? 'Me',
+      theirName: config.opponentName || opponent?.name || 'Opponent',
+      // No live duel id means the bot pacer raced, so it is an AI partner.
+      theirIsAI: !config.duelId || isAiPartner(config.opponentId),
+      exerciseLabel: definition.label,
+      cooperative: config.mode === 'together',
+      won: s.won,
+      drew: s.drew,
+      myReps: s.reps,
+      theirReps: s.opponentReps,
+      startedAt: s.activeStartedAt,
+      durationMs: config.duration * 1000,
+      myRepTimes: s.myRepTimes,
+      theirRepTimes: s.opponentRepTimes,
+    };
+    return {
+      input,
+      timeline: buildTimeline(input),
+      chip: `${definition.label.toUpperCase()} · ${config.duration}s ${config.mode === 'together' ? 'TOGETHER' : 'DUEL'}`,
+    };
+  };
+  const raceCaption = () => clipCaption(raceScene().input, inviteUrl);
+
   const shareResult = async () => {
     track('share_opened', { kind: 'result-card' });
     try {
@@ -622,6 +654,7 @@ export default function ResultScreen() {
               drew={session.drew}
               cooperative={mode === 'together'}
             />
+            <RaceVideoButton buildScene={raceScene} caption={raceCaption} onFallback={shareResult} />
           </Animated.View>
         ) : null}
 

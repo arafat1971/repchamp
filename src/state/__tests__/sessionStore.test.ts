@@ -164,3 +164,48 @@ describe('session lifecycle', () => {
     expect(useSessionStore.getState().xpGained).toBe(xp);
   });
 });
+
+describe('race clip rep times', () => {
+  beforeEach(() => {
+    jest.spyOn(Date, 'now').mockReturnValue(1_000);
+    useSessionStore.getState().start(versus);
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  it('stamps the start of the active phase', () => {
+    useSessionStore.getState().beginActive();
+    expect(useSessionStore.getState().activeStartedAt).toBe(1_000);
+  });
+
+  it('stamps each of my counted reps', () => {
+    useSessionStore.getState().beginActive();
+    jest.spyOn(Date, 'now').mockReturnValue(4_000);
+    useSessionStore.getState().applyPose({ depth: 0.9, tracking: true, completedRep: rep(1) });
+    expect(useSessionStore.getState().myRepTimes).toEqual([4_000]);
+  });
+
+  it('stamps one time per new opponent rep, even when several arrive at once', () => {
+    useSessionStore.getState().beginActive();
+    jest.spyOn(Date, 'now').mockReturnValue(5_000);
+    useSessionStore.getState().setOpponentReps(1);
+    jest.spyOn(Date, 'now').mockReturnValue(9_000);
+    useSessionStore.getState().setOpponentReps(3);
+    useSessionStore.getState().setOpponentReps(3);
+    expect(useSessionStore.getState().opponentRepTimes).toEqual([5_000, 9_000, 9_000]);
+    expect(useSessionStore.getState().opponentReps).toBe(3);
+  });
+
+  it('does not stamp opponent reps outside the race', () => {
+    useSessionStore.getState().setOpponentReps(2);
+    expect(useSessionStore.getState().opponentReps).toBe(2);
+    expect(useSessionStore.getState().opponentRepTimes).toEqual([]);
+  });
+
+  it('clears the times when a new set starts', () => {
+    useSessionStore.getState().beginActive();
+    useSessionStore.getState().setOpponentReps(2);
+    useSessionStore.getState().start(versus);
+    expect(useSessionStore.getState().opponentRepTimes).toEqual([]);
+    expect(useSessionStore.getState().activeStartedAt).toBeNull();
+  });
+});

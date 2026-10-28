@@ -278,6 +278,8 @@ in order of impact:
    translate blindly: have a native speaker read the name and short
    description. The app itself stays English, so say so: add "App in English."
    as the last line of each translated description.
+   Ready to paste: `STORE_LISTING_TRANSLATIONS.md` (es-419, pt-BR, hi-IN,
+   id, de-DE).
 2. **First two screenshots.** Most people decide on the icon and the first two
    screenshots without opening the description. Lead with the live pose
    skeleton counting a push-up (caption: "Your camera counts every rep"), then

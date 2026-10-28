@@ -18,6 +18,8 @@ export interface SetHighlight {
   emoji: string;
   title: string;
   body: string;
+  /** Set only on a near miss: the best the next set has to beat. */
+  beatTarget?: number;
 }
 
 const STREAK_MILESTONES = [3, 7, 14, 30, 50, 100, 200, 365];
@@ -92,7 +94,29 @@ export function setHighlight(
     }
   }
 
+  /* Near miss: a set that fell just short of the best. Being close reads as
+     "almost had it", which is the strongest pull towards one more set. Only
+     shown when the gap is small, so it never nags about a weak set. */
+  const gap = priorBest - latest.reps;
+  if (priorBest >= NEAR_MISS_MIN_BEST && gap > 0 && gap <= nearMissWindow(priorBest)) {
+    return {
+      tier: 'good',
+      emoji: '🎯',
+      title: `${gap} ${gap === 1 ? 'rep' : 'reps'} off your best`,
+      body: `Your best is ${priorBest} ${exerciseLabel}. One more set could beat it.`,
+      beatTarget: priorBest,
+    };
+  }
+
   return null;
+}
+
+/** A best below this is too small for "close" to mean anything. */
+const NEAR_MISS_MIN_BEST = 5;
+
+/** How far under the best still counts as close: 2 reps, or 15% of a big best. */
+export function nearMissWindow(best: number): number {
+  return Math.max(2, Math.ceil(best * 0.15));
 }
 
 function bestDayReps(sessions: readonly SessionSummary[]): number {

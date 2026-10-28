@@ -147,7 +147,7 @@ must be confirmed. If it's dismissed, nothing is saved.
 
 # Custom store listing: Couples-first (problem → solution)
 
-Draft `couples_search custom listing`, saved 2026-10-28, **not sent for review**.
+`couples_search custom listing` was **sent for review** on 2026-10-28. Play folded it into the store-listing submission that was already in review. Listing priority is now couples 1, steps 2, repchamp_search 3. That has no effect, because no keyword is in more than one listing.
 Duplicated from the default listing (same visuals), search-keyword audience, all
 countries, 50% rollout.
 

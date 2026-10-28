@@ -38,6 +38,12 @@ export interface SessionState {
   depth: number;
   repRecords: RepRecord[];
   formCue: string;
+  /** Wall-clock ms the active phase began — the race clip's zero. */
+  activeStartedAt: number | null;
+  /** Wall-clock ms of each counted rep, for the race clip replay. */
+  myRepTimes: number[];
+  /** Wall-clock ms each opponent rep was first seen, for the race clip replay. */
+  opponentRepTimes: number[];
 
   won: boolean;
   /** True when a live versus set ended level — not a win and not a loss. */
@@ -94,6 +100,9 @@ const idle = {
   depth: 0,
   repRecords: [] as RepRecord[],
   formCue: 'Get set…',
+  activeStartedAt: null as number | null,
+  myRepTimes: [] as number[],
+  opponentRepTimes: [] as number[],
   won: false,
   drew: false,
   forfeited: false,
@@ -147,7 +156,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     set({ countdown: next });
   },
 
-  beginActive: () => set({ phase: 'active' }),
+  beginActive: () => set({ phase: 'active', activeStartedAt: Date.now() }),
 
   applyPose: ({ depth, tracking, completedRep, formCue }) => {
     const state = get();
@@ -184,6 +193,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       tracking,
       reps,
       repRecords: [...state.repRecords, completedRep],
+      myRepTimes: [...state.myRepTimes, Date.now()],
       // Cue rotates every rep, favouring the encouraging line on full-depth reps.
       formCue: completedRep.fullDepth
         ? (cues[(reps - 1) % cues.length] as string)
@@ -191,7 +201,19 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     });
   },
 
-  setOpponentReps: (opponentReps) => set({ opponentReps }),
+  setOpponentReps: (opponentReps) => {
+    const state = get();
+    if (opponentReps === state.opponentReps) return;
+    // One stamp per new rep, so a jump of 3 in one update still replays as 3.
+    const now = Date.now();
+    const added = state.phase === 'active' ? Math.max(0, opponentReps - state.opponentRepTimes.length) : 0;
+    set({
+      opponentReps,
+      ...(added > 0
+        ? { opponentRepTimes: [...state.opponentRepTimes, ...Array.from({ length: added }, () => now)] }
+        : {}),
+    });
+  },
 
   setOpponentName: (name) =>
     set((s) => s.config ? { config: { ...s.config, opponentName: name } } : {}),

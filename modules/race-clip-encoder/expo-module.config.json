@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["RaceClipEncoderModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.raceclipencoder.RaceClipEncoderModule"]
+  }
+}

@@ -97,3 +97,7 @@ repchamp-*-*.json
 
 # Editor preferences — personal, not project config
 .vscode/
+
+# Local Expo modules: native build output
+modules/*/android/build/
+modules/*/android/.cxx/

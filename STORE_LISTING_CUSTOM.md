@@ -124,3 +124,21 @@ changes can take up to 60 days to take effect.
 Compare the custom listing's store-listing-visitor → install conversion with
 the default after 2 weeks (Statistics → filter by custom store listing). If it
 converts worse, retire it; it costs nothing to keep or remove.
+
+## Default listing rename (2026-10-28, in review)
+
+- Name: `Fitness Duel: RepChamp` → `RepChamp: Rep & Step Counter`
+- Short description → `AI push-up & squat counter + step tracker. Duel friends and keep a streak going.`
+- `repchamp_search` inherits the name from the default listing, so its name
+  changes too. Its own short description is unchanged.
+
+**Still open: the default full description is stale.** The live full
+description still says "Try it free: your first 50 reps, no card needed" and
+"Couple mode is free, always". The app has `FREE_REP_LIMIT = 0`, and
+`COUPLE_WALL_ENABLED` has been on since 2026-10-26. It also doesn't mention
+steps. The owner chose to send only the name and short description for now. The
+verified replacement is the full description in `STORE_LISTING.md` on
+`claude/store-listing-reach`.
+
+Gotcha: saving the default listing opens a "could affect 1 listing" dialog that
+must be confirmed. If it's dismissed, nothing is saved.

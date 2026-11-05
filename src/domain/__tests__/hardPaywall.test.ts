@@ -24,19 +24,24 @@ const input = (o: Partial<Parameters<typeof evaluateHardWall>[0]> = {}) => ({
   ...o,
 });
 
-/* The allowance is 0 (true hard paywall, 2026-10-07): the first solo set is
- * already behind the wall. These pin that, plus every exemption that must
- * survive it. The count-based behaviour (boundary, countdown, warning) is kept
- * as a property of the arithmetic so raising FREE_REP_LIMIT again stays safe. */
+/* The allowance is 50 (restored 2026-11-05): 2-3 sessions to experience core
+ * AI rep counter before the wall locks. These pin that, plus every exemption that
+ * must survive it. */
 describe('evaluateHardWall', () => {
-  it('walls a non-Pro athlete before their first rep', () => {
+  it('allows reps below the allowance', () => {
     expect(evaluateHardWallRule(input({ repsSoFar: 0 }))).toEqual({
-      walled: true,
-      reason: 'rep-limit',
+      walled: false,
+    });
+    expect(evaluateHardWallRule(input({ repsSoFar: 49 }))).toEqual({
+      walled: false,
     });
   });
 
-  it('stays walled however many reps are banked', () => {
+  it('walls when the allowance is reached or exceeded', () => {
+    expect(evaluateHardWallRule(input({ repsSoFar: FREE_REP_LIMIT }))).toEqual({
+      walled: true,
+      reason: 'rep-limit',
+    });
     expect(evaluateHardWallRule(input({ repsSoFar: FREE_REP_LIMIT + 50 })).walled).toBe(true);
   });
 
@@ -81,15 +86,15 @@ describe('repsRemaining', () => {
 });
 
 describe('isNearingWall', () => {
-  /* With no allowance there is nothing to count down, so the "N reps left"
-     warning can never fire — the wall itself is the message. */
-  it('never warns when the allowance is zero', () => {
+  it('warns when reps remaining is between 1 and NEARING_WALL_REPS', () => {
     expect(nearing(input({ repsSoFar: 0 }))).toBe(false);
+    expect(nearing(input({ repsSoFar: FREE_REP_LIMIT - NEARING_WALL_REPS }))).toBe(true);
+    expect(nearing(input({ repsSoFar: FREE_REP_LIMIT - 1 }))).toBe(true);
     expect(nearing(input({ repsSoFar: FREE_REP_LIMIT }))).toBe(false);
   });
 
   it('never warns someone the wall does not apply to', () => {
-    expect(nearing(input({ isPro: true, repsSoFar: 0 }))).toBe(false);
+    expect(nearing(input({ isPro: true, repsSoFar: FREE_REP_LIMIT - 2 }))).toBe(false);
   });
 });
 
@@ -100,9 +105,10 @@ describe('HARD_WALL_ENABLED', () => {
     expect(HARD_WALL_ENABLED).toBe(true);
   });
 
-  it('walls a free athlete from the first rep', () => {
-    expect(isWalled(input({ repsSoFar: 0 }))).toBe(true);
-    expect(evaluateHardWall(input({ repsSoFar: 0 }))).toEqual({
+  it('allows training under the limit and walls at or above it', () => {
+    expect(isWalled(input({ repsSoFar: 0 }))).toBe(false);
+    expect(isWalled(input({ repsSoFar: FREE_REP_LIMIT }))).toBe(true);
+    expect(evaluateHardWall(input({ repsSoFar: FREE_REP_LIMIT }))).toEqual({
       walled: true,
       reason: 'rep-limit',
     });
@@ -114,9 +120,11 @@ describe('HARD_WALL_ENABLED', () => {
     expect(isWalled(input({ billingReady: false }))).toBe(false);
   });
 
-  it('shows no countdown or warning to the walled, and an unbounded one to the exempt', () => {
-    expect(repsRemaining(input())).toBe(0);
-    expect(isNearingWall(input())).toBe(false);
+  it('shows countdown to the free athlete and unbounded to the exempt', () => {
+    expect(repsRemaining(input({ repsSoFar: 0 }))).toBe(50);
+    expect(repsRemaining(input({ repsSoFar: 50 }))).toBe(0);
+    expect(isNearingWall(input({ repsSoFar: 45 }))).toBe(true);
+    expect(isNearingWall(input({ repsSoFar: 0 }))).toBe(false);
     expect(repsRemaining(input({ isPro: true }))).toBe(Number.POSITIVE_INFINITY);
     expect(repsRemaining(input({ isCoupleMode: true }))).toBe(Number.POSITIVE_INFINITY);
   });
@@ -128,18 +136,13 @@ describe('HARD_WALL_ENABLED', () => {
     );
   });
 
-  /* The literal values, pinned: a true hard paywall. */
   it('records the allowance athletes actually get', () => {
-    expect(FREE_REP_LIMIT).toBe(0);
+    expect(FREE_REP_LIMIT).toBe(50);
     expect(NEARING_WALL_REPS).toBe(8);
   });
 
-  /* With no allowance, "free reps used" would claim something that never
-     happened, so the locked copy must not mention free reps. */
-  it('words the locked state without claiming free reps were used', () => {
-    expect(FREE_REP_LIMIT).toBe(0);
-    for (const line of Object.values(WALL_COPY)) {
-      expect(line.toLowerCase()).not.toContain('free reps');
-    }
+  it('words the locked state with free reps copy', () => {
+    expect(FREE_REP_LIMIT).toBe(50);
+    expect(WALL_COPY.pill).toBe('Free reps used');
   });
 });

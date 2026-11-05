@@ -1,34 +1,14 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, {
-  Easing,
-  useAnimatedProps,
-  useDerivedValue,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
 import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 
 import { palette } from '@/theme/tokens';
 
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
-
 /**
  * A closing ring, in the Activity-ring idiom.
  *
- * A ring rather than a bar because a goal is a loop you close, not a distance
- * you cross — and because two of them side by side (water, steps) read as one
- * glanceable status at a size where two stacked bars would not.
- *
- * The sweep animates via `strokeDashoffset` on the UI thread. That matters:
- * this sits on Home behind a `ScrollView`, and a progress animation that
- * stutters while the list is being flung is worse than one that does not
- * animate at all.
- *
- * Rounded caps and a gradient are doing real work rather than decoration — the
- * cap makes a 3% ring visible at all (a butt cap at that length is a speck),
- * and the gradient keeps the leading edge distinguishable from the trailing
- * one as the ring approaches a full turn.
+ * Drives strokeDashoffset through requestAnimationFrame on standard Circle to avoid
+ * the Reanimated Fabric JNI synchronouslyUpdateUIProps ANR loop on Android.
  */
 export function ProgressRing({
   percent,
@@ -54,24 +34,41 @@ export function ProgressRing({
   const circumference = 2 * Math.PI * radius;
   const target = Math.max(0, Math.min(100, percent));
 
-  const progress = useSharedValue(animate ? 0 : target);
+  const [currentVal, setCurrentVal] = useState(animate ? 0 : target);
+  const currentValRef = useRef(currentVal);
+  currentValRef.current = currentVal;
 
   useEffect(() => {
-    progress.value = withTiming(target, {
-      duration: 900,
-      // Decelerate into the figure rather than stopping dead, matching
-      // `CountUp`'s ease-out so a ring and its number land together.
-      easing: Easing.out(Easing.cubic),
-    });
-  }, [target, progress]);
+    const startVal = currentValRef.current;
+    const endVal = target;
+    const startTime = Date.now();
+    const duration = animate ? 900 : 0;
 
-  const dashoffset = useDerivedValue(
-    () => circumference - (circumference * progress.value) / 100,
-  );
+    if (duration === 0) {
+      setCurrentVal(endVal);
+      return;
+    }
 
-  const animatedProps = useAnimatedProps(() => ({
-    strokeDashoffset: dashoffset.value,
-  }));
+    let animId: number;
+    const frame = () => {
+      const now = Date.now();
+      const elapsed = now - startTime;
+      const progressRatio = Math.min(1, elapsed / duration);
+      // easeOutCubic
+      const t = 1 - progressRatio;
+      const eased = 1 - t * t * t;
+      const nextVal = startVal + (endVal - startVal) * eased;
+      setCurrentVal(nextVal);
+      if (progressRatio < 1) {
+        animId = requestAnimationFrame(frame);
+      }
+    };
+
+    animId = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(animId);
+  }, [target, animate]);
+
+  const dashoffset = circumference - (circumference * currentVal) / 100;
 
   /* Unique per instance: two rings on one screen sharing a gradient id would
      both take whichever definition mounted last. */
@@ -97,7 +94,7 @@ export function ProgressRing({
         />
 
         {/* Rotated so the ring starts at twelve o'clock, not three. */}
-        <AnimatedCircle
+        <Circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
@@ -106,9 +103,9 @@ export function ProgressRing({
           strokeLinecap="round"
           fill="none"
           strokeDasharray={circumference}
+          strokeDashoffset={dashoffset}
           /* A zero-length dash with a round cap still paints a dot. */
           opacity={target > 0 ? 1 : 0}
-          animatedProps={animatedProps}
           transform={`rotate(-90 ${size / 2} ${size / 2})`}
         />
       </Svg>

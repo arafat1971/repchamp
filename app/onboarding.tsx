@@ -466,7 +466,7 @@ export default function OnboardingScreen() {
   const id = stepIdAt(step);
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
+    <View style={[styles.root, { paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, 12) }]}>
       <LinearGradient
         pointerEvents="none"
         colors={['rgba(34,197,94,0.07)', 'rgba(34,197,94,0.02)', 'rgba(246,247,245,0)']}
@@ -812,98 +812,94 @@ function Card({ style, children }: { style?: StyleProp<ViewStyle>; children: Rea
 
 function Welcome({ onNext }: { onNext: () => void }) {
   const router = useRouter();
+  const { height, fontScale } = useWindowDimensions();
+  const compact = height < 760 || fontScale > 1.2;
 
   return (
     <View style={styles.step}>
-      <Animated.View entering={FadeInDown.duration(420)} style={styles.welcomeBrand}>
-        <View style={styles.brandMark}>
-          <Image
-            source={require('../assets/logo.png')}
-            style={styles.brandMarkImg}
-            contentFit="contain"
-          />
-        </View>
-        <Text style={styles.welcomeWordmark}>RepChamp</Text>
-      </Animated.View>
-
-      <View style={styles.hero}>
-        {/* A soft green glow behind the couple, so they read as lit rather than
-            pasted on. The picture's own background is near-white and matches
-            the card, so no box shows around it. */}
-        <View style={styles.heroGlow} pointerEvents="none" />
-        <BreathingImage style={StyleSheet.absoluteFill}>
-          <View style={styles.heroStage}>
+      <StepScroll>
+        <Animated.View entering={FadeInDown.duration(420)} style={styles.welcomeBrand}>
+          <View style={styles.brandMark}>
             <Image
-              source={{ uri: WELCOME_HERO }}
-              style={styles.heroCouple}
+              source={require('../assets/logo.png')}
+              style={styles.brandMarkImg}
               contentFit="contain"
-              transition={250}
-              accessibilityLabel="Two athletes ready to train"
             />
           </View>
-        </BreathingImage>
+          <Text style={styles.welcomeWordmark}>RepChamp</Text>
+        </Animated.View>
 
-        <Floating delay={120} style={styles.heroBadgeLeft}>
-          <View style={styles.heroBadge}>
-            <Image source={require('../assets/fire-flame.png')} style={{ width: 20, height: 20 }} contentFit="contain" />
-            <View>
-              <Text style={font('extrabold', 14, { color: palette.ink })}>12</Text>
-              <Text style={styles.heroBadgeLabel}>DAY STREAK</Text>
+        <View style={[styles.hero, compact && { minHeight: 180, maxHeight: 220 }]}>
+          {/* A soft green glow behind the couple, so they read as lit rather than
+              pasted on. The picture's own background is near-white and matches
+              the card, so no box shows around it. */}
+          <View style={styles.heroGlow} pointerEvents="none" />
+          <BreathingImage style={StyleSheet.absoluteFill}>
+            <View style={styles.heroStage}>
+              <Image
+                source={{ uri: WELCOME_HERO }}
+                style={styles.heroCouple}
+                contentFit="contain"
+                transition={250}
+                accessibilityLabel="Two athletes ready to train"
+              />
             </View>
-          </View>
-        </Floating>
+          </BreathingImage>
 
-        <Floating delay={800} style={styles.heroBadgeRight}>
-          <View style={styles.heroBadge}>
-            <Image source={require('../assets/trophy-gold.png')} style={{ width: 22, height: 22 }} contentFit="contain" />
-            <View>
-              <Text style={font('extrabold', 14, { color: palette.ink })}>Gold</Text>
-              <Text style={styles.heroBadgeLabel}>LEAGUE</Text>
+          <Floating delay={120} style={styles.heroBadgeLeft}>
+            <View style={styles.heroBadge}>
+              <Image source={require('../assets/fire-flame.png')} style={{ width: 20, height: 20 }} contentFit="contain" />
+              <View>
+                <Text style={font('extrabold', 14, { color: palette.ink })}>12</Text>
+                <Text style={styles.heroBadgeLabel}>DAY STREAK</Text>
+              </View>
             </View>
-          </View>
-        </Floating>
-      </View>
+          </Floating>
 
-      <View style={styles.welcomeCopy}>
-        <Text style={styles.welcomeTitle}>Your phone counts.{'\n'}You just move.</Text>
-        <Text style={styles.welcomeBody}>
-          Point the camera at yourself. Every clean rep is counted and your form is scored live.
+          <Floating delay={800} style={styles.heroBadgeRight}>
+            <View style={styles.heroBadge}>
+              <Image source={require('../assets/trophy-gold.png')} style={{ width: 22, height: 22 }} contentFit="contain" />
+              <View>
+                <Text style={font('extrabold', 14, { color: palette.ink })}>Gold</Text>
+                <Text style={styles.heroBadgeLabel}>LEAGUE</Text>
+              </View>
+            </View>
+          </Floating>
+        </View>
+
+        <View style={styles.welcomeCopy}>
+          <Text style={styles.welcomeTitle}>Your phone counts.{'\n'}You just move.</Text>
+          <Text style={styles.welcomeBody}>
+            Point the camera at yourself. Every clean rep is counted and your form is scored live.
+          </Text>
+        </View>
+
+        <View style={{ gap: 12, marginTop: compact ? 14 : 20 }}>
+          <PrimaryButton label="Get started" onPress={onNext} />
+        </View>
+
+        <Text style={styles.legal}>
+          By continuing, you confirm you are 16 or older and agree to RepChamp&apos;s{' '}
+          <Text
+            style={styles.legalLink}
+            onPress={() => router.push('/modal/legal?tab=terms')}
+            accessibilityRole="link"
+            accessibilityLabel="Terms"
+          >
+            Terms
+          </Text>{' '}
+          and{' '}
+          <Text
+            style={styles.legalLink}
+            onPress={() => router.push('/modal/legal')}
+            accessibilityRole="link"
+            accessibilityLabel="Privacy Policy"
+          >
+            Privacy Policy
+          </Text>
+          .
         </Text>
-      </View>
-
-      {/* One way in, and it is not an account.
-          Sign-in used to sit here, asking for a Google account before the
-          athlete had seen a single rep counted. It now comes near the end,
-          once there is something worth saving — see the `SignIn` step.
-
-          There was also a "Try a set now — no signup" link that jumped
-          straight past onboarding. It advertised an absence, and the screens
-          it skipped are the ones that personalise the app. */}
-      <View style={{ gap: 12, marginTop: 20 }}>
-        <PrimaryButton label="Get started" onPress={onNext} />
-      </View>
-
-      <Text style={styles.legal}>
-        By continuing, you confirm you are 16 or older and agree to RepChamp&apos;s{' '}
-        <Text
-          style={styles.legalLink}
-          onPress={() => router.push('/modal/legal?tab=terms')}
-          accessibilityRole="link"
-          accessibilityLabel="Terms"
-        >
-          Terms
-        </Text>{' '}
-        and{' '}
-        <Text
-          style={styles.legalLink}
-          onPress={() => router.push('/modal/legal')}
-          accessibilityRole="link"
-          accessibilityLabel="Privacy Policy"
-        >
-          Privacy Policy
-        </Text>
-        .
-      </Text>
+      </StepScroll>
     </View>
   );
 }
@@ -1014,66 +1010,69 @@ function SignIn({
    * moment on the screen — proof the account was found — in the least visible
    * place on it, under two buttons that were now pointless, and the wait read
    * as a hang rather than as a beat. */
+  const { height, fontScale } = useWindowDimensions();
+  const compact = height < 760 || fontScale > 1.2;
+
   if (signedInAs) return <SignedIn message={signedInAs} holdMs={holdMs} />;
 
   return (
     <View style={[styles.step, styles.stepPadded]}>
       <Aurora tint={palette.green400} second={palette.amber300} />
       <StepScroll>
-      <ScreenHead
-        eyebrow="KEEP YOUR PROGRESS"
-        tint={palette.green50}
-        title="Save your plan"
-        body="Sign in so your streak, league and personal bests follow you to a new phone."
-      />
+        <ScreenHead
+          eyebrow="KEEP YOUR PROGRESS"
+          tint={palette.green50}
+          title="Save your plan"
+          body="Sign in so your streak, league and personal bests follow you to a new phone."
+        />
 
-      {/* What is being protected, shown as things orbiting a "saved" badge —
-          a streak, a league and a record are what the athlete has just spent
-          fifteen screens being shown. */}
-      <View style={styles.vaultStage}>
-        <VaultVisual />
-      </View>
-      </StepScroll>
+        {/* What is being protected, shown as things orbiting a "saved" badge —
+            a streak, a league and a record are what the athlete has just spent
+            fifteen screens being shown. */}
+        <View style={[styles.vaultStage, compact && { minHeight: 140, flex: 0 }]}>
+          <VaultVisual compact={compact} />
+        </View>
 
-      <View style={{ gap: 6 }}>
-        {googleReady ? (
-          <Animated.View entering={springIn(3)}>
-            <GoogleButton busy={busy} onPress={onGoogle} />
-          </Animated.View>
-        ) : null}
-        <Animated.View entering={springIn(4)}>
+        <View style={{ gap: 6, marginTop: compact ? 14 : 22 }}>
           {googleReady ? (
-            <PressableScale
-              onPress={onNext}
-              disabled={busy}
-              accessibilityRole="button"
-              accessibilityLabel="Not now"
-              style={styles.skip}
-            >
-              <Text style={font('extrabold', 15, { color: palette.grey600 })}>Not now</Text>
-            </PressableScale>
-          ) : (
-            <PrimaryButton label="Continue" onPress={onNext} disabled={busy} />
-          )}
+            <Animated.View entering={springIn(3)}>
+              <GoogleButton busy={busy} onPress={onGoogle} />
+            </Animated.View>
+          ) : null}
+          <Animated.View entering={springIn(4)}>
+            {googleReady ? (
+              <PressableScale
+                onPress={onNext}
+                disabled={busy}
+                accessibilityRole="button"
+                accessibilityLabel="Not now"
+                style={styles.skip}
+              >
+                <Text style={font('extrabold', 15, { color: palette.grey600 })}>Not now</Text>
+              </PressableScale>
+            ) : (
+              <PrimaryButton label="Continue" onPress={onNext} disabled={busy} />
+            )}
+          </Animated.View>
+        </View>
+
+        {/* Sits under the buttons because it is a reassurance, not an action. */}
+        <Animated.View entering={FadeIn.duration(500).delay(500)}>
+          <Text style={styles.signInFinePrint}>
+            We never post anything. Your email is only used to find your account.
+          </Text>
         </Animated.View>
-      </View>
 
-      {/* Sits under the buttons because it is a reassurance, not an action. */}
-      <Animated.View entering={FadeIn.duration(500).delay(500)}>
-        <Text style={styles.signInFinePrint}>
-          We never post anything. Your email is only used to find your account.
-        </Text>
-      </Animated.View>
-
-      {authError ? (
-        <Animated.Text
-          entering={FadeInDown.duration(260)}
-          style={styles.authError}
-          accessibilityLiveRegion="polite"
-        >
-          {authError}
-        </Animated.Text>
-      ) : null}
+        {authError ? (
+          <Animated.Text
+            entering={FadeInDown.duration(260)}
+            style={styles.authError}
+            accessibilityLiveRegion="polite"
+          >
+            {authError}
+          </Animated.Text>
+        ) : null}
+      </StepScroll>
     </View>
   );
 }
@@ -1179,34 +1178,38 @@ function Showcase({ onNext }: { onNext: () => void }) {
 
   return (
     <View style={[styles.step, styles.stepPadded]}>
-      <Animated.View entering={FadeInUp.duration(420)}>
-        <View style={styles.showcaseEyebrowRow}>
-          <View style={styles.liveDot} />
-          <Text style={styles.showcaseEyebrow}>SEE IT IN ACTION</Text>
-        </View>
-        <Text style={[text.h1, { fontSize: 28, textAlign: 'center' }]}>Watch it count</Text>
-        <Text style={[text.body, styles.centeredCopy]}>
-          No taps. No wearables. No counting in your head and losing track at twelve.
-        </Text>
-      </Animated.View>
-
-      <Animated.View entering={FadeIn.duration(600).delay(180)} style={styles.phoneWrap}>
-        <Floating distance={5} duration={3600}>
-          <View style={styles.phoneFrame}>
-            <View style={styles.phoneNotch} />
-            <View style={styles.phoneScreen}>
-              <VideoView
-                player={player}
-                style={StyleSheet.absoluteFill}
-                contentFit="cover"
-                nativeControls={false}
-              />
-            </View>
+      <StepScroll>
+        <Animated.View entering={FadeInUp.duration(420)}>
+          <View style={styles.showcaseEyebrowRow}>
+            <View style={styles.liveDot} />
+            <Text style={styles.showcaseEyebrow}>SEE IT IN ACTION</Text>
           </View>
-        </Floating>
-      </Animated.View>
+          <Text style={[text.h1, { fontSize: 28, textAlign: 'center' }]}>Watch it count</Text>
+          <Text style={[text.body, styles.centeredCopy]}>
+            No taps. No wearables. No counting in your head and losing track at twelve.
+          </Text>
+        </Animated.View>
 
-      <PrimaryButton label="Continue" onPress={onNext} />
+        <Animated.View entering={FadeIn.duration(600).delay(180)} style={styles.phoneWrap}>
+          <Floating distance={5} duration={3600}>
+            <View style={styles.phoneFrame}>
+              <View style={styles.phoneNotch} />
+              <View style={styles.phoneScreen}>
+                <VideoView
+                  player={player}
+                  style={StyleSheet.absoluteFill}
+                  contentFit="cover"
+                  nativeControls={false}
+                />
+              </View>
+            </View>
+          </Floating>
+        </Animated.View>
+
+        <View style={{ marginTop: 20 }}>
+          <PrimaryButton label="Continue" onPress={onNext} />
+        </View>
+      </StepScroll>
     </View>
   );
 }
@@ -1271,9 +1274,11 @@ function ValueScreen({
           />
         ))}
       </InsetGroup>
-      </StepScroll>
 
-      <PrimaryButton label={cta} onPress={onNext} />
+      <View style={{ marginTop: 8 }}>
+        <PrimaryButton label={cta} onPress={onNext} />
+      </View>
+      </StepScroll>
     </View>
   );
 }
@@ -1342,65 +1347,66 @@ function Username({
 
   return (
     <View style={[styles.step, styles.stepPadded]}>
-      <Text style={text.h1}>Claim your name</Text>
-      <Text style={[text.body, { marginTop: 8 }]}>
-        This is the name your rivals will see on the leaderboard.
-      </Text>
-
-      <View
-        style={[
-          styles.usernameField,
-          { borderColor, minHeight: reservedControlHeight(60, fontScale) },
-        ]}
-      >
-        <Text style={font('extrabold', 18, { color: palette.grey450 })} {...scaleForRole('control')}>
-          @
+      <StepScroll>
+        <Text style={text.h1}>Claim your name</Text>
+        <Text style={[text.body, { marginTop: 8 }]}>
+          This is the name your rivals will see on the leaderboard.
         </Text>
-        <TextInput
-          value={value}
-          onChangeText={onChange}
-          placeholder="username"
-          placeholderTextColor={palette.grey450}
-          autoCapitalize="none"
-          autoCorrect={false}
-          maxLength={20}
-          accessibilityLabel="Username"
-          style={styles.usernameInput}
-        />
-        {valid ? <Text style={{ color: palette.green600, fontSize: 18 }}>✓</Text> : null}
-      </View>
 
-      <Text style={[text.captionMd, { marginTop: 12 }]}>
-        3–20 characters. Letters, numbers, and underscores only.
-      </Text>
-      {error ? (
-        <Text style={font('extrabold', 13, { color: palette.red500, marginTop: 8 })}>
-          {error}
+        <View
+          style={[
+            styles.usernameField,
+            { borderColor, minHeight: reservedControlHeight(60, fontScale) },
+          ]}
+        >
+          <Text style={font('extrabold', 18, { color: palette.grey450 })} {...scaleForRole('control')}>
+            @
+          </Text>
+          <TextInput
+            value={value}
+            onChangeText={onChange}
+            placeholder="username"
+            placeholderTextColor={palette.grey450}
+            autoCapitalize="none"
+            autoCorrect={false}
+            maxLength={20}
+            returnKeyType="done"
+            onSubmitEditing={() => {
+              if (valid) onNext();
+            }}
+            accessibilityLabel="Username"
+            style={styles.usernameInput}
+          />
+          {valid ? <Text style={{ color: palette.green600, fontSize: 18 }}>✓</Text> : null}
+        </View>
+
+        <Text style={[text.captionMd, { marginTop: 12 }]}>
+          3–20 characters. Letters, numbers, and underscores only.
         </Text>
-      ) : null}
+        {error ? (
+          <Text style={font('extrabold', 13, { color: palette.red500, marginTop: 8 })}>
+            {error}
+          </Text>
+        ) : null}
 
-      {/* Under the field, not pinned to the bottom of the screen. This window
-          does not resize for the keyboard (edge-to-edge), so a bottom-pinned
-          button sat behind it and the only way on was the keyboard's own enter
-          key. Here it is always above the keyboard, as in a standard sign-up
-          form. */}
-      <View style={{ marginTop: 28 }}>
-        <PrimaryButton label="Continue" onPress={onNext} disabled={!isValidUsername(value)} />
-      </View>
+        <View style={{ marginTop: 28 }}>
+          <PrimaryButton label="Continue" onPress={onNext} disabled={!valid} />
+        </View>
 
-      {/* Sign-in lives fifteen steps later, which is the wrong order for anyone
-          who already has an account: they invent a second handle, and the app
-          only discovers the real one long after. Offering it here lets a
-          returning athlete restore first and skip the invention entirely. */}
-      <PressableScale
-        onPress={onSignIn}
-        accessibilityRole="button"
-        accessibilityLabel="Already have an account? Sign in"
-      >
-        <Text style={styles.haveAccountLink}>
-          Already have an account? <Text style={styles.haveAccountStrong}>Sign in</Text>
-        </Text>
-      </PressableScale>
+        {/* Sign-in lives fifteen steps later, which is the wrong order for anyone
+            who already has an account: they invent a second handle, and the app
+            only discovers the real one long after. Offering it here lets a
+            returning athlete restore first and skip the invention entirely. */}
+        <PressableScale
+          onPress={onSignIn}
+          accessibilityRole="button"
+          accessibilityLabel="Already have an account? Sign in"
+        >
+          <Text style={styles.haveAccountLink}>
+            Already have an account? <Text style={styles.haveAccountStrong}>Sign in</Text>
+          </Text>
+        </PressableScale>
+      </StepScroll>
     </View>
   );
 }
@@ -1503,19 +1509,21 @@ function Photo({
           </View>
         </InsetGroup>
       </Animated.View>
-      </StepScroll>
 
-      <PrimaryButton label={avatarUri ? 'Looks good' : 'Choose a photo'} onPress={avatarUri ? onNext : onPick} />
-      <Pressable
-        onPress={onNext}
-        accessibilityRole="button"
-        accessibilityLabel="Skip for now"
-        style={styles.skip}
-      >
-        <Text style={font('extrabold', 14, { color: palette.grey600 })}>
-          {avatarUri ? 'Not now' : 'Skip for now'}
-        </Text>
-      </Pressable>
+      <View style={{ marginTop: 20 }}>
+        <PrimaryButton label={avatarUri ? 'Looks good' : 'Choose a photo'} onPress={avatarUri ? onNext : onPick} />
+        <Pressable
+          onPress={onNext}
+          accessibilityRole="button"
+          accessibilityLabel="Skip for now"
+          style={styles.skip}
+        >
+          <Text style={font('extrabold', 14, { color: palette.grey600 })}>
+            {avatarUri ? 'Not now' : 'Skip for now'}
+          </Text>
+        </Pressable>
+      </View>
+      </StepScroll>
     </View>
   );
 }

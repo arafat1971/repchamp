@@ -1,18 +1,16 @@
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import Animated, { useAnimatedProps, useDerivedValue, withTiming } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
 
 import { font } from '@/theme/typography';
 import { palette } from '@/theme/tokens';
 
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
-
 /**
  * Circular progress ring used by calibration, the build-profile step and the
  * form-report score.
  *
- * The sweep is animated through `strokeDashoffset` on the UI thread, so it stays
- * smooth even while the pose model is saturating the JS thread mid-session.
+ * Drives strokeDashoffset through requestAnimationFrame on standard Circle to avoid
+ * the Reanimated Fabric JNI synchronouslyUpdateUIProps ANR loop on Android.
  */
 export function ProgressRing({
   percent,
@@ -32,14 +30,36 @@ export function ProgressRing({
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
 
-  const progress = useDerivedValue(
-    () => withTiming(Math.max(0, Math.min(100, percent)) / 100, { duration: 160 }),
-    [percent],
-  );
+  const target = Math.max(0, Math.min(100, percent)) / 100;
+  const [currentProgress, setCurrentProgress] = useState(target);
+  const progressRef = useRef(currentProgress);
+  progressRef.current = currentProgress;
 
-  const animatedProps = useAnimatedProps(() => ({
-    strokeDashoffset: circumference * (1 - progress.value),
-  }));
+  useEffect(() => {
+    const startVal = progressRef.current;
+    const endVal = target;
+    const startTime = Date.now();
+    const duration = 160;
+    let animId: number;
+
+    const frame = () => {
+      const now = Date.now();
+      const elapsed = now - startTime;
+      const progressRatio = Math.min(1, elapsed / duration);
+      // easeOutQuad
+      const eased = 1 - (1 - progressRatio) * (1 - progressRatio);
+      const nextVal = startVal + (endVal - startVal) * eased;
+      setCurrentProgress(nextVal);
+      if (progressRatio < 1) {
+        animId = requestAnimationFrame(frame);
+      }
+    };
+
+    animId = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(animId);
+  }, [target]);
+
+  const dashoffset = circumference * (1 - currentProgress);
 
   return (
     <View style={{ width: size, height: size }}>
@@ -53,7 +73,7 @@ export function ProgressRing({
           stroke={trackColor}
           strokeWidth={strokeWidth}
         />
-        <AnimatedCircle
+        <Circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
@@ -62,7 +82,7 @@ export function ProgressRing({
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={circumference}
-          animatedProps={animatedProps}
+          strokeDashoffset={dashoffset}
         />
       </Svg>
       <View style={StyleSheet.absoluteFill}>

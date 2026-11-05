@@ -266,6 +266,568 @@
   font-weight: 500;
 }
 
+/* ── Hydration & Widget Section ── */
+.hydration-section {
+  padding: 100px 0;
+  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+  border-top: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.hydration-section__header {
+  text-align: center;
+  margin-bottom: 56px;
+}
+
+.hydration-section__header .section-subtitle {
+  margin: 0 auto;
+}
+
+.hydration-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 40px;
+  align-items: center;
+  margin-bottom: 64px;
+}
+
+/* Interactive Widget Simulator Card */
+.widget-sim-card {
+  background: #0f172a;
+  color: #ffffff;
+  border-radius: var(--radius-xl);
+  padding: 36px 32px;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  position: relative;
+  overflow: hidden;
+}
+
+.widget-sim-card::before {
+  content: '';
+  position: absolute;
+  top: -100px;
+  right: -100px;
+  width: 260px;
+  height: 260px;
+  background: radial-gradient(circle, rgba(107, 199, 0, 0.25) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.widget-sim-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.widget-sim-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: rgba(107, 199, 0, 0.15);
+  border: 1px solid rgba(107, 199, 0, 0.35);
+  color: #a3e635;
+  border-radius: var(--radius-full);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.widget-style-tabs {
+  display: flex;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 4px;
+  border-radius: var(--radius-full);
+}
+
+.widget-style-tab {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.widget-style-tab.active {
+  background: var(--color-green);
+  color: #0f172a;
+}
+
+/* Home Screen Widget Stage */
+.widget-display-stage {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  backdrop-filter: blur(16px);
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.widget-pet-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.widget-panda-avatar {
+  width: 96px;
+  height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3.5rem;
+  background: radial-gradient(circle, rgba(107, 199, 0, 0.2) 0%, transparent 70%);
+  position: relative;
+  animation: floatPet 3s ease-in-out infinite;
+}
+
+@keyframes floatPet {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.widget-droplet-badge {
+  position: absolute;
+  bottom: 4px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  background: #ffffff;
+  color: #0284c7;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.35);
+  animation: pulseDroplet 2s ease-in-out infinite;
+}
+
+@keyframes pulseDroplet {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+}
+
+.widget-pet-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin-top: 6px;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.widget-pet-title span {
+  color: var(--color-green);
+}
+
+.widget-mood-caption {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  margin-top: 4px;
+  font-weight: 500;
+  min-height: 20px;
+}
+
+/* Progress bar inside simulator */
+.widget-progress-wrap {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.widget-progress-stats {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+
+.widget-current-val {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.widget-progress-track {
+  width: 100%;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  position: relative;
+}
+
+.widget-progress-fill {
+  height: 100%;
+  width: 20%;
+  background: linear-gradient(90deg, #38bdf8 0%, var(--color-green) 100%);
+  border-radius: var(--radius-full);
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 0 12px rgba(107, 199, 0, 0.5);
+}
+
+/* Activity rings row in widget */
+.widget-rings-row {
+  display: flex;
+  justify-content: space-around;
+  width: 100%;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.widget-ring-metric {
+  text-align: center;
+}
+
+.widget-ring-metric .val {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+
+.widget-ring-metric .lbl {
+  font-size: 0.72rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 2px;
+}
+
+/* Simulator Quick Action Buttons */
+.widget-actions-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.widget-action-btns {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-drink {
+  flex: 1;
+  min-width: 90px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-md);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.btn-drink small {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.btn-drink:hover {
+  background: rgba(107, 199, 0, 0.18);
+  border-color: var(--color-green);
+  color: var(--color-green);
+  transform: translateY(-2px);
+}
+
+.btn-drink:active {
+  transform: scale(0.96);
+}
+
+.btn-reset-water {
+  padding: 12px 16px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #f87171;
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.btn-reset-water:hover {
+  background: rgba(239, 68, 68, 0.22);
+}
+
+/* Phone Mockup Frame */
+.widget-phone-showcase {
+  display: flex;
+  justify-content: center;
+  position: relative;
+}
+
+.phone-device-frame {
+  max-width: 310px;
+  width: 100%;
+  background: #000000;
+  border-radius: 44px;
+  padding: 10px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.22), 0 0 0 4px #1e293b, 0 0 0 6px rgba(0, 0, 0, 0.1);
+  position: relative;
+  transition: transform var(--transition);
+}
+
+.phone-device-frame:hover {
+  transform: translateY(-4px);
+}
+
+.phone-screen-img {
+  width: 100%;
+  height: auto;
+  border-radius: 36px;
+  display: block;
+  object-fit: cover;
+}
+
+.phone-badge-floating {
+  position: absolute;
+  bottom: 24px;
+  right: -16px;
+  background: var(--color-white);
+  color: var(--color-text);
+  padding: 10px 18px;
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  border: 1px solid var(--color-border);
+}
+
+.phone-badge-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--color-green);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--color-green);
+}
+
+/* Benefits Grid */
+.benefits-section-title {
+  text-align: center;
+  margin-bottom: 36px;
+}
+
+.hydration-benefits-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+  margin-bottom: 64px;
+}
+
+.benefit-card {
+  background: var(--color-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 28px 24px;
+  transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+}
+
+.benefit-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+  border-color: rgba(107, 199, 0, 0.4);
+}
+
+.benefit-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  background: var(--color-green-light);
+  color: var(--color-green-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  margin-bottom: 16px;
+}
+
+.benefit-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  margin-bottom: 8px;
+  color: var(--color-text);
+}
+
+.benefit-desc {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  line-height: 1.55;
+}
+
+/* 3-Step Setup Guide */
+.widget-steps-card {
+  background: var(--color-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: 44px 40px;
+  box-shadow: var(--shadow-sm);
+}
+
+.widget-steps-title {
+  text-align: center;
+  font-size: 1.35rem;
+  font-weight: 800;
+  margin-bottom: 32px;
+}
+
+.widget-steps-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 28px;
+}
+
+.w-step-item {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.w-step-num {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--color-green-light);
+  color: var(--color-green-dark);
+  font-weight: 800;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.w-step-text h4 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: var(--color-text);
+}
+
+.w-step-text p {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+/* ── FAQ ── */
+.faq-section {
+  padding: 100px 0;
+  background: var(--color-white);
+  border-top: 1px solid var(--color-border);
+}
+
+.faq-section__header {
+  text-align: center;
+  margin-bottom: 56px;
+}
+
+.faq-section__header .section-subtitle {
+  margin: 0 auto;
+}
+
+.faq-list {
+  max-width: 820px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.faq-item {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.faq-item:hover {
+  border-color: rgba(107, 199, 0, 0.5);
+  box-shadow: var(--shadow-sm);
+}
+
+.faq-item.active {
+  border-color: var(--color-green);
+  box-shadow: 0 4px 16px var(--color-green-glow);
+}
+
+.faq-question {
+  width: 100%;
+  padding: 22px 24px;
+  background: none;
+  border: none;
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  cursor: pointer;
+}
+
+.faq-icon {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  transition: transform var(--transition), color var(--transition);
+  flex-shrink: 0;
+}
+
+.faq-item.active .faq-icon {
+  transform: rotate(180deg);
+  color: var(--color-green-dark);
+}
+
+.faq-answer {
+  padding: 0 24px 22px;
+  display: none;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+  line-height: 1.65;
+  border-top: 1px solid rgba(0, 0, 0, 0.04);
+  padding-top: 16px;
+}
+
+.faq-item.active .faq-answer {
+  display: block;
+}
+
 /* ── CTA ── */
 .cta {
   padding: 40px 0 100px;
@@ -313,6 +875,10 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
 }
 
+.cta__badges {
+  justify-content: center;
+}
+
 /* ── Responsive ── */
 @media (max-width: 1024px) {
   .hero__grid {
@@ -343,6 +909,19 @@
     max-width: 460px;
     margin: 0 auto;
   }
+
+  .hydration-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hydration-benefits-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .widget-steps-row {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
 }
 
 @media (max-width: 768px) {
@@ -361,6 +940,18 @@
 
   .features__grid {
     grid-template-columns: 1fr;
+  }
+
+  .hydration-benefits-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .widget-sim-card {
+    padding: 24px 18px;
+  }
+
+  .widget-steps-card {
+    padding: 28px 20px;
   }
 
   .cta__card {

@@ -1,0 +1,13 @@
+# Robots.txt for RepChamp (https://repchamp.web.app)
+User-agent: *
+Allow: /
+Allow: /support
+Allow: /privacy
+Allow: /terms
+
+# Disallow private user/match invitation paths
+Disallow: /duel/join
+Disallow: /couple/join
+
+# Sitemap
+Sitemap: https://repchamp.web.app/sitemap.xml

@@ -20,10 +20,10 @@ describe('reminderTapIsWalled', () => {
     expect(reminderTapIsWalled({ proReady: true, isPro: false, bonusActive: true, ...past })).toBe(false);
   });
 
-  // The allowance is 0, so a free athlete with no reps is walled too.
-  it('walls a free athlete who has not banked a single rep', () => {
+  // Under FREE_REP_LIMIT = 50, a free athlete with 0 reps has free allowance left.
+  it('does not wall a free athlete who has not used their free reps', () => {
     expect(
       reminderTapIsWalled({ proReady: true, isPro: false, bonusActive: false, repsSoFar: 0, billingReady: true }),
-    ).toBe(true);
+    ).toBe(false);
   });
 });

@@ -1,3 +1,4 @@
+import { FREE_REP_LIMIT } from '@/domain/hardPaywall';
 import { buildDailyReminder } from '@/domain/reminderCopy';
 import { pitchDate, shouldPitchUpgrade, upgradePitchSequence } from '@/domain/upgradeReminder';
 
@@ -6,7 +7,7 @@ const walled = {
   isPro: false,
   bonusActive: false,
   paired: false,
-  repsSoFar: 0,
+  repsSoFar: FREE_REP_LIMIT,
   billingReady: true,
   remindersEnabled: true,
 };

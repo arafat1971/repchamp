@@ -196,12 +196,14 @@ export function StylesStep({
             );
           })}
         </View>
+        <View style={{ marginTop: 24 }}>
+          <PrimaryButton
+            label={selected.length === 0 ? 'Pick at least one' : 'Continue'}
+            onPress={() => onNext([...selected])}
+            disabled={selected.length === 0}
+          />
+        </View>
       </StepScroll>
-      <PrimaryButton
-        label={selected.length === 0 ? 'Pick at least one' : 'Continue'}
-        onPress={() => onNext([...selected])}
-        disabled={selected.length === 0}
-      />
     </View>
   );
 }
@@ -526,9 +528,11 @@ export function PriceWhyStep({
             🔥 Miss a week and your league resets to Bronze. Pro is how you keep the streak.
           </Text>
         </Animated.View>
+        <View style={{ marginTop: 20 }}>
+          <PrimaryButton label="See plans" onPress={onNext} />
+          <Text style={styles.fine}>Cancel anytime in Google Play settings.</Text>
+        </View>
       </StepScroll>
-      <PrimaryButton label="See plans" onPress={onNext} />
-      <Text style={styles.fine}>Cancel anytime in Google Play settings.</Text>
     </View>
   );
 }

@@ -5,7 +5,6 @@ import Animated, {
   FadeInDown,
   FadeInUp,
   ZoomIn,
-  useAnimatedProps,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -20,8 +19,6 @@ import { lightImpactHaptic, selectionHaptic } from '@/lib/feedback';
 import { reservedControlHeight } from '@/theme/fontScale';
 import { font, scaleForRole } from '@/theme/typography';
 import { palette } from '@/theme/tokens';
-
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 /**
  * The onboarding "iOS kit".
@@ -521,6 +518,7 @@ export function PopChip({
 }
 
 /** A ring that springs to `progress` (0–1) whenever it changes. */
+// ProgressDial without AnimatedCircle to avoid Fabric synchronouslyUpdateUIProps ANR loop
 export function ProgressDial({
   size,
   stroke,
@@ -536,16 +534,43 @@ export function ProgressDial({
 }) {
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
-  const p = useSharedValue(0);
+  const target = Math.max(0, Math.min(1, progress));
+  const [currentVal, setCurrentVal] = useState(0);
+  const currentValRef = useRef(currentVal);
+  currentValRef.current = currentVal;
+
   useEffect(() => {
-    p.value = withTiming(progress, { duration: 420 });
-  }, [progress, p]);
-  const props = useAnimatedProps(() => ({ strokeDashoffset: c * (1 - p.value) }));
+    const startVal = currentValRef.current;
+    const endVal = target;
+    const startTime = Date.now();
+    const duration = 420;
+    let animId: number;
+
+    const frame = () => {
+      const now = Date.now();
+      const elapsed = now - startTime;
+      const progressRatio = Math.min(1, elapsed / duration);
+      // easeOutCubic
+      const t = 1 - progressRatio;
+      const eased = 1 - t * t * t;
+      const nextVal = startVal + (endVal - startVal) * eased;
+      setCurrentVal(nextVal);
+      if (progressRatio < 1) {
+        animId = requestAnimationFrame(frame);
+      }
+    };
+
+    animId = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(animId);
+  }, [target]);
+
+  const dashoffset = c * (1 - currentVal);
+
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
       <Svg width={size} height={size}>
         <Circle cx={size / 2} cy={size / 2} r={r} stroke="rgba(15,31,23,0.07)" strokeWidth={stroke} fill="none" />
-        <AnimatedCircle
+        <Circle
           cx={size / 2}
           cy={size / 2}
           r={r}
@@ -553,7 +578,7 @@ export function ProgressDial({
           strokeWidth={stroke}
           strokeLinecap="round"
           strokeDasharray={`${c} ${c}`}
-          animatedProps={props}
+          strokeDashoffset={dashoffset}
           fill="none"
           rotation={-90}
           origin={`${size / 2}, ${size / 2}`}

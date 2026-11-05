@@ -27,8 +27,7 @@ import { StepsCard } from '@/components/home/StepsCard';
 import { DEFAULT_STEP_GOAL } from '@/domain/steps';
 import { buildStepsWidgetSnapshot } from '@/domain/stepsWidget';
 import { useStepsStore } from '@/state/stepsStore';
-import { TodayBento } from '@/components/home/TodayBento';
-import { WeekDateStrip } from '@/components/home/WeekDateStrip';
+import { TodayPanel } from '@/components/home/TodayPanel';
 import { LiveTogetherBar } from '@/components/home/LiveTogetherBar';
 import { sendPoke } from '@/services/ritualSync';
 import { CountUp, PopOnChange, StaggerIn } from '@/components/motion';
@@ -835,6 +834,18 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.headerActions}>
+          {/* Your day as a swipeable feed — a header action, not a row. */}
+          <PressableScale
+            onPress={() => {
+              track('feed_opened');
+              router.push('/modal/feed');
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Open your day, in stories"
+            style={styles.iconButton}
+          >
+            <PlayIcon size={15} color={palette.ink} />
+          </PressableScale>
           <BellButton
             pendingDuels={pendingDuels}
             onPress={() => router.push('/modal/notifications')}
@@ -850,14 +861,6 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* The week as a streak chain. */}
-      <WeekDateStrip
-        week={week}
-        daysTrained={daysTrained}
-        goal={goal}
-        todayPercent={daily.percent}
-        onPress={() => router.push('/modal/recap')}
-      />
       <View style={styles.afterWeek} />
 
       {morning && morning.show && partnerGlass ? (
@@ -891,44 +894,28 @@ export default function HomeScreen() {
         />
       </StaggerIn>
 
-      {/* The day's three loops beside the streak and league, as one bento. */}
+      {/* Today and this week as one panel: rings beside their bars, the one
+          next step, the week chain with the streak, and the league. It
+          replaces the week strip, the rings tile and the streak and league
+          tiles — four cards telling one story. */}
       <StaggerIn index={1}>
-        <TodayBento
+        <TodayPanel
           challenge={{ ...daily, label: getExercise(daily.exercise).label.replace(/s$/, '') }}
           water={water}
           steps={stepsToday}
           streak={streak}
+          week={week}
           daysTrained={daysTrained}
           goal={goal}
           league={leagueProgress}
           onChallenge={() => router.push('/modal/daily')}
-          onSteps={openStepSettings}
-          onStreak={() => router.push('/modal/recap')}
+          onWater={() => router.push({ pathname: '/drink', params: { ml: '250' } })}
+          onSteps={() => router.push('/steps')}
+          onFixSteps={openStepSettings}
+          onWeek={() => router.push('/modal/recap')}
           onLeague={() => router.push('/modal/leaderboard')}
         />
       </StaggerIn>
-
-      {/* Your day as a swipeable, full-screen feed — see `app/modal/feed.tsx`. */}
-      <PressableScale
-        onPress={() => {
-          track('feed_opened');
-          router.push('/modal/feed');
-        }}
-        accessibilityRole="button"
-        accessibilityLabel="Open your day feed"
-        style={styles.feedEntry}
-      >
-        <View style={styles.feedIcon}>
-          <PlayIcon size={15} color={palette.white} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={font('bold', 15, { color: palette.ink })}>Your day, in stories</Text>
-          <Text style={font('medium', 12, { color: palette.grey700, marginTop: 1 })} numberOfLines={1}>
-            Swipe through today, card by card
-          </Text>
-        </View>
-        <ArrowIcon size={15} color={palette.grey500} strokeWidth={2.2} />
-      </PressableScale>
 
       {/* Right under Today: the partner is the strongest reason to open the
           app, so the duo comes before the solo tiles. */}

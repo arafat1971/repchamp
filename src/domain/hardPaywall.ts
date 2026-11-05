@@ -25,30 +25,14 @@
 /**
  * Free reps a non-Pro athlete may do, lifetime, before the wall.
  *
- * **0 as of 2026-10-07 — a true hard paywall, owner decision.** The first solo
- * set is already behind the wall; there is no free trial either. Done on the
- * strength of the 2026 RevenueCat benchmark (hard paywalls ~10.7% download-to-
- * paid vs ~2.1% freemium, near-identical 1-year retention), accepting that an
- * athlete now meets the pitch before seeing a form report or a streak. Couple
- * mode, Pro and no-billing builds stay exempt, so the invite loop is intact and
- * nobody is locked out of a build that cannot sell anything. The wall is still
- * dismissible to Home (see the session redirect) — never an inescapable loop,
- * which is the shape Play rejected. Raising this number is the retreat; the
- * history below explains the earlier 5 and 50.
- *
- * Raised from 5 to 50 on 2026-09-13. At 5 the wall landed on the *second*
- * session: onboarding's last tap drops the athlete straight into a practice set
- * (`app/onboarding.tsx`), and five reps is about twenty seconds of push-ups, so
- * they met the pitch having never finished a routine, seen a form report or
- * started a streak. That is a paywall placed before the core value, which is
- * the same reasoning that removed the wall entirely on 2026-08-06.
- *
- * 50 buys several complete sessions first. The wall still exists — this tunes
- * where it falls, it does not retreat from it. Everything downstream (the
- * countdown, the warning, the tests) reads this constant, so moving the number
- * is the whole change.
+ * 50 reps allowance (restored 2026-11-05).
+ * At 0 reps (true hard paywall without trial), users bounce before experiencing
+ * the core AI rep tracking and form validation value proposition (~0% conversion).
+ * 50 reps provides 2-3 complete workout sessions, builds initial streak momentum,
+ * proves the camera vision works on their specific device, and triggers the paywall
+ * when athlete intent and engagement are at their highest.
  */
-export const FREE_REP_LIMIT = 0;
+export const FREE_REP_LIMIT = 50;
 
 /**
  * Master switch — **on** as of 2026-09-20.

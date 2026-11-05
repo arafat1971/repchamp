@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#8AC53E">
   <title>Open RepChamp — Duel invite</title>
   <meta name="description" content="You've been challenged to a duel on RepChamp. Open the app to race.">
+  <meta name="robots" content="noindex, nofollow">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="icon" type="image/png" href="/assets/logo_nobg.png">
@@ -45,7 +46,8 @@
     <p>Someone wants to race you on RepChamp — open the app to take the duel.</p>
     <div class="code" id="codeDisplay">······</div>
     <a class="btn primary" id="openApp" href="#">Open in RepChamp</a>
-    <a class="btn secondary" href="https://play.google.com/store/apps/details?id=gg.repchamp.app">Get the app on Google Play</a>
+    <a class="btn secondary" href="https://play.google.com/store/apps/details?id=gg.repchamp.app&pcampaignid=web_share" target="_blank" rel="noopener noreferrer">Download on the App Store</a>
+    <a class="btn secondary" href="https://play.google.com/store/apps/details?id=gg.repchamp.app&pcampaignid=web_share" target="_blank" rel="noopener noreferrer">Get the app on Google Play</a>
     <p class="hint">If the app is installed, Open should jump straight into the duel.</p>
   </main>
   <script>
@@ -67,8 +69,7 @@
         setTimeout(function () { window.location.href = deep; }, 400);
       } else {
         el.textContent = 'Invalid link';
-        // Nothing to open: send them to the store rather than a dead scheme.
-        open.href = 'https://play.google.com/store/apps/details?id=gg.repchamp.app';
+        open.href = 'https://play.google.com/store/apps/details?id=gg.repchamp.app&pcampaignid=web_share';
         open.textContent = 'Get RepChamp';
       }
     })();

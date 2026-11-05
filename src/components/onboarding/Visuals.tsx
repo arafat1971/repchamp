@@ -1,11 +1,10 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
   FadeIn,
-  useAnimatedProps,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -22,8 +21,6 @@ import { font, scaleForRole } from '@/theme/typography';
 import { palette, radius, surfaceShadow } from '@/theme/tokens';
 
 import { PopChip, PulseRing } from './ios';
-
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 const IC_PUSHUP = require('../../../assets/ic-pushup.png');
 const HERO_COUPLE = require('../../../assets/couple-hero.png');
@@ -45,21 +42,43 @@ const GOAL_REPS = 12;
  */
 export function RepCounterVisual() {
   const [reps, setReps] = useState(0);
-  const progress = useSharedValue(0);
 
   useEffect(() => {
     const id = setInterval(() => setReps((r) => (r >= GOAL_REPS ? 0 : r + 1)), 720);
     return () => clearInterval(id);
   }, []);
 
-  useEffect(() => {
-    progress.value = withTiming(reps / GOAL_REPS, {
-      duration: reps === 0 ? 260 : 560,
-      easing: Easing.out(Easing.cubic),
-    });
-  }, [reps, progress]);
+  const target = reps / GOAL_REPS;
+  const [currentProgress, setCurrentProgress] = useState(0);
+  const currentProgressRef = useRef(currentProgress);
+  currentProgressRef.current = currentProgress;
 
-  const ringProps = useAnimatedProps(() => ({ strokeDashoffset: RING_C * (1 - progress.value) }));
+  useEffect(() => {
+    const startVal = currentProgressRef.current;
+    const endVal = target;
+    const startTime = Date.now();
+    const duration = reps === 0 ? 260 : 560;
+    let animId: number;
+
+    const frame = () => {
+      const now = Date.now();
+      const elapsed = now - startTime;
+      const progressRatio = Math.min(1, elapsed / duration);
+      // easeOutCubic
+      const t = 1 - progressRatio;
+      const eased = 1 - t * t * t;
+      const nextVal = startVal + (endVal - startVal) * eased;
+      setCurrentProgress(nextVal);
+      if (progressRatio < 1) {
+        animId = requestAnimationFrame(frame);
+      }
+    };
+
+    animId = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(animId);
+  }, [reps, target]);
+
+  const dashoffset = RING_C * (1 - currentProgress);
   const full = reps === GOAL_REPS;
 
   return (
@@ -67,7 +86,7 @@ export function RepCounterVisual() {
       <View style={v.ringBox}>
         <Svg width={RING} height={RING}>
           <Circle cx={RING / 2} cy={RING / 2} r={RING_R} stroke="rgba(15,31,23,0.07)" strokeWidth={RING_STROKE} fill="none" />
-          <AnimatedCircle
+          <Circle
             cx={RING / 2}
             cy={RING / 2}
             r={RING_R}
@@ -75,7 +94,7 @@ export function RepCounterVisual() {
             strokeWidth={RING_STROKE}
             strokeLinecap="round"
             strokeDasharray={`${RING_C} ${RING_C}`}
-            animatedProps={ringProps}
+            strokeDashoffset={dashoffset}
             fill="none"
             rotation={-90}
             origin={`${RING / 2}, ${RING / 2}`}
@@ -321,9 +340,9 @@ const VAULT_ITEMS = [
 ] as const;
 
 /** A glowing "saved" badge with the things it protects orbiting it. */
-export function VaultVisual() {
+export function VaultVisual({ compact = false }: { compact?: boolean }) {
   return (
-    <View style={v.vaultBox}>
+    <View style={[v.vaultBox, compact && { width: 250, height: 180, transform: [{ scale: 0.82 }] }]}>
       <View style={v.vaultCenter}>
         <PulseRing size={104} color={palette.green500}>
           <LinearGradient colors={[palette.green400, palette.green700]} style={v.vaultBadge}>

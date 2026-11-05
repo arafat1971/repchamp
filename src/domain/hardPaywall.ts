@@ -80,7 +80,7 @@ export const WALL_COPY =
   FREE_REP_LIMIT > 0
     ? {
         pill: 'Free reps used',
-        heroBody: 'Your free reps are used up.',
+        heroBody: 'Your 50 free reps are banked. Keep training with 7 days free.',
         a11y: 'free reps used, see Pro',
       }
     : {

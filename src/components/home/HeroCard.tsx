@@ -177,7 +177,7 @@ export function HeroCard({
   locked?: boolean;
 }) {
   const base = contentFor(focus);
-  const c = locked ? { ...base, body: WALL_COPY.heroBody, cta: 'See Pro' } : base;
+  const c = locked ? { ...base, body: WALL_COPY.heroBody, cta: 'Start 7-Day Free Trial' } : base;
   const showProgress = !c.image && focus.kind === 'daily-challenge' && !!progress;
   const pct = showProgress && progress ? Math.min(1, progress.value / Math.max(1, progress.target)) : 0;
   return (

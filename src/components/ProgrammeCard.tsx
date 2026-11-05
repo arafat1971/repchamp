@@ -65,7 +65,7 @@ export function ProgrammeCard() {
           />
           <Text style={styles.body}>{PUSHUP_LADDER.description}</Text>
           <Ladder programme={PUSHUP_LADDER} completed={0} showCurrent={false} />
-          <Cta label={gated ? 'Unlock with Pro' : 'Start challenge'} muted={gated} />
+          <Cta label={gated ? 'Start 7-Day Free Trial' : 'Start challenge'} muted={gated} />
         </HomeCard>
       </PressableScale>
     );

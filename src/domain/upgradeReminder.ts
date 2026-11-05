@@ -79,7 +79,7 @@ export function upgradePitchSequence(): readonly UpgradePitchStep[] {
       id: '1d',
       copy: {
         title: 'Your AI coach is ready',
-        body: 'Pro counts every rep with the camera and scores your form on each set.',
+        body: 'Start your 7-day free trial to count every rep with the camera and score your form.',
       },
     },
     {

@@ -50,6 +50,7 @@ export function blockedBenefit(source: string | null | undefined): BenefitId | n
     case 'moment-first-win':
       return 'library';
     case 'programme':
+    case 'programme-day-2':
     case 'moment-streak':
       return 'programmes';
     case 'form-report':

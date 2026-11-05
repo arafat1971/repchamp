@@ -11,6 +11,7 @@ describe('paywallLead', () => {
   });
   it('answers a refusal with what was refused', () => {
     expect(paywallLead('programme', wall).title).toMatch(/plan/);
+    expect(paywallLead('programme-day-2', wall).title).toMatch(/Day 1 banked/);
     expect(paywallLead('form-report', wall).title).toMatch(/move/);
     expect(paywallLead('exercise-library', wall).title).toMatch(/exercise/);
   });

@@ -40,15 +40,18 @@ export function ProgrammeCard() {
      on top of it, matching the session screen: on a build with no billing
      configured, locking this would be a dead end with nothing to buy. */
   const gated = !canUse(isPro, 'custom-programmes') && isPurchasesConfigured();
+
+  // Try Day 1 Free: anyone can start the programme and complete Day 1 without hitting the paywall.
   const enroll = (programmeId: string) => {
-    if (gated) {
-      router.push({ pathname: '/modal/paywall', params: { source: 'programme' } });
-      return;
-    }
     startProgramme(programmeId);
+    const firstDay = PUSHUP_LADDER.days[0] ?? PUSHUP_LADDER.days[0]!;
+    router.push({
+      pathname: '/session',
+      params: { exercise: firstDay.exercise, mode: 'solo', target: String(firstDay.target) },
+    });
   };
 
-  // ---- Not enrolled: offer the flagship ladder ----
+  // ---- Not enrolled: offer the flagship ladder with Day 1 free trial preview ----
   if (!state) {
     return (
       <PressableScale
@@ -59,13 +62,12 @@ export function ProgrammeCard() {
         <HomeCard style={styles.card}>
           <Header
             icon={IC_PUSHUP}
-            eyebrow={`NEW · ${PUSHUP_LADDER.weeks}-WEEK PROGRAMME`}
+            eyebrow={`NEW · ${PUSHUP_LADDER.weeks}-WEEK PROGRAMME · DAY 1 FREE`}
             title={PUSHUP_LADDER.title}
-            pro={gated}
           />
           <Text style={styles.body}>{PUSHUP_LADDER.description}</Text>
           <Ladder programme={PUSHUP_LADDER} completed={0} showCurrent={false} />
-          <Cta label={gated ? 'Start 7-Day Free Trial' : 'Start challenge'} muted={gated} />
+          <Cta label="Try Day 1 Free" />
         </HomeCard>
       </PressableScale>
     );
@@ -100,7 +102,14 @@ export function ProgrammeCard() {
   const day = state.currentDay;
   const def = getExercise(day.exercise);
 
+  // Day 1 was the free trial preview. Day 2+ requires Pro / 7-Day Free Trial.
+  const dayGated = gated && day.index > 1;
+
   const onStart = () => {
+    if (dayGated) {
+      router.push({ pathname: '/modal/paywall', params: { source: 'programme-day-2' } });
+      return;
+    }
     if (day.rest) {
       completeProgrammeRestDay();
       return;
@@ -116,17 +125,20 @@ export function ProgrammeCard() {
       onPress={onStart}
       accessibilityRole="button"
       accessibilityLabel={
-        day.rest
-          ? 'Mark rest day complete'
-          : `Programme day ${day.index}: ${day.target} ${def.label}`
+        dayGated
+          ? `Unlock programme day ${day.index} with 7-Day Free Trial`
+          : day.rest
+            ? 'Mark rest day complete'
+            : `Programme day ${day.index}: ${day.target} ${def.label}`
       }
     >
       <HomeCard style={styles.card}>
         <Header
           icon={IC_PUSHUP}
-          eyebrow={`WEEK ${day.week} · DAY ${day.dayOfWeek}`}
+          eyebrow={`WEEK ${day.week} · DAY ${day.dayOfWeek}${day.index === 1 ? ' · FREE PREVIEW' : ''}`}
           title={state.programme.title}
           count={`${state.completedDays}/${state.totalDays}`}
+          pro={dayGated}
         />
 
         {day.rest ? (
@@ -149,7 +161,16 @@ export function ProgrammeCard() {
         )}
 
         <Ladder programme={state.programme} completed={state.completedDays} showCurrent />
-        <Cta label={day.rest ? 'Mark rest complete' : `Start day ${day.index}`} />
+        <Cta
+          label={
+            dayGated
+              ? `Start 7-Day Free Trial to unlock Day ${day.index}`
+              : day.rest
+                ? 'Mark rest complete'
+                : `Start day ${day.index}`
+          }
+          muted={dayGated}
+        />
       </HomeCard>
     </PressableScale>
   );

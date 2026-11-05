@@ -42,6 +42,12 @@ export function paywallLead(
     case 'library':
       return { title: 'Every exercise, unlocked', sub: 'Go beyond push-ups and squats.' };
     case 'programmes':
+      if (source === 'programme-day-2') {
+        return {
+          title: 'Day 1 banked. Keep climbing.',
+          sub: 'Start your 7-day free trial ($0 due today) to continue Week 1 through 4.',
+        };
+      }
       return { title: 'A plan that adapts to you', sub: 'Multi-week programmes that scale as you do.' };
     case 'reports':
       return { title: 'See exactly how you move', sub: 'Depth, tempo and alignment after every set.' };

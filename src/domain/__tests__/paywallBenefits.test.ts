@@ -11,6 +11,7 @@ describe('orderBenefits', () => {
     ['exercise-library', 'library'],
     ['duel-exercise', 'library'],
     ['programme', 'programmes'],
+    ['programme-day-2', 'programmes'],
     ['form-report', 'reports'],
     ['form-report-teaser', 'reports'],
   ])('leads with what %s was blocked on', (source, expected) => {
